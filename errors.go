@@ -26,7 +26,7 @@ type (
 	//	        "type": "OAuthException",
 	//	        "code": 131030,
 	//	        "error_data": {
-	//	            "messaging_product": "whatsapp",
+	//	             "messaging_product": "whatsapp",
 	//	            "details": "Recipient phone number not in allowed list: Add recipient phone number to recipient list and try again."
 	//	        },
 	//	        "error_subcode": 2655007,

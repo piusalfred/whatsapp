@@ -20,6 +20,60 @@ const (
 
 type (
 
+	// Reaction is a WhatsApp reaction
+	Reaction struct {
+		MessageID string `json:"message_id"`
+		Emoji     string `json:"emoji"`
+	}
+
+	// ReactionMessage is a WhatsApp reaction message
+	// If the message you are reacting to is more than 30 days old, doesn't correspond to
+	// any message in the conversation, has been deleted, or is itself a reaction message,
+	// the reaction message will not be delivered and you will receive a webhook with the
+	// code 131009.
+	//'{
+	//   "messaging_product": "whatsapp",
+	//   "recipient_type": "individual",
+	//   "to": "PHONE_NUMBER",
+	//   "type": "reaction",
+	//   "reaction": {
+	//     "message_id": "wamid.HBgLM...",
+	//     "emoji": "\uD83D\uDE00"
+	//   }
+	// }'
+	ReactionMessage struct {
+		Product       string    `json:"messaging_product"`
+		RecipientType string    `json:"recipient_type"`
+		To            string    `json:"to"`
+		Type          string    `json:"type"`
+		Reaction      *Reaction `json:"reaction"`
+	}
+
+	// Text ...
+	Text struct {
+		PreviewUrl bool   `json:"preview_url,omitempty"`
+		Body       string `json:"body,omitempty"`
+	}
+
+	// TextMessage is a WhatsApp text message
+	// //{
+	// 	"messaging_product": "whatsapp",
+	// 	"recipient_type": "individual",
+	// 	"to": "PHONE_NUMBER",
+	// 	"type": "text",
+	// 	"text": { // the text object
+	// 	  "preview_url": false,
+	// 	  "body": "MESSAGE_CONTENT"
+	// 	  }
+	//   }'
+	TextMessage struct {
+		Product       string `json:"messaging_product"`
+		RecipientType string `json:"recipient_type"`
+		To            string `json:"to"`
+		Type          string `json:"type"`
+		Text          *Text  `json:"text"`
+	}
+
 	// MessageType represents the type of message currently supported.
 	// Which are Text messages,Reaction messages,Media messages,Location messages,Contact messages,
 	// and Interactive messages.
@@ -47,7 +101,18 @@ type (
 	}
 
 	// MessageResponse is a WhatsApp message response
-	// {"messaging_product":"whatsapp","contacts":[{"input":"255767001828","wa_id":"255767001828"}],"messages":[{"id":"wamid.HBgMMjU1NzY3MDAxODI4FQIAERgSRjVDRDE5NjhBOEEwQzQ0NUE1AA=="}]}%
+	// {
+	//		"messaging_product":"whatsapp",
+	//		"contacts":[
+	//				{
+	//					"input":"255767001828",
+	//					"wa_id":"255767001828",
+	//				},
+	//		],
+	//		"messages":[
+	//				{"id":"wamid.HBgMMjU1NzY3MDAxODI4FQIAERgSRjVDRDE5NjhBOEEwQzQ0NUE1AA=="},
+	//		],
+	//	}
 	MessageResponse struct {
 		MessagingProduct string `json:"messaging_product"`
 		Contacts         []struct {
@@ -61,7 +126,7 @@ type (
 )
 
 // MessageFn is a function that sends a WhatsApp message to a user
-func MessageFn(ctx context.Context, client *http.Client, url string, token string, message *Message) (*MessageResponse, error) {
+func MessageFunc(ctx context.Context, client *http.Client, url string, token string, message *Message) (*MessageResponse, error) {
 	var (
 		req  *http.Request
 		resp *http.Response

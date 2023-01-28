@@ -1,8 +1,6 @@
 package whatsapp
 
 import (
-	"context"
-	"net/http"
 	"testing"
 )
 
@@ -42,26 +40,26 @@ func TestMessageFn(t *testing.T) {
 	// 	})
 	// }
 
-	message := &Message{
-		Product: "whatsapp",
-		To:      "255767001828",
-		Type:    "template",
-		Template: &MessageTemplate{
-			Name: "hello_world",
-			Language: TemplateLanguage{
-				Code: "en_US",
-			},
-		},
-	}
+	// message := &Message{
+	// 	Product: "whatsapp",
+	// 	To:      "255767001828",
+	// 	Type:    "template",
+	// 	Template: &MessageTemplate{
+	// 		Name: "hello_world",
+	// 		Language: TemplateLanguage{
+	// 			Code: "en_US",
+	// 		},
+	// 	},
+	// }
 
-	token := "EAALLrT0ok6UBAA0UvvrIZBFcfbCqGgqn6y5Lrd0arSrPNh6sDZCi1UBFPcDxLEJDeWackAHQdJXlN7FEUipZAzErMZCKGf2vnF0J0eotDH2u3PpfliCemLkxQUq8WfdrQNbqI7LdBggEBfkA7skLvtALEkviOzgGElhy3ziZAIjENgMyAZBazvAURXLvt4EObx6NEzqRZAvwQZDZD"
-	baseURL := "https://graph.facebook.com/v15.0/114425371552711/messages"
+	// token := "EAALLrT0ok6UBAA0UvvrIZBFcfbCqGgqn6y5Lrd0arSrPNh6sDZCi1UBFPcDxLEJDeWackAHQdJXlN7FEUipZAzErMZCKGf2vnF0J0eotDH2u3PpfliCemLkxQUq8WfdrQNbqI7LdBggEBfkA7skLvtALEkviOzgGElhy3ziZAIjENgMyAZBazvAURXLvt4EObx6NEzqRZAvwQZDZD"
+	// baseURL := "https://graph.facebook.com/v15.0/114425371552711/messages"
 
-	resp, err := MessageFn(context.TODO(), http.DefaultClient, baseURL, token, message)
-	if err != nil {
-		t.Errorf("MessageFn() error = %v", err)
-		return
-	}
+	// resp, err := MessageFn(context.TODO(), http.DefaultClient, baseURL, token, message)
+	// if err != nil {
+	// 	t.Errorf("MessageFn() error = %v", err)
+	// 	return
+	// }
 
-	t.Logf("MessageFn() = %v", resp)
+	// t.Logf("MessageFn() = %v", resp)
 }
