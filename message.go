@@ -31,15 +31,19 @@ type (
 
 	// Message is a WhatsApp message
 	Message struct {
-		MessagingProduct string `json:"messaging_product"`
-		To               string `json:"to"`
-		Type             string `json:"type"`
-		Template         struct {
-			Name     string `json:"name"`
-			Language struct {
-				Code string `json:"code"`
-			} `json:"language"`
-		} `json:"template"`
+		Product  string           `json:"messaging_product"`
+		To       string           `json:"to"`
+		Type     string           `json:"type"`
+		Template *MessageTemplate `json:"template"`
+	}
+
+	TemplateLanguage struct {
+		Code string `json:"code"`
+	}
+
+	MessageTemplate struct {
+		Name     string           `json:"name"`
+		Language TemplateLanguage `json:"language"`
 	}
 
 	// MessageResponse is a WhatsApp message response
@@ -82,6 +86,10 @@ func MessageFn(ctx context.Context, client *http.Client, url string, token strin
 
 	defer resp.Body.Close()
 
+	if resp.Body == nil {
+		return nil, fmt.Errorf("empty response body")
+	}
+
 	bodybytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -97,7 +105,7 @@ func MessageFn(ctx context.Context, client *http.Client, url string, token strin
 		return nil, &errResponse
 	}
 
-	if err = json.NewDecoder(resp.Body).Decode(&messageResponse); err != nil {
+	if err = json.NewDecoder(bytes.NewBuffer(bodybytes)).Decode(&messageResponse); err != nil {
 		return nil, err
 	}
 
