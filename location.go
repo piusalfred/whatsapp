@@ -1,7 +1,5 @@
 package whatsapp
 
-import "context"
-
 type (
 
 	// Location represents a location
@@ -18,6 +16,4 @@ type (
 		Name      string  `json:"name"`
 		Address   string  `json:"address"`
 	}
-
-	SendLocationFunc func(ctx context.Context, params *RequestParams)
 )

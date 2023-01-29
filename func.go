@@ -19,24 +19,33 @@ type (
 		Bearer   string
 		UrlParts []string // url parts which will be joined
 		Method   string
-		Body     []byte
 	}
 
-	// MessageSendFunc a type for a function that sends a message
-	MessageSendFunc func(ctx context.Context, client *http.Client, url, token string, message *Message) (*MessageResponse, error)
+	SendFunc func(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error)
 )
 
 // NewRequestWithContext creates a new *http.Request with context by using the
 // RequestParams.
-func NewRequestWithContext(ctx context.Context, params *RequestParams) (*http.Request, error) {
+func NewRequestWithContext(ctx context.Context, params *RequestParams, payload []byte) (*http.Request, error) {
+	var (
+		req *http.Request
+		err error
+	)
 	requestURL, err := url.JoinPath(params.UrlParts[0], params.UrlParts[1:]...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to join url parts: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBuffer(params.Body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new request: %w", err)
+	if payload == nil {
+		req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create new request: %w", err)
+		}
+	} else {
+		req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBuffer(payload))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create new request: %w", err)
+		}
 	}
 
 	for key, value := range params.Headers {
