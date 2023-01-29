@@ -81,6 +81,17 @@ func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.HandlerFunc {
 // hex digits. If you just calculate against the decoded bytes, you will end up with a different signature.
 // For example, the string äöå should be escaped to \u00e4\u00f6\u00e5.
 func ValidateSignature(payload []byte, signature string, secret string) bool {
+
+	// TODO: fix this
+	// change the payload to escaped unicode version with lowercase hex digits
+	// escaped := strconv.QuoteToASCII(string(payload))
+	// // remove the quotes
+	// unquoted, err := strconv.Unquote(escaped)
+	// if err != nil {
+	// 	return false
+	// }
+	// payload = []byte(unquoted)
+
 	hash := hmac.New(sha256.New, []byte(secret))
 	hash.Write(payload)
 	sig := hex.EncodeToString(hash.Sum(nil))
