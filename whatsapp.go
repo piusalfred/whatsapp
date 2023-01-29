@@ -170,45 +170,6 @@ type (
 		Messages         []MessageID       `json:"messages"`
 	}
 
-	// Image ...
-	// The Cloud API supports media HTTP caching. If you are using a link (link) to a media
-	// asset on your server (as opposed to the ID (id) of an asset you have uploaded to our servers),
-	// you can instruct us to cache your asset for reuse with future messages by including
-	// the headers below in your server response when we request the asset. If none of these
-	// headers are included, we will not cache your asset.
-	// Cache-Control: <CACHE_CONTROL>
-	// Last-Modified: <LAST_MODIFIED>
-	// ETag: <ETAG>
-	// Cache-Control
-	// The Cache-Control header tells us how to handle asset caching. We support the following directives:
-	//
-	// max-age=n: Indicates how many seconds (n) to cache the asset. We will reuse the cached asset in subsequent
-	// messages until this time is exceeded, after which we will request the asset again, if needed.
-	// Example: Cache-Control: max-age=604800.
-	//
-	// no-cache: Indicates the asset can be cached but should be updated if the Last-Modified header value
-	// is different from a previous response. Requires the Last-Modified header.
-	// Example: Cache-Control: no-cache.
-	//
-	// no-store: Indicates that the asset should not be cached. Example: Cache-Control: no-store.
-	//
-	// private: Indicates that the asset is personalized for the recipient and should not be cached.
-	//
-	// Last-Modified Indicates when the asset was last modified. Used with Cache-Control: no-cache.
-	// If the Last-Modified value is different from a previous response and Cache-Control: no-cache is included
-	// in the response, we will update our cached version of the asset with the asset in the response.
-	// Example: Date: Tue, 22 Feb 2022 22:22:22 GMT.
-
-	// ETag
-	// The ETag header is a unique string that identifies a specific version of an asset.
-	// Example: ETag: "33a64df5". This header is ignored unless both Cache-Control and Last-Modified
-	// headers are not included in the response. In this case, we will cache the asset according to our own,
-	//internal logic (which we do not disclose).
-	Image struct {
-		Link string `json:"link,omitempty"`
-		ID   string `json:"id,omitempty"`
-	}
-
 	// InteractiveMessage ...
 	InteractiveMessage struct {
 		Type   string `json:"type"`
@@ -367,6 +328,21 @@ func SendText(ctx context.Context, client *http.Client, params *RequestParams, r
 	return Send(ctx, client, params, payload)
 }
 
+// Location represents a location
+//
+//	"location": {
+//		"longitude": LONG_NUMBER,
+//		"latitude": LAT_NUMBER,
+//		"name": LOCATION_NAME,
+//		"address": LOCATION_ADDRESS
+//	  }
+type Location struct {
+	Longitude float64 `json:"longitude"`
+	Latitude  float64 `json:"latitude"`
+	Name      string  `json:"name"`
+	Address   string  `json:"address"`
+}
+
 func SendLocation(ctx context.Context, client *http.Client, params *RequestParams, location *Location) (*Response, error) {
 	payload, err := json.Marshal(location)
 	if err != nil {
@@ -475,16 +451,17 @@ are not included in the response. In this case, we will cache the asset accordin
 logic (which we do not disclose).
 */
 type SendMediaOptions struct {
-	SendByLink bool
-	SendByID   bool
-	Cache      bool
-	Type       MediaType
-	Recipient  string
-	ID         string
-	Link       string
-	Expires    int
-	LastMod    string
-	ETag       string
+	SendByLink   bool
+	SendByID     bool
+	Cache        bool
+	Type         MediaType
+	Recipient    string
+	ID           string
+	Link         string
+	CacheControl string
+	Expires      int
+	LastModified string
+	ETag         string
 }
 
 const (
@@ -558,10 +535,24 @@ func SendMedia(ctx context.Context, client *http.Client, params *RequestParams, 
 		return nil, err
 	}
 
+	if options.Cache {
+		if options.CacheControl != "" {
+			params.Headers["Cache-Control"] = options.CacheControl
+		} else if options.Expires > 0 {
+			params.Headers["Cache-Control"] = fmt.Sprintf("max-age=%d", options.Expires)
+		}
+		if options.LastModified != "" {
+			params.Headers["Last-Modified"] = options.LastModified
+		}
+		if options.ETag != "" {
+			params.Headers["ETag"] = options.ETag
+		}
+	}
+
 	return Send(ctx, client, params, payload)
 }
 
-var InternalSendMediaError = errors.New("internal error while sending media")
+//var InternalSendMediaError = errors.New("internal error while sending media")
 
 // BuildPayloadForMediaMessage builds the payload for a media message. It accepts SendMediaOptions
 // and returns a byte array and an error. This function is used internally by SendMedia.
@@ -593,5 +584,58 @@ func BuildPayloadForMediaMessage(options *SendMediaOptions) ([]byte, error) {
 		return nil, errors.New("must specify either ID or Link")
 	}
 
+	return []byte(payloadBuilder.String()), nil
+}
+
+// ReplyOptions contains options for replying to a message.
+type ReplyOptions struct {
+	Recipient   string
+	Context     string // this is ID of the message to reply to
+	MessageType MessageType
+	Content     any // this is a Text if MessageType is Text
+}
+
+// Reply is used to reply to a message. It accepts a ReplyOptions and returns a Response and an error.
+// You can send any message as a reply to a previous message in a conversation by including the previous
+// message's ID set as Context in ReplyOptions. The recipient will receive the new message along with a
+// contextual bubble that displays the previous message's content.
+//
+// Recipients will not see a contextual bubble if:
+//
+// replying with a template message ("type":"template")
+// replying with an image, video, PTT, or audio, and the recipient is on KaiOS
+// These are known bugs which we are addressing.
+func Reply(ctx context.Context, client *http.Client, params *RequestParams, options *ReplyOptions) (*Response, error) {
+	if options == nil {
+		return nil, fmt.Errorf("options cannot be nil")
+	}
+
+	payload, err := BuildPayloadForReply(options)
+	if err != nil {
+		return nil, err
+	}
+
+	return Send(ctx, client, params, payload)
+}
+
+// BuildPayloadForReply builds the payload for a reply. It accepts ReplyOptions and returns a byte array
+// and an error. This function is used internally by Reply.
+func BuildPayloadForReply(options *ReplyOptions) ([]byte, error) {
+	contentByte, err := json.Marshal(options.Content)
+	if err != nil {
+		return nil, err
+	}
+	payloadBuilder := strings.Builder{}
+	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","context":{"message_id":"`)
+	payloadBuilder.WriteString(options.Context)
+	payloadBuilder.WriteString(`"},"to":"`)
+	payloadBuilder.WriteString(options.Recipient)
+	payloadBuilder.WriteString(`","type":"`)
+	payloadBuilder.WriteString(string(options.MessageType))
+	payloadBuilder.WriteString(`","`)
+	payloadBuilder.WriteString(string(options.MessageType))
+	payloadBuilder.WriteString(`":`)
+	payloadBuilder.Write(contentByte)
+	payloadBuilder.WriteString(`}`)
 	return []byte(payloadBuilder.String()), nil
 }
