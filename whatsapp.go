@@ -69,7 +69,7 @@ type (
 	}
 
 	// InteractiveMessage ...
-	Interactive struct {
+	InteractiveMessage struct {
 		Type   string `json:"type"`
 		Header struct {
 			Type string `json:"type"`
