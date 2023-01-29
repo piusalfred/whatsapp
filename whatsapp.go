@@ -324,3 +324,39 @@ func Send(ctx context.Context, client *http.Client, params *RequestParams, paylo
 
 	return &response, nil
 }
+
+type SendTextRequest struct {
+	Recipient  string
+	Message    string
+	PreviewURL bool
+}
+
+// SendText sends a text message to the recipient.
+func SendText(ctx context.Context, client *http.Client, params *RequestParams, req *SendTextRequest) (*Response, error) {
+	text := &TextMessage{
+		Product:       "whatsapp",
+		To:            req.Recipient,
+		RecipientType: "individual",
+		Type:          "text",
+		Text: &Text{
+			PreviewUrl: req.PreviewURL,
+			Body:       req.Message,
+		},
+	}
+
+	payload, err := json.Marshal(text)
+	if err != nil {
+		return nil, err
+	}
+
+	return Send(ctx, client, params, payload)
+}
+
+func SendLocation(ctx context.Context, client *http.Client, params *RequestParams, location *Location) (*Response, error) {
+	payload, err := json.Marshal(location)
+	if err != nil {
+		return nil, err
+	}
+
+	return Send(ctx, client, params, payload)
+}
