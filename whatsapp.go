@@ -48,7 +48,7 @@ type (
 	// ReactionMessage is a WhatsApp reaction message
 	// If the message you are reacting to is more than 30 days old, doesn't correspond to
 	// any message in the conversation, has been deleted, or is itself a reaction message,
-	// the reaction message will not be delivered and you will receive a webhook with the
+	// the reaction message will not be delivered and you will receive a webhooks with the
 	// code 131009.
 	//'{
 	//   "messaging_product": "whatsapp",
@@ -376,7 +376,7 @@ Sample request:
 
 If the message you are reacting to is more than 30 days old, doesn't correspond to any message
 in the conversation, has been deleted, or is itself a reaction message, the reaction message will
-not be delivered and you will receive a webhook with the code 131009.
+not be delivered and you will receive a webhooks with the code 131009.
 
 A successful response includes an object with an identifier prefixed with wamid. Use the ID listed
 after wamid to track your message status.

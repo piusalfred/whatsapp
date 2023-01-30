@@ -1,7 +1,7 @@
 /*
-Package webhook provides a simple way to create a webhook server in Go.
+Package webhooks provides a simple way to create a webhooks server in Go.
 
-	Before using this API, You must set up/subscribe to a webhook to receive notifications from the WhatsApp Business Platform.
+	Before using this API, You must set up/subscribe to a webhooks to receive notifications from the WhatsApp Business Platform.
 	Follow Whatsapp Webhooks Getting Started guide (https://developers.facebook.com/docs/graph-api/webhooks/getting-started)
 	to create your endpoint and configure your Webhooks. When you configure your Webhooks, make sure to choose WhatsApp Business
 	Account and subscribe to one or more WhatsApp business account fields.
@@ -35,4 +35,4 @@ Package webhook provides a simple way to create a webhook server in Go.
 	message is sent, delivered, and read. The order of these notifications in your app may not reflect
 	the actual timing of the message status. View the timestamp to determine the timing, if necessary.
 */
-package webhook
+package webhooks

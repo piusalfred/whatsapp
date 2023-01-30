@@ -1,4 +1,4 @@
-package webhook
+package webhooks
 
 import (
 	"context"
@@ -22,7 +22,7 @@ type (
 	SubscriptionVerifier func(context.Context, *VerificationRequest) error
 )
 
-// VerifySubscriptionHandler verifies the subscription to the webhook.
+// VerifySubscriptionHandler verifies the subscription to the webhooks.
 // Your endpoint must be able to process two types of HTTPS requests: Verification Requests and Event Notifications.
 // Since both requests use HTTPs, your server must have a valid TLS or SSL certificate correctly configured and
 // installed. Self-signed certificates are not supported.
