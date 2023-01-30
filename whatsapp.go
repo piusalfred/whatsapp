@@ -104,10 +104,15 @@ type (
 
 	// Message is a WhatsApp message
 	Message struct {
-		Product  string           `json:"messaging_product"`
-		To       string           `json:"to"`
-		Type     string           `json:"type"`
-		Template *MessageTemplate `json:"template"`
+		Product     string           `json:"messaging_product"`
+		To          string           `json:"to"`
+		Type        string           `json:"type"`
+		Template    *MessageTemplate `json:"template,omitempty"`
+		Text        *Text            `json:"text,omitempty"`
+		Reaction    *Reaction        `json:"reaction,omitempty"`
+		Location    *Location        `json:"location,omitempty"`
+		Contact     *Contact         `json:"contact,omitempty"`
+		Interactive *Interactive     `json:"interactive,omitempty"`
 	}
 
 	TemplateLanguage struct {
