@@ -26,7 +26,7 @@ type (
 // We recommend marking incoming messages as read within 30 days of receipt. You cannot mark
 // outgoing messages you sent as read. Marking a message as read will also mark earlier
 // messages in the conversation as read.
-func MarkMessageRead(ctx context.Context, client *http.Client, url, token string, message *Message) (*StatusResponse, error) {
+func MarkMessageRead(ctx context.Context, client *http.Client, url, token string) (*StatusResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
 		return nil, err

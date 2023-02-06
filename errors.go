@@ -12,7 +12,7 @@ type (
 	// Error represents a WhatsApp error returned by the API when a request fails.
 	// It implements the error interface.
 	//
-	// Message: A human-readable description of the error.
+	// Message represent a human-readable description of the error.
 	// Code: An error code. Common values are listed below, along with common recovery tactics.
 	// Data (optional): Additional information about the error.
 	// Subcode: Additional information about the error. Common values are listed below.
@@ -59,7 +59,7 @@ type (
 
 // Error returns the error message for ErrorResponse.
 func (e *ErrorResponse) Error() string {
-	return fmt.Sprintf("whatsApp error: http code: %d, %s", e.Code, e.Err.Error())
+	return fmt.Sprintf("whatsapp error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
 }
 
 // Unwrap returns the underlying error.

@@ -59,9 +59,6 @@ type (
 	}
 
 	Contact struct {
-		Product   string    `json:"messaging_product"`
-		To        string    `json:"to"`
-		Type      string    `json:"type"`
 		Addresses Addresses `json:"addresses,omitempty"`
 		Birthday  string    `json:"birthday"`
 		Emails    Emails    `json:"emails,omitempty"`
@@ -69,5 +66,9 @@ type (
 		Org       Org       `json:"org"`
 		Phones    Phones    `json:"phones,omitempty"`
 		Urls      Urls      `json:"urls,omitempty"`
+	}
+
+	Contacts struct {
+		Contacts []Contact `json:"contacts"`
 	}
 )

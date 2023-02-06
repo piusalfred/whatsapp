@@ -39,58 +39,92 @@ type (
 		MessageID string `json:"message_id"`
 	}
 
-	// Reaction is a WhatsApp reaction
 	Reaction struct {
 		MessageID string `json:"message_id"`
 		Emoji     string `json:"emoji"`
 	}
 
-	// ReactionMessage is a WhatsApp reaction message
-	// If the message you are reacting to is more than 30 days old, doesn't correspond to
-	// any message in the conversation, has been deleted, or is itself a reaction message,
-	// the reaction message will not be delivered and you will receive a webhooks with the
-	// code 131009.
-	//'{
-	//   "messaging_product": "whatsapp",
-	//   "recipient_type": "individual",
-	//   "to": "PHONE_NUMBER",
-	//   "type": "reaction",
-	//   "reaction": {
-	//     "message_id": "wamid.HBgLM...",
-	//     "emoji": "\uD83D\uDE00"
-	//   }
-	// }'
-	ReactionMessage struct {
-		Product       string    `json:"messaging_product"`
-		RecipientType string    `json:"recipient_type"`
-		To            string    `json:"to"`
-		Type          string    `json:"type"`
-		Reaction      *Reaction `json:"reaction"`
-	}
-
-	// Text ...
 	Text struct {
 		PreviewUrl bool   `json:"preview_url,omitempty"`
 		Body       string `json:"body,omitempty"`
 	}
 
-	// TextMessage is a WhatsApp text message
-	// //{
-	// 	"messaging_product": "whatsapp",
-	// 	"recipient_type": "individual",
-	// 	"to": "PHONE_NUMBER",
-	// 	"type": "text",
-	// 	"text": { // the text object
-	// 	  "preview_url": false,
-	// 	  "body": "MESSAGE_CONTENT"
-	// 	  }
-	//   }'
-	TextMessage struct {
-		Product       string `json:"messaging_product"`
-		RecipientType string `json:"recipient_type"`
-		To            string `json:"to"`
-		Type          string `json:"type"`
-		Text          *Text  `json:"text"`
+	Location struct {
+		Longitude float64 `json:"longitude"`
+		Latitude  float64 `json:"latitude"`
+		Name      string  `json:"name"`
+		Address   string  `json:"address"`
+	}
+	/*
+		Message is a WhatsApp message. It contins the following fields:
+
+			Audio (object) Required when type=audio. A media object containing audio.
+
+			Contacts (object) Required when type=contacts. A contacts object.
+
+			Context (object) Required if replying to any message in the conversation. Only used for Cloud API.
+			An object containing the ID of a previous message you are replying to.
+			For example: {"message_id":"MESSAGE_ID"}
+
+			Document (object). Required when type=document. A media object containing a document.
+
+			Hsm (object). Only used for On-Premises API. Contains an hsm object. This option was deprecated with v2.39
+			of the On-Premises API. Use the template object instead. Cloud API users should not use this field.
+
+			Image (object). Required when type=image. A media object containing an image.
+
+			Interactive (object). Required when type=interactive. An interactive object. The components of each interactive
+			object generally follow a consistent pattern: header, body, footer, and action.
+
+			Location (object). Required when type=location. A location object.
+
+			MessagingProduct messaging_product (string)	Required. Only used for Cloud API. Messaging service used
+			for the request. Use "whatsapp". On-Premises API users should not use this field.
+
+			PreviewURL preview_url (boolean)	Required if type=text. Only used for On-Premises API. Allows for URL
+			previews in text messages — See the Sending URLs in Text Messages.
+			This field is optional if not including a URL in your message. Values: false (default), true.
+			Cloud API users can use the same functionality with the preview_url field inside the text object.
+
+			RecipientType recipient_type (string) Optional. Currently, you can only send messages to individuals.
+		 	Set this as individual. Default: individual
+
+			Status status (string) A message's status. You can use this field to mark a message as read.
+			See the following guides for information:
+			- Cloud API: Mark Messages as Read
+			- On-Premises API: Mark Messages as Read
+
+			Sticker sticker (object). Required when type=sticker. A media object containing a sticker.
+			- Cloud API: Static and animated third-party outbound stickers are supported in addition to all types of inbound stickers.
+			A static sticker needs to be 512x512 pixels and cannot exceed 100 KB.
+			An animated sticker must be 512x512 pixels and cannot exceed 500 KB.
+			- On-Premises API: Only static third-party outbound stickers are supported in addition to all types of inbound stickers.
+			A static sticker needs to be 512x512 pixels and cannot exceed 100 KB.
+			Animated stickers are not supported.
+			For Cloud API users, we support static third-party outbound stickers and all types of inbound stickers. The sticker needs
+			to be 512x512 pixels and the file size needs to be less than 100 KB.
+
+		    Template template (object). Required when type=template. A template object.
+
+			Text text (object). Required for text messages. A text object.
+
+			To string. Required. WhatsApp ID or phone number for the person you want to send a message to.
+			See Phone Numbers, Formatting for more information. If needed, On-Premises API users can get this number by
+			calling the contacts endpoint.
+			Type type (string). Optional. The type of message you want to send. Default: text
+	*/
+	Message struct {
+		Product       string           `json:"messaging_product"`
+		To            string           `json:"to"`
+		RecipientType string           `json:"recipient_type"`
+		Type          string           `json:"type"`
+		Context       *Context         `json:"context,omitempty"`
+		Template      *MessageTemplate `json:"template,omitempty"`
+		Text          *Text            `json:"text,omitempty"`
+		Reaction      *Reaction        `json:"reaction,omitempty"`
+		Location      *Location        `json:"location,omitempty"`
+		Contacts      *Contacts        `json:"contacts,omitempty"`
+		Interactive   *Interactive     `json:"interactive,omitempty"`
 	}
 
 	// MessageType represents the type of message currently supported.
@@ -101,19 +135,6 @@ type (
 	MessageType string
 
 	ResponseHeaders map[string][]string
-
-	// Message is a WhatsApp message
-	Message struct {
-		Product     string           `json:"messaging_product"`
-		To          string           `json:"to"`
-		Type        string           `json:"type"`
-		Template    *MessageTemplate `json:"template,omitempty"`
-		Text        *Text            `json:"text,omitempty"`
-		Reaction    *Reaction        `json:"reaction,omitempty"`
-		Location    *Location        `json:"location,omitempty"`
-		Contact     *Contact         `json:"contact,omitempty"`
-		Interactive *Interactive     `json:"interactive,omitempty"`
-	}
 
 	TemplateLanguage struct {
 		Code string `json:"code"`
@@ -173,32 +194,6 @@ type (
 		MessagingProduct string            `json:"messaging_product"`
 		Contacts         []ResponseContact `json:"contacts"`
 		Messages         []MessageID       `json:"messages"`
-	}
-
-	// InteractiveMessage ...
-	InteractiveMessage struct {
-		Type   string `json:"type"`
-		Header struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"header"`
-		Body struct {
-			Text string `json:"text"`
-		} `json:"body"`
-		Footer struct {
-			Text string `json:"text"`
-		} `json:"footer"`
-		Action struct {
-			Button   string `json:"button"`
-			Sections []struct {
-				Title string `json:"title"`
-				Rows  []struct {
-					ID          string `json:"id"`
-					Title       string `json:"title"`
-					Description string `json:"description"`
-				} `json:"rows"`
-			} `json:"sections"`
-		} `json:"action"`
 	}
 
 	// RequestParams are parameters for a request containing headers, query params,
@@ -307,21 +302,20 @@ func Send(ctx context.Context, client *http.Client, params *RequestParams, paylo
 }
 
 type SendTextRequest struct {
-	Recipient  string
-	Message    string
-	PreviewURL bool
+	Text      *Text
+	Recipient string
 }
 
 // SendText sends a text message to the recipient.
 func SendText(ctx context.Context, client *http.Client, params *RequestParams, req *SendTextRequest) (*Response, error) {
-	text := &TextMessage{
+	text := &Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
 		RecipientType: "individual",
 		Type:          "text",
 		Text: &Text{
-			PreviewUrl: req.PreviewURL,
-			Body:       req.Message,
+			PreviewUrl: req.Text.PreviewUrl,
+			Body:       req.Text.Body,
 		},
 	}
 
@@ -331,21 +325,6 @@ func SendText(ctx context.Context, client *http.Client, params *RequestParams, r
 	}
 
 	return Send(ctx, client, params, payload)
-}
-
-// Location represents a location
-//
-//	"location": {
-//		"longitude": LONG_NUMBER,
-//		"latitude": LAT_NUMBER,
-//		"name": LOCATION_NAME,
-//		"address": LOCATION_ADDRESS
-//	  }
-type Location struct {
-	Longitude float64 `json:"longitude"`
-	Latitude  float64 `json:"latitude"`
-	Name      string  `json:"name"`
-	Address   string  `json:"address"`
 }
 
 func SendLocation(ctx context.Context, client *http.Client, params *RequestParams, location *Location) (*Response, error) {
