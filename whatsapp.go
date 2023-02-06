@@ -134,55 +134,13 @@ type (
 	// For more go to https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages
 	MessageType string
 
-	ResponseHeaders map[string][]string
-
-	TemplateLanguage struct {
-		Code string `json:"code"`
-	}
-
 	MessageTemplate struct {
 		Name     string           `json:"name"`
 		Language TemplateLanguage `json:"language"`
 	}
 
-	// MessageResponse is a WhatsApp message response
-	// {
-	//		"messaging_product":"whatsapp",
-	//		"contacts":[
-	//				{
-	//					"input":"255767001828",
-	//					"wa_id":"255767001828",
-	//				},
-	//		],
-	//		"messages":[
-	//				{"id":"wamid.HBgMMjU1NzY3MDAxODI4FQIAERgSRjVDRDE5NjhBOEEwQzQ0NUE1AA=="},
-	//		],
-	//	}
-	MessageResponse struct {
-		MessagingProduct string `json:"messaging_product"`
-		Contacts         []struct {
-			Input      string `json:"input"`
-			WhatsappID string `json:"wa_id"`
-		} `json:"contacts"`
-		Messages []struct {
-			ID string `json:"id"`
-		} `json:"messages"`
-	}
-
-	// Response is the response from the WhatsApp server
-	//
-	//	{
-	//	  "messaging_product": "whatsapp",
-	//	  "contacts": [{
-	//	      "input": "PHONE_NUMBER",
-	//	      "wa_id": "WHATSAPP_ID",
-	//	    }]
-	//	  "messages": [{
-	//	      "id": "wamid.ID",
-	//	    }]
-	//	}
 	MessageID struct {
-		ID string `json:"id"`
+		ID string `json:"id,omitempty"`
 	}
 
 	ResponseContact struct {
@@ -190,10 +148,28 @@ type (
 		WhatsappId string `json:"wa_id"`
 	}
 
+	// Response is the response from the WhatsApp server
+	// Example:
+	//		{
+	//	  		"messaging_product": "whatsapp",
+	//	  		"contacts": [{
+	//	      		"input": "PHONE_NUMBER",
+	//	      		"wa_id": "WHATSAPP_ID",
+	//	    	}]
+	//	  		"messages": [{
+	//	      		"id": "wamid.ID",
+	//	    	}]
+	//		}
+	ResponseMessage struct {
+		Product  string             `json:"messaging_product,omitempty"`
+		Contacts []*ResponseContact `json:"contacts,omitempty"`
+		Messages []*MessageID       `json:"messages,omitempty"`
+	}
+
 	Response struct {
-		MessagingProduct string            `json:"messaging_product"`
-		Contacts         []ResponseContact `json:"contacts"`
-		Messages         []MessageID       `json:"messages"`
+		StatusCode int
+		Headers    map[string][]string
+		Message    *ResponseMessage
 	}
 
 	// RequestParams are parameters for a request containing headers, query params,
