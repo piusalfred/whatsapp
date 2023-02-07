@@ -1,3 +1,3 @@
-module github.com/pesakit/whatsapp
+module github.com/piusalfred/whatsapp
 
 go 1.19

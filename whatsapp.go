@@ -2,13 +2,12 @@ package whatsapp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/pesakit/whatsapp/pkg/models"
+	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 // https://graph.facebook.com/v15.0/FROM_PHONE_NUMBER_ID/messages
@@ -59,12 +58,12 @@ type (
 				RecipientType recipient_type (string) Optional. Currently, you can only send messages to individuals.
 			 	Set this as individual. Default: individual
 
-				Status status (string) A message's status. You can use this field to mark a message as read.
+				Status, status (string) A message's status. You can use this field to mark a message as read.
 				See the following guides for information:
 				- Cloud API: Mark Messages as Read
 				- On-Premises API: Mark Messages as Read
 
-				Sticker sticker (object). Required when type=sticker. A media object containing a sticker.
+				Sticker, sticker (object). Required when type=sticker. A media object containing a sticker.
 				- Cloud API: Static and animated third-party outbound stickers are supported in addition to all types of inbound stickers.
 				A static sticker needs to be 512x512 pixels and cannot exceed 100 KB.
 				An animated sticker must be 512x512 pixels and cannot exceed 500 KB.
@@ -80,7 +79,7 @@ type (
 
 				To string. Required. WhatsApp ID or phone number for the person you want to send a message to.
 				See Phone Numbers, Formatting for more information. If needed, On-Premises API users can get this number by
-				calling the contacts endpoint.
+				calling the contacts' endpoint.
 
 				Type type (string). Optional. The type of message you want to send. Default: text
 	*/
@@ -349,58 +348,5 @@ func BuildPayloadForMediaMessage(options *SendMediaOptions) ([]byte, error) {
 		return nil, errors.New("must specify either ID or Link")
 	}
 
-	return []byte(payloadBuilder.String()), nil
-}
-
-// ReplyOptions contains options for replying to a message.
-type ReplyOptions struct {
-	Recipient   string
-	Context     string // this is ID of the message to reply to
-	MessageType MessageType
-	Content     any // this is a Text if MessageType is Text
-}
-
-// Reply is used to reply to a message. It accepts a ReplyOptions and returns a Response and an error.
-// You can send any message as a reply to a previous message in a conversation by including the previous
-// message's ID set as Context in ReplyOptions. The recipient will receive the new message along with a
-// contextual bubble that displays the previous message's content.
-//
-// Recipients will not see a contextual bubble if:
-//
-// replying with a template message ("type":"template")
-// replying with an image, video, PTT, or audio, and the recipient is on KaiOS
-// These are known bugs which we are addressing.
-func Reply(ctx context.Context, client *http.Client, params *RequestParams, options *ReplyOptions) (*Response, error) {
-	if options == nil {
-		return nil, fmt.Errorf("options cannot be nil")
-	}
-
-	payload, err := BuildPayloadForReply(options)
-	if err != nil {
-		return nil, err
-	}
-
-	return Send(ctx, client, params, payload)
-}
-
-// BuildPayloadForReply builds the payload for a reply. It accepts ReplyOptions and returns a byte array
-// and an error. This function is used internally by Reply.
-func BuildPayloadForReply(options *ReplyOptions) ([]byte, error) {
-	contentByte, err := json.Marshal(options.Content)
-	if err != nil {
-		return nil, err
-	}
-	payloadBuilder := strings.Builder{}
-	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","context":{"message_id":"`)
-	payloadBuilder.WriteString(options.Context)
-	payloadBuilder.WriteString(`"},"to":"`)
-	payloadBuilder.WriteString(options.Recipient)
-	payloadBuilder.WriteString(`","type":"`)
-	payloadBuilder.WriteString(string(options.MessageType))
-	payloadBuilder.WriteString(`","`)
-	payloadBuilder.WriteString(string(options.MessageType))
-	payloadBuilder.WriteString(`":`)
-	payloadBuilder.Write(contentByte)
-	payloadBuilder.WriteString(`}`)
 	return []byte(payloadBuilder.String()), nil
 }

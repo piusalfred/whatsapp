@@ -91,7 +91,7 @@ Package webhooks provides a simple way to create a webhooks server in Go.
 */
 package webhooks
 
-import "github.com/pesakit/whatsapp/pkg/models"
+import "github.com/piusalfred/whatsapp/pkg/models"
 
 type (
 	Metadata struct {

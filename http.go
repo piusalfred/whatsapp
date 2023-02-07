@@ -8,8 +8,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
-	"github.com/pesakit/whatsapp/pkg/models"
+	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 // NewRequestWithContext creates a new *http.Request with context by using the
@@ -240,4 +241,69 @@ func SendContact(ctx context.Context, client *http.Client, params *RequestParams
 	}
 
 	return Send(ctx, client, params, payload)
+}
+
+// ReplyParams contains options for replying to a message.
+type ReplyParams struct {
+	Recipient   string
+	Context     string // this is ID of the message to reply to
+	MessageType MessageType
+	Content     any // this is a Text if MessageType is Text
+}
+
+// Reply is used to reply to a message. It accepts a ReplyParams and returns a Response and an error.
+// You can send any message as a reply to a previous message in a conversation by including the previous
+// message's ID set as Context in ReplyParams. The recipient will receive the new message along with a
+// contextual bubble that displays the previous message's content.
+//
+// Recipients will not see a contextual bubble if:
+//
+// replying with a template message ("type":"template")
+// replying with an image, video, PTT, or audio, and the recipient is on KaiOS
+// These are known bugs which we are being addressed.
+// Example of Text reply:
+// "messaging_product": "whatsapp",
+//
+//	  "context": {
+//	    "message_id": "MESSAGE_ID"
+//	  },
+//	  "to": "<phone number> or <wa_id>",
+//	  "type": "text",
+//	  "text": {
+//	    "preview_url": False,
+//	    "body": "your-text-message-content"
+//	  }
+//	}'
+func Reply(ctx context.Context, client *http.Client, params *RequestParams, options *ReplyParams) (*Response, error) {
+	if options == nil {
+		return nil, fmt.Errorf("options cannot be nil")
+	}
+	payload, err := buildReplyPayload(options)
+	if err != nil {
+		return nil, err
+	}
+
+	return Send(ctx, client, params, payload)
+}
+
+// buildReplyPayload builds the payload for a reply. It accepts ReplyParams and returns a byte array
+// and an error. This function is used internally by Reply.
+func buildReplyPayload(options *ReplyParams) ([]byte, error) {
+	contentByte, err := json.Marshal(options.Content)
+	if err != nil {
+		return nil, err
+	}
+	payloadBuilder := strings.Builder{}
+	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","context":{"message_id":"`)
+	payloadBuilder.WriteString(options.Context)
+	payloadBuilder.WriteString(`"},"to":"`)
+	payloadBuilder.WriteString(options.Recipient)
+	payloadBuilder.WriteString(`","type":"`)
+	payloadBuilder.WriteString(string(options.MessageType))
+	payloadBuilder.WriteString(`","`)
+	payloadBuilder.WriteString(string(options.MessageType))
+	payloadBuilder.WriteString(`":`)
+	payloadBuilder.Write(contentByte)
+	payloadBuilder.WriteString(`}`)
+	return []byte(payloadBuilder.String()), nil
 }
