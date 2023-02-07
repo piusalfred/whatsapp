@@ -10,23 +10,14 @@ import "time"
 // Stickers (<100 KB) – WebP format
 
 const (
-	MaxAudioSize         = 16 * 1024 * 1024
-	MaxDocSize           = 100 * 1024 * 1024
-	MaxImageSize         = 5 * 1024 * 1024
-	MaxVideoSize         = 16 * 1024 * 1024
-	MaxStickerSize       = 100 * 1024
+	MaxAudioSize         = 16 * 1024 * 1024  // 16 MB
+	MaxDocSize           = 100 * 1024 * 1024 // 100 MB
+	MaxImageSize         = 5 * 1024 * 1024   // 5 MB
+	MaxVideoSize         = 16 * 1024 * 1024  // 16 MB
+	MaxStickerSize       = 100 * 1024        // 100 KB
 	UploadedMediaTTL     = 30 * 24 * time.Hour
 	MediaDownloadLinkTTL = 5 * time.Minute
 )
-
-type MediaInfo struct {
-	URL              string `json:"url,omitempty"`
-	MimeType         string `json:"mime_type,omitempty"`
-	Sha256           string `json:"sha256,omitempty"`
-	FileSize         int    `json:"file_size,omitempty"`
-	Id               string `json:"id,omitempty"`
-	MessagingProduct string `json:"messaging_product,omitempty"`
-}
 
 //Be sure to keep the following in mind:
 

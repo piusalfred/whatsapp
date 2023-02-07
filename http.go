@@ -115,7 +115,7 @@ type SendTextRequest struct {
 
 // SendText sends a text message to the recipient.
 func SendText(ctx context.Context, client *http.Client, params *RequestParams, req *SendTextRequest) (*Response, error) {
-	text := &Message{
+	text := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
 		RecipientType: "individual",
@@ -140,7 +140,7 @@ type SendLocationRequest struct {
 }
 
 func SendLocation(ctx context.Context, client *http.Client, params *RequestParams, req *SendLocationRequest) (*Response, error) {
-	location := &Message{
+	location := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
 		RecipientType: "individual",
@@ -204,7 +204,7 @@ Example response:
 	}
 */
 func React(ctx context.Context, client *http.Client, params *RequestParams, req *ReactRequest) (*Response, error) {
-	reaction := &Message{
+	reaction := &models.Message{
 		Product: "whatsapp",
 		To:      req.Recipient,
 		Type:    "reaction",
@@ -228,7 +228,7 @@ type SendContactRequest struct {
 }
 
 func SendContact(ctx context.Context, client *http.Client, params *RequestParams, req *SendContactRequest) (*Response, error) {
-	contact := &Message{
+	contact := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
 		RecipientType: "individual",

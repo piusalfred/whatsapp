@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-
-	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 // https://graph.facebook.com/v15.0/FROM_PHONE_NUMBER_ID/messages
@@ -24,96 +22,12 @@ const (
 
 type (
 
-	/*
-		Message is a WhatsApp message. It contins the following fields:
-
-				Audio (object) Required when type=audio. A media object containing audio.
-
-				Contacts (object) Required when type=contacts. A contacts object.
-
-				Context (object) Required if replying to any message in the conversation. Only used for Cloud API.
-				An object containing the ID of a previous message you are replying to.
-				For example: {"message_id":"MESSAGE_ID"}
-
-				Document (object). Required when type=document. A media object containing a document.
-
-				Hsm (object). Only used for On-Premises API. Contains an hsm object. This option was deprecated with v2.39
-				of the On-Premises API. Use the template object instead. Cloud API users should not use this field.
-
-				Image (object). Required when type=image. A media object containing an image.
-
-				Interactive (object). Required when type=interactive. An interactive object. The components of each interactive
-				object generally follow a consistent pattern: header, body, footer, and action.
-
-				Location (object). Required when type=location. A location object.
-
-				MessagingProduct messaging_product (string)	Required. Only used for Cloud API. Messaging service used
-				for the request. Use "whatsapp". On-Premises API users should not use this field.
-
-				PreviewURL preview_url (boolean)	Required if type=text. Only used for On-Premises API. Allows for URL
-				previews in text messages — See the Sending URLs in Text Messages.
-				This field is optional if not including a URL in your message. Values: false (default), true.
-				Cloud API users can use the same functionality with the preview_url field inside the text object.
-
-				RecipientType recipient_type (string) Optional. Currently, you can only send messages to individuals.
-			 	Set this as individual. Default: individual
-
-				Status, status (string) A message's status. You can use this field to mark a message as read.
-				See the following guides for information:
-				- Cloud API: Mark Messages as Read
-				- On-Premises API: Mark Messages as Read
-
-				Sticker, sticker (object). Required when type=sticker. A media object containing a sticker.
-				- Cloud API: Static and animated third-party outbound stickers are supported in addition to all types of inbound stickers.
-				A static sticker needs to be 512x512 pixels and cannot exceed 100 KB.
-				An animated sticker must be 512x512 pixels and cannot exceed 500 KB.
-				- On-Premises API: Only static third-party outbound stickers are supported in addition to all types of inbound stickers.
-				A static sticker needs to be 512x512 pixels and cannot exceed 100 KB.
-				Animated stickers are not supported.
-				For Cloud API users, we support static third-party outbound stickers and all types of inbound stickers. The sticker needs
-				to be 512x512 pixels and the file size needs to be less than 100 KB.
-
-			    Template template (object). Required when type=template. A template object.
-
-				Text text (object). Required for text messages. A text object.
-
-				To string. Required. WhatsApp ID or phone number for the person you want to send a message to.
-				See Phone Numbers, Formatting for more information. If needed, On-Premises API users can get this number by
-				calling the contacts' endpoint.
-
-				Type type (string). Optional. The type of message you want to send. Default: text
-	*/
-	Message struct {
-		Product       string           `json:"messaging_product"`
-		To            string           `json:"to"`
-		RecipientType string           `json:"recipient_type"`
-		Type          string           `json:"type"`
-		PreviewURL    bool             `json:"preview_url,omitempty"`
-		Context       *models.Context  `json:"context,omitempty"`
-		Template      *MessageTemplate `json:"template,omitempty"`
-		Text          *models.Text     `json:"text,omitempty"`
-		Image         *models.Media    `json:"image,omitempty"`
-		Audio         *models.Media    `json:"audio,omitempty"`
-		Video         *models.Media    `json:"video,omitempty"`
-		Document      *models.Media    `json:"document,omitempty"`
-		Sticker       *models.Media    `json:"sticker,omitempty"`
-		Reaction      *models.Reaction `json:"reaction,omitempty"`
-		Location      *models.Location `json:"location,omitempty"`
-		Contacts      *models.Contacts `json:"contacts,omitempty"`
-		Interactive   *Interactive     `json:"interactive,omitempty"`
-	}
-
 	// MessageType represents the type of message currently supported.
 	// Which are Text messages,Reaction messages,Media messages,Location messages,Contact messages,
 	// and Interactive messages.
 	// You may also send any of these message types as a reply, with the exception of reaction messages.
 	// For more go to https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages
 	MessageType string
-
-	MessageTemplate struct {
-		Name     string           `json:"name"`
-		Language TemplateLanguage `json:"language"`
-	}
 
 	MessageID struct {
 		ID string `json:"id,omitempty"`
