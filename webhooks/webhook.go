@@ -5,9 +5,8 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/piusalfred/whatsapp/models"
 	"net/http"
-
-	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 type (

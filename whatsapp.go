@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	http2 "github.com/piusalfred/whatsapp/pkg/http"
+	http2 "github.com/piusalfred/whatsapp/http"
 	"net/http"
 	"strings"
 )

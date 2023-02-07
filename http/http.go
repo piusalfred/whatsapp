@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/piusalfred/whatsapp"
-	"github.com/piusalfred/whatsapp/pkg/errors"
+	"github.com/piusalfred/whatsapp/errors"
 	"io"
 	"net/http"
 	"net/url"

@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	http2 "github.com/piusalfred/whatsapp/pkg/http"
+	http2 "github.com/piusalfred/whatsapp/http"
+	"github.com/piusalfred/whatsapp/models"
 	"net/http"
 	"strings"
-
-	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 type SendTextRequest struct {
