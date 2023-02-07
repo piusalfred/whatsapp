@@ -84,72 +84,10 @@ Package webhooks provides a simple way to create a webhooks server in Go.
 	}
 
 	Message Status Updates
-	he WhatsApp Business Platform sends notifications to inform you of the status of the messages between you and users.<\br>
-	When a message is sent successfully, you receive a notification when the
-	message is sent, delivered, and read. The order of these notifications in your app may not reflect
-	the actual timing of the message status. View the timestamp to determine the timing, if necessary.
+	----------------------
+	The WhatsApp Business Platform sends notifications to inform you of the status of the messages between you and users.
+	When a message is sent successfully, you receive a notification when the message is sent, delivered, and read.
+	The order of these notifications in your app may not reflect the actual timing of the message status. View the
+	timestamp to determine the timing, if necessary.
 */
 package webhooks
-
-import "github.com/piusalfred/whatsapp/pkg/models"
-
-type (
-	Metadata struct {
-		DisplayPhoneNumber string `json:"display_phone_number,omitempty"`
-		PhoneNumberID      string `json:"phone_number_id,omitempty"`
-	}
-
-	Profile struct {
-		Name string `json:"name,omitempty"`
-	}
-
-	Contact struct {
-		Profile *Profile `json:"profile,omitempty"`
-		WaID    string   `json:"wa_id,omitempty"`
-	}
-
-	Message struct {
-		From      string           `json:"from,omitempty"`
-		ID        string           `json:"id,omitempty"`
-		Timestamp int64            `json:"timestamp,omitempty"`
-		Type      string           `json:"type,omitempty"`
-		Errors    []*Error         `json:"errors,omitempty"`
-		Text      *models.Text     `json:"text,omitempty"`
-		Location  *models.Location `json:"location,omitempty"`
-		Recation  *models.Reaction `json:"reaction,omitempty"`
-		Sticker   *Media           `json:"sticker,omitempty"`
-		Image     *Media           `json:"image,omitempty"`
-		Video     *Media           `json:"video,omitempty"`
-		Audio     *Media           `json:"audio,omitempty"`
-		Document  *Media           `json:"document,omitempty"`
-		Contacts  *models.Contacts `json:"contacts,omitempty"`
-	}
-
-	Value struct {
-		MessagingProduct string     `json:"messaging_product,omitempty"`
-		Metadata         *Metadata  `json:"metadata,omitempty"`
-		Contacts         []*Contact `json:"contacts,omitempty"`
-		Messages         []*Message `json:"messages,omitempty"`
-	}
-
-	Change struct {
-		Value *Value `json:"value,omitempty"`
-		Field string `json:"field,omitempty"`
-	}
-
-	Entry struct {
-		ID      string    `json:"id,omitempty"`
-		Changes []*Change `json:"changes,omitempty"`
-	}
-
-	Notification struct {
-		Object string   `json:"object,omitempty"`
-		Entry  []*Entry `json:"entry,omitempty"`
-	}
-
-	Error struct {
-		Code    int    `json:"code,omitempty"`
-		Details string `json:"details,omitempty"`
-		Title   string `json:"title,omitempty"`
-	}
-)
