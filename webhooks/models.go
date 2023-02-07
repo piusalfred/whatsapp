@@ -1,11 +1,6 @@
 package webhooks
 
 type (
-	// Media represents a media object
-	// //"caption": "CAPTION",
-	// "mime_type": "image/jpeg",
-	// "sha256": "IMAGE_HASH",
-	// "id": "ID"
 	Media struct {
 		ID       string `json:"id,omitempty"`
 		Caption  string `json:"caption,omitempty"`

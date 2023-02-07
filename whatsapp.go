@@ -111,6 +111,7 @@ type (
 			To string. Required. WhatsApp ID or phone number for the person you want to send a message to.
 			See Phone Numbers, Formatting for more information. If needed, On-Premises API users can get this number by
 			calling the contacts endpoint.
+
 			Type type (string). Optional. The type of message you want to send. Default: text
 	*/
 	Message struct {
