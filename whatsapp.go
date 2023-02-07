@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	http2 "github.com/piusalfred/whatsapp/http"
+	whttp "github.com/piusalfred/whatsapp/http"
 	"net/http"
 	"strings"
 )
@@ -180,7 +180,7 @@ downloaded successfully.
 	    }]
 	}
 */
-func SendMedia(ctx context.Context, client *http.Client, params *http2.RequestParams, options *SendMediaOptions) (*http2.Response, error) {
+func SendMedia(ctx context.Context, client *http.Client, params *whttp.RequestParams, options *SendMediaOptions) (*whttp.Response, error) {
 	if options == nil {
 		return nil, fmt.Errorf("options cannot be nil")
 	}
@@ -204,7 +204,7 @@ func SendMedia(ctx context.Context, client *http.Client, params *http2.RequestPa
 		}
 	}
 
-	return http2.Send(ctx, client, params, payload)
+	return whttp.Send(ctx, client, params, payload)
 }
 
 //var InternalSendMediaError = errors.New("internal error while sending media")
