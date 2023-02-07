@@ -92,11 +92,11 @@ type (
 		Context       *models.Context  `json:"context,omitempty"`
 		Template      *MessageTemplate `json:"template,omitempty"`
 		Text          *models.Text     `json:"text,omitempty"`
-		Image         *Media           `json:"image,omitempty"`
-		Audio         *Media           `json:"audio,omitempty"`
-		Video         *Media           `json:"video,omitempty"`
-		Document      *Media           `json:"document,omitempty"`
-		Sticker       *Media           `json:"sticker,omitempty"`
+		Image         *models.Media    `json:"image,omitempty"`
+		Audio         *models.Media    `json:"audio,omitempty"`
+		Video         *models.Media    `json:"video,omitempty"`
+		Document      *models.Media    `json:"document,omitempty"`
+		Sticker       *models.Media    `json:"sticker,omitempty"`
 		Reaction      *models.Reaction `json:"reaction,omitempty"`
 		Location      *models.Location `json:"location,omitempty"`
 		Contacts      *models.Contacts `json:"contacts,omitempty"`

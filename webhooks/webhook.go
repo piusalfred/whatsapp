@@ -11,12 +11,6 @@ import (
 )
 
 type (
-	Media struct {
-		ID       string `json:"id,omitempty"`
-		Caption  string `json:"caption,omitempty"`
-		MimeType string `json:"mime_type,omitempty"`
-		Sha256   string `json:"sha256,omitempty"`
-	}
 	Metadata struct {
 		DisplayPhoneNumber string `json:"display_phone_number,omitempty"`
 		PhoneNumberID      string `json:"phone_number_id,omitempty"`
@@ -32,20 +26,20 @@ type (
 	}
 
 	Message struct {
-		From      string           `json:"from,omitempty"`
-		ID        string           `json:"id,omitempty"`
-		Timestamp int64            `json:"timestamp,omitempty"`
-		Type      string           `json:"type,omitempty"`
-		Errors    []*Error         `json:"errors,omitempty"`
-		Text      *models.Text     `json:"text,omitempty"`
-		Location  *models.Location `json:"location,omitempty"`
-		Recation  *models.Reaction `json:"reaction,omitempty"`
-		Sticker   *Media           `json:"sticker,omitempty"`
-		Image     *Media           `json:"image,omitempty"`
-		Video     *Media           `json:"video,omitempty"`
-		Audio     *Media           `json:"audio,omitempty"`
-		Document  *Media           `json:"document,omitempty"`
-		Contacts  *models.Contacts `json:"contacts,omitempty"`
+		From      string            `json:"from,omitempty"`
+		ID        string            `json:"id,omitempty"`
+		Timestamp int64             `json:"timestamp,omitempty"`
+		Type      string            `json:"type,omitempty"`
+		Errors    []*Error          `json:"errors,omitempty"`
+		Text      *models.Text      `json:"text,omitempty"`
+		Location  *models.Location  `json:"location,omitempty"`
+		Recation  *models.Reaction  `json:"reaction,omitempty"`
+		Sticker   *models.MediaInfo `json:"sticker,omitempty"`
+		Image     *models.MediaInfo `json:"image,omitempty"`
+		Video     *models.MediaInfo `json:"video,omitempty"`
+		Audio     *models.MediaInfo `json:"audio,omitempty"`
+		Document  *models.MediaInfo `json:"document,omitempty"`
+		Contacts  *models.Contacts  `json:"contacts,omitempty"`
 	}
 
 	Value struct {

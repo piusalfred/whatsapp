@@ -1,5 +1,7 @@
 package whatsapp
 
+import "github.com/piusalfred/whatsapp/pkg/models"
+
 type (
 
 	/*
@@ -79,8 +81,8 @@ type (
 		Text     string            `json:"text,omitempty"`
 		Currency *TemplateCurrency `json:"currency,omitempty"`
 		DateTime *TemplateDateTime `json:"date_time,omitempty"`
-		Image    *Media            `json:"image,omitempty"`
-		Document *Media            `json:"document,omitempty"`
-		Video    *Media            `json:"video,omitempty"`
+		Image    *models.Media     `json:"image,omitempty"`
+		Document *models.Media     `json:"document,omitempty"`
+		Video    *models.Media     `json:"video,omitempty"`
 	}
 )
