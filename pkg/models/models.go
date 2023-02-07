@@ -88,4 +88,17 @@ type (
 	Contacts struct {
 		Contacts []Contact `json:"contacts"`
 	}
+
+	// Context used to store the context of the conversation.
+	// You can send any message as a reply to a previous message in a conversation by including
+	// the previous message's ID in the context object.
+	// The recipient will receive the new message along with a contextual bubble that displays
+	// the previous message's content.
+	// Recipients will not see a contextual bubble if:
+	//    - replying with a template message ("type":"template")
+	//    - replying with an image, video, PTT, or audio, and the recipient is on KaiOS
+	// These are known bugs which we are addressing.
+	Context struct {
+		MessageID string `json:"message_id"`
+	}
 )

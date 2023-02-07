@@ -1,15 +1,14 @@
 package whatsapp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"strings"
+
+	"github.com/pesakit/whatsapp/pkg/models"
 )
 
 // https://graph.facebook.com/v15.0/FROM_PHONE_NUMBER_ID/messages
@@ -26,105 +25,82 @@ const (
 
 type (
 
-	// Context used to store the context of the conversation.
-	// You can send any message as a reply to a previous message in a conversation by including
-	// the previous message's ID in the context object.
-	// The recipient will receive the new message along with a contextual bubble that displays
-	// the previous message's content.
-	// Recipients will not see a contextual bubble if:
-	//    - replying with a template message ("type":"template")
-	//    - replying with an image, video, PTT, or audio, and the recipient is on KaiOS
-	// These are known bugs which we are addressing.
-	Context struct {
-		MessageID string `json:"message_id"`
-	}
-
-	Reaction struct {
-		MessageID string `json:"message_id"`
-		Emoji     string `json:"emoji"`
-	}
-
-	Text struct {
-		PreviewUrl bool   `json:"preview_url,omitempty"`
-		Body       string `json:"body,omitempty"`
-	}
-
-	Location struct {
-		Longitude float64 `json:"longitude"`
-		Latitude  float64 `json:"latitude"`
-		Name      string  `json:"name"`
-		Address   string  `json:"address"`
-	}
 	/*
 		Message is a WhatsApp message. It contins the following fields:
 
-			Audio (object) Required when type=audio. A media object containing audio.
+				Audio (object) Required when type=audio. A media object containing audio.
 
-			Contacts (object) Required when type=contacts. A contacts object.
+				Contacts (object) Required when type=contacts. A contacts object.
 
-			Context (object) Required if replying to any message in the conversation. Only used for Cloud API.
-			An object containing the ID of a previous message you are replying to.
-			For example: {"message_id":"MESSAGE_ID"}
+				Context (object) Required if replying to any message in the conversation. Only used for Cloud API.
+				An object containing the ID of a previous message you are replying to.
+				For example: {"message_id":"MESSAGE_ID"}
 
-			Document (object). Required when type=document. A media object containing a document.
+				Document (object). Required when type=document. A media object containing a document.
 
-			Hsm (object). Only used for On-Premises API. Contains an hsm object. This option was deprecated with v2.39
-			of the On-Premises API. Use the template object instead. Cloud API users should not use this field.
+				Hsm (object). Only used for On-Premises API. Contains an hsm object. This option was deprecated with v2.39
+				of the On-Premises API. Use the template object instead. Cloud API users should not use this field.
 
-			Image (object). Required when type=image. A media object containing an image.
+				Image (object). Required when type=image. A media object containing an image.
 
-			Interactive (object). Required when type=interactive. An interactive object. The components of each interactive
-			object generally follow a consistent pattern: header, body, footer, and action.
+				Interactive (object). Required when type=interactive. An interactive object. The components of each interactive
+				object generally follow a consistent pattern: header, body, footer, and action.
 
-			Location (object). Required when type=location. A location object.
+				Location (object). Required when type=location. A location object.
 
-			MessagingProduct messaging_product (string)	Required. Only used for Cloud API. Messaging service used
-			for the request. Use "whatsapp". On-Premises API users should not use this field.
+				MessagingProduct messaging_product (string)	Required. Only used for Cloud API. Messaging service used
+				for the request. Use "whatsapp". On-Premises API users should not use this field.
 
-			PreviewURL preview_url (boolean)	Required if type=text. Only used for On-Premises API. Allows for URL
-			previews in text messages — See the Sending URLs in Text Messages.
-			This field is optional if not including a URL in your message. Values: false (default), true.
-			Cloud API users can use the same functionality with the preview_url field inside the text object.
+				PreviewURL preview_url (boolean)	Required if type=text. Only used for On-Premises API. Allows for URL
+				previews in text messages — See the Sending URLs in Text Messages.
+				This field is optional if not including a URL in your message. Values: false (default), true.
+				Cloud API users can use the same functionality with the preview_url field inside the text object.
 
-			RecipientType recipient_type (string) Optional. Currently, you can only send messages to individuals.
-		 	Set this as individual. Default: individual
+				RecipientType recipient_type (string) Optional. Currently, you can only send messages to individuals.
+			 	Set this as individual. Default: individual
 
-			Status status (string) A message's status. You can use this field to mark a message as read.
-			See the following guides for information:
-			- Cloud API: Mark Messages as Read
-			- On-Premises API: Mark Messages as Read
+				Status status (string) A message's status. You can use this field to mark a message as read.
+				See the following guides for information:
+				- Cloud API: Mark Messages as Read
+				- On-Premises API: Mark Messages as Read
 
-			Sticker sticker (object). Required when type=sticker. A media object containing a sticker.
-			- Cloud API: Static and animated third-party outbound stickers are supported in addition to all types of inbound stickers.
-			A static sticker needs to be 512x512 pixels and cannot exceed 100 KB.
-			An animated sticker must be 512x512 pixels and cannot exceed 500 KB.
-			- On-Premises API: Only static third-party outbound stickers are supported in addition to all types of inbound stickers.
-			A static sticker needs to be 512x512 pixels and cannot exceed 100 KB.
-			Animated stickers are not supported.
-			For Cloud API users, we support static third-party outbound stickers and all types of inbound stickers. The sticker needs
-			to be 512x512 pixels and the file size needs to be less than 100 KB.
+				Sticker sticker (object). Required when type=sticker. A media object containing a sticker.
+				- Cloud API: Static and animated third-party outbound stickers are supported in addition to all types of inbound stickers.
+				A static sticker needs to be 512x512 pixels and cannot exceed 100 KB.
+				An animated sticker must be 512x512 pixels and cannot exceed 500 KB.
+				- On-Premises API: Only static third-party outbound stickers are supported in addition to all types of inbound stickers.
+				A static sticker needs to be 512x512 pixels and cannot exceed 100 KB.
+				Animated stickers are not supported.
+				For Cloud API users, we support static third-party outbound stickers and all types of inbound stickers. The sticker needs
+				to be 512x512 pixels and the file size needs to be less than 100 KB.
 
-		    Template template (object). Required when type=template. A template object.
+			    Template template (object). Required when type=template. A template object.
 
-			Text text (object). Required for text messages. A text object.
+				Text text (object). Required for text messages. A text object.
 
-			To string. Required. WhatsApp ID or phone number for the person you want to send a message to.
-			See Phone Numbers, Formatting for more information. If needed, On-Premises API users can get this number by
-			calling the contacts endpoint.
+				To string. Required. WhatsApp ID or phone number for the person you want to send a message to.
+				See Phone Numbers, Formatting for more information. If needed, On-Premises API users can get this number by
+				calling the contacts endpoint.
 
-			Type type (string). Optional. The type of message you want to send. Default: text
+				Type type (string). Optional. The type of message you want to send. Default: text
 	*/
 	Message struct {
 		Product       string           `json:"messaging_product"`
 		To            string           `json:"to"`
 		RecipientType string           `json:"recipient_type"`
 		Type          string           `json:"type"`
-		Context       *Context         `json:"context,omitempty"`
+		PreviewURL    bool             `json:"preview_url,omitempty"`
+		Context       *models.Context  `json:"context,omitempty"`
 		Template      *MessageTemplate `json:"template,omitempty"`
-		Text          *Text            `json:"text,omitempty"`
-		Reaction      *Reaction        `json:"reaction,omitempty"`
-		Location      *Location        `json:"location,omitempty"`
-		Contacts      *Contacts        `json:"contacts,omitempty"`
+		Text          *models.Text     `json:"text,omitempty"`
+		Image         *Media           `json:"image,omitempty"`
+		Audio         *Media           `json:"audio,omitempty"`
+		Video         *Media           `json:"video,omitempty"`
+		Document      *Media           `json:"document,omitempty"`
+		Sticker       *Media           `json:"sticker,omitempty"`
+		Reaction      *models.Reaction `json:"reaction,omitempty"`
+		Location      *models.Location `json:"location,omitempty"`
+		Contacts      *models.Contacts `json:"contacts,omitempty"`
 		Interactive   *Interactive     `json:"interactive,omitempty"`
 	}
 
@@ -183,6 +159,7 @@ type (
 		Query      map[string]string
 		Bearer     string
 		BaseURL    string
+		Endpoint   string
 		Method     string
 	}
 
@@ -190,179 +167,6 @@ type (
 
 	SenderMiddleware func(next Sender) Sender
 )
-
-// NewRequestWithContext creates a new *http.Request with context by using the
-// RequestParams.
-func NewRequestWithContext(ctx context.Context, params *RequestParams, payload []byte) (*http.Request, error) {
-	var (
-		req *http.Request
-		err error
-	)
-	//https://graph.facebook.com/v15.0/FROM_PHONE_NUMBER_ID/messages
-	requestURL, err := url.JoinPath(params.BaseURL, params.ApiVersion, params.SenderID, "messages")
-	if err != nil {
-		return nil, fmt.Errorf("failed to join url parts: %w", err)
-	}
-
-	if payload == nil {
-		req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create new request: %w", err)
-		}
-	} else {
-		req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBuffer(payload))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create new request: %w", err)
-		}
-	}
-
-	for key, value := range params.Headers {
-		req.Header.Set(key, value)
-	}
-
-	if params.Bearer != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", params.Bearer))
-	}
-
-	if len(params.Query) > 0 {
-		query := req.URL.Query()
-		for key, value := range params.Query {
-			query.Add(key, value)
-		}
-		req.URL.RawQuery = query.Encode()
-	}
-
-	return req, nil
-}
-
-func Send(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error) {
-	var (
-		req  *http.Request
-		resp *http.Response
-		err  error
-	)
-
-	if req, err = NewRequestWithContext(ctx, params, payload); err != nil {
-		return nil, err
-	}
-
-	if resp, err = client.Do(req); err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.Body == nil {
-		return nil, fmt.Errorf("empty response body")
-	}
-
-	bodybytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		var errResponse ErrorResponse
-		if err = json.Unmarshal(bodybytes, &errResponse); err != nil {
-			return nil, err
-		}
-		errResponse.Code = resp.StatusCode
-		return nil, &errResponse
-	}
-
-	var response Response
-	if err = json.NewDecoder(bytes.NewBuffer(bodybytes)).Decode(&response); err != nil {
-		return nil, err
-	}
-
-	return &response, nil
-}
-
-type SendTextRequest struct {
-	Text      *Text
-	Recipient string
-}
-
-// SendText sends a text message to the recipient.
-func SendText(ctx context.Context, client *http.Client, params *RequestParams, req *SendTextRequest) (*Response, error) {
-	text := &Message{
-		Product:       "whatsapp",
-		To:            req.Recipient,
-		RecipientType: "individual",
-		Type:          "text",
-		Text: &Text{
-			PreviewUrl: req.Text.PreviewUrl,
-			Body:       req.Text.Body,
-		},
-	}
-
-	payload, err := json.Marshal(text)
-	if err != nil {
-		return nil, err
-	}
-
-	return Send(ctx, client, params, payload)
-}
-
-func SendLocation(ctx context.Context, client *http.Client, params *RequestParams, location *Location) (*Response, error) {
-	payload, err := json.Marshal(location)
-	if err != nil {
-		return nil, err
-	}
-
-	return Send(ctx, client, params, payload)
-}
-
-/*
-React sends a reaction to a message.
-To send reaction messages, make a POST call to /PHONE_NUMBER_ID/messages and attach a message object
-with type=reaction. Then, add a reaction object.
-
-Sample request:
-
-	curl -X  POST \
-	 'https://graph.facebook.com/v15.0/FROM_PHONE_NUMBER_ID/messages' \
-	 -H 'Authorization: Bearer ACCESS_TOKEN' \
-	 -H 'Content-Type: application/json' \
-	 -d '{
-	  "messaging_product": "whatsapp",
-	  "recipient_type": "individual",
-	  "to": "PHONE_NUMBER",
-	  "type": "reaction",
-	  "reaction": {
-	    "message_id": "wamid.HBgLM...",
-	    "emoji": "\uD83D\uDE00"
-	  }
-	}'
-
-If the message you are reacting to is more than 30 days old, doesn't correspond to any message
-in the conversation, has been deleted, or is itself a reaction message, the reaction message will
-not be delivered and you will receive a webhooks with the code 131009.
-
-A successful response includes an object with an identifier prefixed with wamid. Use the ID listed
-after wamid to track your message status.
-
-Example response:
-
-	{
-	  "messaging_product": "whatsapp",
-	  "contacts": [{
-	      "input": "PHONE_NUMBER",
-	      "wa_id": "WHATSAPP_ID",
-	    }]
-	  "messages": [{
-	      "id": "wamid.ID",
-	    }]
-	}
-*/
-func React(ctx context.Context, client *http.Client, params *RequestParams, reaction *Reaction) (*Response, error) {
-	payload, err := json.Marshal(reaction)
-	if err != nil {
-		return nil, err
-	}
-
-	return Send(ctx, client, params, payload)
-}
 
 // MediaType is the type of media to send it can be audio, document, image, sticker, or video.
 type MediaType string
@@ -434,10 +238,10 @@ const (
 )
 
 /*
-SendMedia sends a media message to the recipient.
-To send a media message, make a POST call to the /PHONE_NUMBER_ID/messages endpoint with
-type parameter set to audio, document, image, sticker, or video, and the corresponding
-information for the media type such as its ID or link (see Media HTTP Caching).
+SendMedia sends a media message to the recipient. To send a media message, make a POST call to the
+/PHONE_NUMBER_ID/messages endpoint with type parameter set to audio, document, image, sticker, or
+video, and the corresponding information for the media type such as its ID or
+link (see Media HTTP Caching).
 
 Sample request using image with link:
 
