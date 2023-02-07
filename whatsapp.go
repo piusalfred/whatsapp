@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	http2 "github.com/piusalfred/whatsapp/pkg/http"
 	"net/http"
 	"strings"
 )
@@ -50,35 +51,11 @@ type (
 	//	      		"id": "wamid.ID",
 	//	    	}]
 	//		}
-	ResponseMessage struct {
-		Product  string             `json:"messaging_product,omitempty"`
-		Contacts []*ResponseContact `json:"contacts,omitempty"`
-		Messages []*MessageID       `json:"messages,omitempty"`
-	}
-
-	Response struct {
-		StatusCode int
-		Headers    map[string][]string
-		Message    *ResponseMessage
-	}
 
 	// RequestParams are parameters for a request containing headers, query params,
 	// Bearer token, Method and the body.
 	// These parameters are used to create a *http.Request
-	RequestParams struct {
-		SenderID   string
-		ApiVersion string
-		Headers    map[string]string
-		Query      map[string]string
-		Bearer     string
-		BaseURL    string
-		Endpoint   string
-		Method     string
-	}
 
-	Sender func(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error)
-
-	SenderMiddleware func(next Sender) Sender
 )
 
 // MediaType is the type of media to send it can be audio, document, image, sticker, or video.
@@ -203,7 +180,7 @@ downloaded successfully.
 	    }]
 	}
 */
-func SendMedia(ctx context.Context, client *http.Client, params *RequestParams, options *SendMediaOptions) (*Response, error) {
+func SendMedia(ctx context.Context, client *http.Client, params *http2.RequestParams, options *SendMediaOptions) (*http2.Response, error) {
 	if options == nil {
 		return nil, fmt.Errorf("options cannot be nil")
 	}
@@ -227,7 +204,7 @@ func SendMedia(ctx context.Context, client *http.Client, params *RequestParams, 
 		}
 	}
 
-	return Send(ctx, client, params, payload)
+	return http2.Send(ctx, client, params, payload)
 }
 
 //var InternalSendMediaError = errors.New("internal error while sending media")
