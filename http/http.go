@@ -5,11 +5,47 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/errors"
 	"io"
 	"net/http"
 	"net/url"
+)
+
+type (
+	Response struct {
+		StatusCode int
+		Headers    map[string][]string
+		Message    *ResponseMessage
+	}
+
+	ResponseMessage struct {
+		Product  string             `json:"messaging_product,omitempty"`
+		Contacts []*ResponseContact `json:"contacts,omitempty"`
+		Messages []*MessageID       `json:"messages,omitempty"`
+	}
+	RequestParams struct {
+		SenderID   string
+		ApiVersion string
+		Headers    map[string]string
+		Query      map[string]string
+		Bearer     string
+		BaseURL    string
+		Endpoint   string
+		Method     string
+	}
+
+	Sender func(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error)
+
+	SenderMiddleware func(next Sender) Sender
+
+	MessageID struct {
+		ID string `json:"id,omitempty"`
+	}
+
+	ResponseContact struct {
+		Input      string `json:"input"`
+		WhatsappId string `json:"wa_id"`
+	}
 )
 
 // NewRequestWithContext creates a new *http.Request with context by using the
@@ -105,30 +141,3 @@ func Send(ctx context.Context, client *http.Client, params *RequestParams, paylo
 
 	return &response, nil
 }
-
-type Response struct {
-	StatusCode int
-	Headers    map[string][]string
-	Message    *ResponseMessage
-}
-
-type ResponseMessage struct {
-	Product  string                      `json:"messaging_product,omitempty"`
-	Contacts []*whatsapp.ResponseContact `json:"contacts,omitempty"`
-	Messages []*whatsapp.MessageID       `json:"messages,omitempty"`
-}
-
-type RequestParams struct {
-	SenderID   string
-	ApiVersion string
-	Headers    map[string]string
-	Query      map[string]string
-	Bearer     string
-	BaseURL    string
-	Endpoint   string
-	Method     string
-}
-
-type Sender func(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error)
-
-type SenderMiddleware func(next Sender) Sender
