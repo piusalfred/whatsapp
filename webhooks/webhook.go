@@ -9,6 +9,7 @@ import (
 	"github.com/piusalfred/whatsapp/errors"
 	"github.com/piusalfred/whatsapp/models"
 	"net/http"
+	"strings"
 )
 
 var (
@@ -16,20 +17,22 @@ var (
 )
 
 const (
-	ReceivedTextMessage  EventType = "received_text_message"
-	ReceivedImage        EventType = "received_image"
-	ReceivedVideo        EventType = "received_video"
-	ReceivedAudio        EventType = "received_audio"
-	ReceivedDocument     EventType = "received_document"
-	ReceivedSticker      EventType = "received_sticker"
-	ReceivedLocation     EventType = "received_location"
-	ReceivedContact      EventType = "received_contact"
-	ReplyButtonClicked   EventType = "reply_button_clicked"
-	CallToActionClicked  EventType = "call_to_action_clicked"
-	ProfileUpdated       EventType = "profile_updated"
-	BussinessItemClicked EventType = "business_item_clicked"
-	ProductQuery         EventType = "product_query"
-	ProductOrder         EventType = "product_order"
+	ReceivedTextMessage  Event = "received_text_message"
+	ReceivedImage        Event = "received_image"
+	ReceivedVideo        Event = "received_video"
+	ReceivedAudio        Event = "received_audio"
+	ReceivedDocument     Event = "received_document"
+	ReceivedSticker      Event = "received_sticker"
+	ReceivedLocation     Event = "received_location"
+	ReceivedContact      Event = "received_contact"
+	ReceivedReaction     Event = "received_reaction"
+	ReplyButtonClicked   Event = "reply_button_clicked"
+	CallToActionClicked  Event = "call_to_action_clicked"
+	ProfileUpdated       Event = "profile_updated"
+	BussinessItemClicked Event = "business_item_clicked"
+	ProductQuery         Event = "product_query"
+	ProductOrder         Event = "product_order"
+	UnknownEvent         Event = "unknown"
 )
 
 type (
@@ -131,7 +134,7 @@ type (
 		Errors       []*errors.Error `json:"errors,omitempty"`
 	}
 
-	// EventType is the type of event that occurred and leads to the notification being sent.
+	// Event is the type of event that occurred and leads to the notification being sent.
 	// You get a webhooks notification, When a customer performs one of the following an action
 	//
 	//  - Sends a text message to the business
@@ -144,8 +147,9 @@ type (
 	//  - Updates their profile information such as their phone number
 	//  - Asks for information about a specific product
 	//  - Orders products being sold by the business
-	EventType string
-	Metadata  struct {
+	Event string
+
+	Metadata struct {
 		DisplayPhoneNumber string `json:"display_phone_number,omitempty"`
 		PhoneNumberID      string `json:"phone_number_id,omitempty"`
 	}
@@ -382,7 +386,7 @@ type (
 	// http.HandlerFunc type. It accepts a context, http.ResponseWriter, *http.Request, NotificationType,
 	// ErrorHandlerFunc func(err error) error and returns an error.
 	EventListener func(context.Context, http.ResponseWriter, *http.Request,
-		EventType, NotificationHandler, ErrorHandlerFunc) error
+		Event, NotificationHandler, ErrorHandlerFunc) error
 
 	// ErrorHandlerFunc is a function that processes the error returned by the EventListener.
 	ErrorHandlerFunc func(err error) error
@@ -479,40 +483,31 @@ func ValidateSignature(payload []byte, signature string, secret string) bool {
 // CategorizeEvent categorizes the event notification from message type. This determines the type of event that occurred.
 // Note:
 //   - The type of message that has been received by the business that has subscribed to Webhooks has
-//     these possible values:
-//   - audio
-//   - button
-//   - document
-//   - text
-//   - image
-//   - interactive
-//   - order
-//   - sticker
-//   - system – for customer number change messages
-//   - unknown - if the message type is not recognized
+//     these possible values: audio, button, document, text, image, interactive, order, sticker, system
+//     and unknown.
+//     System messages are sent when a customer number changes and UnknownEvent messages are sent when the message type is not
+//     recognized.
 //
 // For more info -> https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components#messages-object
-func CategorizeEvent(messageType string) EventType {
-	switch messageType {
-	case "audio":
-		return Audio
-	case "button":
-		return Button
-	case "document":
-		return Document
+func CategorizeEvent(messageType string) Event {
+	switch strings.ToLower(messageType) {
 	case "text":
-		return Text
+		return ReceivedTextMessage
 	case "image":
-		return Image
-	case "interactive":
-		return Interactive
-	case "order":
-		return Order
+		return ReceivedImage
+	case "audio":
+		return ReceivedAudio
+	case "document":
+		return ReceivedDocument
 	case "sticker":
-		return Sticker
-	case "system":
-		return System
+		return ReceivedSticker
+	case "video":
+		return ReceivedVideo
+	case "location":
+		return ReceivedLocation
+	case "contacts":
+		return ReceivedContact
 	default:
-		return Unknown
+		return UnknownEvent
 	}
 }

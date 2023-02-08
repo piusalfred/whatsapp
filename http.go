@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	http2 "github.com/piusalfred/whatsapp/http"
+	whttp "github.com/piusalfred/whatsapp/http"
 	"github.com/piusalfred/whatsapp/models"
 	"net/http"
 	"strings"
@@ -17,7 +17,7 @@ type SendTextRequest struct {
 }
 
 // SendText sends a text message to the recipient.
-func SendText(ctx context.Context, client *http.Client, params *http2.RequestParams, req *SendTextRequest) (*http2.Response, error) {
+func SendText(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *SendTextRequest) (*whttp.Response, error) {
 	text := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -34,7 +34,7 @@ func SendText(ctx context.Context, client *http.Client, params *http2.RequestPar
 		return nil, err
 	}
 
-	return http2.Send(ctx, client, params, payload)
+	return whttp.Send(ctx, client, params, payload)
 }
 
 type SendLocationRequest struct {
@@ -42,7 +42,7 @@ type SendLocationRequest struct {
 	Location  *models.Location
 }
 
-func SendLocation(ctx context.Context, client *http.Client, params *http2.RequestParams, req *SendLocationRequest) (*http2.Response, error) {
+func SendLocation(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *SendLocationRequest) (*whttp.Response, error) {
 	location := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -55,7 +55,7 @@ func SendLocation(ctx context.Context, client *http.Client, params *http2.Reques
 		return nil, err
 	}
 
-	return http2.Send(ctx, client, params, payload)
+	return whttp.Send(ctx, client, params, payload)
 }
 
 type ReactRequest struct {
@@ -106,7 +106,7 @@ Example response:
 	    }]
 	}
 */
-func React(ctx context.Context, client *http.Client, params *http2.RequestParams, req *ReactRequest) (*http2.Response, error) {
+func React(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *ReactRequest) (*whttp.Response, error) {
 	reaction := &models.Message{
 		Product: "whatsapp",
 		To:      req.Recipient,
@@ -122,7 +122,7 @@ func React(ctx context.Context, client *http.Client, params *http2.RequestParams
 		return nil, err
 	}
 
-	return http2.Send(ctx, client, params, payload)
+	return whttp.Send(ctx, client, params, payload)
 }
 
 type SendContactRequest struct {
@@ -130,7 +130,7 @@ type SendContactRequest struct {
 	Contacts  *models.Contacts
 }
 
-func SendContact(ctx context.Context, client *http.Client, params *http2.RequestParams, req *SendContactRequest) (*http2.Response, error) {
+func SendContact(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *SendContactRequest) (*whttp.Response, error) {
 	contact := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -143,7 +143,7 @@ func SendContact(ctx context.Context, client *http.Client, params *http2.Request
 		return nil, err
 	}
 
-	return http2.Send(ctx, client, params, payload)
+	return whttp.Send(ctx, client, params, payload)
 }
 
 // ReplyParams contains options for replying to a message.
@@ -177,7 +177,7 @@ type ReplyParams struct {
 //	    "body": "your-text-message-content"
 //	  }
 //	}'
-func Reply(ctx context.Context, client *http.Client, params *http2.RequestParams, options *ReplyParams) (*http2.Response, error) {
+func Reply(ctx context.Context, client *http.Client, params *whttp.RequestParams, options *ReplyParams) (*whttp.Response, error) {
 	if options == nil {
 		return nil, fmt.Errorf("options cannot be nil")
 	}
@@ -186,7 +186,7 @@ func Reply(ctx context.Context, client *http.Client, params *http2.RequestParams
 		return nil, err
 	}
 
-	return http2.Send(ctx, client, params, payload)
+	return whttp.Send(ctx, client, params, payload)
 }
 
 // buildReplyPayload builds the payload for a reply. It accepts ReplyParams and returns a byte array

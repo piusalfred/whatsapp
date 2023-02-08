@@ -100,3 +100,20 @@ func TestBuildPayloadForMediaMessage(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkBuildPayloadForMediaMessage(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		BuildPayloadForMediaMessage(&SendMediaOptions{
+			Recipient: "2348123456789",
+			Type:      "audio",
+			Media: &models.Media{
+				ID:       "1234567890",
+				Link:     "https://example.com/audio.mp3",
+				Caption:  "Audio caption",
+				Filename: "audio.mp3",
+				Provider: "whatsapp",
+			},
+			CacheOptions: nil,
+		})
+	}
+}
