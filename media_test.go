@@ -1,8 +1,8 @@
 package whatsapp
 
 import (
+	"encoding/json"
 	"github.com/piusalfred/whatsapp/models"
-	"reflect"
 	"testing"
 )
 
@@ -13,7 +13,6 @@ func TestBuildPayloadForMediaMessage(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []byte
 		wantErr bool
 	}{
 		{
@@ -32,7 +31,7 @@ func TestBuildPayloadForMediaMessage(t *testing.T) {
 					CacheOptions: nil,
 				},
 			},
-			want: []byte(`{"product":"whatsapp","to":"2348123456789","recipient_type":"individual","type":"audio","audio":{"id":"1234567890","link":"https://example.com/audio.mp3","caption":"Audio caption","filename":"audio.mp3","provider":"whatsapp"}}`),
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -43,10 +42,60 @@ func TestBuildPayloadForMediaMessage(t *testing.T) {
 				return
 			}
 
-			// print the payload
-			t.Logf("\npayload: \n%s\n", got)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("BuildPayloadForMediaMessage() got = %v, want %v", got, tt.want)
+			var message models.Message
+			err = json.Unmarshal(got, &message)
+			if err != nil {
+				t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if message.Product != "whatsapp" {
+				t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if message.To != tt.args.options.Recipient {
+				t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if message.RecipientType != "individual" {
+				t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if message.Type != string(tt.args.options.Type) {
+				t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			// check the media values
+			if tt.args.options.Type == "audio" {
+				if message.Audio == nil {
+					t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				} else {
+					if message.Audio.ID != tt.args.options.Media.ID {
+						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+						return
+					}
+					if message.Audio.Link != tt.args.options.Media.Link {
+						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+						return
+					}
+					if message.Audio.Caption != tt.args.options.Media.Caption {
+						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+						return
+					}
+					if message.Audio.Filename != tt.args.options.Media.Filename {
+						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+						return
+					}
+					if message.Audio.Provider != tt.args.options.Media.Provider {
+						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
+						return
+					}
+				}
 			}
 		})
 	}
