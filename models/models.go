@@ -93,7 +93,7 @@ type (
 	}
 
 	Contacts struct {
-		Contacts []Contact `json:"contacts"`
+		Contacts []*Contact `json:"contacts"`
 	}
 
 	// Context used to store the context of the conversation.

@@ -165,27 +165,27 @@ type (
 
 	// Message contains the information of a message. It is embedded in the Value object.
 	Message struct {
-		Audio       *models.MediaInfo  `json:"audio,omitempty"`
-		Button      *Button            `json:"button,omitempty"`
-		Context     *Context           `json:"context,omitempty"`
-		Document    *models.MediaInfo  `json:"document,omitempty"`
-		Errors      []*errors.Error    `json:"errors,omitempty"`
-		From        string             `json:"from,omitempty"`
-		ID          string             `json:"id,omitempty"`
-		Identity    *Identity          `json:"identity,omitempty"`
-		Image       *models.MediaInfo  `json:"image,omitempty"`
-		Interactive *Interactive       `json:"interactive,omitempty"`
-		Order       *Order             `json:"order,omitempty"`
-		Referral    *Referral          `json:"referral,omitempty"`
-		Sticker     *models.MediaInfo  `json:"sticker,omitempty"`
-		System      *System            `json:"system,omitempty"`
-		Text        *Text              `json:"text,omitempty"`
-		Timestamp   string             `json:"timestamp,omitempty"`
-		Type        string             `json:"type,omitempty"`
-		Video       *models.MediaInfo  `json:"video,omitempty"`
-		Contacts    []*models.Contacts `json:"contacts,omitempty"`
-		Location    *models.Location   `json:"location,omitempty"`
-		Reaction    *models.Reaction   `json:"reaction,omitempty"`
+		Audio       *models.MediaInfo `json:"audio,omitempty"`
+		Button      *Button           `json:"button,omitempty"`
+		Context     *Context          `json:"context,omitempty"`
+		Document    *models.MediaInfo `json:"document,omitempty"`
+		Errors      []*errors.Error   `json:"errors,omitempty"`
+		From        string            `json:"from,omitempty"`
+		ID          string            `json:"id,omitempty"`
+		Identity    *Identity         `json:"identity,omitempty"`
+		Image       *models.MediaInfo `json:"image,omitempty"`
+		Interactive *Interactive      `json:"interactive,omitempty"`
+		Order       *Order            `json:"order,omitempty"`
+		Referral    *Referral         `json:"referral,omitempty"`
+		Sticker     *models.MediaInfo `json:"sticker,omitempty"`
+		System      *System           `json:"system,omitempty"`
+		Text        *Text             `json:"text,omitempty"`
+		Timestamp   string            `json:"timestamp,omitempty"`
+		Type        string            `json:"type,omitempty"`
+		Video       *models.MediaInfo `json:"video,omitempty"`
+		Contacts    *models.Contacts  `json:"contacts,omitempty"`
+		Location    *models.Location  `json:"location,omitempty"`
+		Reaction    *models.Reaction  `json:"reaction,omitempty"`
 	}
 
 	// System When messages type is set to system, a customer has updated their phone number or profile information,
