@@ -108,11 +108,16 @@ type (
 	Context struct {
 		MessageID string `json:"message_id"`
 	}
+
+	// MediaInfo provides information about a media be it an Audio, Video, etc
+	// Animated used with stickers only
 	MediaInfo struct {
 		ID       string `json:"id,omitempty"`
 		Caption  string `json:"caption,omitempty"`
 		MimeType string `json:"mime_type,omitempty"`
 		Sha256   string `json:"sha256,omitempty"`
+		Filename string `json:"filename,omitempty"`
+		Animated bool   `json:"animated,omitempty"` // used with stickers true if animated
 	}
 
 	/*
@@ -351,27 +356,27 @@ type (
 		InteractiveSection contains information about a section in an interactive message.
 		A section object can contain the following parameters:
 			- ProductItems product_items, array of objects, Required for Multi-Product Messages. Array of product objects.
-			  There is a minimum of 1 product per section and a maximum of 30 products across all sections.
-			  Each product object contains the following field:
-			  	- product_retailer_idstring – Required for Multi-Product Messages. Unique identifier of the product in a catalog.
-				  To get this ID, go to the Meta Commerce Manager, select your account and the shop you want to use. Then, click
-				  Catalog > Items, and find the item you want to mention. The ID for that item is displayed under the item's name.
+		      There is a minimum of 1 product per section and a maximum of 30 products across all sections.
+		      Each product object contains the following field:
+		           - product_retailer_idstring – Required for Multi-Product Messages. Unique identifier of the product in a catalog.
+		             To get this ID, go to the Meta Commerce Manager, select your account and the shop you want to use. Then, click
+					 Catalog > Items, and find the item you want to mention. The ID for that item is displayed under the item's name.
 
-			- Rows rows, array of objects, Required for List Messages. Contains a list of rows. You can have a total of 10 rows across
-			  all sections. Each row must have a title (Maximum length: 24 characters) and an ID (Maximum length: 200 characters).
-			  You can add a description (Maximum length: 72 characters), but it is optional.
+		    - Rows rows, array of objects, Required for List Messages. Contains a list of rows. You can have a total of 10 rows across
+				  all sections. Each row must have a title (Maximum length: 24 characters) and an ID (Maximum length: 200 characters).
+				  You can add a description (Maximum length: 72 characters), but it is optional.
 
-			  - Example:
+				  - Example:
 
-					"rows": [
-						{
-							"id":"unique-row-identifier-here",
-							"title": "row-title-content-here",
-							"description": "row-description-content-here",
-						},
-					]
+						"rows": [
+							{
+								"id":"unique-row-identifier-here",
+								"title": "row-title-content-here",
+								"description": "row-description-content-here",
+							},
+						]
 
-			- Title string. Required if the message has more than one section. Title of the section. Maximum length: 24 characters.
+		    - Title string. Required if the message has more than one section. Title of the section. Maximum length: 24 characters.
 	*/
 	InteractiveSection struct {
 		Title        string                   `json:"title,omitempty"`

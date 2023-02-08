@@ -159,21 +159,188 @@ type (
 		WaID    string   `json:"wa_id,omitempty"`
 	}
 
+	// Message contains the information of a message. It is embedded in the Value object.
 	Message struct {
-		From      string            `json:"from,omitempty"`
-		ID        string            `json:"id,omitempty"`
-		Timestamp int64             `json:"timestamp,omitempty"`
-		Type      string            `json:"type,omitempty"`
-		Errors    []*errors.Error   `json:"errors,omitempty"`
-		Text      *models.Text      `json:"text,omitempty"`
-		Location  *models.Location  `json:"location,omitempty"`
-		Recation  *models.Reaction  `json:"reaction,omitempty"`
-		Sticker   *models.MediaInfo `json:"sticker,omitempty"`
-		Image     *models.MediaInfo `json:"image,omitempty"`
-		Video     *models.MediaInfo `json:"video,omitempty"`
-		Audio     *models.MediaInfo `json:"audio,omitempty"`
-		Document  *models.MediaInfo `json:"document,omitempty"`
-		Contacts  *models.Contacts  `json:"contacts,omitempty"`
+		Audio       *models.MediaInfo  `json:"audio,omitempty"`
+		Button      *Button            `json:"button,omitempty"`
+		Context     *Context           `json:"context,omitempty"`
+		Document    *models.MediaInfo  `json:"document,omitempty"`
+		Errors      []*errors.Error    `json:"errors,omitempty"`
+		From        string             `json:"from,omitempty"`
+		ID          string             `json:"id,omitempty"`
+		Identity    *Identity          `json:"identity,omitempty"`
+		Image       *models.MediaInfo  `json:"image,omitempty"`
+		Interactive *Interactive       `json:"interactive,omitempty"`
+		Order       *Order             `json:"order,omitempty"`
+		Referral    *Referral          `json:"referral,omitempty"`
+		Sticker     *models.MediaInfo  `json:"sticker,omitempty"`
+		System      *System            `json:"system,omitempty"`
+		Text        *Text              `json:"text,omitempty"`
+		Timestamp   string             `json:"timestamp,omitempty"`
+		Type        string             `json:"type,omitempty"`
+		Video       *models.MediaInfo  `json:"video,omitempty"`
+		Contacts    []*models.Contacts `json:"contacts,omitempty"`
+		Location    *models.Location   `json:"location,omitempty"`
+		Reaction    *models.Reaction   `json:"reaction,omitempty"`
+	}
+
+	// System When messages type is set to system, a customer has updated their phone number or profile information,
+	// this object is included in the messages object. System objects have the following properties:
+	//
+	// Body - Describes the change to the customer's identity or phone number.
+	// Identity - Hash for the identity fetched from server.
+	// NewWaID - New WhatsApp ID for the customer when their phone number is updated. Available on webhook versions v11.0 and earlier.
+	// WaID New WhatsApp ID for the customer when their phone number is updated. Available on webhook versions v12.0 and later.
+	// Type – type of system update. Will be one of the following:.
+	// 		- customer_changed_number – A customer changed their phone number.
+	//		- customer_identity_changed – A customer changed their profile information.
+	// Customer The WhatsApp ID for the customer prior to the update.
+	System struct {
+		Body     string `json:"body,omitempty"`
+		Identity string `json:"identity,omitempty"`
+		NewWaID  string `json:"new_wa_id,omitempty"`
+		Type     string `json:"type,omitempty"`
+		WaID     string `json:"wa_id,omitempty"`
+		Customer string `json:"customer,omitempty"`
+	}
+
+	Text struct {
+		Body string `json:"body,omitempty"`
+	}
+
+	// Interactive ...
+	Interactive struct {
+		Type *InteractiveType `json:"type,omitempty"`
+	}
+
+	// InteractiveType ...
+	// ButtonReply, sent when a customer clicks a button
+	// ListReply, sent when a customer selects an item from a list
+	InteractiveType struct {
+		ButtonReply *InteractiveReplyType `json:"button_reply,omitempty"` // sent when a customer clicks a button
+		ListReply   *InteractiveReplyType `json:"list_reply,omitempty"`   // sent when a customer selects an item from a list
+	}
+
+	// InteractiveType ...
+	InteractiveReplyType struct {
+		ID          string `json:"id,omitempty"`
+		Title       string `json:"title,omitempty"`
+		Description string `json:"description,omitempty"`
+	}
+
+	// ProductItem ...
+	// ProductRetailerID Unique identifier of the product in a catalog.
+	// Quantity Number of items.
+	// ItemPrice Price of each item.
+	// Currency — Price currency.
+	ProductItem struct {
+		ProductRetailerID string `json:"product_retailer_id,omitempty"`
+		Quantity          string `json:"quantity,omitempty"`
+		ItemPrice         string `json:"item_price,omitempty"`
+		Currency          string `json:"currency,omitempty"`
+	}
+
+	// Order ...
+	// CatalogID ID for the catalog the ordered item belongs to.
+	// Text message from the user sent along with the order.
+	// ProductItems Array of product item objects
+	Order struct {
+		CatalogID    string         `json:"catalog_id,omitempty"`
+		Text         string         `json:"text,omitempty"`
+		ProductItems []*ProductItem `json:"product_items,omitempty"`
+	}
+
+	// Referral A customer clicked an ad that redirects them to WhatsApp, this object is included in
+	// the Message object. Referral objects have the following properties:
+	//
+	// SourceURL – String. The Meta URL that leads to the ad or post clicked by the customer. Opening this
+	// url takes you to the ad viewed by your customer.
+	//
+	// SourceType – String. The type of the ad’s source; ad or post.
+	//
+	// SourceID – String. Meta ID for an ad or a post.
+	//
+	// Headline – String. Headline used in the ad or post.
+	//
+	// Body – String. Body for the ad or post.
+	//
+	// MediaType – String. Media present in the ad or post; image or video.
+	//
+	// ImageURL – String. URL of the image, when media_type is an image.
+	//
+	// VideoURL – String. URL of the video, when media_type is a video.
+	//
+	// ThumbnailURL – String. URL for the thumbnail, when media_type is a video.
+	Referral struct {
+		SourceURL    string `json:"source_url,omitempty"`
+		SourceType   string `json:"source_type,omitempty"`
+		SourceID     string `json:"source_id,omitempty"`
+		Headline     string `json:"headline,omitempty"`
+		Body         string `json:"body,omitempty"`
+		MediaType    string `json:"media_type,omitempty"`
+		ImageURL     string `json:"image_url,omitempty"`
+		VideoURL     string `json:"video_url,omitempty"`
+		ThumbnailURL string `json:"thumbnail_url,omitempty"`
+	}
+
+	// Button embedded in the Message object. When the messages type field is set to button,
+	// this object is included in the messages object:
+	//
+	// Payload, payload – String. The payload for a button set up by the business that a customer
+	// clicked as part of an interactive message.
+	//
+	// Text, text — String. Button text.
+	Button struct {
+		Payload string `json:"payload,omitempty"`
+		Text    string `json:"text,omitempty"`
+	}
+
+	// Identity Webhook is triggered when a customer's phone number or profile information has been updated.
+	// See messages system identity. Identity objects can have the following properties:
+	//
+	// Acknowledged, acknowledged — State of acknowledgment for the messages system customer_identity_changed.
+	//
+	// CreatedTimestamp, created_timestamp — String. The time when the WhatsApp Business Management API detected
+	// the customer may have changed their profile information.
+	//
+	// Hash, hash — String. The ID for the messages system customer_identity_changed
+	Identity struct {
+		Acknowledged     bool   `json:"acknowledged,omitempty"`
+		CreatedTimestamp int64  `json:"created_timestamp,omitempty"`
+		Hash             string `json:"hash,omitempty"`
+	}
+
+	// Context object. Only included when a user replies or interacts with one of your messages. Context objects\
+	// can have the following properties:
+	//
+	//	- Forwarded, forwarded — Boolean. Set to true if the message received by the business has been forwarded.
+	//	- FrequentlyForwarded,frequently_forwarded — Boolean. Set to true if the message received by the business
+	//	  has been forwarded more than 5 times.
+	//	- From, from — String. The WhatsApp ID for the customer who replied to an inbound message.
+	//	- ID, id — String. The message ID for the sent message for an inbound reply.
+	//	- ReferredProduct, referred_product — Object. Referred product object describing the product the user is
+	//	  requesting information about. You must parse this value if you support Product Enquiry Messages. See
+	//	  Receive Response From Customers. Referred product objects have the following properties:
+	//	  	- CatalogID, catalog_id — String. Unique identifier of the Meta catalog linked to the WhatsApp Business Account.
+	//      - ProductRelailerID,product_retailer_id — String. Unique identifier of the product in a catalog.
+	Context struct {
+		Forwarded           bool   `json:"forwarded,omitempty"`
+		FrequentlyForwarded bool   `json:"frequently_forwarded,omitempty"`
+		From                string `json:"from,omitempty"`
+		ID                  string `json:"id,omitempty"`
+		ReferredProduct     *ReferedProduct
+	}
+
+	// ReferredProduct,Referred product object describing the product the user is
+	// requesting information about. You must parse this value if you support Product Enquiry Messages. See
+	// Receive Response From Customers. Referred product objects have the following properties:
+	//
+	// CatalogID, catalog_id — String. Unique identifier of the Meta catalog linked to the WhatsApp Business Account.
+	//
+	// ProductRetailerID,product_retailer_id — String. Unique identifier of the product in a catalog.
+	ReferedProduct struct {
+		CatalogID         string `json:"catalog_id,omitempty"`
+		ProductRetailerID string `json:"product_retailer_id,omitempty"`
 	}
 
 	Value struct {
@@ -307,4 +474,45 @@ func ValidateSignature(payload []byte, signature string, secret string) bool {
 	hash.Write(payload)
 	sig := hex.EncodeToString(hash.Sum(nil))
 	return hmac.Equal([]byte(sig), []byte(signature))
+}
+
+// CategorizeEvent categorizes the event notification from message type. This determines the type of event that occurred.
+// Note:
+//   - The type of message that has been received by the business that has subscribed to Webhooks has
+//     these possible values:
+//   - audio
+//   - button
+//   - document
+//   - text
+//   - image
+//   - interactive
+//   - order
+//   - sticker
+//   - system – for customer number change messages
+//   - unknown - if the message type is not recognized
+//
+// For more info -> https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components#messages-object
+func CategorizeEvent(messageType string) EventType {
+	switch messageType {
+	case "audio":
+		return Audio
+	case "button":
+		return Button
+	case "document":
+		return Document
+	case "text":
+		return Text
+	case "image":
+		return Image
+	case "interactive":
+		return Interactive
+	case "order":
+		return Order
+	case "sticker":
+		return Sticker
+	case "system":
+		return System
+	default:
+		return Unknown
+	}
 }
