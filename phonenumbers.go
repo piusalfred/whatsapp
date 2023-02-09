@@ -5,8 +5,6 @@ import (
 	"fmt"
 	whttp "github.com/piusalfred/whatsapp/http"
 	"net/http"
-	"net/url"
-	"strings"
 )
 
 type (
@@ -18,7 +16,7 @@ type (
 	// CodeMethod is the method to use to send the code. It can be SMS or VOICE
 	// Language is the language to use for the code. eg. en
 	VerificationCodeRequest struct {
-		Token 	   string `json:"token"`
+		Token         string `json:"token"`
 		BaseURL       string `json:"base_url"`
 		ApiVersion    string `json:"api_version"`
 		PhoneNumberID string `json:"phone_number_id"`
@@ -44,22 +42,22 @@ type (
 //	 -F 'code_method=SMS' \
 //	 -F 'language=en'
 func RequestCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest) error {
-	// create a  http request with form data
-	formData := url.Values{}
-	formData.Set("code_method", req.CodeMethod)
-	formData.Set("language", req.Language)
 	request, err := whttp.NewRequestWithContext(ctx, &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID
+		SenderID:   req.PhoneNumberID,
 		ApiVersion: req.ApiVersion,
 		Headers: map[string]string{
 			"Content-Type": "application/x-www-form-urlencoded",
 		},
-		Query:      nil,
-		Bearer:     req.Token,
-		BaseURL:    req.BaseURL,
-		Endpoint:   "/request_code",
-		Method:     http.MethodPost,
-	}, strings.NewReader(formData.Encode()))
+		Query: nil,
+		Form: map[string]string{
+			"code_method": req.CodeMethod,
+			"language":    req.Language,
+		},
+		Bearer:   req.Token,
+		BaseURL:  req.BaseURL,
+		Endpoint: "/request_code",
+		Method:   http.MethodPost,
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create new request: %w", err)
 	}
@@ -68,7 +66,7 @@ func RequestCode(ctx context.Context, client *http.Client, req *VerificationCode
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-// check the response status code
+	// check the response status code
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("request failed: %s", response.Status)
 	}
@@ -78,31 +76,33 @@ func RequestCode(ctx context.Context, client *http.Client, req *VerificationCode
 // VerifyCode verifies a phone number using a verification code sent via SMS/voice call.
 // After the API call, you will receive your verification code via the method you selected.
 // To finish the verification process, include your code in a POST request to PHONE_NUMBER_ID/verify_code.
-// curl -X POST \
-//  'https://graph.facebook.com/v16.0/FROM_PHONE_NUMBER_ID/verify_code' \
-//  -H 'Authorization: Bearer ACCESS_TOKEN' \
-//  -F 'code=000000'
-//A successful response looks like this:
 //
-//{
-//  "success": true
-//}
+//	curl -X POST \
+//	 'https://graph.facebook.com/v16.0/FROM_PHONE_NUMBER_ID/verify_code' \
+//	 -H 'Authorization: Bearer ACCESS_TOKEN' \
+//	 -F 'code=000000'
+//
+// A successful response looks like this:
+//
+//	{
+//	 "success": true
+//	}
 func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest, code string) error {
-	// create a  http request with form data
-	formData := url.Values{}
-	formData.Set("code", code)
 	request, err := whttp.NewRequestWithContext(ctx, &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID
+		SenderID:   req.PhoneNumberID,
 		ApiVersion: req.ApiVersion,
 		Headers: map[string]string{
 			"Content-Type": "application/x-www-form-urlencoded",
 		},
-		Query:      nil,
-		Bearer:     req.Token,
-		BaseURL:    req.BaseURL,
-		Endpoint:   "/verify_code",
-		Method:     http.MethodPost,
-	}, strings.NewReader(formData.Encode()))
+		Query:  nil,
+		Bearer: req.Token,
+		Form: map[string]string{
+			"code": code,
+		},
+		BaseURL:  req.BaseURL,
+		Endpoint: "/verify_code",
+		Method:   http.MethodPost,
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create new request: %w", err)
 	}
@@ -111,4 +111,9 @@ func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeR
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
+	// check the response status code
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("request failed: %s", response.Status)
+	}
+	return nil
 }

@@ -29,6 +29,7 @@ type (
 		Headers    map[string]string
 		Query      map[string]string
 		Bearer     string
+		Form       map[string]string
 		BaseURL    string
 		Endpoint   string
 		Method     string
@@ -61,15 +62,27 @@ func NewRequestWithContext(ctx context.Context, params *RequestParams, payload [
 		return nil, fmt.Errorf("failed to join url parts: %w", err)
 	}
 
-	if payload == nil {
-		req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, nil)
+	if params.Form != nil {
+		form := url.Values{}
+		for key, value := range params.Form {
+			form.Add(key, value)
+		}
+		req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBufferString(form.Encode()))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new request: %w", err)
 		}
 	} else {
-		req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBuffer(payload))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create new request: %w", err)
+
+		if payload == nil {
+			req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create new request: %w", err)
+			}
+		} else {
+			req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBuffer(payload))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create new request: %w", err)
+			}
 		}
 	}
 
