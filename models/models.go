@@ -362,7 +362,7 @@ type (
 		             To get this ID, go to the Meta Commerce Manager, select your account and the shop you want to use. Then, click
 					 Catalog > Items, and find the item you want to mention. The ID for that item is displayed under the item's name.
 
-		    - Rows rows, array of objects, Required for List Messages. Contains a list of rows. You can have a total of 10 rows across
+		    - Rows array of objects, Required for List Messages. Contains a list of rows. You can have a total of 10 rows across
 				  all sections. Each row must have a title (Maximum length: 24 characters) and an ID (Maximum length: 200 characters).
 				  You can add a description (Maximum length: 72 characters), but it is optional.
 
@@ -532,7 +532,7 @@ type (
 		      For Cloud API users, we support static third-party outbound stickers and all types of inbound stickers. The sticker needs
 		      to be 512x512 pixels and the file size needs to be less than 100 KB.
 
-		Template template (object). Required when type=template. A template object.
+		Template A template (object). Required when type=template. A template object.
 
 		Text text (object). Required for text messages. A text object.
 
