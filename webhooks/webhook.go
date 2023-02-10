@@ -417,6 +417,7 @@ func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bodyBytes, readErr := io.ReadAll(r.Body)
+	defer io.NopCloser(bytes.NewBuffer(bodyBytes)
 	if readErr != nil {
 		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(readErr, ErrBodyReadFailed))
 		if nErr != nil {
@@ -435,9 +436,6 @@ func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
-	// restore the body
-	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	// pass the notification to the handler
 	notifErr := el.h.HandleEvent(r.Context(), w, r, &notification)
