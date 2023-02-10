@@ -416,9 +416,9 @@ func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(err, ErrBodyReadFailed))
+	bodyBytes, readErr := io.ReadAll(r.Body)
+	if readErr != nil {
+		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(readErr, ErrBodyReadFailed))
 		if nErr != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -426,9 +426,9 @@ func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = json.Unmarshal(bodyBytes, &notification)
-	if err != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(err, ErrBodyUnmarshalFailed))
+	unmarshalErr := json.Unmarshal(bodyBytes, &notification)
+	if unmarshalErr != nil {
+		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(unmarshalErr, ErrBodyUnmarshalFailed))
 		if nErr != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -440,9 +440,9 @@ func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	// pass the notification to the handler
-	err = el.h.HandleEvent(r.Context(), w, r, &notification)
-	if err != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, err)
+	notifErr := el.h.HandleEvent(r.Context(), w, r, &notification)
+	if notifErr != nil {
+		nErr := el.h.HandleError(r.Context(), w, r, notifErr)
 		if nErr != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
