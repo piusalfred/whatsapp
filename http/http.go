@@ -12,6 +12,18 @@ import (
 )
 
 type (
+	// Response is the response from the WhatsApp server
+	// Example:
+	//		{
+	//	  		"messaging_product": "whatsapp",
+	//	  		"contacts": [{
+	//	      		"input": "PHONE_NUMBER",
+	//	      		"wa_id": "WHATSAPP_ID",
+	//	    	}]
+	//	  		"messages": [{
+	//	      		"id": "wamid.ID",
+	//	    	}]
+	//		}
 	Response struct {
 		StatusCode int
 		Headers    map[string][]string
