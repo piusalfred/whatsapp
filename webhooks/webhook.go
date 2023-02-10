@@ -1,13 +1,16 @@
 package webhooks
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/piusalfred/whatsapp/errors"
 	"github.com/piusalfred/whatsapp/models"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -382,24 +385,58 @@ type (
 	// the one set in the App Dashboard.
 	SubscriptionVerifier func(context.Context, *VerificationRequest) error
 
-	// EventListener is a function that processes the event notification. It is an extension of the
-	// http.HandlerFunc type. It accepts a context, http.ResponseWriter, *http.Request, NotificationType,
-	// ErrorHandlerFunc func(err error) error and returns an error.
-	EventListener func(context.Context, http.ResponseWriter, *http.Request,
-		Event, NotificationHandler, ErrorHandlerFunc) error
+	EventListener struct {
+		h EventHandler
+	}
 
-	// ErrorHandlerFunc is a function that processes the error returned by the EventListener.
-	ErrorHandlerFunc func(err error) error
-
-	NotificationHandler func(context.Context, *Notification) error
+	EventHandler interface {
+		HandleError(context.Context, http.ResponseWriter, *http.Request, error) error
+		HandleEvent(context.Context, http.ResponseWriter, *http.Request, *Notification) error
+	}
 )
 
-// Make EventListener a http.HandlerFunc
-func (el EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	//nCtx, cancel := context.WithCancel(r.Context())
-	//defer cancel()
+func NewEventListener(h EventHandler) *EventListener {
+	return &EventListener{
+		h: h,
+	}
+}
 
-	el(context.Background(), w, r, "", nil, nil)
+// Make EventListener a http.HandlerFunc
+func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var notification Notification
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		nErr := el.h.HandleError(r.Context(), w, r, err)
+		if nErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	err = json.Unmarshal(bodyBytes, &notification)
+	if err != nil {
+		nErr := el.h.HandleError(r.Context(), w, r, err)
+		if nErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	// restore the body
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// pass the notification to the handler
+	err = el.h.HandleEvent(r.Context(), w, r, &notification)
+	if err != nil {
+		nErr := el.h.HandleError(r.Context(), w, r, err)
+		if nErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		return
+	}
 }
 
 // VerifySubscriptionHandler verifies the subscription to the webhooks.
