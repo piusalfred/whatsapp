@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	whttp "github.com/piusalfred/whatsapp/http"
-	"github.com/piusalfred/whatsapp/models"
 	"net/http"
 	"strings"
+
+	whttp "github.com/piusalfred/whatsapp/http"
+	"github.com/piusalfred/whatsapp/models"
 )
 
 type (
@@ -214,7 +215,7 @@ type ReplyParams struct {
 //
 // replying with a template message ("type":"template")
 // replying with an image, video, PTT, or audio, and the recipient is on KaiOS
-// These are known bugs which we are being addressed.
+// These are known bugs which are being addressed.
 // Example of Text reply:
 // "messaging_product": "whatsapp",
 //

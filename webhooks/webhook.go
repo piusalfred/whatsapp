@@ -9,11 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	werrors "github.com/piusalfred/whatsapp/errors"
-	"github.com/piusalfred/whatsapp/models"
 	"io"
 	"net/http"
 	"strings"
+
+	werrors "github.com/piusalfred/whatsapp/errors"
+	"github.com/piusalfred/whatsapp/models"
 )
 
 var (
@@ -405,7 +406,7 @@ func NewEventListener(h EventHandler) *EventListener {
 	}
 }
 
-// Make EventListener a http.HandlerFunc
+// Make EventListener a http.Handler
 func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var notification Notification
 	if r.Body == nil {

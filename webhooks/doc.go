@@ -1,6 +1,10 @@
 /*
 Package webhooks provides a simple way to create a webhooks server in Go.
 
+Webhooks allows you to receive real-time HTTP notifications of changes to specific objects. For example, we could send you
+a notification when a user sends you a message or when a message template's status has changed. This prevents you from having
+to query our APIs for changes to objects that may or may not have happened, and helps you avoid reaching your rate limit.
+
 Before using this API, You must set up/subscribe to a webhooks to receive notifications from the WhatsApp Business Platform.
 Follow Whatsapp Webhooks Getting Started guide (https://developers.facebook.com/docs/graph-api/webhooks/getting-started)
 to create your endpoint and configure your Webhooks. When you configure your Webhooks, make sure to choose WhatsApp Business

@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/piusalfred/whatsapp/webhooks"
 	"net/http"
 	"os"
+
+	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 var _ webhooks.EventHandler = (*handler)(nil)
@@ -75,7 +76,7 @@ func main() {
 	handler := &handler{}
 	ls := webhooks.NewEventListener(handler)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/webhooks", ls.ServeHTTP)
+	mux.Handle("/webhooks", ls)
 
 	// Create a new server
 	server := &http.Server{
