@@ -7,8 +7,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/piusalfred/whatsapp/errors"
+	werrors "github.com/piusalfred/whatsapp/errors"
 	"github.com/piusalfred/whatsapp/models"
 	"io"
 	"net/http"
@@ -17,6 +18,9 @@ import (
 
 var (
 	ErrSignatureValidationFailed = fmt.Errorf("signature validation failed")
+	ErrBodyReadFailed            = fmt.Errorf("failed to read request body")
+	ErrBodyNil                   = fmt.Errorf("request body is nil")
+	ErrBodyUnmarshalFailed       = fmt.Errorf("failed to unmarshal request body")
 )
 
 const (
@@ -118,7 +122,7 @@ type (
 	//
 	// Pricing, pricing object that contains information about the billing information.
 	//
-	// Errors, array of errors.Error objects that contains information about the errors that occurred.
+	// Errors, array of errors.Error objects that contains information about the werrors that occurred.
 	//
 	// NOTE:
 	//
@@ -128,13 +132,13 @@ type (
 	// back, as it is implied that a message has been delivered if it has been read. The reason for this
 	// behavior is internal optimization.
 	Status struct {
-		ID           string          `json:"id,omitempty"`
-		RecipientID  string          `json:"recipient_id,omitempty"`
-		StatusValue  string          `json:"status,omitempty"`
-		Timestamp    int             `json:"timestamp,omitempty"`
-		Conversation *Conversation   `json:"conversation,omitempty"`
-		Pricing      *Pricing        `json:"pricing,omitempty"`
-		Errors       []*errors.Error `json:"errors,omitempty"`
+		ID           string           `json:"id,omitempty"`
+		RecipientID  string           `json:"recipient_id,omitempty"`
+		StatusValue  string           `json:"status,omitempty"`
+		Timestamp    int              `json:"timestamp,omitempty"`
+		Conversation *Conversation    `json:"conversation,omitempty"`
+		Pricing      *Pricing         `json:"pricing,omitempty"`
+		Errors       []*werrors.Error `json:"werrors,omitempty"`
 	}
 
 	// Event is the type of event that occurred and leads to the notification being sent.
@@ -172,7 +176,7 @@ type (
 		Button      *Button           `json:"button,omitempty"`
 		Context     *Context          `json:"context,omitempty"`
 		Document    *models.MediaInfo `json:"document,omitempty"`
-		Errors      []*errors.Error   `json:"errors,omitempty"`
+		Errors      []*werrors.Error  `json:"werrors,omitempty"`
 		From        string            `json:"from,omitempty"`
 		ID          string            `json:"id,omitempty"`
 		Identity    *Identity         `json:"identity,omitempty"`
@@ -351,11 +355,11 @@ type (
 	}
 
 	Value struct {
-		MessagingProduct string          `json:"messaging_product,omitempty"`
-		Metadata         *Metadata       `json:"metadata,omitempty"`
-		Errors           []*errors.Error `json:"errors,omitempty"`
-		Contacts         []*Contact      `json:"contacts,omitempty"`
-		Messages         []*Message      `json:"messages,omitempty"`
+		MessagingProduct string           `json:"messaging_product,omitempty"`
+		Metadata         *Metadata        `json:"metadata,omitempty"`
+		Errors           []*werrors.Error `json:"werrors,omitempty"`
+		Contacts         []*Contact       `json:"contacts,omitempty"`
+		Messages         []*Message       `json:"messages,omitempty"`
 	}
 
 	Change struct {
@@ -404,9 +408,17 @@ func NewEventListener(h EventHandler) *EventListener {
 // Make EventListener a http.HandlerFunc
 func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var notification Notification
+	if r.Body == nil {
+		nErr := el.h.HandleError(r.Context(), w, r, ErrBodyNil)
+		if nErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		return
+	}
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, err)
+		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(err, ErrBodyReadFailed))
 		if nErr != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -416,7 +428,7 @@ func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err = json.Unmarshal(bodyBytes, &notification)
 	if err != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, err)
+		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(err, ErrBodyUnmarshalFailed))
 		if nErr != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
