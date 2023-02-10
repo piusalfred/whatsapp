@@ -262,3 +262,35 @@ func buildReplyPayload(options *ReplyParams) ([]byte, error) {
 	payloadBuilder.WriteString(`}`)
 	return []byte(payloadBuilder.String()), nil
 }
+
+type SendTemplateRequest struct {
+	Recipient              string
+	TemplateLanguageCode   string
+	TemplateLanguagePolicy string
+	TemplateName           string
+	TemplateCompnents      []*models.TemplateComponent
+}
+
+func SendTemplate(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *SendTemplateRequest) (*whttp.Response, error) {
+	template := &models.Message{
+		Product:       "whatsapp",
+		To:            req.Recipient,
+		RecipientType: "individual",
+		Type:          "template",
+		Template: &models.Template{
+			Language: &models.TemplateLanguage{
+				Code:   req.TemplateLanguageCode,
+				Policy: req.TemplateLanguagePolicy,
+			},
+			Name:       req.TemplateName,
+			Namespace:  "whatsapp",
+			Components: req.TemplateCompnents,
+		},
+	}
+	payload, err := json.Marshal(template)
+	if err != nil {
+		return nil, err
+	}
+
+	return whttp.Send(ctx, client, params, payload)
+}
