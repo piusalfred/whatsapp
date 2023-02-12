@@ -3,8 +3,9 @@ package whatsapp
 import (
 	"context"
 	"fmt"
-	whttp "github.com/piusalfred/whatsapp/http"
 	"net/http"
+
+	whttp "github.com/piusalfred/whatsapp/http"
 )
 
 type (
@@ -22,6 +23,17 @@ type (
 		PhoneNumberID string `json:"phone_number_id"`
 		CodeMethod    string `json:"code_method"`
 		Language      string `json:"language"` // eg. en
+	}
+
+	PhoneNumber struct {
+		VerifiedName       string `json:"verified_name"`
+		DisplayPhoneNumber string `json:"display_phone_number"`
+		ID                 string `json:"id"`
+		QualityRating      string `json:"quality_rating"`
+	}
+
+	PhoneNumbersList struct {
+		Data []*PhoneNumber `json:"data,omitempty"`
 	}
 )
 
@@ -117,3 +129,7 @@ func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeR
 	}
 	return nil
 }
+
+// GetPhoneNumbers returns a list of phone numbers that you have access to.
+
+// GetPhoneNumberByID returns a phone number by id.

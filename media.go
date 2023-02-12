@@ -1,14 +1,18 @@
 package whatsapp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	whttp "github.com/piusalfred/whatsapp/http"
-	"github.com/piusalfred/whatsapp/models"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
+
+	whttp "github.com/piusalfred/whatsapp/http"
+	"github.com/piusalfred/whatsapp/models"
 )
 
 const (
@@ -364,4 +368,49 @@ func BuildPayloadForMediaMessage(options *SendMediaOptions) ([]byte, error) {
 	payloadBuilder.WriteString(`}`)
 
 	return []byte(payloadBuilder.String()), nil
+}
+
+type DownloadMediaRequest struct {
+	OutputFilePath string // The path to the file where the media will be downloaded to.
+	Filename       string // The filename of the media file.
+	MediaURL       string // The URL of the media file.
+	Token          string // The access token.
+}
+
+// DownloadMedia downloads a media file from the given URL. It accepts a DownloadMediaRequest
+// and returns a byte array and an error.
+func DownloadMedia(ctx context.Context, client *http.Client, options *DownloadMediaRequest) ([]byte, error) {
+	// create output file
+	outputFile, err := os.Create(options.OutputFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer outputFile.Close()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, options.MediaURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", options.Token))
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to download media: %s", string(bodyBytes))
+	}
+
+	// write to file
+	_, cpErr := io.Copy(outputFile, bytes.NewReader(bodyBytes))
+	if cpErr != nil {
+		return nil, cpErr
+	}
+
+	return bodyBytes, nil
+
 }
