@@ -2,8 +2,11 @@ package whatsapp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 
 	whttp "github.com/piusalfred/whatsapp/http"
 )
@@ -33,8 +36,32 @@ type (
 	}
 
 	PhoneNumbersList struct {
-		Data []*PhoneNumber `json:"data,omitempty"`
+		Data    []*PhoneNumber `json:"data,omitempty"`
+		Paging  *Paging        `json:"paging,omitempty"`
+		Summary *Summary       `json:"summary,omitempty"`
 	}
+
+	Paging struct {
+		Cursors *Cursors `json:"cursors,omitempty"`
+	}
+
+	Cursors struct {
+		Before string `json:"before,omitempty"`
+		After  string `json:"after,omitempty"`
+	}
+
+	Summary struct {
+		TotalCount int `json:"total_count,omitempty"`
+	}
+
+	// PhoneNumberNameStatus value can be one of the following:
+	// APPROVED: The name has been approved. You can download your certificate now.
+	// AVAILABLE_WITHOUT_REVIEW: The certificate for the phone is available and display name is ready to use without review.
+	// DECLINED: The name has not been approved. You cannot download your certificate.
+	// EXPIRED: Your certificate has expired and can no longer be downloaded.
+	// PENDING_REVIEW: Your name request is under review. You cannot download your certificate.
+	// NONE: No certificate is available.
+	PhoneNumberNameStatus string
 )
 
 // RequestCode sends a verification code to a phone number that will later be used for verification.
@@ -130,6 +157,235 @@ func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeR
 	return nil
 }
 
-// GetPhoneNumbers returns a list of phone numbers that you have access to.
+type PhoneNumberFilterParams struct {
+	Field    string `json:"field,omitempty"`
+	Operator string `json:"operator,omitempty"`
+	Value    string `json:"value,omitempty"`
+}
+type ListPhoneNumbersRequest struct {
+	BusinessID   string
+	FilterParams []*PhoneNumberFilterParams
+}
+
+// ListPhoneNumbers retrieve Phone Numbers that a business has registered for their WhatsApp
+// Business Account using the WhatsApp Business Management API.
+//
+// You will need to have
+//   - The WhatsApp Business Account ID for the business' phone numbers you want to retrieve
+//   - A System User access token linked to your WhatsApp Business Account
+//   - The whatsapp_business_management permission
+//
+// Limitations
+// This API can only retrieve phone numbers that have been registered. Adding, updating, or
+// deleting phone numbers is not permitted using the API.
+//
+// The equivalent curl command to retrieve phone numbers is (formatted for readability):
+//
+//		curl -X GET "https://graph.facebook.com/v16.0/{whatsapp-business-account-id}/phone_numbers
+//	      	?access_token={system-user-access-token}"
+//
+// On success, a JSON object is returned with a list of all the business names, phone numbers,
+// phone number IDs, and quality ratings associated with a business.
+//
+//	{
+//	  "data": [
+//	    {
+//	      "verified_name": "Jasper's Market",
+//	      "display_phone_number": "+1 631-555-5555",
+//	      "id": "1906385232743451",
+//	      "quality_rating": "GREEN"
+//
+//		    },
+//		    {
+//		      "verified_name": "Jasper's Ice Cream",
+//		      "display_phone_number": "+1 631-555-5556",
+//		      "id": "1913623884432103",
+//		      "quality_rating": "NA"
+//		    }
+//		  ],
+//		}
+//
+// Filter Phone Numbers
+// You can query phone numbers and filter them based on their account_mode. This filtering option
+// is currently being tested in beta mode. Not all developers have access to it.
+//
+// Sample Request
+// curl -i -X GET "https://graph.facebook.com/v16.0/{whatsapp-business-account-ID}/phone_numbers?filtering=[{"field":"account_mode","operator":"EQUAL","value":"SANDBOX"}]&access_token=access-token"
+// Sample Response
+//
+//	{
+//	  "data": [
+//	    {
+//	      "id": "1972385232742141",
+//	      "display_phone_number": "+1 631-555-1111",
+//	      "verified_name": "John’s Cake Shop",
+//	      "quality_rating": "UNKNOWN",
+//	    }
+//	  ],
+//	  "paging": {
+//		"cursors": {
+//			"before": "abcdefghij",
+//			"after": "klmnopqr"
+//		}
+//	   }
+//	}
+func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, req *ListPhoneNumbersRequest) (*PhoneNumbersList, error) {
+	requestURL, err := url.JoinPath("https://graph.facebook.com/v0.16", req.BusinessID, "phone_numbers")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request url: %w", err)
+	}
+
+	// create the request
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new request: %w", err)
+	}
+
+	// add the access token to the request
+	q := request.URL.Query()
+	q.Add("access_token", token)
+	if req.FilterParams != nil {
+		params := req.FilterParams
+		jsonParams, err := json.Marshal(params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal filter params: %w", err)
+		}
+		q.Add("filtering", string(jsonParams))
+	}
+	request.URL.RawQuery = q.Encode()
+
+	// send the request
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// check the response status code
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed: %s", response.Status)
+	}
+
+	// read the response body
+	body, err := io.ReadAll(response.Body)
+	defer response.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// unmarshal the response body
+	var phoneNumbersList PhoneNumbersList
+	if err := json.Unmarshal(body, &phoneNumbersList); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
+	}
+
+	return &phoneNumbersList, nil
+
+}
 
 // GetPhoneNumberByID returns a phone number by id.
+func GetPhoneNumberByID(ctx context.Context, client *http.Client, token, id string) (*PhoneNumber, error) {
+	requestURL, err := url.JoinPath("https://graph.facebook.com/v0.16", id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request url: %w", err)
+	}
+
+	// create the request
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new request: %w", err)
+	}
+
+	// add the access token to the request
+	q := request.URL.Query()
+	q.Add("access_token", token)
+	request.URL.RawQuery = q.Encode()
+
+	// send the request
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// check the response status code
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed: %s", response.Status)
+	}
+
+	// read the response body
+	body, err := io.ReadAll(response.Body)
+	defer response.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// unmarshal the response body
+	var phoneNumber PhoneNumber
+	if err := json.Unmarshal(body, &phoneNumber); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
+	}
+
+	return &phoneNumber, nil
+}
+
+type DisplayNameStatus struct {
+	ID         string `json:"id,omitempty"`
+	NameStatus string `json:"name_status,omitempty"`
+}
+
+// GetDisplayNameStatus
+// //Include fields=name_status as a query string parameter to get the status of a display name associated with a specific phone number. This field is currently in beta and not available to all developers.
+
+// Sample Request
+// curl \
+// 'https://graph.facebook.com/v15.0/105954558954427?fields=name_status' \
+// -H 'Authorization: Bearer EAAFl...'
+// Sample Response
+//
+//	{
+//	  "id" : "105954558954427",
+//	  "name_status" : "AVAILABLE_WITHOUT_REVIEW"
+//	}
+func GetDisplayNameStatus(ctx context.Context, client *http.Client, token string, id string) (*DisplayNameStatus, error) {
+	requestURL, err := url.JoinPath("https://graph.facebook.com/v0.15", id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request url: %w", err)
+	}
+
+	// create the request
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new request: %w", err)
+	}
+
+	// add the access token to the request
+	q := request.URL.Query()
+	q.Add("access_token", token)
+	q.Add("fields", "name_status")
+	request.URL.RawQuery = q.Encode()
+
+	// send the request
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// check the response status code
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed: %s", response.Status)
+	}
+
+	// read the response body
+	body, err := io.ReadAll(response.Body)
+	defer response.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// unmarshal the response body
+	var displayNameStatus DisplayNameStatus
+	if err := json.Unmarshal(body, &displayNameStatus); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
+	}
+
+	return &displayNameStatus, nil
+}
