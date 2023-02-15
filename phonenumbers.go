@@ -92,10 +92,10 @@ func RequestCode(ctx context.Context, client *http.Client, req *VerificationCode
 			"code_method": req.CodeMethod,
 			"language":    req.Language,
 		},
-		Bearer:   req.Token,
-		BaseURL:  req.BaseURL,
-		Endpoint: "/request_code",
-		Method:   http.MethodPost,
+		Bearer:    req.Token,
+		BaseURL:   req.BaseURL,
+		Endpoints: []string{"request_code"},
+		Method:    http.MethodPost,
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create new request: %w", err)
@@ -138,9 +138,9 @@ func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeR
 		Form: map[string]string{
 			"code": code,
 		},
-		BaseURL:  req.BaseURL,
-		Endpoint: "/verify_code",
-		Method:   http.MethodPost,
+		BaseURL:   req.BaseURL,
+		Endpoints: []string{"verify_code"},
+		Method:    http.MethodPost,
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create new request: %w", err)

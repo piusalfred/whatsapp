@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/piusalfred/whatsapp/errors"
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/piusalfred/whatsapp/errors"
 )
+
+const BaseURL = "https://graph.facebook.com"
 
 type (
 	// Response is the response from the WhatsApp server
@@ -43,7 +46,7 @@ type (
 		Bearer     string
 		Form       map[string]string
 		BaseURL    string
-		Endpoint   string
+		Endpoints  []string
 		Method     string
 	}
 
@@ -61,6 +64,15 @@ type (
 	}
 )
 
+// CreateRequestURL creates a new request url by joining the base url, api version
+// sender id and endpoints.
+// It is called by the NewRequestWithContext function where these details are
+// passed from the RequestParams.
+func CreateRequestURL(baseURL, apiVersion, senderID string, endpoints ...string) (string, error) {
+	elems := append([]string{apiVersion, senderID}, endpoints...)
+	return url.JoinPath(baseURL, elems...)
+}
+
 // NewRequestWithContext creates a new *http.Request with context by using the
 // RequestParams.
 func NewRequestWithContext(ctx context.Context, params *RequestParams, payload []byte) (*http.Request, error) {
@@ -68,8 +80,7 @@ func NewRequestWithContext(ctx context.Context, params *RequestParams, payload [
 		req *http.Request
 		err error
 	)
-	//https://graph.facebook.com/v15.0/FROM_PHONE_NUMBER_ID/messages
-	requestURL, err := url.JoinPath(params.BaseURL, params.ApiVersion, params.SenderID, params.Endpoint)
+	requestURL, err := CreateRequestURL(params.BaseURL, params.ApiVersion, params.SenderID, params.Endpoints...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to join url parts: %w", err)
 	}
