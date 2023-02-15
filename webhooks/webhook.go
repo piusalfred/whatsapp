@@ -394,8 +394,20 @@ type (
 		h EventHandler
 	}
 
+	// EventHandler is an interface that must be implemented by the handler that will
+	// process the notifications received from the WhatsApp Business API.
 	EventHandler interface {
+		// HandleError is called when an error occurs while processing the request.
+		// If the error handling logic uses the response writer, it must return nil.
+		// Otherwise, it must return the error that occurred if the logic fails.
+		// If HandleError returns error at any point of execution, The EventListener
+		// will write a 500 status code to the response writer.
 		HandleError(context.Context, http.ResponseWriter, *http.Request, error) error
+
+		// HandleEvent is called when a notification is received. It is expected that
+		// the implementation of this method will process the notification and write
+		// the response to the response writer. If it returns an error, the error returned
+		// will be passed to HandleError.
 		HandleEvent(context.Context, http.ResponseWriter, *http.Request, *Notification) error
 	}
 )

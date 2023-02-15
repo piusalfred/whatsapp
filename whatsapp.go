@@ -1,14 +1,13 @@
 package whatsapp
 
 const (
-	BaseURL                = "https://graph.facebook.com/"
-	TextMessageType        = "text"
-	ReactionMessageType    = "reaction"
-	MediaMessageType       = "media"
-	LocationMessageType    = "location"
-	ContactMessageType     = "contact"
-	InteractiveMessageType = "interactive"
-
+	BaseURL                   = "https://graph.facebook.com/"
+	TextMessageType           = "text"
+	ReactionMessageType       = "reaction"
+	MediaMessageType          = "media"
+	LocationMessageType       = "location"
+	ContactMessageType        = "contact"
+	InteractiveMessageType    = "interactive"
 	ContactBirthDayDateFormat = "2006-01-02" //YYYY-MM-DD
 )
 
