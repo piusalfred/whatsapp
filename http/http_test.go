@@ -27,6 +27,19 @@ func TestCreateRequestURL(t *testing.T) {
 			want:    "https://graph.facebook.com/v16.0/224225226/verify_code",
 			wantErr: false,
 		},
+		{
+			name: "test create media delete request url",
+			args: args{
+				params: &RequestParams{
+					BaseURL:    BaseURL,
+					SenderID:   "224225226", // this should be meda id
+					ApiVersion: "v16.0",
+					Endpoints:  nil,
+				},
+			},
+			want:    "https://graph.facebook.com/v16.0/224225226",
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
