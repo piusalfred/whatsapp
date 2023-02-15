@@ -1,4 +1,4 @@
-// Package qrcodes provides APi to manage QR codes.
+// Package qrcode provides APi to manage QR codes.
 // It contains API oto create, update, get a list of, and delete QR Code Messages using
 // the WhatsApp Business Management API.
 //
@@ -119,10 +119,11 @@
 //   &access_token={user-access-token}"
 // On success, a JSON array is returned:
 
-//	{
-//	    "success": true
-//	}
-package qrcodes
+// {
+//     "success": true
+// }
+
+package qrcode
 
 import (
 	"context"
