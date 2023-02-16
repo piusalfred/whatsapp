@@ -118,6 +118,8 @@ func (a *App) initSubCommands() {
 			SenderID:   a.phoneID,
 			ApiVersion: a.apiVersion,
 			Bearer:     a.accessToken,
+			BaseURL:    a.baseURL,
+			Method:     http.MethodPost,
 			Endpoints:  []string{"/messages"},
 			Headers: map[string]string{
 				"Content-Type": "application/json",
