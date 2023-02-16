@@ -63,13 +63,17 @@ func MarkMessageRead(ctx context.Context, client *http.Client, url, token string
 }
 
 type SendTextRequest struct {
-	Recipient  string
-	Message    string
-	PreviewURL bool
+	BaseURL       string
+	AccessToken   string
+	PhoneNumberID string
+	ApiVersion    string
+	Recipient     string
+	Message       string
+	PreviewURL    bool
 }
 
 // SendText sends a text message to the recipient.
-func SendText(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *SendTextRequest) (*whttp.Response, error) {
+func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*whttp.Response, error) {
 	text := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -79,6 +83,19 @@ func SendText(ctx context.Context, client *http.Client, params *whttp.RequestPar
 			PreviewUrl: req.PreviewURL,
 			Body:       req.Message,
 		},
+	}
+
+	params := &whttp.RequestParams{
+		SenderID:   req.PhoneNumberID,
+		ApiVersion: req.ApiVersion,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Bearer:  req.AccessToken,
+		BaseURL: req.BaseURL,
+		Method:  http.MethodPost,
+		Endpoints: []string{
+			"messages"},
 	}
 
 	payload, err := json.Marshal(text)

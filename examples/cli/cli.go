@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/piusalfred/whatsapp"
-	whttp "github.com/piusalfred/whatsapp/http"
 	"github.com/urfave/cli/v2"
 )
 
@@ -110,23 +109,15 @@ func (a *App) initSubCommands() {
 		phone := c.String("phone")
 		previewURL := c.Bool("preview-url")
 		request := &whatsapp.SendTextRequest{
-			Recipient:  phone,
-			Message:    message,
-			PreviewURL: previewURL,
+			Recipient:     phone,
+			Message:       message,
+			PreviewURL:    previewURL,
+			BaseURL:       a.baseURL,
+			AccessToken:   a.accessToken,
+			PhoneNumberID: a.phoneID,
+			ApiVersion:    a.apiVersion,
 		}
-		requestParams := &whttp.RequestParams{
-			SenderID:   a.phoneID,
-			ApiVersion: a.apiVersion,
-			Bearer:     a.accessToken,
-			BaseURL:    a.baseURL,
-			Method:     http.MethodPost,
-			Endpoints:  []string{"/messages"},
-			Headers: map[string]string{
-				"Content-Type": "application/json",
-			},
-		}
-
-		response, err := whatsapp.SendText(c.Context, a.HTTP, requestParams, request)
+		response, err := whatsapp.SendText(c.Context, a.HTTP, request)
 		if err != nil {
 			return err
 		}
