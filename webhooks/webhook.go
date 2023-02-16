@@ -391,8 +391,11 @@ type (
 	SubscriptionVerifier func(context.Context, *VerificationRequest) error
 
 	EventListener struct {
-		h EventHandler
+		h        EventHandler
+		verifier SubscriptionVerifier
 	}
+
+	ListenerOption func(*EventListener)
 
 	// EventHandler is an interface that must be implemented by the handler that will
 	// process the notifications received from the WhatsApp Business API.
@@ -412,9 +415,29 @@ type (
 	}
 )
 
-func NewEventListener(h EventHandler) *EventListener {
-	return &EventListener{
+func NewEventListener(h EventHandler, options ...ListenerOption) *EventListener {
+	ls := &EventListener{
 		h: h,
+	}
+
+	for _, option := range options {
+		option(ls)
+	}
+
+	return ls
+}
+
+// SetSubVerifier sets the subscription verifier for the EventListener.
+func (el *EventListener) SetSubVerifier(verifier SubscriptionVerifier) {
+	el.verifier = verifier
+}
+
+// WithSubVerifier returns a ListenerOption that sets the subscription verifier for the EventListener.
+func WithSubVerifier(verifier SubscriptionVerifier) ListenerOption {
+	return func(el *EventListener) {
+		if verifier != nil {
+			el.verifier = verifier
+		}
 	}
 }
 
@@ -491,8 +514,8 @@ func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //     (and thus, triggering a Verification Request), the dashboard will indicate if your endpoint validated the request
 //     correctly. If you are using the Graph API's /app/subscriptions endpoint to configure the Webhooks product, the API
 //     will indicate success or failure with a response.
-func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Retrieve the query parameters from the request.
 		q := r.URL.Query()
 		mode := q.Get("hub.mode")
@@ -507,7 +530,7 @@ func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(challenge))
-	}
+	})
 }
 
 // ValidateSignature validates the signature of the payload. all Event Notification payloads are signed
@@ -523,17 +546,6 @@ func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.HandlerFunc {
 // you will end up with a different signature.
 // For example, the string äöå should be escaped to \u00e4\u00f6\u00e5.
 func ValidateSignature(payload []byte, signature string, secret string) bool {
-
-	// TODO: fix this
-	// change the payload to escaped unicode version with lowercase hex digits
-	// escaped := strconv.QuoteToASCII(string(payload))
-	// // remove the quotes
-	// unquoted, err := strconv.Unquote(escaped)
-	// if err != nil {
-	// 	return false
-	// }
-	// payload = []byte(unquoted)
-
 	hash := hmac.New(sha256.New, []byte(secret))
 	hash.Write(payload)
 	sig := hex.EncodeToString(hash.Sum(nil))
