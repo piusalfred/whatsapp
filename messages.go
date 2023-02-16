@@ -107,11 +107,15 @@ func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*
 }
 
 type SendLocationRequest struct {
-	Recipient string
-	Location  *models.Location
+	BaseURL       string
+	AccessToken   string
+	PhoneNumberID string
+	ApiVersion    string
+	Recipient     string
+	Location      *models.Location
 }
 
-func SendLocation(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *SendLocationRequest) (*whttp.Response, error) {
+func SendLocation(ctx context.Context, client *http.Client, req *SendLocationRequest) (*whttp.Response, error) {
 	location := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -124,13 +128,29 @@ func SendLocation(ctx context.Context, client *http.Client, params *whttp.Reques
 		return nil, err
 	}
 
+	params := &whttp.RequestParams{
+		SenderID:   req.PhoneNumberID,
+		ApiVersion: req.ApiVersion,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Bearer:  req.AccessToken,
+		BaseURL: req.BaseURL,
+		Method:  http.MethodPost,
+		Endpoints: []string{
+			"messages"},
+	}
 	return whttp.Send(ctx, client, params, payload)
 }
 
 type ReactRequest struct {
-	Recipient string
-	MessageID string
-	Emoji     string
+	BaseURL       string
+	AccessToken   string
+	PhoneNumberID string
+	ApiVersion    string
+	Recipient     string
+	MessageID     string
+	Emoji         string
 }
 
 /*
@@ -175,7 +195,7 @@ Example response:
 	    }]
 	}
 */
-func React(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *ReactRequest) (*whttp.Response, error) {
+func React(ctx context.Context, client *http.Client, req *ReactRequest) (*whttp.Response, error) {
 	reaction := &models.Message{
 		Product: "whatsapp",
 		To:      req.Recipient,
@@ -189,6 +209,19 @@ func React(ctx context.Context, client *http.Client, params *whttp.RequestParams
 	payload, err := json.Marshal(reaction)
 	if err != nil {
 		return nil, err
+	}
+
+	params := &whttp.RequestParams{
+		SenderID:   req.PhoneNumberID,
+		ApiVersion: req.ApiVersion,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Bearer:  req.AccessToken,
+		BaseURL: req.BaseURL,
+		Method:  http.MethodPost,
+		Endpoints: []string{
+			"messages"},
 	}
 
 	return whttp.Send(ctx, client, params, payload)

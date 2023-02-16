@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -46,6 +47,7 @@ var (
 type (
 	App struct {
 		HTTP        *http.Client
+		Logger      io.Writer
 		businessID  string
 		phoneID     string
 		apiVersion  string
@@ -54,6 +56,8 @@ type (
 		configPath  string
 		app         *cli.App
 	}
+
+	AppOption func(*App)
 
 	Commander interface {
 		Init(name, usage, description string, aliases ...string) *cli.Command
@@ -64,7 +68,8 @@ type (
 	}
 
 	Command struct {
-		C *cli.Command
+		Logger io.Writer
+		C      *cli.Command
 	}
 
 	CommandParams struct {
@@ -80,10 +85,10 @@ type (
 		SubCommands  []*cli.Command
 	}
 
-	Option func(*Command)
+	CommandOption func(*Command)
 )
 
-func NewCommand(params *CommandParams, opts ...Option) *Command {
+func NewCommand(params *CommandParams, opts ...CommandOption) *Command {
 	c := &Command{}
 	c.Init(params.Name, params.Usage, params.Description, params.Aliases...)
 	c.SetRunners(params.Before, params.Action, params.After, params.OnUsageError)
@@ -127,7 +132,7 @@ func (cmd *Command) Get() *cli.Command {
 	return cmd.C
 }
 
-func New() *App {
+func New(options ...AppOption) *App {
 	commander := &cli.App{
 		Name:                 "whatsapp",
 		Usage:                "use whatsapp from the command line",
@@ -148,6 +153,10 @@ func New() *App {
 	app.initCommonFlags()
 
 	app.initSubCommands()
+
+	for _, opt := range options {
+		opt(app)
+	}
 
 	return app
 }
