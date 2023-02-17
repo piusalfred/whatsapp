@@ -14,6 +14,15 @@ import (
 )
 
 const (
+	SendTextAction        SendAction = "text"
+	SendMediaAction       SendAction = "media"
+	SendLocationAction    SendAction = "location"
+	SendContactAction     SendAction = "contact"
+	SendInteractiveAction SendAction = "interactive"
+	SendTemplateAction    SendAction = "template"
+)
+
+const (
 	flagWhatsappBusinessID    = "business-id"
 	defaultWhatsappBusinessID = ""
 	envWhatsappBusinessID     = "WHATSAPP_BUSINESS_ID"
@@ -86,6 +95,15 @@ type (
 	}
 
 	CommandOption func(*Command)
+
+	RequestParams struct {
+		BaseURL     string
+		ApiVersion  string
+		ID          string
+		AccessToken string
+	}
+
+	SendAction string
 )
 
 func NewCommand(params *CommandParams, opts ...CommandOption) *Command {
@@ -137,12 +155,21 @@ func New(options ...AppOption) *App {
 		Name:                 "whatsapp",
 		Usage:                "use whatsapp from the command line",
 		EnableBashCompletion: true,
+		Before: func(c *cli.Context) error {
+			params := &RequestParams{
+				BaseURL:     c.String(flagBaseURL),
+				ApiVersion:  c.String(flagApiVersion),
+				ID:          c.String(flagPhoneNumberID),
+				AccessToken: c.String(flagAccessToken),
+			}
+			c.Context = context.WithValue(c.Context, "params", params)
+			return nil
+		},
 		Action: func(*cli.Context) error {
 			time.Sleep(5 * time.Second)
 			fmt.Println("boom! I say!")
 			return nil
 		},
-		Commands: []*cli.Command{},
 	}
 
 	app := &App{
@@ -163,63 +190,8 @@ func New(options ...AppOption) *App {
 
 // initSubCommands initializes the sub commands
 func (a *App) initSubCommands() {
-	sendCommandParams := &CommandParams{
-		Name:        "send",
-		Usage:       "send a message",
-		Description: "send a message to a phone number it can be a text, media or template message",
-	}
+	sendCommand := NewSendCommand(a.HTTP, a.Logger).C
 
-	texterFlgs := []cli.Flag{
-		&cli.StringFlag{
-			Name:    "message",
-			Aliases: []string{"m"},
-			Usage:   "message to send",
-		},
-		&cli.StringFlag{
-			Name:    "phone",
-			Aliases: []string{"p"},
-			Usage:   "phone number to send to",
-		},
-		&cli.BoolFlag{
-			Name:    "preview-url",
-			Aliases: []string{"u"},
-			Usage:   "allow to preview url",
-		},
-	}
-
-	sendTextActionFunc := func(c *cli.Context) error {
-		message := c.String("message")
-		phone := c.String("phone")
-		previewURL := c.Bool("preview-url")
-		request := &whatsapp.SendTextRequest{
-			Recipient:     phone,
-			Message:       message,
-			PreviewURL:    previewURL,
-			BaseURL:       a.baseURL,
-			AccessToken:   a.accessToken,
-			PhoneNumberID: a.phoneID,
-			ApiVersion:    a.apiVersion,
-		}
-		response, err := whatsapp.SendText(c.Context, a.HTTP, request)
-		if err != nil {
-			return err
-		}
-
-		fmt.Println(response)
-		return nil
-	}
-
-	sendTextSubCommandParams := &CommandParams{
-		Name:        "text",
-		Usage:       "send a text message",
-		Description: "send a text message to a phone number",
-		Flags:       texterFlgs,
-		Action:      sendTextActionFunc,
-	}
-
-	sendCommand := NewCommand(sendCommandParams).Get()
-	sendTextSubCommand := NewCommand(sendTextSubCommandParams).Get()
-	sendCommand.Subcommands = append(sendCommand.Subcommands, sendTextSubCommand)
 	a.app.Commands = append(a.app.Commands, sendCommand)
 }
 
