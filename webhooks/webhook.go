@@ -7,7 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
+	"github.com/pkg/errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -455,7 +455,7 @@ func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, readErr := io.ReadAll(r.Body)
 	defer io.NopCloser(bytes.NewBuffer(bodyBytes))
 	if readErr != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(readErr, ErrBodyReadFailed))
+		nErr := el.h.HandleError(r.Context(), w, r, errors.Wrap(readErr, ErrBodyReadFailed.Error()))
 		if nErr != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -465,7 +465,7 @@ func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	unmarshalErr := json.Unmarshal(bodyBytes, &notification)
 	if unmarshalErr != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(unmarshalErr, ErrBodyUnmarshalFailed))
+		nErr := el.h.HandleError(r.Context(), w, r, errors.Wrap(unmarshalErr, ErrBodyUnmarshalFailed.Error()))
 		if nErr != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
