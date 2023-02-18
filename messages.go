@@ -345,7 +345,6 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 				Policy: req.TemplateLanguagePolicy,
 			},
 			Name:       req.TemplateName,
-			Namespace:  "whatsapp",
 			Components: req.TemplateComponents,
 		},
 	}

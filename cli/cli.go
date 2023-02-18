@@ -17,9 +17,10 @@ type (
 		Output      string `name: "output" short:"O" help:"Output format (json|text)" default:"text"`
 		ApiVersion  string `name: "api-version" short:"V" help:"the version of Whatsapp Cloud API to use" default:"v16.0"`
 		BaseURL     string `name: "base-url" short:"b" help:"the base URL of Whatsapp Cloud API to use" default:"https://graph.facebook.com/"`
-		PhoneID     string `name: "phone" short:"p" help:"the phone ID of Whatsapp Cloud API to use"`
-		AccessToken string `name "token" short:"T" help:"the access token of Whatsapp Cloud API to use"`
-		Timeout     int    `name: "timeout" short:"t" help:"the timeout of Whatsapp Cloud API to use" default:"30"`
+		PhoneID     string `name: "phone" short:"p" help:"phone ID of Whatsapp Cloud API to use"`
+		WabaID      string `name: "waba" short:"w" help:"whatsapp business account id"`
+		AccessToken string `name "token" short:"T" help:"access token of Whatsapp Cloud API to use"`
+		Timeout     int    `name: "timeout" short:"t" help:"http timeout for making api calls" default:"30"`
 	}
 
 	cli struct {
