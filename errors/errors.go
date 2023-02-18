@@ -51,21 +51,11 @@ type (
 		Details          string `json:"details,omitempty"`
 	}
 
-	ErrorResponse struct {
-		Err  *Error `json:"error,omitempty"`
-		Code int    `json:"code,omitempty"` // http status code
-	}
+	// ErrorResponse struct {
+	// 	Err  *Error `json:"error,omitempty"`
+	// 	Code int    `json:"code,omitempty"` // http status code
+	// }
 )
-
-// Error returns the error message for ErrorResponse.
-func (e *ErrorResponse) Error() string {
-	return fmt.Sprintf("whatsapp error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
-}
-
-// Unwrap returns the underlying error.
-func (e *ErrorResponse) Unwrap() error {
-	return e.Err
-}
 
 // IsError checks if the error is a WhatsApp error.
 func IsError(err error) bool {
