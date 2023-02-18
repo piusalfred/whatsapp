@@ -367,3 +367,154 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 
 	return whttp.Send(ctx, client, params, payload)
 }
+
+type SendMediaRequest struct {
+	BaseURL       string
+	AccessToken   string
+	PhoneNumberID string
+	ApiVersion    string
+	Recipient     string
+	Type          MediaType
+	MediaID       string
+	MediaLink     string
+	Caption       string
+	Filename      string
+	Provider      string
+	CacheOptions  *CacheOptions
+}
+
+/*
+SendMedia sends a media message to the recipient. To send a media message, make a POST call to the
+/PHONE_NUMBER_ID/messages endpoint with type parameter set to audio, document, image, sticker, or
+video, and the corresponding information for the media type such as its ID or
+link (see Media HTTP Caching).
+
+Be sure to keep the following in mind:
+  - Uploaded media only lasts thirty days
+  - Generated download URLs only last five minutes
+  - Always save the media ID when you upload a file
+
+Here’s a list of the currently supported media types. Check out Supported Media Types for more information.
+  - Audio (<16 MB) – ACC, MP4, MPEG, AMR, and OGG formats
+  - Documents (<100 MB) – text, PDF, Office, and Open Office formats
+  - Images (<5 MB) – JPEG and PNG formats
+  - Video (<16 MB) – MP4 and 3GP formats
+  - Stickers (<100 KB) – WebP format
+
+Sample request using image with link:
+
+	curl -X  POST \
+	 'https://graph.facebook.com/v15.0/FROM-PHONE-NUMBER-ID/messages' \
+	 -H 'Authorization: Bearer ACCESS_TOKEN' \
+	 -H 'Content-Type: application/json' \
+	 -d '{
+	  "messaging_product": "whatsapp",
+	  "recipient_type": "individual",
+	  "to": "PHONE-NUMBER",
+	  "type": "image",
+	  "image": {
+	    "link" : "https://IMAGE_URL"
+	  }
+	}'
+
+Sample request using media ID:
+
+	curl -X  POST \
+	 'https://graph.facebook.com/v15.0/FROM-PHONE-NUMBER-ID/messages' \
+	 -H 'Authorization: Bearer ACCESS_TOKEN' \
+	 -H 'Content-Type: application/json' \
+	 -d '{
+	  "messaging_product": "whatsapp",
+	  "recipient_type": "individual",
+	  "to": "PHONE-NUMBER",
+	  "type": "image",
+	  "image": {
+	    "id" : "MEDIA-OBJECT-ID"
+	  }
+	}'
+
+A successful response includes an object with an identifier prefixed with wamid. If you are using a link to
+send the media, please check the callback events delivered to your Webhook server whether the media has been
+downloaded successfully.
+
+	{
+	  "messaging_product": "whatsapp",
+	  "contacts": [{
+	      "input": "PHONE_NUMBER",
+	      "wa_id": "WHATSAPP_ID",
+	    }]
+	  "messages": [{
+	      "id": "wamid.ID",
+	    }]
+	}
+*/
+func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) (*whttp.Response, error) {
+	if req == nil {
+		return nil, fmt.Errorf("options cannot be nil")
+	}
+
+	payload, err := BuildPayloadForMediaMessage(req)
+	if err != nil {
+		return nil, err
+	}
+
+	params := &whttp.RequestParams{
+		SenderID:   req.PhoneNumberID,
+		ApiVersion: req.ApiVersion,
+		Bearer:     req.AccessToken,
+		BaseURL:    req.BaseURL,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Endpoints:  []string{"messages"},
+		Method:     http.MethodPost,
+	}
+
+	if req.CacheOptions != nil {
+		if req.CacheOptions.CacheControl != "" {
+			params.Headers["Cache-Control"] = req.CacheOptions.CacheControl
+		} else if req.CacheOptions.Expires > 0 {
+			params.Headers["Cache-Control"] = fmt.Sprintf("max-age=%d", req.CacheOptions.Expires)
+		}
+		if req.CacheOptions.LastModified != "" {
+			params.Headers["Last-Modified"] = req.CacheOptions.LastModified
+		}
+		if req.CacheOptions.ETag != "" {
+			params.Headers["ETag"] = req.CacheOptions.ETag
+		}
+	}
+
+	return whttp.Send(ctx, client, params, payload)
+}
+
+// BuildPayloadForMediaMessage builds the payload for a media message. It accepts SendMediaOptions
+// and returns a byte array and an error. This function is used internally by SendMedia.
+// if neither ID nor Link is specified, it returns an error.
+//
+// For Link requests, the payload should be something like this:
+// {"messaging_product": "whatsapp","recipient_type": "individual","to": "PHONE-NUMBER","type": "image","image": {"link" : "https://IMAGE_URL"}}
+func BuildPayloadForMediaMessage(options *SendMediaRequest) ([]byte, error) {
+	media := &models.Media{
+		ID:       options.MediaID,
+		Link:     options.MediaLink,
+		Caption:  options.Caption,
+		Filename: options.Filename,
+		Provider: options.Provider,
+	}
+	mediaJson, err := json.Marshal(media)
+	if err != nil {
+		return nil, err
+	}
+	receipient := options.Recipient
+	mediaType := string(options.Type)
+	payloadBuilder := strings.Builder{}
+	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","recipient_type":"individual","to":"`)
+	payloadBuilder.WriteString(receipient)
+	payloadBuilder.WriteString(`","type": "`)
+	payloadBuilder.WriteString(mediaType)
+	payloadBuilder.WriteString(`","`)
+	payloadBuilder.WriteString(mediaType)
+	payloadBuilder.WriteString(`":`)
+	payloadBuilder.Write(mediaJson)
+	payloadBuilder.WriteString(`}`)
+
+	return []byte(payloadBuilder.String()), nil
+}
