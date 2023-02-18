@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	wcli "github.com/piusalfred/whatsapp/cli"
+	"github.com/piusalfred/whatsapp/cli"
 )
 
 func main() {
-	app := wcli.New()
 
-	if err := app.Run(os.Args); err != nil {
-		fmt.Printf("error: %v\n", err)
+	if err := cli.NewApp().Run(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }

@@ -314,14 +314,18 @@ func buildReplyPayload(options *ReplyParams) ([]byte, error) {
 }
 
 type SendTemplateRequest struct {
+	BaseURL                string
+	AccessToken            string
+	PhoneNumberID          string
+	ApiVersion             string
 	Recipient              string
 	TemplateLanguageCode   string
 	TemplateLanguagePolicy string
 	TemplateName           string
-	TemplateCompnents      []*models.TemplateComponent
+	TemplateComponents     []*models.TemplateComponent
 }
 
-func SendTemplate(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *SendTemplateRequest) (*whttp.Response, error) {
+func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateRequest) (*whttp.Response, error) {
 	template := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -334,8 +338,20 @@ func SendTemplate(ctx context.Context, client *http.Client, params *whttp.Reques
 			},
 			Name:       req.TemplateName,
 			Namespace:  "whatsapp",
-			Components: req.TemplateCompnents,
+			Components: req.TemplateComponents,
 		},
+	}
+	params := &whttp.RequestParams{
+		SenderID:   req.PhoneNumberID,
+		ApiVersion: req.ApiVersion,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Bearer:  req.AccessToken,
+		BaseURL: req.BaseURL,
+		Method:  http.MethodPost,
+		Endpoints: []string{
+			"messages"},
 	}
 	payload, err := json.Marshal(template)
 	if err != nil {
