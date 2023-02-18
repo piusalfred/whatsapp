@@ -112,7 +112,10 @@ type SendLocationRequest struct {
 	PhoneNumberID string
 	ApiVersion    string
 	Recipient     string
-	Location      *models.Location
+	Name          string
+	Address       string
+	Latitude      float64
+	Longitude     float64
 }
 
 func SendLocation(ctx context.Context, client *http.Client, req *SendLocationRequest) (*whttp.Response, error) {
@@ -121,7 +124,12 @@ func SendLocation(ctx context.Context, client *http.Client, req *SendLocationReq
 		To:            req.Recipient,
 		RecipientType: "individual",
 		Type:          "location",
-		Location:      req.Location,
+		Location: &models.Location{
+			Name:      req.Name,
+			Address:   req.Address,
+			Latitude:  req.Latitude,
+			Longitude: req.Longitude,
+		},
 	}
 	payload, err := json.Marshal(location)
 	if err != nil {
