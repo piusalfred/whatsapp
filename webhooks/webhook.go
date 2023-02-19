@@ -25,22 +25,23 @@ var (
 )
 
 const (
-	ReceivedTextMessage  Event = "received_text_message"
-	ReceivedImage        Event = "received_image"
-	ReceivedVideo        Event = "received_video"
-	ReceivedAudio        Event = "received_audio"
-	ReceivedDocument     Event = "received_document"
-	ReceivedSticker      Event = "received_sticker"
-	ReceivedLocation     Event = "received_location"
-	ReceivedContact      Event = "received_contact"
-	ReceivedReaction     Event = "received_reaction"
-	ReplyButtonClicked   Event = "reply_button_clicked"
-	CallToActionClicked  Event = "call_to_action_clicked"
-	ProfileUpdated       Event = "profile_updated"
-	BussinessItemClicked Event = "business_item_clicked"
-	ProductQuery         Event = "product_query"
-	ProductOrder         Event = "product_order"
-	UnknownEvent         Event = "unknown"
+	TextMessageEvent       Event = "text"
+	ImageMessageEvent      Event = "image"
+	VideoMessageEvent      Event = "video"
+	AudioMessageEvent      Event = "audio"
+	DocumentMessageEvent   Event = "document"
+	StickerMessageEvent    Event = "sticker"
+	LocationMessageEvent   Event = "location"
+	ContactMessageEvent    Event = "contact"
+	ReactionMessageEvent   Event = "reaction"
+	ReplyButtonClickEvent  Event = "reply_button"
+	CallToActionClickEvent Event = "call_to_action"
+	ProfileUpdateEvent     Event = "profile_update"
+	BusinessItemClickEvent Event = "business_item"
+	ProductQueryEvent      Event = "product_query"
+	ProductOrderEvent      Event = "product_order"
+	StatusChangeEvent      Event = "status_change"
+	UnknownEvent           Event = "unknown"
 )
 
 type (
@@ -157,6 +158,24 @@ type (
 	//  - Orders products being sold by the business
 	Event string
 
+	// NotificationMessageType is the type of message that was sent to the webhook.
+	// This is a filed in Message object. It can take the following values:
+	// - audio
+	// - button
+	// - document
+	// - text
+	// - image
+	// - interactive
+	// - order
+	// - sticker
+	// - system – for customer number change messages
+	// - unknown
+	// - video
+	// For interactive messages, there are two scenarios: when a user has
+	// clicked a button and when a user has selected an item from a list.
+	// The information of these Scenarios are ButtonReply and ListReply respectively.
+	NotificationMessageType string
+
 	Metadata struct {
 		DisplayPhoneNumber string `json:"display_phone_number,omitempty"`
 		PhoneNumberID      string `json:"phone_number_id,omitempty"`
@@ -229,12 +248,16 @@ type (
 	// ButtonReply, sent when a customer clicks a button
 	// ListReply, sent when a customer selects an item from a list
 	InteractiveType struct {
-		ButtonReply *InteractiveReplyType `json:"button_reply,omitempty"` // sent when a customer clicks a button
-		ListReply   *InteractiveReplyType `json:"list_reply,omitempty"`   // sent when a customer selects an item from a list
+		ButtonReply *ButtonReply `json:"button_reply,omitempty"` // sent when a customer clicks a button
+		ListReply   *ListReply   `json:"list_reply,omitempty"`   // sent when a customer selects an item from a list
 	}
 
-	// InteractiveType ...
-	InteractiveReplyType struct {
+	ButtonReply struct {
+		ID    string `json:"id,omitempty"`
+		Title string `json:"title,omitempty"`
+	}
+
+	ListReply struct {
 		ID          string `json:"id,omitempty"`
 		Title       string `json:"title,omitempty"`
 		Description string `json:"description,omitempty"`
@@ -355,12 +378,35 @@ type (
 		ProductRetailerID string `json:"product_retailer_id,omitempty"`
 	}
 
+	/*
+		Value The value object contains details for the change that triggered the webhook. This object is nested
+		within the Change array of the Entry array.
+
+		- Contacts, contacts — Array of Contact objects with information for the customer who sent
+		  a message to the business. Contact objects have the following properties:
+
+		- Errors, errors — An array of error objects describing the error. Error objects have the
+		  properties, which map to their equivalent properties in API error response payloads.
+
+		- MessagingProduct messaging_product (string) Product used to send the message.
+		  Value is always whatsapp.
+
+		- Messages messages (array of objects) Information about a message received by
+		  the business that is subscribed to the webhook. See Message Object.
+
+		- Metadata metadata (object) A metadata object describing the business subscribed to
+		  the webhook. See Metadata Object.
+
+		- Statuses statuses (array of objects) Status object for a message that was sent by
+		  the business that is subscribed to the webhook. See Status Object.
+	*/
 	Value struct {
 		MessagingProduct string           `json:"messaging_product,omitempty"`
 		Metadata         *Metadata        `json:"metadata,omitempty"`
 		Errors           []*werrors.Error `json:"werrors,omitempty"`
 		Contacts         []*Contact       `json:"contacts,omitempty"`
 		Messages         []*Message       `json:"messages,omitempty"`
+		Statuses         []*Status        `json:"statuses,omitempty"`
 	}
 
 	Change struct {
@@ -533,7 +579,7 @@ func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
 	})
 }
 
-// ValidateSignature validates the signature of the payload. all Event Notification payloads are signed
+// ValidateSignature validates the signature of the payload. All Event Notification payloads are signed
 // with a SHA256 signature and include the signature in the request's X-Hub-Signature-256 header, preceded
 // with sha256=. You don't have to validate the payload, but you should.
 //
@@ -545,41 +591,94 @@ func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
 // unicode version of the payload, with lowercase hex digits. If you just calculate against the decoded bytes,
 // you will end up with a different signature.
 // For example, the string äöå should be escaped to \u00e4\u00f6\u00e5.
-func ValidateSignature(payload []byte, signature string, secret string) bool {
-	hash := hmac.New(sha256.New, []byte(secret))
-	hash.Write(payload)
-	sig := hex.EncodeToString(hash.Sum(nil))
-	return hmac.Equal([]byte(sig), []byte(signature))
+func ValidateSignature(payload []byte, signature, secret string) bool {
+	// Extract the actual signature from the header
+	if !strings.HasPrefix(signature, "sha256=") {
+		return false
+	}
+	actualSignature, err := hex.DecodeString(signature[7:])
+	if err != nil {
+		return false
+	}
+
+	// Calculate the expected signature using the payload and secret
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, err = mac.Write(payload)
+	if err != nil {
+		return false
+	}
+	expectedSignature := mac.Sum(nil)
+
+	// Compare the expected and actual signatures
+	return hmac.Equal(actualSignature, expectedSignature)
 }
 
-// CategorizeEvent categorizes the event notification from message type. This determines the type of event that occurred.
-// Note:
-//   - The type of message that has been received by the business that has subscribed to Webhooks has
-//     these possible values: audio, button, document, text, image, interactive, order, sticker, system
-//     and unknown.
-//     System messages are sent when a customer number changes and UnknownEvent messages are sent when the message type is not
-//     recognized.
-//
-// For more info -> https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components#messages-object
-func CategorizeEvent(messageType string) Event {
-	switch strings.ToLower(messageType) {
-	case "text":
-		return ReceivedTextMessage
-	case "image":
-		return ReceivedImage
-	case "audio":
-		return ReceivedAudio
-	case "document":
-		return ReceivedDocument
-	case "sticker":
-		return ReceivedSticker
-	case "video":
-		return ReceivedVideo
-	case "location":
-		return ReceivedLocation
-	case "contacts":
-		return ReceivedContact
-	default:
-		return UnknownEvent
+type Received struct {
+	ReceiverID            string
+	ReceiverDisplayNumber string
+	SenderID              string
+	SenderProfileName     string
+	Events                []Event
+	Errors                []*werrors.Error
+	StatusChanges         []*Status
+}
+
+// ExtractNotificationDetails returns a number of Events that has been received.
+// from the notification received in a webhook.
+// Accepts Value object which encapsulates the changes received in a webhook.
+// There is possibility of multiple events but very unlikely.
+func ExtractNotificationDetails(value *Value) (*Received, error) {
+	if value == nil {
+		return nil, fmt.Errorf("change is nil")
+	} else {
+		var events []Event
+		received := &Received{
+			Errors: value.Errors,
+		}
+		if value.Metadata != nil {
+			received.ReceiverID = value.Metadata.PhoneNumberID
+			received.ReceiverDisplayNumber = value.Metadata.DisplayPhoneNumber
+		}
+
+		if len(value.Contacts) == 0 {
+			// TODO add errors that we can not figure out the sender
+		} else {
+			received.SenderID = value.Contacts[0].WaID
+			if value.Contacts[0].Profile != nil {
+				received.SenderProfileName = value.Contacts[0].Profile.Name
+			}
+		}
+
+		received.StatusChanges = value.Statuses
+		if value.Statuses != nil {
+			events = append(events, StatusChangeEvent)
+		}
+
+		received.Events = events
+
+		if len(value.Messages) > 0 {
+			// traverse the messages and switch on message type
+			for _, msg := range value.Messages {
+				switch msg.Type {
+				case "text":
+					events = append(events, TextMessageEvent)
+				case "image":
+					events = append(events, ImageMessageEvent)
+				case "video":
+					events = append(events, VideoMessageEvent)
+				case "audio":
+					events = append(events, AudioMessageEvent)
+				case "document":
+					events = append(events, DocumentMessageEvent)
+				case "location":
+					events = append(events, LocationMessageEvent)
+				case "contacts":
+					events = append(events, ContactMessageEvent)
+
+				}
+			}
+		}
+
+		return received, nil
 	}
 }
