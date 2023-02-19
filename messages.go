@@ -112,7 +112,10 @@ type SendLocationRequest struct {
 	PhoneNumberID string
 	ApiVersion    string
 	Recipient     string
-	Location      *models.Location
+	Name          string
+	Address       string
+	Latitude      float64
+	Longitude     float64
 }
 
 func SendLocation(ctx context.Context, client *http.Client, req *SendLocationRequest) (*whttp.Response, error) {
@@ -121,7 +124,12 @@ func SendLocation(ctx context.Context, client *http.Client, req *SendLocationReq
 		To:            req.Recipient,
 		RecipientType: "individual",
 		Type:          "location",
-		Location:      req.Location,
+		Location: &models.Location{
+			Name:      req.Name,
+			Address:   req.Address,
+			Latitude:  req.Latitude,
+			Longitude: req.Longitude,
+		},
 	}
 	payload, err := json.Marshal(location)
 	if err != nil {
@@ -314,14 +322,18 @@ func buildReplyPayload(options *ReplyParams) ([]byte, error) {
 }
 
 type SendTemplateRequest struct {
+	BaseURL                string
+	AccessToken            string
+	PhoneNumberID          string
+	ApiVersion             string
 	Recipient              string
 	TemplateLanguageCode   string
 	TemplateLanguagePolicy string
 	TemplateName           string
-	TemplateCompnents      []*models.TemplateComponent
+	TemplateComponents     []*models.TemplateComponent
 }
 
-func SendTemplate(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *SendTemplateRequest) (*whttp.Response, error) {
+func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateRequest) (*whttp.Response, error) {
 	template := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -333,9 +345,20 @@ func SendTemplate(ctx context.Context, client *http.Client, params *whttp.Reques
 				Policy: req.TemplateLanguagePolicy,
 			},
 			Name:       req.TemplateName,
-			Namespace:  "whatsapp",
-			Components: req.TemplateCompnents,
+			Components: req.TemplateComponents,
 		},
+	}
+	params := &whttp.RequestParams{
+		SenderID:   req.PhoneNumberID,
+		ApiVersion: req.ApiVersion,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Bearer:  req.AccessToken,
+		BaseURL: req.BaseURL,
+		Method:  http.MethodPost,
+		Endpoints: []string{
+			"messages"},
 	}
 	payload, err := json.Marshal(template)
 	if err != nil {
@@ -343,4 +366,206 @@ func SendTemplate(ctx context.Context, client *http.Client, params *whttp.Reques
 	}
 
 	return whttp.Send(ctx, client, params, payload)
+}
+
+/*
+CacheOptions contains the options on how to send a media message. You can specify either the
+ID or the link of the media. Also it allows you to specify caching options.
+
+The Cloud API supports media HTTP caching. If you are using a link (link) to a media asset on your
+server (as opposed to the ID (id) of an asset you have uploaded to our servers),you can instruct us
+to cache your asset for reuse with future messages by including the headers below
+in your server response when we request the asset. If none of these headers are included, we will
+not cache your asset.
+
+	Cache-Control: <CACHE_CONTROL>
+	Last-Modified: <LAST_MODIFIED>
+	ETag: <ETAG>
+
+# CacheControl
+
+The Cache-Control header tells us how to handle asset caching. We support the following directives:
+
+	max-age=n: Indicates how many seconds (n) to cache the asset. We will reuse the cached asset in subsequent
+	messages until this time is exceeded, after which we will request the asset again, if needed.
+	Example: Cache-Control: max-age=604800.
+
+	no-cache: Indicates the asset can be cached but should be updated if the Last-Modified header value
+	is different from a previous response.Requires the Last-Modified header.
+	Example: Cache-Control: no-cache.
+
+	no-store: Indicates that the asset should not be cached. Example: Cache-Control: no-store.
+
+	private: Indicates that the asset is personalized for the recipient and should not be cached.
+
+# LastModified
+
+Last-Modified Indicates when the asset was last modified. Used with Cache-Control: no-cache. If the Last-Modified value
+is different from a previous response and Cache-Control: no-cache is included in the response,
+we will update our cached version of the asset with the asset in the response.
+Example: Date: Tue, 22 Feb 2022 22:22:22 GMT.
+
+# ETag
+
+The ETag header is a unique string that identifies a specific version of an asset.
+Example: ETag: "33a64df5". This header is ignored unless both Cache-Control and Last-Modified headers
+are not included in the response. In this case, we will cache the asset according to our own, internal
+logic (which we do not disclose).
+*/
+type CacheOptions struct {
+	CacheControl string `json:"cache_control,omitempty"`
+	LastModified string `json:"last_modified,omitempty"`
+	ETag         string `json:"etag,omitempty"`
+	Expires      int64  `json:"expires,omitempty"`
+}
+
+type SendMediaRequest struct {
+	BaseURL       string
+	AccessToken   string
+	PhoneNumberID string
+	ApiVersion    string
+	Recipient     string
+	Type          MediaType
+	MediaID       string
+	MediaLink     string
+	Caption       string
+	Filename      string
+	Provider      string
+	CacheOptions  *CacheOptions
+}
+
+/*
+SendMedia sends a media message to the recipient. To send a media message, make a POST call to the
+/PHONE_NUMBER_ID/messages endpoint with type parameter set to audio, document, image, sticker, or
+video, and the corresponding information for the media type such as its ID or
+link (see Media HTTP Caching).
+
+Be sure to keep the following in mind:
+  - Uploaded media only lasts thirty days
+  - Generated download URLs only last five minutes
+  - Always save the media ID when you upload a file
+
+Here’s a list of the currently supported media types. Check out Supported Media Types for more information.
+  - Audio (<16 MB) – ACC, MP4, MPEG, AMR, and OGG formats
+  - Documents (<100 MB) – text, PDF, Office, and Open Office formats
+  - Images (<5 MB) – JPEG and PNG formats
+  - Video (<16 MB) – MP4 and 3GP formats
+  - Stickers (<100 KB) – WebP format
+
+Sample request using image with link:
+
+	curl -X  POST \
+	 'https://graph.facebook.com/v15.0/FROM-PHONE-NUMBER-ID/messages' \
+	 -H 'Authorization: Bearer ACCESS_TOKEN' \
+	 -H 'Content-Type: application/json' \
+	 -d '{
+	  "messaging_product": "whatsapp",
+	  "recipient_type": "individual",
+	  "to": "PHONE-NUMBER",
+	  "type": "image",
+	  "image": {
+	    "link" : "https://IMAGE_URL"
+	  }
+	}'
+
+Sample request using media ID:
+
+	curl -X  POST \
+	 'https://graph.facebook.com/v15.0/FROM-PHONE-NUMBER-ID/messages' \
+	 -H 'Authorization: Bearer ACCESS_TOKEN' \
+	 -H 'Content-Type: application/json' \
+	 -d '{
+	  "messaging_product": "whatsapp",
+	  "recipient_type": "individual",
+	  "to": "PHONE-NUMBER",
+	  "type": "image",
+	  "image": {
+	    "id" : "MEDIA-OBJECT-ID"
+	  }
+	}'
+
+A successful response includes an object with an identifier prefixed with wamid. If you are using a link to
+send the media, please check the callback events delivered to your Webhook server whether the media has been
+downloaded successfully.
+
+	{
+	  "messaging_product": "whatsapp",
+	  "contacts": [{
+	      "input": "PHONE_NUMBER",
+	      "wa_id": "WHATSAPP_ID",
+	    }]
+	  "messages": [{
+	      "id": "wamid.ID",
+	    }]
+	}
+*/
+func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) (*whttp.Response, error) {
+	if req == nil {
+		return nil, fmt.Errorf("options cannot be nil")
+	}
+
+	payload, err := BuildPayloadForMediaMessage(req)
+	if err != nil {
+		return nil, err
+	}
+
+	params := &whttp.RequestParams{
+		SenderID:   req.PhoneNumberID,
+		ApiVersion: req.ApiVersion,
+		Bearer:     req.AccessToken,
+		BaseURL:    req.BaseURL,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Endpoints:  []string{"messages"},
+		Method:     http.MethodPost,
+	}
+
+	if req.CacheOptions != nil {
+		if req.CacheOptions.CacheControl != "" {
+			params.Headers["Cache-Control"] = req.CacheOptions.CacheControl
+		} else if req.CacheOptions.Expires > 0 {
+			params.Headers["Cache-Control"] = fmt.Sprintf("max-age=%d", req.CacheOptions.Expires)
+		}
+		if req.CacheOptions.LastModified != "" {
+			params.Headers["Last-Modified"] = req.CacheOptions.LastModified
+		}
+		if req.CacheOptions.ETag != "" {
+			params.Headers["ETag"] = req.CacheOptions.ETag
+		}
+	}
+
+	return whttp.Send(ctx, client, params, payload)
+}
+
+// BuildPayloadForMediaMessage builds the payload for a media message. It accepts SendMediaOptions
+// and returns a byte array and an error. This function is used internally by SendMedia.
+// if neither ID nor Link is specified, it returns an error.
+//
+// For Link requests, the payload should be something like this:
+// {"messaging_product": "whatsapp","recipient_type": "individual","to": "PHONE-NUMBER","type": "image","image": {"link" : "https://IMAGE_URL"}}
+func BuildPayloadForMediaMessage(options *SendMediaRequest) ([]byte, error) {
+	media := &models.Media{
+		ID:       options.MediaID,
+		Link:     options.MediaLink,
+		Caption:  options.Caption,
+		Filename: options.Filename,
+		Provider: options.Provider,
+	}
+	mediaJson, err := json.Marshal(media)
+	if err != nil {
+		return nil, err
+	}
+	receipient := options.Recipient
+	mediaType := string(options.Type)
+	payloadBuilder := strings.Builder{}
+	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","recipient_type":"individual","to":"`)
+	payloadBuilder.WriteString(receipient)
+	payloadBuilder.WriteString(`","type": "`)
+	payloadBuilder.WriteString(mediaType)
+	payloadBuilder.WriteString(`","`)
+	payloadBuilder.WriteString(mediaType)
+	payloadBuilder.WriteString(`":`)
+	payloadBuilder.Write(mediaJson)
+	payloadBuilder.WriteString(`}`)
+
+	return []byte(payloadBuilder.String()), nil
 }

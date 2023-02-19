@@ -2,13 +2,14 @@ package whatsapp
 
 import (
 	"encoding/json"
-	"github.com/piusalfred/whatsapp/models"
 	"testing"
+
+	"github.com/piusalfred/whatsapp/models"
 )
 
 func TestBuildPayloadForMediaMessage(t *testing.T) {
 	type args struct {
-		options *SendMediaOptions
+		options *SendMediaRequest
 	}
 	tests := []struct {
 		name    string
@@ -18,16 +19,15 @@ func TestBuildPayloadForMediaMessage(t *testing.T) {
 		{
 			name: "build audio message",
 			args: args{
-				options: &SendMediaOptions{
+				options: &SendMediaRequest{
 					Recipient: "2348123456789",
 					Type:      "audio",
-					Media: &models.Media{
-						ID:       "1234567890",
-						Link:     "https://example.com/audio.mp3",
-						Caption:  "Audio caption",
-						Filename: "audio.mp3",
-						Provider: "whatsapp",
-					},
+					MediaID:   "1234567890",
+					MediaLink: "https://example.com/audio.mp3",
+					Caption:   "Audio caption",
+					Filename:  "audio.mp3",
+					Provider:  "whatsapp",
+
 					CacheOptions: nil,
 				},
 			},
@@ -75,23 +75,23 @@ func TestBuildPayloadForMediaMessage(t *testing.T) {
 					t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
 					return
 				} else {
-					if message.Audio.ID != tt.args.options.Media.ID {
+					if message.Audio.ID != tt.args.options.MediaID {
 						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
 						return
 					}
-					if message.Audio.Link != tt.args.options.Media.Link {
+					if message.Audio.Link != tt.args.options.MediaLink {
 						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
 						return
 					}
-					if message.Audio.Caption != tt.args.options.Media.Caption {
+					if message.Audio.Caption != tt.args.options.Caption {
 						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
 						return
 					}
-					if message.Audio.Filename != tt.args.options.Media.Filename {
+					if message.Audio.Filename != tt.args.options.Filename {
 						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
 						return
 					}
-					if message.Audio.Provider != tt.args.options.Media.Provider {
+					if message.Audio.Provider != tt.args.options.Provider {
 						t.Errorf("BuildPayloadForMediaMessage() error = %v, wantErr %v", err, tt.wantErr)
 						return
 					}
@@ -103,16 +103,15 @@ func TestBuildPayloadForMediaMessage(t *testing.T) {
 
 func BenchmarkBuildPayloadForMediaMessage(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		BuildPayloadForMediaMessage(&SendMediaOptions{
+		BuildPayloadForMediaMessage(&SendMediaRequest{
 			Recipient: "2348123456789",
 			Type:      "audio",
-			Media: &models.Media{
-				ID:       "1234567890",
-				Link:     "https://example.com/audio.mp3",
-				Caption:  "Audio caption",
-				Filename: "audio.mp3",
-				Provider: "whatsapp",
-			},
+			MediaID:   "1234567890",
+			MediaLink: "https://example.com/audio.mp3",
+			Caption:   "Audio caption",
+			Filename:  "audio.mp3",
+			Provider:  "whatsapp",
+
 			CacheOptions: nil,
 		})
 	}

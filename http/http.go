@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/piusalfred/whatsapp/errors"
 )
@@ -48,6 +49,11 @@ type (
 		BaseURL    string
 		Endpoints  []string
 		Method     string
+	}
+
+	ErrorResponse struct {
+		Code int           `json:"code,omitempty"`
+		Err  *errors.Error `json:"error,omitempty"`
 	}
 
 	Sender func(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error)
@@ -155,7 +161,7 @@ func Send(ctx context.Context, client *http.Client, params *RequestParams, paylo
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		var errResponse errors.ErrorResponse
+		var errResponse ErrorResponse
 		if err = json.Unmarshal(bodybytes, &errResponse); err != nil {
 			return nil, err
 		}
@@ -176,4 +182,14 @@ func Send(ctx context.Context, client *http.Client, params *RequestParams, paylo
 	response.Message = &message
 
 	return &response, nil
+}
+
+// Error returns the error message for ErrorResponse.
+func (e *ErrorResponse) Error() string {
+	return fmt.Sprintf("whatsapp error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
+}
+
+// Unwrap returns the underlying error.
+func (e *ErrorResponse) Unwrap() []error {
+	return []error{e.Err}
 }
