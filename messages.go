@@ -103,7 +103,7 @@ func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*
 		return nil, err
 	}
 
-	return whttp.Send(ctx, client, params, payload)
+	return whttp.SendMessage(ctx, client, params, payload)
 }
 
 type SendLocationRequest struct {
@@ -148,7 +148,7 @@ func SendLocation(ctx context.Context, client *http.Client, req *SendLocationReq
 		Endpoints: []string{
 			"messages"},
 	}
-	return whttp.Send(ctx, client, params, payload)
+	return whttp.SendMessage(ctx, client, params, payload)
 }
 
 type ReactRequest struct {
@@ -232,15 +232,19 @@ func React(ctx context.Context, client *http.Client, req *ReactRequest) (*whttp.
 			"messages"},
 	}
 
-	return whttp.Send(ctx, client, params, payload)
+	return whttp.SendMessage(ctx, client, params, payload)
 }
 
 type SendContactRequest struct {
-	Recipient string
-	Contacts  *models.Contacts
+	BaseURL       string
+	AccessToken   string
+	PhoneNumberID string
+	ApiVersion    string
+	Recipient     string
+	Contacts      *models.Contacts
 }
 
-func SendContact(ctx context.Context, client *http.Client, params *whttp.RequestParams, req *SendContactRequest) (*whttp.Response, error) {
+func SendContact(ctx context.Context, client *http.Client, req *SendContactRequest) (*whttp.Response, error) {
 	contact := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -253,7 +257,17 @@ func SendContact(ctx context.Context, client *http.Client, params *whttp.Request
 		return nil, err
 	}
 
-	return whttp.Send(ctx, client, params, payload)
+	params := &whttp.RequestParams{
+		SenderID:   req.PhoneNumberID,
+		ApiVersion: req.ApiVersion,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Bearer:     req.AccessToken,
+		BaseURL:    req.BaseURL,
+		Method:     http.MethodPost,
+		Endpoints:  []string{"messages"},
+	}
+
+	return whttp.SendMessage(ctx, client, params, payload)
 }
 
 // ReplyParams contains options for replying to a message.
@@ -296,7 +310,7 @@ func Reply(ctx context.Context, client *http.Client, params *whttp.RequestParams
 		return nil, err
 	}
 
-	return whttp.Send(ctx, client, params, payload)
+	return whttp.SendMessage(ctx, client, params, payload)
 }
 
 // buildReplyPayload builds the payload for a reply. It accepts ReplyParams and returns a byte array
@@ -365,7 +379,7 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 		return nil, err
 	}
 
-	return whttp.Send(ctx, client, params, payload)
+	return whttp.SendMessage(ctx, client, params, payload)
 }
 
 /*
@@ -533,7 +547,7 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) 
 		}
 	}
 
-	return whttp.Send(ctx, client, params, payload)
+	return whttp.SendMessage(ctx, client, params, payload)
 }
 
 // BuildPayloadForMediaMessage builds the payload for a media message. It accepts SendMediaOptions

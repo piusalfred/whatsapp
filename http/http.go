@@ -134,7 +134,7 @@ func NewRequestWithContext(ctx context.Context, params *RequestParams, payload [
 	return req, nil
 }
 
-func Send(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error) {
+func SendMessage(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error) {
 	var (
 		req  *http.Request
 		resp *http.Response
@@ -182,6 +182,15 @@ func Send(ctx context.Context, client *http.Client, params *RequestParams, paylo
 	response.Message = &message
 
 	return &response, nil
+}
+
+// Send sends a http request and returns a *http.Response or an error.
+func Send(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*http.Response, error) {
+	req, err := NewRequestWithContext(ctx, params, payload)
+	if err != nil {
+		return nil, err
+	}
+	return client.Do(req)
 }
 
 // Error returns the error message for ErrorResponse.

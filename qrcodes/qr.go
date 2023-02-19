@@ -18,7 +18,7 @@ Before using this API in your application. You must have the following:
 
 Example:
 
-	resp, err := qrcodes.Create(context.Background(), http.DefaultClient, "phoneNumberID","token", &qrcodes.CreateRequest{
+	resp, err := qrcodes.Create(context.Background(), http.DefaultClient,&qrcodes.CreateRequest{
 		PrefilledMessage: "Hello World",
 		ImageFormat:      qrcodes.ImageFormatPNG,
 	})
@@ -144,6 +144,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+
+	whttp "github.com/piusalfred/whatsapp/http"
 )
 
 const (
@@ -155,6 +157,10 @@ type (
 	ImageFormat string
 
 	CreateRequest struct {
+		BaseURL          string      `json:"-"`
+		PhoneID          string      `json:"-"`
+		ApiVersion       string      `json:"-"`
+		AccessToken      string      `json:"-"`
 		PrefilledMessage string      `json:"prefilled_message"`
 		ImageFormat      ImageFormat `json:"generate_qr_image"`
 	}
@@ -181,27 +187,27 @@ type (
 	}
 )
 
-func Create(ctx context.Context, client *http.Client, baseURL, phoneID, accessToken string, req *CreateRequest) (*CreateResponse, error) {
+func Create(ctx context.Context, client *http.Client, req *CreateRequest) (*CreateResponse, error) {
 	var (
 		resp     CreateResponse
 		respBody []byte
 	)
-	requestURL, err := url.JoinPath(baseURL, phoneID, "message_qrdls")
-	if err != nil {
-		return nil, err
+	queryParams := map[string]string{
+		"prefilled_message": req.PrefilledMessage,
+		"generate_qr_image": string(req.ImageFormat),
+		"access_token":      req.AccessToken,
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, nil)
-	if err != nil {
-		return nil, err
+	params := &whttp.RequestParams{
+		Method:     http.MethodPost,
+		SenderID:   req.PhoneID,
+		ApiVersion: req.ApiVersion,
+		//Bearer:     req.AccessToken, // token is passed as a query param
+		BaseURL:   req.BaseURL,
+		Endpoints: []string{"message_qrdls"},
+		Query:     queryParams,
 	}
 
-	q := request.URL.Query()
-	q.Add("prefilled_message", req.PrefilledMessage)
-	q.Add("generate_qr_image", string(req.ImageFormat))
-	q.Add("access_token", accessToken)
-	request.URL.RawQuery = q.Encode()
-
-	response, err := client.Do(request)
+	response, err := whttp.Send(ctx, client, params, nil)
 	if err != nil {
 		return nil, err
 	}
