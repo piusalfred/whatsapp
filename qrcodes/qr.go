@@ -188,10 +188,6 @@ type (
 )
 
 func Create(ctx context.Context, client *http.Client, req *CreateRequest) (*CreateResponse, error) {
-	var (
-		resp     CreateResponse
-		respBody []byte
-	)
 	queryParams := map[string]string{
 		"prefilled_message": req.PrefilledMessage,
 		"generate_qr_image": string(req.ImageFormat),
@@ -211,20 +207,14 @@ func Create(ctx context.Context, client *http.Client, req *CreateRequest) (*Crea
 	if err != nil {
 		return nil, err
 	}
+	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", response.StatusCode)
 	}
 
-	if response.Body != nil {
-		defer response.Body.Close()
-		respBody, err = io.ReadAll(response.Body)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = json.Unmarshal(respBody, &resp)
+	resp := CreateResponse{}
+	err = json.NewDecoder(response.Body).Decode(&resp)
 	if err != nil {
 		return nil, err
 	}

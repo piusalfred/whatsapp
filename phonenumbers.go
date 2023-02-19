@@ -81,7 +81,7 @@ type (
 //	 -F 'code_method=SMS' \
 //	 -F 'language=en'
 func RequestCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest) error {
-	request, err := whttp.NewRequestWithContext(ctx, &whttp.RequestParams{
+	params := &whttp.RequestParams{
 		SenderID:   req.PhoneNumberID,
 		ApiVersion: req.ApiVersion,
 		Headers: map[string]string{
@@ -96,12 +96,8 @@ func RequestCode(ctx context.Context, client *http.Client, req *VerificationCode
 		BaseURL:   req.BaseURL,
 		Endpoints: []string{"request_code"},
 		Method:    http.MethodPost,
-	}, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create new request: %w", err)
 	}
-	// send the request
-	response, err := client.Do(request)
+	response, err := whttp.Send(ctx, client, params, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -127,7 +123,7 @@ func RequestCode(ctx context.Context, client *http.Client, req *VerificationCode
 //	 "success": true
 //	}
 func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest, code string) error {
-	request, err := whttp.NewRequestWithContext(ctx, &whttp.RequestParams{
+	params := &whttp.RequestParams{
 		SenderID:   req.PhoneNumberID,
 		ApiVersion: req.ApiVersion,
 		Headers: map[string]string{
@@ -141,12 +137,9 @@ func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeR
 		BaseURL:   req.BaseURL,
 		Endpoints: []string{"verify_code"},
 		Method:    http.MethodPost,
-	}, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create new request: %w", err)
 	}
 	// send the request
-	response, err := client.Do(request)
+	response, err := whttp.Send(ctx, client, params, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}

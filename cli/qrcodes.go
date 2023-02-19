@@ -26,9 +26,11 @@ type QrCodeCreateCommand struct {
 
 func (cmd *QrCodeCreateCommand) Run(ctx *Context) error {
 	resp, err := qrcodes.Create(
-		ctx.ctx, ctx.http, ctx.BaseURL,
-		ctx.PhoneID, ctx.AccessToken,
+		ctx.ctx, ctx.http,
 		&qrcodes.CreateRequest{
+			BaseURL:          ctx.BaseURL,
+			PhoneID:          ctx.PhoneID,
+			AccessToken:      ctx.AccessToken,
 			PrefilledMessage: cmd.Message,
 			ImageFormat:      qrcodes.ImageFormat(cmd.ImageFormat),
 		},

@@ -136,16 +136,12 @@ func NewRequestWithContext(ctx context.Context, params *RequestParams, payload [
 
 func SendMessage(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error) {
 	var (
-		req  *http.Request
-		resp *http.Response
-		err  error
+		resp      *http.Response
+		err       error
+		bodybytes []byte
 	)
 
-	if req, err = NewRequestWithContext(ctx, params, payload); err != nil {
-		return nil, err
-	}
-
-	if resp, err = client.Do(req); err != nil {
+	if resp, err = Send(ctx, client, params, payload); err != nil {
 		return nil, err
 	}
 
@@ -155,10 +151,12 @@ func SendMessage(ctx context.Context, client *http.Client, params *RequestParams
 		return nil, fmt.Errorf("empty response body")
 	}
 
-	bodybytes, err := io.ReadAll(resp.Body)
+	buff := new(bytes.Buffer)
+	_, err = io.Copy(buff, resp.Body)
 	if err != nil {
 		return nil, err
 	}
+	bodybytes = buff.Bytes()
 
 	if resp.StatusCode != http.StatusOK {
 		var errResponse ErrorResponse
@@ -182,6 +180,7 @@ func SendMessage(ctx context.Context, client *http.Client, params *RequestParams
 	response.Message = &message
 
 	return &response, nil
+
 }
 
 // Send sends a http request and returns a *http.Response or an error.
