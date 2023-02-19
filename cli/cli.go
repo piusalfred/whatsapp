@@ -25,7 +25,8 @@ type (
 
 	cli struct {
 		Context
-		Send SendCommand `cmd:"" name:"send" help:"send different types of messages like text, image, video, audio, document, location, vcard, template, sticker, and file"`
+		Send    SendCommand    `cmd:"" name:"send" help:"send different types of messages like text, image, video, audio, document, location, vcard, template, sticker, and file"`
+		QrCodes QrcodesCommand `cmd:"" name:"qrcodes" help:"manage qr codes"`
 	}
 
 	App struct {
