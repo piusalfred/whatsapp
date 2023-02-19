@@ -156,6 +156,9 @@ type PhoneNumberFilterParams struct {
 	Value    string `json:"value,omitempty"`
 }
 type ListPhoneNumbersRequest struct {
+	BaseURL      string
+	ApiVersion   string
+	Token        string
 	BusinessID   string
 	FilterParams []*PhoneNumberFilterParams
 }
@@ -223,32 +226,25 @@ type ListPhoneNumbersRequest struct {
 //	   }
 //	}
 func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, req *ListPhoneNumbersRequest) (*PhoneNumbersList, error) {
-	requestURL, err := url.JoinPath("https://graph.facebook.com/v0.16", req.BusinessID, "phone_numbers")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request url: %w", err)
-	}
 
-	// create the request
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new request: %w", err)
+	params := &whttp.RequestParams{
+		BaseURL:    req.BaseURL,
+		SenderID:   req.BusinessID,
+		ApiVersion: req.ApiVersion,
+		Method:     http.MethodGet,
+		Query:      map[string]string{"access_token": req.Token},
+		Endpoints:  []string{"phone_numbers"},
 	}
-
-	// add the access token to the request
-	q := request.URL.Query()
-	q.Add("access_token", token)
 	if req.FilterParams != nil {
-		params := req.FilterParams
-		jsonParams, err := json.Marshal(params)
+		p := req.FilterParams
+		jsonParams, err := json.Marshal(p)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal filter params: %w", err)
 		}
-		q.Add("filtering", string(jsonParams))
+		params.Query["filtering"] = string(jsonParams)
 	}
-	request.URL.RawQuery = q.Encode()
-
 	// send the request
-	response, err := client.Do(request)
+	response, err := whttp.Send(ctx, client, params, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
