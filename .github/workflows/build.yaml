@@ -43,6 +43,7 @@ jobs:
       
     - name: Build
       run: |
+        #!/bin/sh
         for OS in linux windows darwin; do
           for ARCH in amd64 arm64; do
             GOOS=$OS GOARCH=$ARCH go build -o "whatsapp_${OS}_${ARCH}" ./cmd
