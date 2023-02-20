@@ -16,17 +16,17 @@ on:
     branches:
       - main
       - dev
-      
+
 jobs:
   build-and-test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest,ubuntu-latest,macos-latest]
+        os: [ubuntu-latest,macos-latest]
         arch: [amd64, arm64]
-        exclude:
-          - if: matrix.os == 'windows-latest' && matrix.arch != 'amd64'
-            arch: ${{ matrix.arch }}
+        include:
+          - os: windows-latest
+            arch: amd64
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
