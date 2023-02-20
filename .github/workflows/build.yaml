@@ -46,16 +46,16 @@ jobs:
     
     - name: Build
       run: |
-        #!/bin/sh
-        if ("${{ matrix.os }}" = "windows-latest" ); then
+        if ("${{ matrix.os }}" = "windows-latest" ){
           go build -o "whatsapp_windows_amd64.exe" ./cmd
-        else
+        } else {
+          #!/bin/sh
           for OS in linux darwin; do
             for ARCH in amd64 arm64; do
               GOOS=$OS GOARCH=$ARCH go build -o "whatsapp_${OS}_${ARCH}" ./cmd
             done
           done
-        fi
+        } 
           
     - name: Upload artifacts
       if: startsWith(github.ref, 'refs/tags/')
