@@ -47,7 +47,7 @@ jobs:
     - name: Build
       run: |
         #!/bin/sh
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+        if ("${{ matrix.os }}" = "windows-latest" ); then
           go build -o "whatsapp_windows_amd64.exe" ./cmd
         else
           for OS in linux darwin; do
@@ -63,9 +63,9 @@ jobs:
       with:
         name: "whatsapp-${{ github.ref }}-$OS-$ARCH"
         path: |
-          whatsapp_windows_amd64
           whatsapp_linux_amd64
           whatsapp_linux_arm64
           whatsapp_macos_amd64
           whatsapp_macos_arm64
+          whatsapp_windows_amd64
 
