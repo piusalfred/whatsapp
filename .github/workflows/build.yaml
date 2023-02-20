@@ -22,7 +22,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest,macos-latest]
         arch: [amd64, arm64]
     steps:
     - name: Checkout code
@@ -44,7 +44,7 @@ jobs:
     - name: Build
       run: |
         #!/bin/sh
-        for OS in linux windows darwin; do
+        for OS in linux darwin; do
           for ARCH in amd64 arm64; do
             GOOS=$OS GOARCH=$ARCH go build -o "whatsapp_${OS}_${ARCH}" ./cmd
           done
