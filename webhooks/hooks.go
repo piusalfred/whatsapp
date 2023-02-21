@@ -88,6 +88,9 @@ type (
 		// OnReferralMessageReceived is a hook that is called when a referral message is received.
 		// A referral message is a message is sent when a customer clicked an ad that redirects them
 		// to WhatsApp.
+		// Note that there is no message type for referral. According to documentation, it is included
+		// when the type is set to text. So when the message type is set to text, this hook is called.
+		// but when a condition that the message contains a referral object is met.
 		OnReferralMessageReceived(ctx context.Context, nctx *NotificationContext,
 			mctx *MessageContext, referral *Referral) error
 
@@ -130,6 +133,10 @@ type (
 		// OnInteractiveMessage is a hook that is called when an interactive message is received.
 
 		// OnButtonMessage is a hook that is called when a button message is received.
+		// When your customer clicks on a quick reply button in an interactive message template,
+		// a response is sent. This hook is responsible for handling that response.
+		OnButtonMessage(ctx context.Context, nctx *NotificationContext,
+			mctx *MessageContext, button *Button) error
 
 		// OnLocationReceived is a hook that is called when a location is received. From documentation
 		// there is no message type for location but it is included in the messages object when a customer
@@ -156,6 +163,48 @@ type (
 		// that is not supported. It includes errors.
 		OnUnknownMessageReceived(ctx context.Context, nctx *NotificationContext,
 			mctx *MessageContext, errors []*werrors.Error) error
+
+		// OnProductEnquiry is a hook that is called when a product enquiry is received. A product enquiry is
+		// a message that is sent when a customer clicks on a product in a catalog template.
+		//
+		// Snippet from documentation:
+		// A Product Inquiry Message is received when a customer asks for more information about a product.
+		// These can happen when:
+		// - a customer replies to Single or Multi-Product Messages, or
+		// - a customer accesses a business's catalog via another entry point, navigates to a Product Details page,
+		//   and clicks Message Business about this Product.
+		//
+		// There is no message type for product enquiry. According to documentation, it is included as a text
+		// Example:
+		//
+		//"messages": [
+		// {
+		// 	"from": "PHONE_NUMBER",
+		// 	"id": "wamid.ID",
+		// 	"text": {
+		// 	  "body": "MESSAGE_TEXT"
+		// 	},
+		// 	"context": {
+		// 	  "from": "PHONE_NUMBER",
+		// 	  "id": "wamid.ID",
+		// 	  "referred_product": {
+		// 		"catalog_id": "CATALOG_ID",
+		// 		"product_retailer_id": "PRODUCT_ID"
+		// 	  }
+		// 	},
+		// 	"timestamp": "TIMESTAMP",
+		// 	"type": "text"
+		//   }
+		// ]
+		// Reffered product is the product being enquired.
+		OnProductEnquiry(ctx context.Context, nctx *NotificationContext, mctx *MessageContext) error
+
+		// OnInteractiveMessage is a hook that is called when an interactive message is received.
+		// This can happen when a customer clicks on a button you sent them in a template message.
+		// Or they can click a list item in a list template you sent them. In case of of a list template
+		// the reply will be of type list_reply and button_reply for a button template.
+		OnInteractiveMessage(ctx context.Context, nctx *NotificationContext,
+			mctx *MessageContext, interactive *Interactive) error
 	}
 
 	// Hooks is a generic interface for all hooks.
@@ -206,40 +255,30 @@ type (
 )
 
 // ParseMessageType parses the message type from a string.
-func ParseMessageType(s string) (MessageType, error) {
-	msg := strings.TrimSpace(strings.ToLower(s))
-	switch {
-	case msg == "audio":
-		return AudioMessageType, nil
-	case msg == "button":
-		return ButtonMessageType, nil
-	case msg == "document":
-		return DocumentMessageType, nil
-	case msg == "text":
-		return TextMessageType, nil
-	case msg == "image":
-		return ImageMessageType, nil
-	case msg == "interactive":
-		return InteractiveMessageType, nil
-	case msg == "order":
-		return OrderMessageType, nil
-	case msg == "sticker":
-		return StickerMessageType, nil
-	case msg == "system":
-		return SystemMessageType, nil
-	case msg == "unknown":
-		return UnknownMessageType, nil
-	case msg == "video":
-		return VideoMessageType, nil
-	case msg == "location":
-		return LocationMessageType, nil
-	case msg == "reaction":
-		return ReactionMessageType, nil
-	case msg == "contacts":
-		return ContactMessageType, nil
-	default:
-		return "", fmt.Errorf("unknown message type: %s", s)
+func ParseMessageType(s string) MessageType {
+	msgMap := map[string]MessageType{
+		"audio":       AudioMessageType,
+		"button":      ButtonMessageType,
+		"document":    DocumentMessageType,
+		"text":        TextMessageType,
+		"image":       ImageMessageType,
+		"interactive": InteractiveMessageType,
+		"order":       OrderMessageType,
+		"sticker":     StickerMessageType,
+		"system":      SystemMessageType,
+		"unknown":     UnknownMessageType,
+		"video":       VideoMessageType,
+		"location":    LocationMessageType,
+		"reaction":    ReactionMessageType,
+		"contacts":    ContactMessageType,
 	}
+
+	msgType, ok := msgMap[strings.TrimSpace(strings.ToLower(s))]
+	if !ok {
+		return ""
+	}
+
+	return msgType
 }
 
 type ErrorHandler func(err error) error
