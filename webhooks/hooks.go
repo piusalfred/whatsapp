@@ -2,8 +2,10 @@ package webhooks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	werrors "github.com/piusalfred/whatsapp/errors"
@@ -33,7 +35,16 @@ const (
 	ContactMessageType     MessageType = "contacts"
 )
 
+const (
+	InteractiveListReply   InteractiveReply = "list_reply"
+	InteractiveButtonReply InteractiveReply = "button_reply"
+)
+
 type (
+
+	// InteractiveReply is the type of interactive reply. It can be one of the following:
+	// list_reply,or button_reply.
+	InteractiveReply string
 
 	// MessageType is atype of message that has been received by the business that has subscribed
 	// to Webhooks. Possible value can be one of the following: audio,button,document,text,image,
@@ -399,4 +410,84 @@ func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, mh Me
 	}
 
 	return nil
+}
+
+type Hooker struct {
+	NotificationErrorHandler func(context.Context, http.ResponseWriter, *http.Request, error) error
+	HooksErrorHandler        ErrorHandler
+	Hooks                    Hooks
+	MessageHooks             MessageHooks
+}
+
+type HookerOption func(*Hooker)
+
+func NewHooker(options ...HookerOption) *Hooker {
+	h := &Hooker{}
+	return h
+}
+
+func WithNotificationHooks(hooks Hooks) HookerOption {
+	return func(hooker *Hooker) {
+		if hooks != nil {
+			hooker.Hooks = hooks
+		}
+	}
+}
+
+func WithMessageHooks(hooks MessageHooks) HookerOption {
+	return func(h *Hooker) {
+		if hooks != nil {
+			h.MessageHooks = hooks
+		}
+	}
+}
+
+func WithNotificationErrorHandler(
+	eh func(
+		context.Context, http.ResponseWriter, *http.Request, error) error) HookerOption {
+	return func(hooker *Hooker) {
+		if eh != nil {
+			hooker.NotificationErrorHandler = eh
+		}
+	}
+}
+
+func WithHooksErrorHandler(eh ErrorHandler) HookerOption {
+	return func(h *Hooker) {
+		if eh != nil {
+			h.HooksErrorHandler = eh
+		}
+	}
+}
+
+// Hooker implements ServeHTTP,
+
+func (h *Hooker) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if h.Hooks == nil {
+		writer.WriteHeader(http.StatusAccepted)
+		return
+	}
+
+	// Construct the notification
+	var notification Notification
+	if err := json.NewDecoder(request.Body).Decode(&notification); err != nil {
+		nErr := h.NotificationErrorHandler(request.Context(), writer, request, err)
+		if nErr != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	// Apply the hooks
+	if err := ApplyHooks(request.Context(), &notification, h.Hooks, h.MessageHooks, h.HooksErrorHandler); err != nil {
+		nErr := h.NotificationErrorHandler(request.Context(), writer, request, err)
+		if nErr != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
 }
