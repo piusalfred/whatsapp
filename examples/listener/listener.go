@@ -22,6 +22,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	werrors "github.com/piusalfred/whatsapp/errors"
+	"github.com/piusalfred/whatsapp/models"
 	"log"
 	"net/http"
 	"os"
@@ -32,7 +34,7 @@ import (
 
 type Middleware func(next http.Handler) http.Handler
 
-// Wraps a http.Handler with a middlewares
+// Wrap wraps a http.Handler with a middlewares
 func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 	// wraps backwards
 	for i := len(middlewares) - 1; i >= 0; i-- {
@@ -61,12 +63,118 @@ func EndTimeMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-var _ webhooks.EventHandler = (*handler)(nil)
+var _ webhooks.Hooks = (*handler)(nil)
 
 type handler struct {
-	// it can be db conections, etc
-	// connection to notify the user
-	// etc etc
+}
+
+func (h *handler) OnMessageStatusChange(ctx context.Context, nctx *webhooks.NotificationContext, status *webhooks.Status) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (h *handler) OnNotificationError(ctx context.Context, nctx *webhooks.NotificationContext, errors *werrors.Error) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (h *handler) OnMessageReceived(ctx context.Context, nctx *webhooks.NotificationContext, message *webhooks.Message, hooks webhooks.MessageHooks) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+var _ webhooks.MessageHooks = (*messageHooks)(nil)
+
+type messageHooks struct{}
+
+func (m messageHooks) OnMessageErrors(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, errors []*werrors.Error) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnTextMessageReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, text *webhooks.Text) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnReferralMessageReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, text *webhooks.Text, referral *webhooks.Referral) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnCustomerIDChange(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, customerID *webhooks.Identity) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnSystemMessage(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, system *webhooks.System) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnImageReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, image *models.MediaInfo) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnAudioReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, audio *models.MediaInfo) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnVideoReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, video *models.MediaInfo) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnDocumentReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, document *models.MediaInfo) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnStickerReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, sticker *models.MediaInfo) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnOrderReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, order *webhooks.Order) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnButtonMessage(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, button *webhooks.Button) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnLocationReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, location *models.Location) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnContactsReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, contacts models.Contacts) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnMessageReaction(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, reaction *models.Reaction) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnUnknownMessageReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, errors []*werrors.Error) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnProductEnquiry(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, text *webhooks.Text) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m messageHooks) OnInteractiveMessage(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, interactive *webhooks.Interactive) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (h *handler) HandleError(ctx context.Context, writer http.ResponseWriter, request *http.Request, err error) error {
@@ -127,13 +235,13 @@ func (h *handler) HandleEvent(ctx context.Context, writer http.ResponseWriter, r
 */
 func main() {
 	// Create a new handler
-	handler := &handler{}
-	ls := webhooks.NewEventListener(handler)
+	//handler := &handler{}
+	ls := webhooks.NewEventListener()
 	middlewares := []Middleware{
 		StartTimeMiddleware,
 		EndTimeMiddleware,
 	}
-	finalHandler := Wrap(ls, middlewares...)
+	finalHandler := Wrap(ls.Handle(), middlewares...)
 	mux := http.NewServeMux()
 	mux.Handle("/webhooks", finalHandler)
 

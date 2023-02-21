@@ -20,36 +20,8 @@
 package webhooks
 
 import (
-	"fmt"
 	werrors "github.com/piusalfred/whatsapp/errors"
 	"github.com/piusalfred/whatsapp/models"
-)
-
-var (
-	ErrInvalidSignature    = fmt.Errorf("signature validation failed")
-	ErrBodyReadFailed      = fmt.Errorf("failed to read request body")
-	ErrBodyNil             = fmt.Errorf("request body is nil")
-	ErrBodyUnmarshalFailed = fmt.Errorf("failed to unmarshal request body")
-)
-
-const (
-	TextMessageEvent       Event = "text"
-	ImageMessageEvent      Event = "image"
-	VideoMessageEvent      Event = "video"
-	AudioMessageEvent      Event = "audio"
-	DocumentMessageEvent   Event = "document"
-	StickerMessageEvent    Event = "sticker"
-	LocationMessageEvent   Event = "location"
-	ContactMessageEvent    Event = "contact"
-	ReactionMessageEvent   Event = "reaction"
-	ReplyButtonClickEvent  Event = "reply_button"
-	CallToActionClickEvent Event = "call_to_action"
-	ProfileUpdateEvent     Event = "profile_update"
-	BusinessItemClickEvent Event = "business_item"
-	ProductQueryEvent      Event = "product_query"
-	ProductOrderEvent      Event = "product_order"
-	StatusChangeEvent      Event = "status_change"
-	UnknownEvent           Event = "unknown"
 )
 
 type (
@@ -58,7 +30,7 @@ type (
 	//
 	//	Billable, boolean – Indicates if the given message or conversation is billable. Default is true
 	//  for all conversations, including those inside your free tier limit, except those initiated from
-	//  free entry points. Free entry point conversatsion are not billable, false. You will not be charged
+	//  free entry points. Free entry point conversation are not billable, false. You will not be charged
 	//  for free tier limit conversations, but they are considered billable and will be reflected on your
 	//  invoice. Deprecated. Visit the WhatsApp Changelog for more information.
 	//
@@ -132,7 +104,7 @@ type (
 	//
 	// Pricing, pricing object that contains information about the billing information.
 	//
-	// Errors, array of errors.Error objects that contains information about the werrors that occurred.
+	// Errors, array of errors.Error objects that contains information about the errors that occurred.
 	//
 	// NOTE:
 	//
@@ -152,7 +124,7 @@ type (
 	}
 
 	// Event is the type of event that occurred and leads to the notification being sent.
-	// You get a webhooks notification, When a customer performs one of the following an action
+	// You get a webhooks' notification, When a customer performs one of the following an action
 	//
 	//  - Sends a text message to the business
 	//  - Sends an image, video, audio, document, or sticker to the business
@@ -365,7 +337,7 @@ type (
 	//	  requesting information about. You must parse this value if you support Product Enquiry Messages. See
 	//	  Receive Response From Customers. Referred product objects have the following properties:
 	//	  	- CatalogID, catalog_id — String. Unique identifier of the Meta catalog linked to the WhatsApp Business Account.
-	//      - ProductRelailerID,product_retailer_id — String. Unique identifier of the product in a catalog.
+	//      - ProductRetailerID,product_retailer_id — String. Unique identifier of the product in a catalog.
 	Context struct {
 		Forwarded           bool   `json:"forwarded,omitempty"`
 		FrequentlyForwarded bool   `json:"frequently_forwarded,omitempty"`

@@ -267,26 +267,6 @@ type (
 	// read – A webhook is triggered when a message sent by a business has been read
 	// sent – A webhook is triggered when a business sends a message to a customer
 	MessageStatus string
-
-	// OnMessageStatusChange is a hook that is called when a message status changes.
-	// Status change is triggered when a message is sent or delivered to a customer or
-	// the customer reads the delivered message sent by a business that is subscribed
-	// to the Webhooks.
-	OnMessageStatusChange func(ctx context.Context, nctx *NotificationContext, status *Status) error
-
-	// OnNotificationError is a hook that is called when a notification error occurs.
-	// Sometimes a webhook notification being sent to a business contains errors.
-	// This hook is called when a webhook notification contains errors.
-	// waba is the Whatsapp Business Account ID
-	OnNotificationError func(
-		ctx context.Context, nctx *NotificationContext, errors *werrors.Error) error
-
-	// OnMessageReceived is a hook that is called when a message is received.
-	// This message can be a text message, image, video, audio, document, location,
-	// vcard, template, sticker, or file. It can be a reply to a message sent by the
-	// business or a new message.
-	OnMessageReceived func(ctx context.Context, nctx *NotificationContext,
-		messages *Message, hooks MessageHooks) error
 )
 
 // ParseMessageType parses the message type from a string.
@@ -459,6 +439,8 @@ var (
 	ErrNilNotificationHook = errors.New("notification hook is nil")
 )
 
+const SignatureHeaderKey = "X-Hub-Signature-256"
+
 // HandlerOptions are the options for the handler. They are used to configure the handler.
 type HandlerOptions struct {
 	ValidateSignature bool
@@ -482,7 +464,7 @@ func NotificationHandler(
 					return
 				}
 
-				signature := request.Header.Get("X-MessageBird-Signature")
+				signature := request.Header.Get(SignatureHeaderKey)
 				if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
 					if nErr := nfh(request.Context(), writer, request, ErrInvalidSignature); nErr != nil {
 						writer.WriteHeader(http.StatusUnauthorized)
