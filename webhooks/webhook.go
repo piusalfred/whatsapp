@@ -1,27 +1,35 @@
+/*
+ * Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the “Software”), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ * LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 package webhooks
 
 import (
-	"bytes"
-	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
-
 	werrors "github.com/piusalfred/whatsapp/errors"
 	"github.com/piusalfred/whatsapp/models"
 )
 
 var (
-	ErrSignatureValidationFailed = fmt.Errorf("signature validation failed")
-	ErrBodyReadFailed            = fmt.Errorf("failed to read request body")
-	ErrBodyNil                   = fmt.Errorf("request body is nil")
-	ErrBodyUnmarshalFailed       = fmt.Errorf("failed to unmarshal request body")
+	ErrInvalidSignature    = fmt.Errorf("signature validation failed")
+	ErrBodyReadFailed      = fmt.Errorf("failed to read request body")
+	ErrBodyNil             = fmt.Errorf("request body is nil")
+	ErrBodyUnmarshalFailed = fmt.Errorf("failed to unmarshal request body")
 )
 
 const (
@@ -95,9 +103,9 @@ type (
 	// Any business-initiated message sent more than 24 hours after the last customer message must be a
 	// template message.
 	Conversation struct {
-		ID      string              `json:"id,omitempty"`
-		Origin  *ConversationOrigin `json:"origin,omitempty"`
-		Exipiry int                 `json:"expiration_timestamp,omitempty"`
+		ID     string              `json:"id,omitempty"`
+		Origin *ConversationOrigin `json:"origin,omitempty"`
+		Expiry int                 `json:"expiration_timestamp,omitempty"`
 	}
 
 	// Status contains information about the status of a message sent to a customer.
@@ -363,17 +371,17 @@ type (
 		FrequentlyForwarded bool   `json:"frequently_forwarded,omitempty"`
 		From                string `json:"from,omitempty"`
 		ID                  string `json:"id,omitempty"`
-		ReferredProduct     *ReferedProduct
+		ReferredProduct     *ReferredProduct
 	}
 
-	// ReferredProduct,Referred product object describing the product the user is
+	// ReferredProduct ,Referred product object describing the product the user is
 	// requesting information about. You must parse this value if you support Product Enquiry Messages. See
 	// Receive Response From Customers. Referred product objects have the following properties:
 	//
 	// CatalogID, catalog_id — String. Unique identifier of the Meta catalog linked to the WhatsApp Business Account.
 	//
 	// ProductRetailerID,product_retailer_id — String. Unique identifier of the product in a catalog.
-	ReferedProduct struct {
+	ReferredProduct struct {
 		CatalogID         string `json:"catalog_id,omitempty"`
 		ProductRetailerID string `json:"product_retailer_id,omitempty"`
 	}
@@ -423,262 +431,4 @@ type (
 		Object string   `json:"object,omitempty"`
 		Entry  []*Entry `json:"entry,omitempty"`
 	}
-
-	VerificationRequest struct {
-		Mode      string `json:"hub.mode"`
-		Challenge string `json:"hub.challenge"`
-		Token     string `json:"hub.verify_token"`
-	}
-
-	// SubscriptionVerifier is a function that processes the verification request.
-	// The function must return nil if the verification request is valid.
-	// It mainly checks if hub.mode is set to subscribe and if the hub.verify_token matches
-	// the one set in the App Dashboard.
-	SubscriptionVerifier func(context.Context, *VerificationRequest) error
-
-	EventListener struct {
-		h        EventHandler
-		verifier SubscriptionVerifier
-	}
-
-	ListenerOption func(*EventListener)
-
-	// EventHandler is an interface that must be implemented by the handler that will
-	// process the notifications received from the WhatsApp Business API.
-	EventHandler interface {
-		// HandleError is called when an error occurs while processing the request.
-		// If the error handling logic uses the response writer, it must return nil.
-		// Otherwise, it must return the error that occurred if the logic fails.
-		// If HandleError returns error at any point of execution, The EventListener
-		// will write a 500 status code to the response writer.
-		HandleError(context.Context, http.ResponseWriter, *http.Request, error) error
-
-		// HandleEvent is called when a notification is received. It is expected that
-		// the implementation of this method will process the notification and write
-		// the response to the response writer. If it returns an error, the error returned
-		// will be passed to HandleError.
-		HandleEvent(context.Context, http.ResponseWriter, *http.Request, *Notification) error
-	}
 )
-
-func NewEventListener(h EventHandler, options ...ListenerOption) *EventListener {
-	ls := &EventListener{
-		h: h,
-	}
-
-	for _, option := range options {
-		option(ls)
-	}
-
-	return ls
-}
-
-// SetSubVerifier sets the subscription verifier for the EventListener.
-func (el *EventListener) SetSubVerifier(verifier SubscriptionVerifier) {
-	el.verifier = verifier
-}
-
-// WithSubVerifier returns a ListenerOption that sets the subscription verifier for the EventListener.
-func WithSubVerifier(verifier SubscriptionVerifier) ListenerOption {
-	return func(el *EventListener) {
-		if verifier != nil {
-			el.verifier = verifier
-		}
-	}
-}
-
-// Make EventListener a http.Handler
-func (el *EventListener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var notification Notification
-	if r.Body == nil {
-		nErr := el.h.HandleError(r.Context(), w, r, ErrBodyNil)
-		if nErr != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		return
-	}
-	bodyBytes, readErr := io.ReadAll(r.Body)
-	defer io.NopCloser(bytes.NewBuffer(bodyBytes))
-	if readErr != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(readErr, ErrBodyReadFailed))
-		if nErr != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		return
-	}
-
-	unmarshalErr := json.Unmarshal(bodyBytes, &notification)
-	if unmarshalErr != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, errors.Join(unmarshalErr, ErrBodyUnmarshalFailed))
-		if nErr != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		return
-	}
-
-	// pass the notification to the handler
-	notifErr := el.h.HandleEvent(r.Context(), w, r, &notification)
-	if notifErr != nil {
-		nErr := el.h.HandleError(r.Context(), w, r, notifErr)
-		if nErr != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		return
-	}
-}
-
-// VerifySubscriptionHandler verifies the subscription to the webhooks.
-// Your endpoint must be able to process two types of HTTPS requests: Verification Requests and Event Notifications.
-// Since both requests use HTTPs, your server must have a valid TLS or SSL certificate correctly configured and
-// installed. Self-signed certificates are not supported.
-//
-// Anytime you configure the Webhooks product in your App Dashboard, we'll send a GET request to your endpoint URL.
-// Verification requests include the following query string parameters, appended to the end of your endpoint URL.
-//
-// They will look something like this:
-//
-//			GET https://www.your-clever-domain-name.com/webhooks?
-//					hub.mode=subscribe&
-//					hub.challenge=1158201444&
-//					hub.verify_token=meatyhamhock
-//
-//	     - hub.mode This value will always be set to subscribe.
-//	     - hub.challenge An int you must pass back to us.
-//	     - hub.verify_token A string that that we grab from the Verify Token field in your app's App Dashboard.
-//	       You will set this string when you complete the Webhooks configuration settings steps.
-//
-// Whenever your endpoint receives a verification request, it must:
-//
-//   - Verify that the hub.verify_token value matches the string you set in the Verify Token field when you configure
-//     the Webhooks product in your App Dashboard (you haven't set up this token string yet).
-//
-//   - Respond with the hub.challenge value. If you are in your App Dashboard and configuring your Webhooks product
-//     (and thus, triggering a Verification Request), the dashboard will indicate if your endpoint validated the request
-//     correctly. If you are using the Graph API's /app/subscriptions endpoint to configure the Webhooks product, the API
-//     will indicate success or failure with a response.
-func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Retrieve the query parameters from the request.
-		q := r.URL.Query()
-		mode := q.Get("hub.mode")
-		challenge := q.Get("hub.challenge")
-		token := q.Get("hub.verify_token")
-		if err := verifier(r.Context(), &VerificationRequest{
-			Mode:      mode,
-			Challenge: challenge,
-			Token:     token,
-		}); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(challenge))
-	})
-}
-
-// ValidateSignature validates the signature of the payload. All Event Notification payloads are signed
-// with a SHA256 signature and include the signature in the request's X-Hub-Signature-256 header, preceded
-// with sha256=. You don't have to validate the payload, but you should.
-//
-// To validate the payload:
-//  1. Generate a SHA256 signature using the payload and your app's App Secret.
-//  2. Compare your signature to the signature in the X-Hub-Signature-256 header (everything after sha256=).
-//
-// If the signatures match, the payload is genuine. Please note that we generate the signature using an escaped
-// unicode version of the payload, with lowercase hex digits. If you just calculate against the decoded bytes,
-// you will end up with a different signature.
-// For example, the string äöå should be escaped to \u00e4\u00f6\u00e5.
-func ValidateSignature(payload []byte, signature, secret string) bool {
-	// Extract the actual signature from the header
-	if !strings.HasPrefix(signature, "sha256=") {
-		return false
-	}
-	actualSignature, err := hex.DecodeString(signature[7:])
-	if err != nil {
-		return false
-	}
-
-	// Calculate the expected signature using the payload and secret
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, err = mac.Write(payload)
-	if err != nil {
-		return false
-	}
-	expectedSignature := mac.Sum(nil)
-
-	// Compare the expected and actual signatures
-	return hmac.Equal(actualSignature, expectedSignature)
-}
-
-type Received struct {
-	ReceiverID            string
-	ReceiverDisplayNumber string
-	SenderID              string
-	SenderProfileName     string
-	Events                []Event
-	Errors                []*werrors.Error
-	StatusChanges         []*Status
-}
-
-// ExtractNotificationDetails returns a number of Events that has been received.
-// from the notification received in a webhook.
-// Accepts Value object which encapsulates the changes received in a webhook.
-// There is possibility of multiple events but very unlikely.
-func ExtractNotificationDetails(value *Value) (*Received, error) {
-	if value == nil {
-		return nil, fmt.Errorf("change is nil")
-	} else {
-		var events []Event
-		received := &Received{
-			Errors: value.Errors,
-		}
-		if value.Metadata != nil {
-			received.ReceiverID = value.Metadata.PhoneNumberID
-			received.ReceiverDisplayNumber = value.Metadata.DisplayPhoneNumber
-		}
-
-		if len(value.Contacts) == 0 {
-			// TODO add errors that we can not figure out the sender
-		} else {
-			received.SenderID = value.Contacts[0].WaID
-			if value.Contacts[0].Profile != nil {
-				received.SenderProfileName = value.Contacts[0].Profile.Name
-			}
-		}
-
-		received.StatusChanges = value.Statuses
-		if value.Statuses != nil {
-			events = append(events, StatusChangeEvent)
-		}
-
-		received.Events = events
-
-		if len(value.Messages) > 0 {
-			// traverse the messages and switch on message type
-			for _, msg := range value.Messages {
-				switch msg.Type {
-				case "text":
-					events = append(events, TextMessageEvent)
-				case "image":
-					events = append(events, ImageMessageEvent)
-				case "video":
-					events = append(events, VideoMessageEvent)
-				case "audio":
-					events = append(events, AudioMessageEvent)
-				case "document":
-					events = append(events, DocumentMessageEvent)
-				case "location":
-					events = append(events, LocationMessageEvent)
-				case "contacts":
-					events = append(events, ContactMessageEvent)
-
-				}
-			}
-		}
-
-		return received, nil
-	}
-}

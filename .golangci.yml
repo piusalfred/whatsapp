@@ -1,0 +1,28 @@
+linters:
+  enable:
+    - deadcode
+    - errcheck
+    - gofmt
+    - goimports
+    - golint
+    - ineffassign
+    - misspell
+    - unconvert
+    - unused
+    - varcheck
+  disable-all: true
+
+linters-settings:
+  golint:
+    min-confidence: 0.8
+  misspell:
+    locale: US
+  unconvert:
+    unconvert-unsafe-assigns: true
+  unused:
+    check-exported: true
+    check-tests: true
+
+exclude-rules:
+  - 'ST1005'  # Useless type check
+  - 'ST1003'  # Incorrect case found

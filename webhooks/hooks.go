@@ -1,10 +1,34 @@
+/*
+ * Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the “Software”), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ * LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 package webhooks
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -46,7 +70,7 @@ type (
 	// list_reply,or button_reply.
 	InteractiveReply string
 
-	// MessageType is atype of message that has been received by the business that has subscribed
+	// MessageType is type of message that has been received by the business that has subscribed
 	// to Webhooks. Possible value can be one of the following: audio,button,document,text,image,
 	// interactive,order,sticker,system – for customer number change messages,unknown and video
 	// The documentation is not clear in case of location,reaction and contacts. They will be included
@@ -86,7 +110,7 @@ type (
 
 	// MessageHooks is a generic interface for all message hooks.
 	MessageHooks interface {
-		// OnMessageError is a hook that is called when a message error occurs.
+		// OnMessageErrors is a hook that is called when a message error occurs.
 		// Sometimes a message being sent to a customer contains errors.
 		// This hook is called when a message contains errors.
 		OnMessageErrors(ctx context.Context, nctx *NotificationContext,
@@ -207,12 +231,12 @@ type (
 		// 	"type": "text"
 		//   }
 		// ]
-		// Reffered product is the product being enquired.
+		// Referred product is the product being enquired.
 		OnProductEnquiry(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
 
 		// OnInteractiveMessage is a hook that is called when an interactive message is received.
 		// This can happen when a customer clicks on a button you sent them in a template message.
-		// Or they can click a list item in a list template you sent them. In case of of a list template
+		// Or they can click a list item in a list template you sent them. In case of a list template
 		// the reply will be of type list_reply and button_reply for a button template.
 		OnInteractiveMessage(ctx context.Context, nctx *NotificationContext,
 			mctx *MessageContext, interactive *Interactive) error
@@ -292,20 +316,35 @@ func ParseMessageType(s string) MessageType {
 	return msgType
 }
 
-type ErrorHandler func(err error) error
+type (
+	HooksErrorHandler        func(err error) error
+	NotificationErrorHandler func(context.Context, http.ResponseWriter, *http.Request, error) error
+)
+
+// NoOpHooksErrorHandler is a no-op hooks error handler. It just returns the error as is.
+// It is applied by ApplyHooks if no hooks error handler is provided.
+func NoOpHooksErrorHandler(err error) error {
+	return err
+}
+
+// NoOpNotificationErrorHandler is a no-op notification error handler. It just returns the error as is.
+// It is applied by ApplyHooks if no notification error handler is provided.
+func NoOpNotificationErrorHandler(_ context.Context, _ http.ResponseWriter, _ *http.Request, err error) error {
+	return err
+}
 
 // ApplyHooks applies the hooks to notification received. Sometimes the hooks can return
 // errors. The errors are collected and returned as a single error. So in your implementation
 // of Hooks, you can return a FatalError if you want to stop the processing of the notification.
 // immediately. If you want to continue processing the notification, you can return a non-fatal
 // error. The errors are collected and returned as a single error.
-// Also since all hooks errors are passed to the ErrorHandler, you can decide to either
+// Also since all hooks errors are passed to the HooksErrorHandler, you can decide to either
 // escalate the non-fatal errors to fatal errors or just ignore them also you can decide to
 // ignore the fatal errors.
 //
 // Example:
 //
-//	func ShouldIgnoreFatalErrors(ignore bool) ErrorHandler{
+//	func ShouldIgnoreFatalErrors(ignore bool) hef{
 //	    return func(err error) error {
 //	        if IsFatalError(err) {
 //	            if ignore {
@@ -317,7 +356,7 @@ type ErrorHandler func(err error) error
 //	    }
 //	}
 func ApplyHooks(ctx context.Context, notification *Notification, hooks Hooks,
-	mh MessageHooks, eh ErrorHandler) error {
+	mh MessageHooks, eh HooksErrorHandler) error {
 	if notification == nil || hooks == nil {
 		return nil
 	}
@@ -351,29 +390,33 @@ func (e *FatalError) Error() string {
 }
 
 func IsFatalError(err error) bool {
-	_, ok := err.(*FatalError)
-	return ok
+	var fatalErr *FatalError
+	return errors.As(err, &fatalErr)
 }
 
-func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, mh MessageHooks, ef ErrorHandler) error {
+func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, mh MessageHooks, ef HooksErrorHandler) error {
 	if hooks == nil {
 		return nil
 	}
 
 	var allErrors []error
 
-	nctx := &NotificationContext{
+	notificationCtx := &NotificationContext{
 		ID:       id,
 		Contacts: value.Contacts,
 		Metadata: value.Metadata,
+	}
+
+	if ef == nil {
+		ef = NoOpHooksErrorHandler
 	}
 
 	// call the hooks
 	if value.Errors != nil {
 		for _, ev := range value.Errors {
 			ev := ev
-			if err := hooks.OnNotificationError(ctx, nctx, ev); err != nil {
-				if IsFatalError(err) {
+			if err := hooks.OnNotificationError(ctx, notificationCtx, ev); err != nil {
+				if IsFatalError(ef(err)) {
 					return err
 				}
 				allErrors = append(allErrors, err)
@@ -384,8 +427,8 @@ func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, mh Me
 	if value.Statuses != nil {
 		for _, sv := range value.Statuses {
 			sv := sv
-			if err := hooks.OnMessageStatusChange(ctx, nctx, sv); err != nil {
-				if IsFatalError(err) {
+			if err := hooks.OnMessageStatusChange(ctx, notificationCtx, sv); err != nil {
+				if IsFatalError(ef(err)) {
 					return err
 				}
 				allErrors = append(allErrors, err)
@@ -396,8 +439,8 @@ func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, mh Me
 	if value.Messages != nil {
 		for _, mv := range value.Messages {
 			mv := mv
-			if err := hooks.OnMessageReceived(ctx, nctx, mv, mh); err != nil {
-				if IsFatalError(err) {
+			if err := hooks.OnMessageReceived(ctx, notificationCtx, mv, mh); err != nil {
+				if IsFatalError(ef(err)) {
 					return err
 				}
 				allErrors = append(allErrors, err)
@@ -412,82 +455,238 @@ func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, mh Me
 	return nil
 }
 
-type Hooker struct {
-	NotificationErrorHandler func(context.Context, http.ResponseWriter, *http.Request, error) error
-	HooksErrorHandler        ErrorHandler
-	Hooks                    Hooks
-	MessageHooks             MessageHooks
+var (
+	ErrNilNotificationHook = errors.New("notification hook is nil")
+)
+
+// HandlerOptions are the options for the handler. They are used to configure the handler.
+type HandlerOptions struct {
+	ValidateSignature bool
+	Secret            string
 }
 
-type HookerOption func(*Hooker)
+// NotificationHandler returns a http.Handler that can be used to handle the notification
+// from the webhook. It calls ApplyHooks to apply the hooks to the notification.
+// There are two ErrorHandlers, one for the notification and one for the hooks. The NotificationErrorHandler
+// is expected to handle scenarios where the notification is malformed or the request is invalid.
+// The HooksErrorHandler is expected to handle scenarios where the hooks after being applied return an error.
+func NotificationHandler(
+	hooks Hooks, mh MessageHooks, nfh NotificationErrorHandler,
+	eh HooksErrorHandler, options *HandlerOptions) http.Handler {
+	handler := func(writer http.ResponseWriter, request *http.Request) {
+		if options != nil && options.ValidateSignature {
+			var buff bytes.Buffer
+			if _, err := io.Copy(&buff, request.Body); err != nil {
+				if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
+					writer.WriteHeader(http.StatusInternalServerError)
+					return
+				}
 
-func NewHooker(options ...HookerOption) *Hooker {
-	h := &Hooker{}
-	return h
-}
-
-func WithNotificationHooks(hooks Hooks) HookerOption {
-	return func(hooker *Hooker) {
-		if hooks != nil {
-			hooker.Hooks = hooks
+				signature := request.Header.Get("X-MessageBird-Signature")
+				if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
+					if nErr := nfh(request.Context(), writer, request, ErrInvalidSignature); nErr != nil {
+						writer.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+				}
+			}
+			request.Body = io.NopCloser(&buff)
 		}
-	}
-}
-
-func WithMessageHooks(hooks MessageHooks) HookerOption {
-	return func(h *Hooker) {
-		if hooks != nil {
-			h.MessageHooks = hooks
+		if nfh == nil {
+			nfh = NoOpNotificationErrorHandler
 		}
-	}
-}
 
-func WithNotificationErrorHandler(
-	eh func(
-		context.Context, http.ResponseWriter, *http.Request, error) error) HookerOption {
-	return func(hooker *Hooker) {
-		if eh != nil {
-			hooker.NotificationErrorHandler = eh
+		if hooks == nil {
+			if nErr := nfh(request.Context(), writer, request, ErrNilNotificationHook); nErr != nil {
+				writer.WriteHeader(http.StatusAccepted)
+				return
+			}
 		}
-	}
-}
 
-func WithHooksErrorHandler(eh ErrorHandler) HookerOption {
-	return func(h *Hooker) {
-		if eh != nil {
-			h.HooksErrorHandler = eh
+		// Construct the notification
+		var notification Notification
+		if err := json.NewDecoder(request.Body).Decode(&notification); err != nil {
+			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
+				writer.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
-	}
-}
 
-// Hooker implements ServeHTTP,
+		// Apply the hooks
+		if err := ApplyHooks(request.Context(), &notification, hooks, mh, eh); err != nil {
+			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
+				writer.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
 
-func (h *Hooker) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	if h.Hooks == nil {
 		writer.WriteHeader(http.StatusAccepted)
-		return
+	}
+	return http.HandlerFunc(handler)
+}
+
+type (
+	VerificationRequest struct {
+		Mode      string `json:"hub.mode"`
+		Challenge string `json:"hub.challenge"`
+		Token     string `json:"hub.verify_token"`
 	}
 
-	// Construct the notification
-	var notification Notification
-	if err := json.NewDecoder(request.Body).Decode(&notification); err != nil {
-		nErr := h.NotificationErrorHandler(request.Context(), writer, request, err)
-		if nErr != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			return
+	// SubscriptionVerifier is a function that processes the verification request.
+	// The function must return nil if the verification request is valid.
+	// It mainly checks if hub.mode is set to subscribe and if the hub.verify_token matches
+	// the one set in the App Dashboard.
+	SubscriptionVerifier func(context.Context, *VerificationRequest) error
+)
+
+// VerifySubscriptionHandler verifies the subscription to the webhooks.
+// Your endpoint must be able to process two types of HTTPS requests: Verification Requests and Event Notifications.
+// Since both requests use HTTPs, your server must have a valid TLS or SSL certificate correctly configured and
+// installed. Self-signed certificates are not supported.
+//
+// Anytime you configure the Webhooks product in your App Dashboard, we'll send a GET request to your endpoint URL.
+// Verification requests include the following query string parameters, appended to the end of your endpoint URL.
+//
+// They will look something like this:
+//
+//			GET https://www.your-clever-domain-name.com/webhooks?
+//					hub.mode=subscribe&
+//					hub.challenge=1158201444&
+//					hub.verify_token=meatyhamhock
+//
+//	     - hub.mode This value will always be set to subscribe.
+//	     - hub.challenge An int you must pass back to us.
+//	     - hub.verify_token A string that we grab from the Verify Token field in your app's App Dashboard.
+//	       You will set this string when you complete the Webhooks configuration settings steps.
+//
+// Whenever your endpoint receives a verification request, it must:
+//
+//   - Verify that the hub.verify_token value matches the string you set in the Verify Token field when you configure
+//     the Webhooks product in your App Dashboard (you haven't set up this token string yet).
+//
+//   - Respond with the hub.challenge value. If you are in your App Dashboard and configuring your Webhooks product
+//     (and thus, triggering a Verification Request), the dashboard will indicate if your endpoint validated the request
+//     correctly. If you are using the Graph APIs /app/subscriptions endpoint to configure the Webhooks product, the API
+//     will indicate success or failure with a response.
+func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Retrieve the query parameters from the request.
+		q := r.URL.Query()
+		mode := q.Get("hub.mode")
+		challenge := q.Get("hub.challenge")
+		token := q.Get("hub.verify_token")
+		if err := verifier(r.Context(), &VerificationRequest{
+			Mode:      mode,
+			Challenge: challenge,
+			Token:     token,
+		}); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
 		}
-		return
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(challenge))
+	})
+}
+
+// ValidateSignature validates the signature of the payload. All Event Notification payloads are signed
+// with a SHA256 signature and include the signature in the request's X-Hub-Signature-256 header, preceded
+// with sha256=. You don't have to validate the payload, but you should.
+//
+// To validate the payload:
+//  1. Generate a SHA256 signature using the payload and your app's App Secret.
+//  2. Compare your signature to the signature in the X-Hub-Signature-256 header (everything after sha256=).
+//
+// If the signatures match, the payload is genuine. Please note that we generate the signature using an escaped
+// unicode version of the payload, with lowercase hex digits. If you just calculate against the decoded bytes,
+// you will end up with a different signature.
+// For example, the string äöå should be escaped to \u00e4\u00f6\u00e5.
+func ValidateSignature(payload []byte, signature, secret string) bool {
+	// Extract the actual signature from the header
+	if !strings.HasPrefix(signature, "sha256=") {
+		return false
+	}
+	actualSignature, err := hex.DecodeString(signature[7:])
+	if err != nil {
+		return false
 	}
 
-	// Apply the hooks
-	if err := ApplyHooks(request.Context(), &notification, h.Hooks, h.MessageHooks, h.HooksErrorHandler); err != nil {
-		nErr := h.NotificationErrorHandler(request.Context(), writer, request, err)
-		if nErr != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		return
+	// Calculate the expected signature using the payload and secret
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, err = mac.Write(payload)
+	if err != nil {
+		return false
+	}
+	expectedSignature := mac.Sum(nil)
+
+	// Compare the expected and actual signatures
+	return hmac.Equal(actualSignature, expectedSignature)
+}
+
+type EventListener struct {
+	h        Hooks
+	m        MessageHooks
+	hef      HooksErrorHandler
+	neh      NotificationErrorHandler
+	v        SubscriptionVerifier
+	validate bool
+	options  *HandlerOptions
+}
+
+type ListenerOption func(*EventListener)
+
+func NewEventListener(options ...ListenerOption) *EventListener {
+	ls := &EventListener{
+		validate: false,
 	}
 
-	writer.WriteHeader(http.StatusAccepted)
+	for _, option := range options {
+		option(ls)
+	}
+
+	return ls
+}
+
+func WithHooks(hooks Hooks) ListenerOption {
+	return func(ls *EventListener) {
+		ls.h = hooks
+	}
+}
+
+func WithMessageHooks(mh MessageHooks) ListenerOption {
+	return func(ls *EventListener) {
+		ls.m = mh
+	}
+}
+
+func WithHooksErrorHandler(hooksErrorHandler HooksErrorHandler) ListenerOption {
+	return func(ls *EventListener) {
+		ls.hef = hooksErrorHandler
+	}
+}
+
+func WithNotificationErrorHandler(notificationErrorHandler NotificationErrorHandler) ListenerOption {
+	return func(ls *EventListener) {
+		ls.neh = notificationErrorHandler
+	}
+}
+
+func WithSubscriptionVerifier(verifier SubscriptionVerifier) ListenerOption {
+	return func(ls *EventListener) {
+		ls.v = verifier
+	}
+}
+
+func WithSignatureValidation(validate bool) ListenerOption {
+	return func(ls *EventListener) {
+		ls.validate = validate
+	}
+}
+
+// Handle returns a http.Handler that can be used to handle the notification
+func (ls *EventListener) Handle() http.Handler {
+	return NotificationHandler(ls.h, ls.m, ls.neh, ls.hef, ls.options)
+}
+
+// Verify returns a http.Handler that can be used to verify the subscription
+func (ls *EventListener) Verify() http.Handler {
+	return VerifySubscriptionHandler(ls.v)
 }
