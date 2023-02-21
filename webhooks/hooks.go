@@ -92,7 +92,7 @@ type (
 		// when the type is set to text. So when the message type is set to text, this hook is called.
 		// but when a condition that the message contains a referral object is met.
 		OnReferralMessageReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, referral *Referral) error
+			mctx *MessageContext, text *Text, referral *Referral) error
 
 		// OnCustomerIDChange is a hook that is called when a customer ID changes. Webhook is triggered
 		// when a customer's phone number or profile information has been updated.
@@ -197,7 +197,7 @@ type (
 		//   }
 		// ]
 		// Reffered product is the product being enquired.
-		OnProductEnquiry(ctx context.Context, nctx *NotificationContext, mctx *MessageContext) error
+		OnProductEnquiry(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
 
 		// OnInteractiveMessage is a hook that is called when an interactive message is received.
 		// This can happen when a customer clicks on a button you sent them in a template message.
@@ -224,7 +224,7 @@ type (
 		// This message can be a text message, image, video, audio, document, location,
 		// vcard, template, sticker, or file. It can be a reply to a message sent by the
 		// business or a new message.
-		OnMessageReceived(ctx context.Context, nctx *NotificationContext, message *Message) error
+		OnMessageReceived(ctx context.Context, nctx *NotificationContext, message *Message, hooks MessageHooks) error
 	}
 
 	// MessageStatus is the status of a message.
@@ -288,7 +288,7 @@ type ErrorHandler func(err error) error
 // of Hooks, you can return a FatalError if you want to stop the processing of the notification.
 // immediately. If you want to continue processing the notification, you can return a non-fatal
 // error. The errors are collected and returned as a single error.
-// Also since all hooks errors are passed to the ApplyHooksErrorHandler, you can decide to either
+// Also since all hooks errors are passed to the ErrorHandler, you can decide to either
 // escalate the non-fatal errors to fatal errors or just ignore them also you can decide to
 // ignore the fatal errors.
 //
@@ -306,7 +306,7 @@ type ErrorHandler func(err error) error
 //	    }
 //	}
 func ApplyHooks(ctx context.Context, notification *Notification, hooks Hooks,
-	eh ErrorHandler) error {
+	mh MessageHooks, eh ErrorHandler) error {
 	if notification == nil || hooks == nil {
 		return nil
 	}
@@ -323,7 +323,7 @@ func ApplyHooks(ctx context.Context, notification *Notification, hooks Hooks,
 			}
 			id := entry.ID
 
-			return applyHooks(ctx, id, value, hooks, eh)
+			return applyHooks(ctx, id, value, hooks, mh, eh)
 		}
 	}
 
@@ -344,7 +344,7 @@ func IsFatalError(err error) bool {
 	return ok
 }
 
-func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, ef ErrorHandler) error {
+func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, mh MessageHooks, ef ErrorHandler) error {
 	if hooks == nil {
 		return nil
 	}
@@ -385,7 +385,7 @@ func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, ef Er
 	if value.Messages != nil {
 		for _, mv := range value.Messages {
 			mv := mv
-			if err := hooks.OnMessageReceived(ctx, nctx, mv); err != nil {
+			if err := hooks.OnMessageReceived(ctx, nctx, mv, mh); err != nil {
 				if IsFatalError(err) {
 					return err
 				}
