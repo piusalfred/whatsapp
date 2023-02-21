@@ -2,6 +2,8 @@ package webhooks
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	werrors "github.com/piusalfred/whatsapp/errors"
 )
@@ -74,11 +76,32 @@ type (
 		messages *Message) error
 )
 
-type ApplyHooksErrorHandler func(err error) error
+type ErrorHandler func(err error) error
 
-// ApplyHooks applies the hooks to notification received
+// ApplyHooks applies the hooks to notification received. Sometimes the hooks can return
+// errors. The errors are collected and returned as a single error. So in your implementation
+// of Hooks, you can return a FatalError if you want to stop the processing of the notification.
+// immediately. If you want to continue processing the notification, you can return a non-fatal
+// error. The errors are collected and returned as a single error.
+// Also since all hooks errors are passed to the ApplyHooksErrorHandler, you can decide to either
+// escalate the non-fatal errors to fatal errors or just ignore them also you can decide to
+// ignore the fatal errors.
+//
+// Example:
+//
+//	func ShouldIgnoreFatalErrors(ignore bool) ErrorHandler{
+//	    return func(err error) error {
+//	        if IsFatalError(err) {
+//	            if ignore {
+//	                return fmt.Errorf("ignoring fatal error: %v", err)
+//	            }
+//	            return err
+//	        }
+//	        return err
+//	    }
+//	}
 func ApplyHooks(ctx context.Context, notification *Notification, hooks Hooks,
-	eh ApplyHooksErrorHandler) error {
+	eh ErrorHandler) error {
 	if notification == nil || hooks == nil {
 		return nil
 	}
@@ -110,20 +133,36 @@ func ApplyHooks(ctx context.Context, notification *Notification, hooks Hooks,
 
 }
 
-func applyHooks(ctx context.Context, nctx *NotificationContext, value *Value, hooks Hooks,
-	ef ApplyHooksErrorHandler) error {
+type FatalError struct {
+	Err  error
+	Desc string
+}
+
+func (e *FatalError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Desc, e.Err.Error())
+}
+
+func IsFatalError(err error) bool {
+	_, ok := err.(*FatalError)
+	return ok
+}
+
+func applyHooks(ctx context.Context, nctx *NotificationContext, value *Value, hooks Hooks, ef ErrorHandler) error {
 	if hooks == nil {
 		return nil
 	}
+
+	var allErrors []error
 
 	// call the hooks
 	if value.Errors != nil {
 		for _, ev := range value.Errors {
 			ev := ev
 			if err := hooks.OnNotificationError(ctx, nctx, ev); err != nil {
-				if ef != nil {
-					return ef(err)
+				if IsFatalError(err) {
+					return err
 				}
+				allErrors = append(allErrors, err)
 			}
 		}
 	}
@@ -132,9 +171,10 @@ func applyHooks(ctx context.Context, nctx *NotificationContext, value *Value, ho
 		for _, sv := range value.Statuses {
 			sv := sv
 			if err := hooks.OnMessageStatusChange(ctx, nctx, sv); err != nil {
-				if ef != nil {
-					return ef(err)
+				if IsFatalError(err) {
+					return err
 				}
+				allErrors = append(allErrors, err)
 			}
 		}
 	}
@@ -143,11 +183,16 @@ func applyHooks(ctx context.Context, nctx *NotificationContext, value *Value, ho
 		for _, mv := range value.Messages {
 			mv := mv
 			if err := hooks.OnMessageReceived(ctx, nctx, mv); err != nil {
-				if ef != nil {
-					return ef(err)
+				if IsFatalError(err) {
+					return err
 				}
+				allErrors = append(allErrors, err)
 			}
 		}
+	}
+
+	if len(allErrors) > 0 {
+		return errors.Join(allErrors...)
 	}
 
 	return nil
