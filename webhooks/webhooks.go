@@ -28,12 +28,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/piusalfred/whatsapp/models"
 	"io"
 	"net/http"
 	"strings"
 
 	werrors "github.com/piusalfred/whatsapp/errors"
-	"github.com/piusalfred/whatsapp/models"
 )
 
 const (
@@ -108,158 +108,126 @@ type (
 		Ctx       *Context
 	}
 
-	// MessageHooks is a generic interface for all message hooks.
-	MessageHooks interface {
-		// OnMessageErrors is a hook that is called when a message error occurs.
-		// Sometimes a message being sent to a customer contains errors.
-		// This hook is called when a message contains errors.
-		OnMessageErrors(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, errors []*werrors.Error) error
-
-		// OnTextMessageReceived is a hook that is called when a text message is received.
-		OnTextMessageReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, text *Text) error
-
-		// OnReferralMessageReceived is a hook that is called when a referral message is received.
-		// A referral message is a message is sent when a customer clicked an ad that redirects them
-		// to WhatsApp.
-		// Note that there is no message type for referral. According to documentation, it is included
-		// when the type is set to text. So when the message type is set to text, this hook is called.
-		// but when a condition that the message contains a referral object is met.
-		OnReferralMessageReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, text *Text, referral *Referral) error
-
-		// OnCustomerIDChange is a hook that is called when a customer ID changes. Webhook is triggered
-		// when a customer's phone number or profile information has been updated.
-		OnCustomerIDChange(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, customerID *Identity) error
-
-		// OnSystemMessage is a hook that is called when a system message is received.When messages type
-		// is set to system, a customer has updated their phone number or profile information, this object
-		// is included in the messages object.
-		OnSystemMessage(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, system *System) error
-
-		// OnImageReceived is a hook that is called when an image is received.
-		OnImageReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, image *models.MediaInfo) error
-
-		// OnAudioReceived is a hook that is called when an audio is received.
-		OnAudioReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, audio *models.MediaInfo) error
-
-		// OnVideoReceived is a hook that is called when a video is received.
-		OnVideoReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, video *models.MediaInfo) error
-
-		// OnDocumentReceived is a hook that is called when a document is received.
-		OnDocumentReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, document *models.MediaInfo) error
-
-		// OnStickerReceived is a hook that is called when a sticker is received.
-		OnStickerReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, sticker *models.MediaInfo) error
-
-		// OnOrderReceived is a hook that is called when an order is received. Included in the messages object when
-		//a customer has placed an order.
-		OnOrderReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, order *Order) error
-
-		// OnInteractiveMessage is a hook that is called when an interactive message is received.
-
-		// OnButtonMessage is a hook that is called when a button message is received.
-		// When your customer clicks on a quick reply button in an interactive message template,
-		// a response is sent. This hook is responsible for handling that response.
-		OnButtonMessage(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, button *Button) error
-
-		// OnLocationReceived is a hook that is called when a location is received. From documentation
-		// there is no message type for location but it is included in the messages object when a customer
-		// sends a location.
-		// Example of that payload can be found here https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
-		OnLocationReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, location *models.Location) error
-
-		// OnContactsReceived is a hook that is called when a contact is received. From documentation
-		// there is no message type for contact but it is included in the messages object when a customer
-		// sends a contact.
-		// Example of that payload can be found here https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
-		OnContactsReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, contacts models.Contacts) error
-
-		// OnMessageReaction is a hook that is called when a message reaction is received. From documentation
-		// there is no message type for reaction but it is included in the messages object when a customer
-		// reacts to a message.
-		// Example of that payload can be found here https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
-		OnMessageReaction(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, reaction *models.Reaction) error
-
-		// OnUnknownMessageReceived is a hook that is called when an unknown message is received. A message type
-		// that is not supported. It includes errors.
-		OnUnknownMessageReceived(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, errors []*werrors.Error) error
-
-		// OnProductEnquiry is a hook that is called when a product enquiry is received. A product enquiry is
-		// a message that is sent when a customer clicks on a product in a catalog template.
-		//
-		// Snippet from documentation:
-		// A Product Inquiry Message is received when a customer asks for more information about a product.
-		// These can happen when:
-		// - a customer replies to Single or Multi-Product Messages, or
-		// - a customer accesses a business's catalog via another entry point, navigates to a Product Details page,
-		//   and clicks Message Business about this Product.
-		//
-		// There is no message type for product enquiry. According to documentation, it is included as a text
-		// Example:
-		//
-		//"messages": [
-		// {
-		// 	"from": "PHONE_NUMBER",
-		// 	"id": "wamid.ID",
-		// 	"text": {
-		// 	  "body": "MESSAGE_TEXT"
-		// 	},
-		// 	"context": {
-		// 	  "from": "PHONE_NUMBER",
-		// 	  "id": "wamid.ID",
-		// 	  "referred_product": {
-		// 		"catalog_id": "CATALOG_ID",
-		// 		"product_retailer_id": "PRODUCT_ID"
-		// 	  }
-		// 	},
-		// 	"timestamp": "TIMESTAMP",
-		// 	"type": "text"
-		//   }
-		// ]
-		// Referred product is the product being enquired.
-		OnProductEnquiry(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
-
-		// OnInteractiveMessage is a hook that is called when an interactive message is received.
-		// This can happen when a customer clicks on a button you sent them in a template message.
-		// Or they can click a list item in a list template you sent them. In case of a list template
-		// the reply will be of type list_reply and button_reply for a button template.
-		OnInteractiveMessage(ctx context.Context, nctx *NotificationContext,
-			mctx *MessageContext, interactive *Interactive) error
-	}
-
-	// Hooks is a generic interface for all hooks.
+	// Hooks is a generic interface for all hooks. It intends to have a dedicated hook  for each
+	// notification type or scenario.
+	//
+	// All the hooks takes a context.Context, a NotificationContext which is used to identify and
+	// distinguish one notification to the rest. The hooks that deals with messages like these
+	// OnMessageErrors, OnMessageReceived, OnTextMessageReceived, OnReferralMessageReceived takes a
+	// a MessageContext which is used to identify and distinguish one message to the rest.
+	//
+	// OnMessageStatusChange is a hook that is called when a message status changes.
+	// Status change is triggered when a message is sent or delivered to a customer or
+	// the customer reads the delivered message sent by a business that is subscribed
+	// to the Webhooks.
+	//
+	// OnNotificationError is a hook that is called when a notification error occurs. Sometimes a
+	// webhook notification being sent to a business contains errors. This hook is called when a
+	// webhook notification contains errors. This hook is called when a webhook notification contains
+	// errors.
+	//
+	// OnMessageReceived is a hook that is called when a message is received. This message can be a
+	// text message, image, video, audio, document, location, vcard, template, sticker, or file. It can
+	// be a reply to a message sent by the business. This is overridden by the more specific hooks
+	// like OnTextMessageReceived, OnReferralMessageReceived, OnImageReceived, and OnVideoReceived.
+	//
+	// OnMessageErrors is a hook that is called when the notification contains errors.
+	//
+	// OnTextMessageReceived is a hook that is called when a text message is received.
+	//
+	// OnReferralMessageReceived is a hook that is called when a referral message is received.
+	// A referral message is a message is sent when a customer clicked an ad that redirects them
+	// to WhatsApp.
+	// Note that there is no message type for referral. According to documentation, it is included
+	// when the type is set to text. So when the message type is set to text, this hook is called.
+	// but when a condition that the message contains a referral object is met.
+	//
+	// OnCustomerIDChange is a hook that is called when a customer ID changes. Webhook is triggered
+	// when a customer's phone number or profile information has been updated.
+	//
+	// OnSystemMessage is a hook that is called when a system message is received.When messages type
+	// is set to system, a customer has updated their phone number or profile information, this object
+	// is included in the messages object.
+	//
+	// OnButtonMessage is a hook that is called when a button message is received.
+	// When your customer clicks on a quick reply button in an interactive message template,
+	// a response is sent. This hook is responsible for handling that response
+	//
+	// OnLocationReceived is a hook that is called when a location is received. From documentation
+	// there is no message type for location but it is included in the messages object when a customer
+	// sends a location.
+	// Example of that payload can be found here https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
+	//
+	// OnContactsReceived is a hook that is called when a contact is received. From documentation
+	// there is no message type for contact but it is included in the messages object when a customer
+	// sends a contact.
+	// Example of that payload can be found here https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
+	//
+	// OnMessageReaction is a hook that is called when a message reaction is received. From documentation
+	// there is no message type for reaction but it is included in the messages object when a customer
+	// reacts to a message.
+	// Example of that payload can be found here https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
+	//
+	// OnProductEnquiry is a hook that is called when a product enquiry is received. A product enquiry is
+	// a message that is sent when a customer clicks on a product in a catalog template.
+	//
+	// Snippet from documentation:
+	// A Product Inquiry Message is received when a customer asks for more information about a product.
+	// These can happen when:
+	// - a customer replies to Single or Multi-Product Messages, or
+	// - a customer accesses a business's catalog via another entry point, navigates to a Product Details page,
+	//   and clicks Message Business about this Product.
+	//
+	// There is no message type for product enquiry. According to documentation, it is included as a text
+	// Example:
+	//
+	//"messages": [
+	// {
+	// 	"from": "PHONE_NUMBER",
+	// 	"id": "wamid.ID",
+	// 	"text": {
+	// 	  "body": "MESSAGE_TEXT"
+	// 	},
+	// 	"context": {
+	// 	  "from": "PHONE_NUMBER",
+	// 	  "id": "wamid.ID",
+	// 	  "referred_product": {
+	// 		"catalog_id": "CATALOG_ID",
+	// 		"product_retailer_id": "PRODUCT_ID"
+	// 	  }
+	// 	},
+	// 	"timestamp": "TIMESTAMP",
+	// 	"type": "text"
+	//   }
+	// ]
+	// Referred product is the product being enquired.
+	//
+	// OnInteractiveMessage is a hook that is called when an interactive message is received.
+	// This can happen when a customer clicks on a button you sent them in a template message.
+	// Or they can click a list item in a list template you sent them. In case of a list template
+	// the reply will be of type list_reply and button_reply for a button template.
 	Hooks interface {
-		// OnMessageStatusChange is a hook that is called when a message status changes.
-		// Status change is triggered when a message is sent or delivered to a customer or
-		// the customer reads the delivered message sent by a business that is subscribed
-		// to the Webhooks.
 		OnMessageStatusChange(ctx context.Context, nctx *NotificationContext, status *Status) error
-
-		// OnNotificationError is a hook that is called when a notification error occurs.
-		// Sometimes a webhook notification being sent to a business contains errors.
-		// This hook is called when a webhook notification contains errors.
 		OnNotificationError(ctx context.Context, nctx *NotificationContext, errors *werrors.Error) error
-
-		// OnMessageReceived is a hook that is called when a message is received.
-		// This message can be a text message, image, video, audio, document, location,
-		// vcard, template, sticker, or file. It can be a reply to a message sent by the
-		// business or a new message.
-		OnMessageReceived(ctx context.Context, nctx *NotificationContext, message *Message, hooks MessageHooks) error
+		OnMessageReceived(ctx context.Context, nctx *NotificationContext, message *Message) error
+		OnMessageErrors(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
+		OnTextMessageReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
+		OnReferralMessageReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text, referral *Referral) error
+		OnCustomerIDChange(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, customerID *Identity) error
+		OnSystemMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, system *System) error
+		OnImageReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, image *models.MediaInfo) error
+		OnAudioReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, audio *models.MediaInfo) error
+		OnVideoReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, video *models.MediaInfo) error
+		OnDocumentReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, document *models.MediaInfo) error
+		OnStickerReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, sticker *models.MediaInfo) error
+		OnOrderReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, order *Order) error
+		OnButtonMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, button *Button) error
+		OnLocationReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, location *models.Location) error
+		OnContactsReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, contacts models.Contacts) error
+		OnMessageReaction(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, reaction *models.Reaction) error
+		OnUnknownMessageReceived(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
+		OnProductEnquiry(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
+		OnInteractiveMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, interactive *Interactive) error
 	}
 
 	// MessageStatus is the status of a message.
