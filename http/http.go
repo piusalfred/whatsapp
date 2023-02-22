@@ -157,7 +157,7 @@ func SendMessage(ctx context.Context, client *http.Client, params *RequestParams
 	var (
 		resp      *http.Response
 		err       error
-		bodybytes []byte
+		bodyBytes []byte
 	)
 
 	if resp, err = Send(ctx, client, params, payload); err != nil {
@@ -172,14 +172,14 @@ func SendMessage(ctx context.Context, client *http.Client, params *RequestParams
 
 	buff := new(bytes.Buffer)
 	_, err = io.Copy(buff, resp.Body)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	bodybytes = buff.Bytes()
+	bodyBytes = buff.Bytes()
 
 	if resp.StatusCode != http.StatusOK {
 		var errResponse ErrorResponse
-		if err = json.Unmarshal(bodybytes, &errResponse); err != nil {
+		if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&errResponse); err != nil {
 			return nil, err
 		}
 		errResponse.Code = resp.StatusCode
@@ -191,7 +191,7 @@ func SendMessage(ctx context.Context, client *http.Client, params *RequestParams
 		message  ResponseMessage
 	)
 
-	if err = json.NewDecoder(bytes.NewBuffer(bodybytes)).Decode(&message); err != nil {
+	if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&message); err != nil {
 		return nil, err
 	}
 	response.StatusCode = resp.StatusCode

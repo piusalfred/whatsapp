@@ -21,6 +21,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -60,11 +61,15 @@ func EndTimeMiddleware(next http.Handler) http.Handler {
 }
 
 func GenericNotificationHandler() webhooks.GenericNotificationHandler {
-	return func(ctx context.Context, notification *webhooks.Notification, handler webhooks.NotificationErrorHandler) error {
+	return func(ctx context.Context, writer http.ResponseWriter, notification *webhooks.Notification, handler webhooks.NotificationErrorHandler) error {
 		// print the notification and the time it took to process it
 		startTime := ctx.Value("startTime").(time.Time)
 		time.Sleep(2 * time.Second)
 		endTime := ctx.Value("endTime").(time.Time)
+		err := json.NewEncoder(writer).Encode(notification)
+		if err != nil {
+			return err
+		}
 		log.Printf("Notification: %+v, Time: %s\n", notification, endTime.Sub(startTime))
 		return nil
 	}

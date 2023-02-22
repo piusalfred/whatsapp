@@ -36,6 +36,10 @@ import (
 	werrors "github.com/piusalfred/whatsapp/errors"
 )
 
+// PayloadMaxSize is the maximum size of the payload that can be sent to the webhook.
+// Webhooks payloads can be up to 3MB.
+const PayloadMaxSize = 3 * 1024 * 1024
+
 const (
 	MessageStatusDelivered MessageStatus = "delivered"
 	MessageStatusRead      MessageStatus = "read"
@@ -677,7 +681,7 @@ func (ls *EventListener) GenericHandler() http.Handler {
 		}
 
 		// call the generic handler
-		if err := ls.g(request.Context(), &notification, nfh); err != nil {
+		if err := ls.g(request.Context(), writer, &notification, nfh); err != nil {
 			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
@@ -775,4 +779,4 @@ func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks 
 
 }
 
-type GenericNotificationHandler func(context.Context, *Notification, NotificationErrorHandler) error
+type GenericNotificationHandler func(context.Context, http.ResponseWriter, *Notification, NotificationErrorHandler) error

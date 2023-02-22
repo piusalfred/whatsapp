@@ -99,7 +99,6 @@ func CreateSubscription(ctx context.Context, client *http.Client, baseURL string
 	return &response, nil
 }
 
-// ListSubscriptions
 func ListSubscriptions(ctx context.Context, client *http.Client, baseURL string, req *SubscriptionRequest) (*ListSubscriptionsResponse, error) {
 	reqURL, err := url.JoinPath(baseURL, req.ApiVersion, req.AccountID, "subscribed_apps")
 	if err != nil {
