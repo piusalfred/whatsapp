@@ -23,7 +23,7 @@ repo management, cicd, etc.
 - [ ] testing
 - [ ] documentation
 - [ ] repo management
-- [ ] cicd
+- [ ] ci/cd
 
 ## Whatsapp API Versions
 - Which version(s) of the WhatsApp API does this affect?
