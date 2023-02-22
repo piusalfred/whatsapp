@@ -21,12 +21,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	werrors "github.com/piusalfred/whatsapp/errors"
-	"github.com/piusalfred/whatsapp/models"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/piusalfred/whatsapp/webhooks"
@@ -63,139 +59,15 @@ func EndTimeMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-var _ webhooks.Hooks = (*handler)(nil)
-
-type handler struct {
-}
-
-func (h *handler) OnMessageStatusChange(ctx context.Context, nctx *webhooks.NotificationContext, status *webhooks.Status) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (h *handler) OnNotificationError(ctx context.Context, nctx *webhooks.NotificationContext, errors *werrors.Error) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (h *handler) OnMessageReceived(ctx context.Context, nctx *webhooks.NotificationContext, message *webhooks.Message, hooks webhooks.MessageHooks) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-var _ webhooks.MessageHooks = (*messageHooks)(nil)
-
-type messageHooks struct{}
-
-func (m messageHooks) OnMessageErrors(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, errors []*werrors.Error) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnTextMessageReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, text *webhooks.Text) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnReferralMessageReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, text *webhooks.Text, referral *webhooks.Referral) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnCustomerIDChange(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, customerID *webhooks.Identity) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnSystemMessage(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, system *webhooks.System) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnImageReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, image *models.MediaInfo) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnAudioReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, audio *models.MediaInfo) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnVideoReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, video *models.MediaInfo) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnDocumentReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, document *models.MediaInfo) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnStickerReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, sticker *models.MediaInfo) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnOrderReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, order *webhooks.Order) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnButtonMessage(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, button *webhooks.Button) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnLocationReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, location *models.Location) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnContactsReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, contacts models.Contacts) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnMessageReaction(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, reaction *models.Reaction) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnUnknownMessageReceived(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, errors []*werrors.Error) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnProductEnquiry(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, text *webhooks.Text) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m messageHooks) OnInteractiveMessage(ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, interactive *webhooks.Interactive) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (h *handler) HandleError(ctx context.Context, writer http.ResponseWriter, request *http.Request, err error) error {
-	if err != nil {
-		os.Stdout.WriteString(err.Error())
+func GenericNotificationHandler() webhooks.GenericNotificationHandler {
+	return func(ctx context.Context, notification *webhooks.Notification, handler webhooks.NotificationErrorHandler) error {
+		// print the notification and the time it took to process it
+		startTime := ctx.Value("startTime").(time.Time)
+		time.Sleep(2 * time.Second)
+		endTime := ctx.Value("endTime").(time.Time)
+		log.Printf("Notification: %+v, Time: %s\n", notification, endTime.Sub(startTime))
+		return nil
 	}
-
-	os.Stdout.WriteString("error is nil")
-	return nil
-}
-
-func (h *handler) HandleEvent(ctx context.Context, writer http.ResponseWriter, request *http.Request, notification *webhooks.Notification) error {
-	os.Stdout.WriteString("HandleEvent")
-	jsonb, err := json.Marshal(notification)
-	if err != nil {
-		return err
-	}
-	writer.WriteHeader(http.StatusOK)
-	writer.Header().Set("Content-Type", "application/json")
-	writer.Write(jsonb)
-	return nil
 }
 
 /*
@@ -234,14 +106,21 @@ func (h *handler) HandleEvent(ctx context.Context, writer http.ResponseWriter, r
 		       }"
 */
 func main() {
-	// Create a new handler
-	//handler := &handler{}
-	ls := webhooks.NewEventListener()
+	ls := webhooks.NewEventListener(
+		webhooks.WithGenericNotificationHandler(GenericNotificationHandler()),
+		webhooks.WithNotificationErrorHandler(
+			func(ctx context.Context, writer http.ResponseWriter, request *http.Request, err error) error {
+				log.Printf("Error: %s\n", err)
+				writer.WriteHeader(http.StatusOK)
+				writer.Write([]byte("OK"))
+				return nil
+			}),
+	)
 	middlewares := []Middleware{
 		StartTimeMiddleware,
 		EndTimeMiddleware,
 	}
-	finalHandler := Wrap(ls.Handle(), middlewares...)
+	finalHandler := Wrap(ls.GenericHandler(), middlewares...)
 	mux := http.NewServeMux()
 	mux.Handle("/webhooks", finalHandler)
 
