@@ -19,7 +19,10 @@
 
 package webhooks
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestParseMessageType(t *testing.T) {
 	t.Parallel()
@@ -55,6 +58,64 @@ func TestParseMessageType(t *testing.T) {
 			got := ParseMessageType(tt.args.messageType)
 			if got != tt.want {
 				t.Errorf("ParseMessageType() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_getEncounteredError(t *testing.T) {
+	t.Parallel()
+	type args struct {
+		nonFatalErrsMap map[string]error
+	}
+	tests := []struct {
+		name          string
+		args          args
+		wantErr       bool
+		wantErrString string
+	}{
+		{
+			name: "empty",
+			args: args{
+				nonFatalErrsMap: map[string]error{},
+			},
+			wantErr:       false,
+			wantErrString: "",
+		},
+		{
+			name: "non single error",
+			args: args{
+				nonFatalErrsMap: map[string]error{
+					"one": errors.New("single"),
+				},
+			},
+			wantErr:       true,
+			wantErrString: "one: single",
+		},
+		{
+			name: "multiple errors",
+			args: args{
+				nonFatalErrsMap: map[string]error{
+					"one":   errors.New("single"),
+					"two":   errors.New("double"),
+					"three": errors.New("triple"),
+				},
+			},
+			wantErr:       true,
+			wantErrString: "one: single, two: double, three: triple",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := getEncounteredError(tt.args.nonFatalErrsMap)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getEncounteredError() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if err != nil && err.Error() != tt.wantErrString {
+				t.Errorf("getEncounteredError() error = %v, wantErrString %v", err, tt.wantErrString)
 			}
 		})
 	}

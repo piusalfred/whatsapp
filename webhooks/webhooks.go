@@ -28,12 +28,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	werrors "github.com/piusalfred/whatsapp/errors"
 	"github.com/piusalfred/whatsapp/models"
 	"io"
 	"net/http"
 	"strings"
-
-	werrors "github.com/piusalfred/whatsapp/errors"
 )
 
 // PayloadMaxSize is the maximum size of the payload that can be sent to the webhook.
@@ -313,18 +312,18 @@ type (
 )
 
 // NoOpHooksErrorHandler is a no-op hooks error handler. It just returns the error as is.
-// It is applied by ApplyHooks if no hooks error handler is provided.
+// It is applied by AttachHooksToNotification if no hooks error handler is provided.
 func NoOpHooksErrorHandler(err error) error {
 	return err
 }
 
 // NoOpNotificationErrorHandler is a no-op notification error handler. It just returns the error as is.
-// It is applied by ApplyHooks if no notification error handler is provided.
+// It is applied by AttachHooksToNotification if no notification error handler is provided.
 func NoOpNotificationErrorHandler(_ context.Context, _ http.ResponseWriter, _ *http.Request, err error) error {
 	return err
 }
 
-// ApplyHooks applies the hooks to notification received. Sometimes the hooks can return
+// AttachHooksToNotification applies the hooks to notification received. Sometimes the hooks can return
 // errors. The errors are collected and returned as a single error. So in your implementation
 // of Hooks, you can return a FatalError if you want to stop the processing of the notification.
 // immediately. If you want to continue processing the notification, you can return a non-fatal
@@ -346,7 +345,7 @@ func NoOpNotificationErrorHandler(_ context.Context, _ http.ResponseWriter, _ *h
 //	        return err
 //	    }
 //	}
-func ApplyHooks(ctx context.Context, notification *Notification, hooks Hooks, eh HooksErrorHandler) error {
+func AttachHooksToNotification(ctx context.Context, notification *Notification, hooks Hooks, eh HooksErrorHandler) error {
 	if notification == nil || hooks == nil {
 		return nil
 	}
@@ -354,28 +353,42 @@ func ApplyHooks(ctx context.Context, notification *Notification, hooks Hooks, eh
 	entries := notification.Entry
 	for _, entry := range entries {
 		entry := entry
-		changes := entry.Changes
-		for _, change := range changes {
-			change := change
-			value := change.Value
-			if value == nil {
-				continue
-			}
-			id := entry.ID
-
-			return applyHooks(ctx, id, value, hooks, eh)
+		if err := attachHooksToEntry(ctx, entry, hooks, eh); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, ef HooksErrorHandler) error {
+func attachHooksToEntry(ctx context.Context, entry *Entry, hooks Hooks, ef HooksErrorHandler) error {
+	id := entry.ID
+	changes := entry.Changes
+	for _, change := range changes {
+		change := change
+		value := change.Value
+		if value == nil {
+			continue
+		}
+
+		if err := attachHooksToValue(ctx, id, value, hooks, ef); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+const (
+	onMessageStatusChangeErrorKey = "on_message_status_change_error"
+	onNotificationErrorKey        = "on_notification_error_error"
+	onMessageHooksErrorKey        = "on_message_hooks_error"
+)
+
+func attachHooksToValue(ctx context.Context, id string, value *Value, hooks Hooks, hooksErrorHandler HooksErrorHandler) error {
 	if hooks == nil {
 		return nil
 	}
-
-	var allErrors []error
 
 	notificationCtx := &NotificationContext{
 		ID:       id,
@@ -383,19 +396,21 @@ func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, ef Ho
 		Metadata: value.Metadata,
 	}
 
-	if ef == nil {
-		ef = NoOpHooksErrorHandler
+	if hooksErrorHandler == nil {
+		hooksErrorHandler = NoOpHooksErrorHandler
 	}
+
+	var nonFatalErrsMap map[string]error
 
 	// call the hooks
 	if value.Errors != nil {
 		for _, ev := range value.Errors {
 			ev := ev
 			if err := hooks.OnNotificationError(ctx, notificationCtx, ev); err != nil {
-				if IsFatalError(ef(err)) {
+				if IsFatalError(hooksErrorHandler(err)) {
 					return err
 				}
-				allErrors = append(allErrors, err)
+				nonFatalErrsMap[onNotificationErrorKey] = err
 			}
 		}
 	}
@@ -404,10 +419,10 @@ func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, ef Ho
 		for _, sv := range value.Statuses {
 			sv := sv
 			if err := hooks.OnMessageStatusChange(ctx, notificationCtx, sv); err != nil {
-				if IsFatalError(ef(err)) {
+				if IsFatalError(hooksErrorHandler(err)) {
 					return err
 				}
-				allErrors = append(allErrors, err)
+				nonFatalErrsMap[onMessageStatusChangeErrorKey] = err
 			}
 		}
 	}
@@ -416,23 +431,119 @@ func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, ef Ho
 		for _, mv := range value.Messages {
 			mv := mv
 			if err := attachHooksToMessage(ctx, notificationCtx, hooks, mv); err != nil {
-				if IsFatalError(ef(err)) {
+				if IsFatalError(hooksErrorHandler(err)) {
 					return err
 				}
-				allErrors = append(allErrors, err)
+				nonFatalErrsMap[onMessageHooksErrorKey] = err
 			}
 		}
 	}
 
-	if len(allErrors) > 0 {
-		return errors.Join(allErrors...)
+	return getEncounteredError(nonFatalErrsMap)
+}
+
+func getEncounteredError(nonFatalErrsMap map[string]error) error {
+	var finalErr error
+	for key, err := range nonFatalErrsMap {
+		if err != nil {
+			// if it is the first error, just set it
+			if finalErr == nil {
+				finalErr = fmt.Errorf("%s: %w", key, err)
+				continue
+			}
+			finalErr = fmt.Errorf("%w, %s: %w", finalErr, key, err)
+		}
 	}
 
-	return nil
+	return finalErr
+}
+
+func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks Hooks, message *Message) error {
+	if hooks == nil || message == nil {
+		return fmt.Errorf("hooks or message is nil")
+	}
+	mctx := &MessageContext{
+		From:      message.From,
+		ID:        message.ID,
+		Timestamp: message.Timestamp,
+		Type:      message.Type,
+		Ctx:       message.Context,
+	}
+	messageType := ParseMessageType(message.Type)
+	switch messageType {
+	case OrderMessageType:
+		return hooks.OnOrderReceived(ctx, nctx, mctx, message.Order)
+
+	case ButtonMessageType:
+		return hooks.OnButtonMessage(ctx, nctx, mctx, message.Button)
+
+	case AudioMessageType:
+		return hooks.OnAudioReceived(ctx, nctx, mctx, message.Audio)
+
+	case VideoMessageType:
+		return hooks.OnVideoReceived(ctx, nctx, mctx, message.Video)
+
+	case ImageMessageType:
+		return hooks.OnImageReceived(ctx, nctx, mctx, message.Image)
+
+	case DocumentMessageType:
+		return hooks.OnDocumentReceived(ctx, nctx, mctx, message.Document)
+
+	case StickerMessageType:
+		return hooks.OnStickerReceived(ctx, nctx, mctx, message.Sticker)
+
+	case InteractiveMessageType:
+		return hooks.OnInteractiveMessage(ctx, nctx, mctx, message.Interactive)
+
+	case SystemMessageType:
+		// TODO: documentation is not clear if the ID change will also be sent here:
+		return hooks.OnSystemMessage(ctx, nctx, mctx, message.System)
+
+	case UnknownMessageType:
+		return hooks.OnMessageErrors(ctx, nctx, mctx, message.Errors)
+
+	case TextMessageType:
+		if message.Referral != nil {
+			return hooks.OnReferralMessageReceived(ctx, nctx, mctx, message.Text, message.Referral)
+		}
+
+		// ProductEnquiry
+		if mctx.Ctx != nil {
+			return hooks.OnProductEnquiry(ctx, nctx, mctx, message.Text)
+		}
+
+		return hooks.OnTextMessageReceived(ctx, nctx, mctx, message.Text)
+
+	case ReactionMessageType:
+		return hooks.OnMessageReaction(ctx, nctx, mctx, message.Reaction)
+
+	case LocationMessageType:
+		return hooks.OnLocationReceived(ctx, nctx, mctx, message.Location)
+
+	case ContactMessageType:
+		return hooks.OnContactsReceived(ctx, nctx, mctx, message.Contacts)
+
+	default:
+		if message.Contacts != nil {
+			if len(message.Contacts.Contacts) > 0 {
+				return hooks.OnContactsReceived(ctx, nctx, mctx, message.Contacts)
+			}
+		}
+		if message.Location != nil {
+			return hooks.OnLocationReceived(ctx, nctx, mctx, message.Location)
+		}
+
+		if message.Identity != nil {
+			return hooks.OnCustomerIDChange(ctx, nctx, mctx, message.Identity)
+		}
+
+		return fmt.Errorf("could not attach hook to this message")
+	}
+
 }
 
 // NotificationHandler returns a http.Handler that can be used to handle the notification
-// from the webhook. It calls ApplyHooks to apply the hooks to the notification.
+// from the webhook. It calls AttachHooksToNotification to apply the hooks to the notification.
 // There are two ErrorHandlers, one for the notification and one for the hooks. The NotificationErrorHandler
 // is expected to handle scenarios where the notification is malformed or the request is invalid.
 // The HooksErrorHandler is expected to handle scenarios where the hooks after being applied return an error.
@@ -489,7 +600,7 @@ func NotificationHandler(
 		}
 
 		// Apply the hooks
-		if err := ApplyHooks(request.Context(), &notification, hooks, eh); err != nil {
+		if err := AttachHooksToNotification(request.Context(), &notification, hooks, eh); err != nil {
 			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
@@ -717,88 +828,4 @@ func (ls *EventListener) GenericHandler() http.Handler {
 // Verify returns a http.Handler that can be used to verify the subscription
 func (ls *EventListener) Verify() http.Handler {
 	return VerifySubscriptionHandler(ls.v)
-}
-
-func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks Hooks, message *Message) error {
-	if hooks == nil || message == nil {
-		return fmt.Errorf("hooks or message is nil")
-	}
-	mctx := &MessageContext{
-		From:      message.From,
-		ID:        message.ID,
-		Timestamp: message.Timestamp,
-		Type:      message.Type,
-		Ctx:       message.Context,
-	}
-	messageType := ParseMessageType(message.Type)
-	switch messageType {
-	case OrderMessageType:
-		return hooks.OnOrderReceived(ctx, nctx, mctx, message.Order)
-
-	case ButtonMessageType:
-		return hooks.OnButtonMessage(ctx, nctx, mctx, message.Button)
-
-	case AudioMessageType:
-		return hooks.OnAudioReceived(ctx, nctx, mctx, message.Audio)
-
-	case VideoMessageType:
-		return hooks.OnVideoReceived(ctx, nctx, mctx, message.Video)
-
-	case ImageMessageType:
-		return hooks.OnImageReceived(ctx, nctx, mctx, message.Image)
-
-	case DocumentMessageType:
-		return hooks.OnDocumentReceived(ctx, nctx, mctx, message.Document)
-
-	case StickerMessageType:
-		return hooks.OnStickerReceived(ctx, nctx, mctx, message.Sticker)
-
-	case InteractiveMessageType:
-		return hooks.OnInteractiveMessage(ctx, nctx, mctx, message.Interactive)
-
-	case SystemMessageType:
-		// TODO: documentation is not clear if the ID change will also be sent here:
-		return hooks.OnSystemMessage(ctx, nctx, mctx, message.System)
-
-	case UnknownMessageType:
-		return hooks.OnMessageErrors(ctx, nctx, mctx, message.Errors)
-
-	case TextMessageType:
-		if message.Referral != nil {
-			return hooks.OnReferralMessageReceived(ctx, nctx, mctx, message.Text, message.Referral)
-		}
-
-		// ProductEnquiry
-		if mctx.Ctx != nil {
-			return hooks.OnProductEnquiry(ctx, nctx, mctx, message.Text)
-		}
-
-		return hooks.OnTextMessageReceived(ctx, nctx, mctx, message.Text)
-
-	case ReactionMessageType:
-		return hooks.OnMessageReaction(ctx, nctx, mctx, message.Reaction)
-
-	case LocationMessageType:
-		return hooks.OnLocationReceived(ctx, nctx, mctx, message.Location)
-
-	case ContactMessageType:
-		return hooks.OnContactsReceived(ctx, nctx, mctx, message.Contacts)
-
-	default:
-		if message.Contacts != nil {
-			if len(message.Contacts.Contacts) > 0 {
-				return hooks.OnContactsReceived(ctx, nctx, mctx, message.Contacts)
-			}
-		}
-		if message.Location != nil {
-			return hooks.OnLocationReceived(ctx, nctx, mctx, message.Location)
-		}
-
-		if message.Identity != nil {
-			return hooks.OnCustomerIDChange(ctx, nctx, mctx, message.Identity)
-		}
-
-		return fmt.Errorf("could not attach hook to this message")
-	}
-
 }
