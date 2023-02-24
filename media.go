@@ -23,30 +23,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	whttp "github.com/piusalfred/whatsapp/http"
 	"io"
 	"net/http"
 	"os"
-	"time"
-
-	whttp "github.com/piusalfred/whatsapp/http"
-)
-
-const (
-	MaxAudioSize         = 16 * 1024 * 1024  // 16 MB
-	MaxDocSize           = 100 * 1024 * 1024 // 100 MB
-	MaxImageSize         = 5 * 1024 * 1024   // 5 MB
-	MaxVideoSize         = 16 * 1024 * 1024  // 16 MB
-	MaxStickerSize       = 100 * 1024        // 100 KB
-	UploadedMediaTTL     = 30 * 24 * time.Hour
-	MediaDownloadLinkTTL = 5 * time.Minute
-)
-
-const (
-	MediaTypeAudio    MediaType = "audio"
-	MediaTypeDocument MediaType = "document"
-	MediaTypeImage    MediaType = "image"
-	MediaTypeSticker  MediaType = "sticker"
-	MediaTypeVideo    MediaType = "video"
 )
 
 const (
@@ -231,6 +211,20 @@ func DownloadMedia(ctx context.Context, client *http.Client, options *DownloadMe
 	if err != nil {
 		return nil, err
 	}
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, resp.Body)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	resp.Body = io.NopCloser(bytes.NewBuffer(buf.Bytes()))
+
+	// Write the body to file
+
+	_, err = io.Copy(outputFile, resp.Body)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err

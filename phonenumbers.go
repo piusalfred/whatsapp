@@ -342,7 +342,7 @@ type DisplayNameStatus struct {
 
 // GetDisplayNameStatus
 // //Include fields=name_status as a query string parameter to get the status of a display name associated with a specific phone number. This field is currently in beta and not available to all developers.
-
+//
 // Sample Request
 // curl \
 // 'https://graph.facebook.com/v15.0/105954558954427?fields=name_status' \

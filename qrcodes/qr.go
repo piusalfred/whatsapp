@@ -17,7 +17,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package qrcodes // import "github.com/piusalfred/whatsapp/qrcodes"
+package qrcodes
 
 import (
 	"context"

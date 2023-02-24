@@ -268,9 +268,48 @@ func ParseMessageType(s string) MessageType {
 	return msgType
 }
 
+var (
+	ErrNilNotificationHook = errors.New("notification hook is nil")
+)
+
+const SignatureHeaderKey = "X-Hub-Signature-256"
+
 type (
 	HooksErrorHandler        func(err error) error
 	NotificationErrorHandler func(context.Context, http.ResponseWriter, *http.Request, error) error
+	BeforeFunc               func(ctx context.Context, notification *Notification) error
+	AfterFunc                func(ctx context.Context, notification *Notification) error
+	HandlerOptions           struct {
+		BeforeFunc        BeforeFunc
+		AfterFunc         AfterFunc
+		ValidateSignature bool
+		Secret            string
+	}
+
+	VerificationRequest struct {
+		Mode      string `json:"hub.mode"`
+		Challenge string `json:"hub.challenge"`
+		Token     string `json:"hub.verify_token"`
+	}
+
+	// SubscriptionVerifier is a function that processes the verification request.
+	// The function must return nil if the verification request is valid.
+	// It mainly checks if hub.mode is set to subscribe and if the hub.verify_token matches
+	// the one set in the App Dashboard.
+	SubscriptionVerifier func(context.Context, *VerificationRequest) error
+
+	EventListener struct {
+		h       Hooks
+		hef     HooksErrorHandler
+		neh     NotificationErrorHandler
+		v       SubscriptionVerifier
+		options *HandlerOptions
+		g       GenericNotificationHandler
+	}
+
+	ListenerOption func(*EventListener)
+
+	GenericNotificationHandler func(context.Context, http.ResponseWriter, *Notification, NotificationErrorHandler) error
 )
 
 // NoOpHooksErrorHandler is a no-op hooks error handler. It just returns the error as is.
@@ -329,20 +368,6 @@ func ApplyHooks(ctx context.Context, notification *Notification, hooks Hooks, eh
 	}
 
 	return nil
-}
-
-type FatalError struct {
-	Err  error
-	Desc string
-}
-
-func (e *FatalError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Desc, e.Err.Error())
-}
-
-func IsFatalError(err error) bool {
-	var fatalErr *FatalError
-	return errors.As(err, &fatalErr)
 }
 
 func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, ef HooksErrorHandler) error {
@@ -406,18 +431,6 @@ func applyHooks(ctx context.Context, id string, value *Value, hooks Hooks, ef Ho
 	return nil
 }
 
-var (
-	ErrNilNotificationHook = errors.New("notification hook is nil")
-)
-
-const SignatureHeaderKey = "X-Hub-Signature-256"
-
-// HandlerOptions are the options for the handler. They are used to configure the handler.
-type HandlerOptions struct {
-	ValidateSignature bool
-	Secret            string
-}
-
 // NotificationHandler returns a http.Handler that can be used to handle the notification
 // from the webhook. It calls ApplyHooks to apply the hooks to the notification.
 // There are two ErrorHandlers, one for the notification and one for the hooks. The NotificationErrorHandler
@@ -426,27 +439,27 @@ type HandlerOptions struct {
 func NotificationHandler(
 	hooks Hooks, nfh NotificationErrorHandler,
 	eh HooksErrorHandler, options *HandlerOptions) http.Handler {
-	if nfh == nil {
-		nfh = NoOpNotificationErrorHandler
-	}
+
 	handler := func(writer http.ResponseWriter, request *http.Request) {
+		var buff bytes.Buffer
+		if _, err := io.Copy(&buff, request.Body); err != nil && err != io.EOF {
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		request.Body = io.NopCloser(&buff)
+
+		if nfh == nil {
+			nfh = NoOpNotificationErrorHandler
+		}
+
 		if options != nil && options.ValidateSignature {
-			var buff bytes.Buffer
-			if _, err := io.Copy(&buff, request.Body); err != nil {
-				if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
-					writer.WriteHeader(http.StatusInternalServerError)
+			signature := request.Header.Get(SignatureHeaderKey)
+			if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
+				if nErr := nfh(request.Context(), writer, request, ErrInvalidSignature); nErr != nil {
+					writer.WriteHeader(http.StatusUnauthorized)
 					return
 				}
-
-				signature := request.Header.Get(SignatureHeaderKey)
-				if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
-					if nErr := nfh(request.Context(), writer, request, ErrInvalidSignature); nErr != nil {
-						writer.WriteHeader(http.StatusUnauthorized)
-						return
-					}
-				}
 			}
-			request.Body = io.NopCloser(&buff)
 		}
 
 		if hooks == nil {
@@ -458,10 +471,20 @@ func NotificationHandler(
 
 		// Construct the notification
 		var notification Notification
-		if err := json.NewDecoder(request.Body).Decode(&notification); err != nil {
+		if err := json.Unmarshal(buff.Bytes(), &notification); err != nil && err != io.EOF {
 			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
+			}
+		}
+
+		// check if before func is set and call it
+		if options != nil && options.BeforeFunc != nil {
+			if err := options.BeforeFunc(request.Context(), &notification); err != nil {
+				if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
+					writer.WriteHeader(http.StatusInternalServerError)
+					return
+				}
 			}
 		}
 
@@ -473,24 +496,20 @@ func NotificationHandler(
 			}
 		}
 
-		writer.WriteHeader(http.StatusAccepted)
+		// check if after func is set and call it
+		if options != nil && options.AfterFunc != nil {
+			if err := options.AfterFunc(request.Context(), &notification); err != nil {
+				if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
+					writer.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+
+		writer.WriteHeader(http.StatusOK)
 	}
 	return http.HandlerFunc(handler)
 }
-
-type (
-	VerificationRequest struct {
-		Mode      string `json:"hub.mode"`
-		Challenge string `json:"hub.challenge"`
-		Token     string `json:"hub.verify_token"`
-	}
-
-	// SubscriptionVerifier is a function that processes the verification request.
-	// The function must return nil if the verification request is valid.
-	// It mainly checks if hub.mode is set to subscribe and if the hub.verify_token matches
-	// the one set in the App Dashboard.
-	SubscriptionVerifier func(context.Context, *VerificationRequest) error
-)
 
 // VerifySubscriptionHandler verifies the subscription to the webhooks.
 // Your endpoint must be able to process two types of HTTPS requests: Verification Requests and Event Notifications.
@@ -574,17 +593,6 @@ func ValidateSignature(payload []byte, signature, secret string) bool {
 	return hmac.Equal(actualSignature, expectedSignature)
 }
 
-type EventListener struct {
-	h       Hooks
-	hef     HooksErrorHandler
-	neh     NotificationErrorHandler
-	v       SubscriptionVerifier
-	options *HandlerOptions
-	g       GenericNotificationHandler
-}
-
-type ListenerOption func(*EventListener)
-
 func NewEventListener(options ...ListenerOption) *EventListener {
 	ls := &EventListener{
 		options: &HandlerOptions{
@@ -635,6 +643,24 @@ func WithHandlerOptions(options *HandlerOptions) ListenerOption {
 	}
 }
 
+func WithBeforeFunc(beforeFunc BeforeFunc) ListenerOption {
+	return func(ls *EventListener) {
+		if ls.options == nil {
+			ls.options = &HandlerOptions{}
+		}
+		ls.options.BeforeFunc = beforeFunc
+	}
+}
+
+func WithAfterFunc(afterFunc AfterFunc) ListenerOption {
+	return func(ls *EventListener) {
+		if ls.options == nil {
+			ls.options = &HandlerOptions{}
+		}
+		ls.options.AfterFunc = afterFunc
+	}
+}
+
 // Handle returns a http.Handler that can be used to handle the notification
 func (ls *EventListener) Handle() http.Handler {
 	return NotificationHandler(ls.h, ls.neh, ls.hef, ls.options)
@@ -645,6 +671,13 @@ func (ls *EventListener) Handle() http.Handler {
 // with WithGenericNotificationHandler.
 func (ls *EventListener) GenericHandler() http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var buff bytes.Buffer
+		if _, err := io.Copy(&buff, request.Body); err != nil && err != io.EOF {
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		request.Body = io.NopCloser(&buff)
+
 		var nfh NotificationErrorHandler
 		if ls.neh == nil {
 			nfh = NoOpNotificationErrorHandler
@@ -653,27 +686,18 @@ func (ls *EventListener) GenericHandler() http.Handler {
 		}
 
 		if ls.options != nil && ls.options.ValidateSignature {
-			var buff bytes.Buffer
-			if _, err := io.Copy(&buff, request.Body); err != nil {
-				if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
-					writer.WriteHeader(http.StatusInternalServerError)
+			signature := request.Header.Get(SignatureHeaderKey)
+			if !ValidateSignature(buff.Bytes(), signature, ls.options.Secret) {
+				if nErr := nfh(request.Context(), writer, request, ErrInvalidSignature); nErr != nil {
+					writer.WriteHeader(http.StatusUnauthorized)
 					return
 				}
-
-				signature := request.Header.Get(SignatureHeaderKey)
-				if !ValidateSignature(buff.Bytes(), signature, ls.options.Secret) {
-					if nErr := nfh(request.Context(), writer, request, ErrInvalidSignature); nErr != nil {
-						writer.WriteHeader(http.StatusUnauthorized)
-						return
-					}
-				}
 			}
-			request.Body = io.NopCloser(&buff)
 		}
 
 		// Construct the notification
 		var notification Notification
-		if err := json.NewDecoder(request.Body).Decode(&notification); err != nil {
+		if err := json.Unmarshal(buff.Bytes(), &notification); err != nil && err != io.EOF {
 			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
@@ -778,5 +802,3 @@ func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks 
 	}
 
 }
-
-type GenericNotificationHandler func(context.Context, http.ResponseWriter, *Notification, NotificationErrorHandler) error

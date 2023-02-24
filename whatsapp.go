@@ -19,15 +19,36 @@
 
 package whatsapp
 
+import "time"
+
+const BaseURL = "https://graph.facebook.com/"
+const ContactBirthDayDateFormat = "2006-01-02" //YYYY-MM-DD
+
 const (
-	BaseURL                   = "https://graph.facebook.com/"
-	TextMessageType           = "text"
-	ReactionMessageType       = "reaction"
-	MediaMessageType          = "media"
-	LocationMessageType       = "location"
-	ContactMessageType        = "contact"
-	InteractiveMessageType    = "interactive"
-	ContactBirthDayDateFormat = "2006-01-02" //YYYY-MM-DD
+	TextMessageType        = "text"
+	ReactionMessageType    = "reaction"
+	MediaMessageType       = "media"
+	LocationMessageType    = "location"
+	ContactMessageType     = "contact"
+	InteractiveMessageType = "interactive"
+)
+
+const (
+	MaxAudioSize         = 16 * 1024 * 1024  // 16 MB
+	MaxDocSize           = 100 * 1024 * 1024 // 100 MB
+	MaxImageSize         = 5 * 1024 * 1024   // 5 MB
+	MaxVideoSize         = 16 * 1024 * 1024  // 16 MB
+	MaxStickerSize       = 100 * 1024        // 100 KB
+	UploadedMediaTTL     = 30 * 24 * time.Hour
+	MediaDownloadLinkTTL = 5 * time.Minute
+)
+
+const (
+	MediaTypeAudio    MediaType = "audio"
+	MediaTypeDocument MediaType = "document"
+	MediaTypeImage    MediaType = "image"
+	MediaTypeSticker  MediaType = "sticker"
+	MediaTypeVideo    MediaType = "video"
 )
 
 type (
