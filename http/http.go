@@ -59,10 +59,18 @@ type (
 		Messages []*MessageID       `json:"messages,omitempty"`
 	}
 	RequestParams struct {
+		Name    string
 		Headers map[string]string
 		Query   map[string]string
 		Bearer  string
 		Form    map[string]string
+	}
+
+	RequestUrlParts struct {
+		BaseURL    string
+		ApiVersion string
+		SenderID   string
+		Endpoints  []string
 	}
 
 	ErrorResponse struct {
@@ -83,6 +91,11 @@ type (
 		WhatsappId string `json:"wa_id"`
 	}
 )
+
+// JoinUrlParts joins the elements of url parts into a single url string.
+func JoinUrlParts(parts *RequestUrlParts) (string, error) {
+	return CreateRequestURL(parts.BaseURL, parts.ApiVersion, parts.SenderID, parts.Endpoints...)
+}
 
 // CreateRequestURL creates a new request url by joining the base url, api version
 // sender id and endpoints.

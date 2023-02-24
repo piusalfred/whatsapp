@@ -105,16 +105,10 @@ func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*
 	}
 
 	params := &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID,
-		ApiVersion: req.ApiVersion,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer:  req.AccessToken,
-		BaseURL: req.BaseURL,
-		Method:  http.MethodPost,
-		Endpoints: []string{
-			"messages"},
+		Bearer: req.AccessToken,
 	}
 
 	payload, err := json.Marshal(text)
@@ -122,7 +116,12 @@ func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*
 		return nil, err
 	}
 
-	return whttp.SendMessage(ctx, client, params, payload)
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
+	if err != nil {
+		return nil, err
+	}
+
+	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
 }
 
 type SendLocationRequest struct {
@@ -156,18 +155,16 @@ func SendLocation(ctx context.Context, client *http.Client, req *SendLocationReq
 	}
 
 	params := &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID,
-		ApiVersion: req.ApiVersion,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer:  req.AccessToken,
-		BaseURL: req.BaseURL,
-		Method:  http.MethodPost,
-		Endpoints: []string{
-			"messages"},
+		Bearer: req.AccessToken,
 	}
-	return whttp.SendMessage(ctx, client, params, payload)
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
+	if err != nil {
+		return nil, err
+	}
+	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
 }
 
 type ReactRequest struct {
@@ -239,19 +236,18 @@ func React(ctx context.Context, client *http.Client, req *ReactRequest) (*whttp.
 	}
 
 	params := &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID,
-		ApiVersion: req.ApiVersion,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer:  req.AccessToken,
-		BaseURL: req.BaseURL,
-		Method:  http.MethodPost,
-		Endpoints: []string{
-			"messages"},
+		Bearer: req.AccessToken,
 	}
 
-	return whttp.SendMessage(ctx, client, params, payload)
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
+	if err != nil {
+		return nil, err
+	}
+
+	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
 }
 
 type SendContactRequest struct {
@@ -277,29 +273,33 @@ func SendContact(ctx context.Context, client *http.Client, req *SendContactReque
 	}
 
 	params := &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID,
-		ApiVersion: req.ApiVersion,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Bearer:     req.AccessToken,
-		BaseURL:    req.BaseURL,
-		Method:     http.MethodPost,
-		Endpoints:  []string{"messages"},
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Bearer:  req.AccessToken,
 	}
 
-	return whttp.SendMessage(ctx, client, params, payload)
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
+	if err != nil {
+		return nil, err
+	}
+
+	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
 }
 
-// ReplyParams contains options for replying to a message.
-type ReplyParams struct {
-	Recipient   string
-	Context     string // this is ID of the message to reply to
-	MessageType MessageType
-	Content     any // this is a Text if MessageType is Text
+// ReplyRequest contains options for replying to a message.
+type ReplyRequest struct {
+	BaseURL       string
+	AccessToken   string
+	PhoneNumberID string
+	ApiVersion    string
+	Recipient     string
+	Context       string // this is ID of the message to reply to
+	MessageType   MessageType
+	Content       any // this is a Text if MessageType is Text
 }
 
-// Reply is used to reply to a message. It accepts a ReplyParams and returns a Response and an error.
+// Reply is used to reply to a message. It accepts a ReplyRequest and returns a Response and an error.
 // You can send any message as a reply to a previous message in a conversation by including the previous
-// message's ID set as Context in ReplyParams. The recipient will receive the new message along with a
+// message's ID set as Context in ReplyRequest. The recipient will receive the new message along with a
 // contextual bubble that displays the previous message's content.
 //
 // Recipients will not see a contextual bubble if:
@@ -320,21 +320,31 @@ type ReplyParams struct {
 //	    "body": "your-text-message-content"
 //	  }
 //	}'
-func Reply(ctx context.Context, client *http.Client, params *whttp.RequestParams, options *ReplyParams) (*whttp.Response, error) {
-	if options == nil {
-		return nil, fmt.Errorf("options cannot be nil")
+func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*whttp.Response, error) {
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
 	}
-	payload, err := buildReplyPayload(options)
+	payload, err := formatReplyPayload(request)
 	if err != nil {
 		return nil, err
 	}
 
-	return whttp.SendMessage(ctx, client, params, payload)
+	params := &whttp.RequestParams{
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Bearer:  request.AccessToken,
+	}
+
+	reqURL, err := whttp.CreateRequestURL(request.BaseURL, request.ApiVersion, request.PhoneNumberID, "messages")
+	if err != nil {
+		return nil, err
+	}
+
+	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
 }
 
-// buildReplyPayload builds the payload for a reply. It accepts ReplyParams and returns a byte array
+// formatReplyPayload builds the payload for a reply. It accepts ReplyRequest and returns a byte array
 // and an error. This function is used internally by Reply.
-func buildReplyPayload(options *ReplyParams) ([]byte, error) {
+func formatReplyPayload(options *ReplyRequest) ([]byte, error) {
 	contentByte, err := json.Marshal(options.Content)
 	if err != nil {
 		return nil, err
@@ -382,8 +392,6 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 		},
 	}
 	params := &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID,
-		ApiVersion: req.ApiVersion,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
@@ -538,19 +546,14 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) 
 		return nil, fmt.Errorf("options cannot be nil")
 	}
 
-	payload, err := BuildPayloadForMediaMessage(req)
+	payload, err := formatMediaPayload(req)
 	if err != nil {
 		return nil, err
 	}
 
 	params := &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID,
-		ApiVersion: req.ApiVersion,
-		Bearer:     req.AccessToken,
-		BaseURL:    req.BaseURL,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Endpoints:  []string{"messages"},
-		Method:     http.MethodPost,
+		Bearer:  req.AccessToken,
+		Headers: map[string]string{"Content-Type": "application/json"},
 	}
 
 	if req.CacheOptions != nil {
@@ -567,16 +570,21 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) 
 		}
 	}
 
-	return whttp.SendMessage(ctx, client, params, payload)
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
+	if err != nil {
+		return nil, err
+	}
+
+	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
 }
 
-// BuildPayloadForMediaMessage builds the payload for a media message. It accepts SendMediaOptions
+// formatMediaPayload builds the payload for a media message. It accepts SendMediaOptions
 // and returns a byte array and an error. This function is used internally by SendMedia.
 // if neither ID nor Link is specified, it returns an error.
 //
 // For Link requests, the payload should be something like this:
 // {"messaging_product": "whatsapp","recipient_type": "individual","to": "PHONE-NUMBER","type": "image","image": {"link" : "https://IMAGE_URL"}}
-func BuildPayloadForMediaMessage(options *SendMediaRequest) ([]byte, error) {
+func formatMediaPayload(options *SendMediaRequest) ([]byte, error) {
 	media := &models.Media{
 		ID:       options.MediaID,
 		Link:     options.MediaLink,
@@ -588,11 +596,11 @@ func BuildPayloadForMediaMessage(options *SendMediaRequest) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	receipient := options.Recipient
+	recipient := options.Recipient
 	mediaType := string(options.Type)
 	payloadBuilder := strings.Builder{}
 	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","recipient_type":"individual","to":"`)
-	payloadBuilder.WriteString(receipient)
+	payloadBuilder.WriteString(recipient)
 	payloadBuilder.WriteString(`","type": "`)
 	payloadBuilder.WriteString(mediaType)
 	payloadBuilder.WriteString(`","`)

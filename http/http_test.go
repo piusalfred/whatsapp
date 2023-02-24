@@ -24,7 +24,10 @@ import "testing"
 func TestCreateRequestURL(t *testing.T) {
 	t.Parallel()
 	type args struct {
-		params *RequestParams
+		baseURL    string
+		apiVersion string
+		senderID   string
+		endpoints  []string
 	}
 
 	tests := []struct {
@@ -36,12 +39,10 @@ func TestCreateRequestURL(t *testing.T) {
 		{
 			name: "test create phone number verification request url",
 			args: args{
-				params: &RequestParams{
-					BaseURL:    BaseURL,
-					SenderID:   "224225226",
-					ApiVersion: "v16.0",
-					Endpoints:  []string{"verify_code"},
-				},
+				baseURL:    BaseURL,
+				senderID:   "224225226",
+				apiVersion: "v16.0",
+				endpoints:  []string{"verify_code"},
 			},
 			want:    "https://graph.facebook.com/v16.0/224225226/verify_code",
 			wantErr: false,
@@ -49,12 +50,10 @@ func TestCreateRequestURL(t *testing.T) {
 		{
 			name: "test create media delete request url",
 			args: args{
-				params: &RequestParams{
-					BaseURL:    BaseURL,
-					SenderID:   "224225226", // this should be meda id
-					ApiVersion: "v16.0",
-					Endpoints:  nil,
-				},
+				baseURL:    BaseURL,
+				senderID:   "224225226", // this should be meda id
+				apiVersion: "v16.0",
+				endpoints:  nil,
 			},
 			want:    "https://graph.facebook.com/v16.0/224225226",
 			wantErr: false,
@@ -65,13 +64,54 @@ func TestCreateRequestURL(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := CreateRequestURL(tt.args.params.BaseURL, tt.args.params.ApiVersion, tt.args.params.SenderID, tt.args.params.Endpoints...)
+			got, err := CreateRequestURL(tt.args.baseURL, tt.args.apiVersion, tt.args.senderID, tt.args.endpoints...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CreateRequestURL() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
 				t.Errorf("CreateRequestURL() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestJoinUrlParts(t *testing.T) {
+	t.Parallel()
+	type args struct {
+		parts *RequestUrlParts
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "test join url parts",
+			args: args{
+				parts: &RequestUrlParts{
+					BaseURL:    BaseURL,
+					SenderID:   "224225226",
+					ApiVersion: "v16.0",
+					Endpoints:  []string{"verify_code"},
+				},
+			},
+			want:    "https://graph.facebook.com/v16.0/224225226/verify_code",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := JoinUrlParts(tt.args.parts)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("JoinUrlParts() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("JoinUrlParts() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
