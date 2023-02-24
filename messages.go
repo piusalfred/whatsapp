@@ -387,18 +387,19 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer:  req.AccessToken,
-		BaseURL: req.BaseURL,
-		Method:  http.MethodPost,
-		Endpoints: []string{
-			"messages"},
+		Bearer: req.AccessToken,
+	}
+
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
+	if err != nil {
+		return nil, err
 	}
 	payload, err := json.Marshal(template)
 	if err != nil {
 		return nil, err
 	}
 
-	return whttp.SendMessage(ctx, client, params, payload)
+	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
 }
 
 /*

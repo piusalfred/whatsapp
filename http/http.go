@@ -59,15 +59,10 @@ type (
 		Messages []*MessageID       `json:"messages,omitempty"`
 	}
 	RequestParams struct {
-		SenderID   string
-		ApiVersion string
-		Headers    map[string]string
-		Query      map[string]string
-		Bearer     string
-		Form       map[string]string
-		BaseURL    string
-		Endpoints  []string
-		Method     string
+		Headers map[string]string
+		Query   map[string]string
+		Bearer  string
+		Form    map[string]string
 	}
 
 	ErrorResponse struct {
@@ -98,51 +93,42 @@ func CreateRequestURL(baseURL, apiVersion, senderID string, endpoints ...string)
 	return url.JoinPath(baseURL, elems...)
 }
 
-// NewRequestWithContext creates a new *http.Request with context by using the
-// RequestParams.
-func NewRequestWithContext(ctx context.Context, params *RequestParams, payload []byte) (*http.Request, error) {
+func NewRequestWithContext(ctx context.Context, method, requestURL string, params *RequestParams, payload []byte) (*http.Request, error) {
 	var (
-		req *http.Request
-		err error
+		body io.Reader
+		req  *http.Request
 	)
-	requestURL, err := CreateRequestURL(params.BaseURL, params.ApiVersion, params.SenderID, params.Endpoints...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to join url parts: %w", err)
-	}
-
 	if params.Form != nil {
 		form := url.Values{}
 		for key, value := range params.Form {
 			form.Add(key, value)
 		}
-		req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBufferString(form.Encode()))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create new request: %w", err)
-		}
-	} else {
+		body = strings.NewReader(form.Encode())
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	} else if payload != nil {
+		body = bytes.NewReader(payload)
+	}
 
-		if payload == nil {
-			req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create new request: %w", err)
-			}
-		} else {
-			req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBuffer(payload))
-			if err != nil {
-				return nil, fmt.Errorf("failed to create new request: %w", err)
-			}
+	// Create the HTTP request
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new request: %w", err)
+	}
+
+	// Set the request headers
+	if params.Headers != nil {
+		for key, value := range params.Headers {
+			req.Header.Set(key, value)
 		}
 	}
 
-	for key, value := range params.Headers {
-		req.Header.Set(key, value)
-	}
-
+	// Set the bearer token header
 	if params.Bearer != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", params.Bearer))
 	}
 
-	if len(params.Query) > 0 {
+	// Add the query parameters to the request URL
+	if params.Query != nil {
 		query := req.URL.Query()
 		for key, value := range params.Query {
 			query.Add(key, value)
@@ -153,14 +139,14 @@ func NewRequestWithContext(ctx context.Context, params *RequestParams, payload [
 	return req, nil
 }
 
-func SendMessage(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error) {
+func SendMessage(ctx context.Context, client *http.Client, method, url string, params *RequestParams, payload []byte) (*Response, error) {
 	var (
 		resp      *http.Response
 		err       error
 		bodyBytes []byte
 	)
 
-	if resp, err = Send(ctx, client, params, payload); err != nil {
+	if resp, err = Send(ctx, client, method, url, params, payload); err != nil {
 		return nil, err
 	}
 
@@ -203,8 +189,8 @@ func SendMessage(ctx context.Context, client *http.Client, params *RequestParams
 }
 
 // Send sends a http request and returns a *http.Response or an error.
-func Send(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*http.Response, error) {
-	req, err := NewRequestWithContext(ctx, params, payload)
+func Send(ctx context.Context, client *http.Client, method, url string, params *RequestParams, payload []byte) (*http.Response, error) {
+	req, err := NewRequestWithContext(ctx, method, url, params, payload)
 	if err != nil {
 		return nil, err
 	}
