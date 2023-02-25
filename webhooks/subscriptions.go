@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 )
@@ -86,7 +85,7 @@ func CreateSubscription(ctx context.Context, client *http.Client, baseURL string
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("whatsapp: failed to create subscription: %s", resp.Status)
 	}
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: failed to read subscription response body: %w", err)
 	}
@@ -119,7 +118,7 @@ func ListSubscriptions(ctx context.Context, client *http.Client, baseURL string,
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("whatsapp: failed to create subscription: %s", resp.Status)
 	}
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: failed to read subscription response body: %w", err)
 	}

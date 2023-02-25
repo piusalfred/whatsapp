@@ -415,6 +415,12 @@ const (
 	onMessageHooksErrorKey        = "on_message_hooks_error"
 )
 
+//var (
+//	ErrOnMessageStatusChangeHook = errors.New("on message status change hook error")
+//	ErrOnMessageHooks            = errors.New("on message hooks error")
+//	ErrOnNotificationErrorHook   = errors.New("on notification error hook error")
+//)
+
 func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks, hooksErrorHandler HooksErrorHandler) error {
 	if hooks == nil {
 		return nil
@@ -430,7 +436,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 		hooksErrorHandler = NoOpHooksErrorHandler
 	}
 
-	var nonFatalErrsMap map[string]error
+	nonFatalErrsMap := map[string]error{}
 
 	// call the Hooks
 	if value.Errors != nil && hooks.N != nil {

@@ -31,10 +31,7 @@ type customError struct {
 }
 
 func (c *customError) Fatal() bool {
-	if c.Code == 500 {
-		return true
-	}
-	return false
+	return c.Code == 500
 }
 
 func (c *customError) Error() string {
