@@ -32,9 +32,7 @@ import (
 func ExampleNewEventListener() {
 	_ = NewEventListener(
 		WithNotificationErrorHandler(NoOpNotificationErrorHandler),
-		WithAfterFunc(func(ctx context.Context, notification *Notification) error {
-			return nil
-		}),
+		WithAfterFunc(func(ctx context.Context, notification *Notification, err error) {}),
 		WithBeforeFunc(func(ctx context.Context, notification *Notification) error {
 			return nil
 		}),
@@ -242,9 +240,8 @@ func TestNotificationHandler_Options(t *testing.T) {
 					//return NewFatalError(errors.New("fatal error"), "just being rude")
 					return nil
 				},
-				AfterFunc: func(ctx context.Context, notification *Notification) error {
+				AfterFunc: func(ctx context.Context, notification *Notification, err error) {
 					t.Logf("notification: %+v", humanReadableNotification(t, notification))
-					return nil
 				},
 				ValidateSignature: false,
 				Secret:            "demo",

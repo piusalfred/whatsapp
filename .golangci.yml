@@ -10,15 +10,15 @@ linters:
     - unconvert
     - unused
     - varcheck
-  disable-all: true
+  #disable-all: true
 
 linters-settings:
   golint:
     min-confidence: 0.8
   misspell:
     locale: US
-  unconvert:
-    unconvert-unsafe-assigns: true
+  unconverted:
+    unconverted-unsafe-assigns: true
   unused:
     check-exported: true
     check-tests: true

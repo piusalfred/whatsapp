@@ -295,7 +295,7 @@ type (
 	HooksErrorHandler        func(err error) error
 	NotificationErrorHandler func(context.Context, http.ResponseWriter, *http.Request, error) error
 	BeforeFunc               func(ctx context.Context, notification *Notification) error
-	AfterFunc                func(ctx context.Context, notification *Notification) error
+	AfterFunc                func(ctx context.Context, notification *Notification, err error)
 	HandlerOptions           struct {
 		BeforeFunc        BeforeFunc
 		AfterFunc         AfterFunc
@@ -583,18 +583,45 @@ func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks 
 
 }
 
-// NotificationHandler returns a http.Handler that can be used to handle the notification
-// from the webhook. It calls AttachHooksToNotification to apply the Hooks to the notification.
-// There are two ErrorHandlers, one for the notification and one for the Hooks. The NotificationErrorHandler
-// is expected to handle scenarios where the notification is malformed or the request is invalid.
-// The HooksErrorHandler is expected to handle scenarios where the Hooks after being applied return an error.
+// NotificationHandler is an http.Handler function that processes incoming notifications and applies hooks to them.
+// It takes in several arguments:
+// - "hooks" - a pointer to a Hooks struct that defines a set of hooks to be applied to the notification
+// - "nfh" - a NotificationErrorHandler function that handles errors that occur while processing the notification
+// - "eh" - a HooksErrorHandler function that handles errors that occur while applying the hooks
+// - "options" - a pointer to a HandlerOptions struct that defines additional options for the handler
+//
+// The function returns an http.Handler that can be used to handle incoming HTTP requests.
+//
+// NotificationHandler calls AttachHooksToNotification to apply the Hooks to the notification.
+//
+// There are two ErrorHandlers that can be provided to handle errors:
+// - "nfh" - a NotificationErrorHandler function that handles scenarios where the notification is malformed or the request is invalid.
+// - "eh" - a HooksErrorHandler function that handles scenarios where the Hooks after being applied return an error.
+//
+// If an error occurs during any of the steps, the function calls the NotificationErrorHandler function or the HooksErrorHandler function with the error, depending on which step the error occurred in. If the error handlers return an error, the function returns an HTTP 500 status code.
+//
+// The closure "handler" is created to wrap the processing of the notification and applying the hooks. It takes in an http.ResponseWriter and an http.Request as arguments.
+//
+// If the HandlerOptions struct is not nil and an AfterFunc function is provided, it will be called after the notification has been processed and the hooks have been applied. If a BeforeFunc function is provided in the HandlerOptions struct, it will be called before the hooks are applied to the notification.
+//
+// If the HandlerOptions struct is not nil and the ValidateSignature flag is set to true, the function will validate the signature of the request using the ValidateSignature function before applying the hooks to the notification.
 func NotificationHandler(
 	hooks *Hooks, nfh NotificationErrorHandler,
 	eh HooksErrorHandler, options *HandlerOptions) http.Handler {
 
-	handler := func(writer http.ResponseWriter, request *http.Request) {
-		var buff bytes.Buffer
-		if _, err := io.Copy(&buff, request.Body); err != nil && err != io.EOF {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var (
+			buff         bytes.Buffer
+			err          error
+			notification Notification
+		)
+		ctx := request.Context()
+		defer func() {
+			if options != nil && options.AfterFunc != nil {
+				options.AfterFunc(ctx, &notification, err)
+			}
+		}()
+		if _, err = io.Copy(&buff, request.Body); err != nil && err != io.EOF {
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -604,56 +631,43 @@ func NotificationHandler(
 			nfh = NoOpNotificationErrorHandler
 		}
 
-		if options != nil && options.ValidateSignature {
-			signature := request.Header.Get(SignatureHeaderKey)
-			if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
-				if nErr := nfh(request.Context(), writer, request, ErrInvalidSignature); nErr != nil {
-					writer.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-			}
-		}
-
-		// Construct the notification
-		var notification Notification
-		if err := json.NewDecoder(&buff).Decode(&notification); err != nil && err != io.EOF {
-			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
+		if err = json.NewDecoder(&buff).Decode(&notification); err != nil && err != io.EOF {
+			if nErr := nfh(ctx, writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 		}
+		if options != nil {
+			// check if before func is set and call it
+			if options.BeforeFunc != nil {
+				if err = options.BeforeFunc(ctx, &notification); err != nil {
+					if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
+						writer.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+				}
+			}
 
-		// check if before func is set and call it
-		if options != nil && options.BeforeFunc != nil {
-			if err := options.BeforeFunc(request.Context(), &notification); err != nil {
-				if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
-					writer.WriteHeader(http.StatusInternalServerError)
-					return
+			if options.ValidateSignature {
+				signature := request.Header.Get(SignatureHeaderKey)
+				if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
+					if nErr := nfh(ctx, writer, request, ErrInvalidSignature); nErr != nil {
+						writer.WriteHeader(http.StatusUnauthorized)
+						return
+					}
 				}
 			}
 		}
-
 		// Apply the Hooks
-		if err := AttachHooksToNotification(request.Context(), &notification, hooks, eh); err != nil {
-			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
+		if err = AttachHooksToNotification(ctx, &notification, hooks, eh); err != nil {
+			if nErr := nfh(ctx, writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
-			}
-		}
-
-		// check if after func is set and call it
-		if options != nil && options.AfterFunc != nil {
-			if err := options.AfterFunc(request.Context(), &notification); err != nil {
-				if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
-					writer.WriteHeader(http.StatusInternalServerError)
-					return
-				}
 			}
 		}
 
 		writer.WriteHeader(http.StatusOK)
-	}
-	return http.HandlerFunc(handler)
+	})
 }
 
 // VerifySubscriptionHandler verifies the subscription to the webhooks.
