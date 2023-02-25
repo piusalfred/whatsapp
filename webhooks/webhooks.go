@@ -614,16 +614,9 @@ func NotificationHandler(
 			}
 		}
 
-		if hooks == nil {
-			if nErr := nfh(request.Context(), writer, request, ErrNilNotificationHook); nErr != nil {
-				writer.WriteHeader(http.StatusAccepted)
-				return
-			}
-		}
-
 		// Construct the notification
 		var notification Notification
-		if err := json.Unmarshal(buff.Bytes(), &notification); err != nil && err != io.EOF {
+		if err := json.NewDecoder(&buff).Decode(&notification); err != nil && err != io.EOF {
 			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
@@ -849,7 +842,7 @@ func (ls *EventListener) GenericHandler() http.Handler {
 
 		// Construct the notification
 		var notification Notification
-		if err := json.Unmarshal(buff.Bytes(), &notification); err != nil && err != io.EOF {
+		if err := json.NewDecoder(&buff).Decode(&notification); err != nil && err != io.EOF {
 			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
@@ -870,5 +863,3 @@ func (ls *EventListener) GenericHandler() http.Handler {
 func (ls *EventListener) Verify() http.Handler {
 	return VerifySubscriptionHandler(ls.v)
 }
-
-type ()
