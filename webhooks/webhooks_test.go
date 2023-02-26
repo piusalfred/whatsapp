@@ -99,6 +99,7 @@ func TestParseMessageType(t *testing.T) {
 }
 
 func Test_getEncounteredError(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		nonFatalErrsMap map[string]error
 	}
@@ -142,6 +143,7 @@ func Test_getEncounteredError(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := getEncounteredError(tt.args.nonFatalErrsMap)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getEncounteredError() error = %v, wantErr %v", err, tt.wantErr)
@@ -254,12 +256,14 @@ func TestNotificationHandler_Options(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			h := NotificationHandler(tt.fields.Hooks, NoOpNotificationErrorHandler, NoOpHooksErrorHandler, &HandlerOptions{
+			hooks := tt.fields.Hooks
+			options := &HandlerOptions{
 				BeforeFunc:        tt.fields.BeforeFunc,
 				AfterFunc:         tt.fields.AfterFunc,
 				ValidateSignature: tt.fields.ValidateSignature,
 				Secret:            tt.fields.Secret,
-			})
+			}
+			h := NotificationHandler(hooks, NoOpNotificationErrorHandler, NoOpHooksErrorHandler, options)
 
 			req, err := http.NewRequest("POST", "/webhook", bytes.NewReader(tt.fields.Body))
 			if err != nil {

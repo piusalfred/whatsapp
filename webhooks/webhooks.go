@@ -488,6 +488,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 func getEncounteredError(nonFatalErrsMap map[string]error) error {
 	var finalErr error
 	for key, err := range nonFatalErrsMap {
+		key, err := key, err
 		if err != nil {
 			if finalErr == nil {
 				finalErr = fmt.Errorf("%s: %w", key, err)
@@ -598,13 +599,13 @@ func NotificationHandler(
 		var (
 			buff         bytes.Buffer
 			err          error
-			notification Notification
+			notification = &Notification{}
 		)
 		ctx := request.Context()
 
 		defer func() {
-			if options != nil {
-				handlerCleanup(ctx, options.AfterFunc, &notification, err)
+			if options != nil && options.AfterFunc != nil {
+				options.AfterFunc(ctx, notification, err)
 			}
 		}()
 
@@ -614,7 +615,7 @@ func NotificationHandler(
 		}
 		request.Body = io.NopCloser(&buff)
 
-		if err = json.NewDecoder(&buff).Decode(&notification); err != nil && err != io.EOF {
+		if err = json.NewDecoder(&buff).Decode(notification); err != nil && err != io.EOF {
 			if nErr := neh(ctx, writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
@@ -624,7 +625,7 @@ func NotificationHandler(
 		if options != nil {
 			// check if before func is set and call it
 			if options.BeforeFunc != nil {
-				if err = options.BeforeFunc(ctx, &notification); err != nil {
+				if err = options.BeforeFunc(ctx, notification); err != nil {
 					if nErr := neh(request.Context(), writer, request, err); nErr != nil {
 						writer.WriteHeader(http.StatusInternalServerError)
 						return
@@ -643,7 +644,7 @@ func NotificationHandler(
 			}
 		}
 		// Apply the Hooks
-		if err = AttachHooksToNotification(ctx, &notification, hooks, heh); err != nil {
+		if err = AttachHooksToNotification(ctx, notification, hooks, heh); err != nil {
 			if nErr := neh(ctx, writer, request, err); nErr != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
