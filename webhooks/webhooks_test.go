@@ -99,7 +99,6 @@ func TestParseMessageType(t *testing.T) {
 }
 
 func Test_getEncounteredError(t *testing.T) {
-	t.Parallel()
 	type args struct {
 		nonFatalErrsMap map[string]error
 	}
@@ -143,7 +142,6 @@ func Test_getEncounteredError(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			err := getEncounteredError(tt.args.nonFatalErrsMap)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getEncounteredError() error = %v, wantErr %v", err, tt.wantErr)
