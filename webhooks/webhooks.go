@@ -599,6 +599,7 @@ func NotificationHandler(
 		ctx := request.Context()
 
 		defer func() {
+			buff.Reset()
 			if options != nil && options.AfterFunc != nil {
 				options.AfterFunc(ctx, notification, err)
 			}

@@ -48,7 +48,7 @@ type (
 		Success bool
 	}
 
-	SubcribedApp struct {
+	SubscribedApp struct {
 		Name string `json:"name"`
 		ID   string `json:"id"`
 	}
@@ -61,7 +61,7 @@ type (
 	//"id": "<APP_ID>" } ]
 	//}
 	ListSubscriptionsResponse struct {
-		Data []*SubcribedApp `json:"data"`
+		Data []*SubscribedApp `json:"data"`
 	}
 )
 
