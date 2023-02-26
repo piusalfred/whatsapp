@@ -27,7 +27,6 @@ import (
 )
 
 func main() {
-
 	if err := cli.NewApp().Run(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

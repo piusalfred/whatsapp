@@ -1,28 +1,56 @@
-linters:
-  enable:
-    - deadcode
-    - errcheck
-    - gofmt
-    - goimports
-    - golint
-    - ineffassign
-    - misspell
-    - unconvert
-    - unused
-    - varcheck
-  #disable-all: true
-
 linters-settings:
+  gocyclo:
+    # limit the cyclomatic complexity to 15
+    # you can adjust this value according to your needs
+    # gocyclo reports the cyclomatic complexity of functions
+    # cyclomatic complexity measures the number of independent paths through code
+    # higher values indicate more complex code
+    # this linter helps to identify functions that are too complex and hard to read
+    # and may benefit from refactoring
+    # for more information, see https://en.wikipedia.org/wiki/Cyclomatic_complexity
+    skip-dirs-use-default: true
+    min-complexity: 15
   golint:
     min-confidence: 0.8
-  misspell:
-    locale: US
-  unconverted:
-    unconverted-unsafe-assigns: true
-  unused:
-    check-exported: true
-    check-tests: true
+  govet:
+    min-confidence: 0.8
+  exclude-use-default: true
+  include:
+    - "**/*.go"
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  deadline: 120s
+  go:
+    # specify the Go version to use for linting
+    # for example, "1.16" or "1.17"
+    # if this value is not specified, the latest version of Go is used
+    # if the specified version is not available, the latest version of Go will be used
+    version: "1.20"
 
-exclude-rules:
-  - 'ST1005'  # Useless type check
-  - 'ST1003'  # Incorrect case found
+  gosimple:
+  # gosimple reports simplification opportunities in Go code
+  # it helps to identify code that can be made simpler and easier to understand
+  # this linter is particularly useful for identifying redundant code
+  # and can help to reduce the size and complexity of your codebase
+  # for more information, see https://github.com/dominikh/go-simple
+
+linters:
+  # enable all available linters
+  enable-all: true
+  # enable some additional linters that are not enabled by default
+  disable:
+    - testpackage
+    - prealloc
+    - execinquery
+    - rowserrcheck
+    - sqlclosecheck
+    - wsl
+    - golint
+    - tagliatelle
+    - musttag
+
+# specify the output format for linter results
+# you can choose from various formats, including plain text, JSON, and HTML
+# here, we are using the default plain text format
+output-format: colored-line-number
+

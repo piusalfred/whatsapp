@@ -218,7 +218,7 @@ type (
 	// TemplateCurrency contains information about a currency parameter.
 	// FallbackValue, fallback_value. Required. Default text if localization fails.
 	// Code, code. Required. Currency code as defined in ISO 4217.
-	//Amount1000,amount_1000. Required.Amount multiplied by 1000.
+	// Amount1000,amount_1000. Required.Amount multiplied by 1000.
 	TemplateCurrency struct {
 		FallbackValue string `json:"fallback_value,omitempty"`
 		Code          string `json:"code,omitempty"`

@@ -217,7 +217,6 @@ func humanReadableEntry(t *testing.T, entry *Entry) string {
 		buf.WriteString(humanReadableChange(t, change))
 	}
 	return buf.String()
-
 }
 
 func humanReadableChange(t *testing.T, change *Change) string {
@@ -253,7 +252,7 @@ func TestNotificationHandler_Options(t *testing.T) {
 			name: "with options",
 			fields: fields{
 				BeforeFunc: func(ctx context.Context, notification *Notification) error {
-					//return NewFatalError(errors.New("fatal error"), "just being rude")
+					// return NewFatalError(errors.New("fatal error"), "just being rude")
 					return nil
 				},
 				AfterFunc: func(ctx context.Context, notification *Notification, err error) {

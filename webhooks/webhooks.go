@@ -28,11 +28,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	werrors "github.com/piusalfred/whatsapp/errors"
-	"github.com/piusalfred/whatsapp/models"
 	"io"
 	"net/http"
 	"strings"
+
+	werrors "github.com/piusalfred/whatsapp/errors"
+	"github.com/piusalfred/whatsapp/models"
 )
 
 // PayloadMaxSize is the maximum size of the payload that can be sent to the webhook.
@@ -236,6 +237,10 @@ type (
 		OnInteractiveMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, interactive *Interactive) error
 	}
 
+	MediaMessageHooks interface {
+		OnMediaMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, media *models.MediaInfo) error
+	}
+
 	// OnNotificationErrorHook is a hook that is called when an error is received in a notification.
 	// This is called when an error is received in a notification. This is not called when an error
 	// is received in a message, that is handled by NotificationHooks.OnMessageErrors.
@@ -245,8 +250,9 @@ type (
 	// This is called when a message status changes. For example, when a message is delivered or read.
 	OnMessageStatusChangeHook func(ctx context.Context, nctx *NotificationContext, status *Status) error
 
-	// OnMessageReceivedHook is a hook that is called when a message is received. A notification can contain a lot of things
-	// like errors status changes etc. This is called when a notification contains a message. This work with the
+	// OnMessageReceivedHook is a hook that is called when a message is received. A notification
+	// can contain a lot of things like errors status changes etc. This is called when a
+	// notification contains a message. This work with the
 	// Message in general. The Hooks for specific message types are called after this hook. They are all implemented
 	// in the MessageHooks interface.
 	OnMessageReceivedHook func(ctx context.Context, nctx *NotificationContext, message *Message) error
@@ -254,7 +260,7 @@ type (
 	// MessageStatus is the status of a message.
 	// delivered – A webhook is triggered when a message sent by a business has been delivered
 	// read – A webhook is triggered when a message sent by a business has been read
-	// sent – A webhook is triggered when a business sends a message to a customer
+	// sent – A webhook is triggered when a business sends a message to a customer.
 	MessageStatus string
 )
 
@@ -284,10 +290,6 @@ func ParseMessageType(s string) MessageType {
 
 	return msgType
 }
-
-var (
-	ErrNilNotificationHook = errors.New("notification hook is nil")
-)
 
 const SignatureHeaderKey = "X-Hub-Signature-256"
 
@@ -330,10 +332,10 @@ type (
 	// M is the OnMessageReceivedHook called when a message is received.
 	// H is the MessageHooks called when a message is received.
 	Hooks struct {
-		N OnNotificationErrorHook   // OnNotificationErrorHook is called when an error is received in a notification.
-		S OnMessageStatusChangeHook // OnMessageStatusChangeHook is called when a there is a notification about a message status change.
-		M OnMessageReceivedHook     // OnMessageReceivedHook is called when a message is received.
-		H MessageHooks              // MessageHooks is called when a message is received.
+		N OnNotificationErrorHook
+		S OnMessageStatusChangeHook
+		M OnMessageReceivedHook
+		H MessageHooks
 	}
 
 	ListenerOption func(*EventListener)
@@ -375,7 +377,9 @@ func NoOpNotificationErrorHandler(_ context.Context, _ http.ResponseWriter, _ *h
 //	        return err
 //	    }
 //	}
-func AttachHooksToNotification(ctx context.Context, notification *Notification, hooks *Hooks, eh HooksErrorHandler) error {
+func AttachHooksToNotification(ctx context.Context, notification *Notification,
+	hooks *Hooks, eh HooksErrorHandler,
+) error {
 	if notification == nil || hooks == nil {
 		return nil
 	}
@@ -391,8 +395,8 @@ func AttachHooksToNotification(ctx context.Context, notification *Notification, 
 	return nil
 }
 
-func attachHooksToEntry(ctx context.Context, entry *Entry, hooks *Hooks, ef HooksErrorHandler) error {
-	id := entry.ID
+func attachHooksToEntry(ctx context.Context, entry *Entry, hooks *Hooks, heh HooksErrorHandler) error {
+	eid := entry.ID
 	changes := entry.Changes
 	for _, change := range changes {
 		change := change
@@ -401,7 +405,7 @@ func attachHooksToEntry(ctx context.Context, entry *Entry, hooks *Hooks, ef Hook
 			continue
 		}
 
-		if err := attachHooksToValue(ctx, id, value, hooks, ef); err != nil {
+		if err := attachHooksToValue(ctx, eid, value, hooks, heh); err != nil {
 			return err
 		}
 	}
@@ -488,6 +492,7 @@ func getEncounteredError(errs []error) error {
 	for i := 0; i < len(errs); i++ {
 		if finalErr == nil {
 			finalErr = errs[i]
+
 			continue
 		}
 		finalErr = fmt.Errorf("%w, %w", finalErr, errs[i])
@@ -575,7 +580,6 @@ func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks 
 
 		return fmt.Errorf("could not attach hook to this message")
 	}
-
 }
 
 // NotificationHandler takes Hooks, NotificationErrorHandler,HooksErrorHandler and HandlerOptions
@@ -588,8 +592,8 @@ func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks 
 // are passed to the NotificationErrorHandler, if neh returns true, the request is aborted and the
 // response status code is set to http.StatusInternalServerError.
 func NotificationHandler(
-	hooks *Hooks, neh NotificationErrorHandler, heh HooksErrorHandler, options *HandlerOptions) http.Handler {
-
+	hooks *Hooks, neh NotificationErrorHandler, heh HooksErrorHandler, options *HandlerOptions,
+) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var (
 			buff         bytes.Buffer

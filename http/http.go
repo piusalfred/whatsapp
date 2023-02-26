@@ -73,7 +73,7 @@ type (
 		Endpoints  []string
 	}
 
-	ErrorResponse struct {
+	ResponseError struct {
 		Code int           `json:"code,omitempty"`
 		Err  *errors.Error `json:"error,omitempty"`
 	}
@@ -88,7 +88,7 @@ type (
 
 	ResponseContact struct {
 		Input      string `json:"input"`
-		WhatsappId string `json:"wa_id"`
+		WhatsappID string `json:"wa_id"`
 	}
 )
 
@@ -103,10 +103,13 @@ func JoinUrlParts(parts *RequestUrlParts) (string, error) {
 // passed from the RequestParams.
 func CreateRequestURL(baseURL, apiVersion, senderID string, endpoints ...string) (string, error) {
 	elems := append([]string{apiVersion, senderID}, endpoints...)
+
 	return url.JoinPath(baseURL, elems...)
 }
 
-func NewRequestWithContext(ctx context.Context, method, requestURL string, params *RequestParams, payload []byte) (*http.Request, error) {
+func NewRequestWithContext(ctx context.Context, method, requestURL string, params *RequestParams,
+	payload []byte,
+) (*http.Request, error) {
 	var (
 		body io.Reader
 		req  *http.Request
@@ -152,7 +155,9 @@ func NewRequestWithContext(ctx context.Context, method, requestURL string, param
 	return req, nil
 }
 
-func SendMessage(ctx context.Context, client *http.Client, method, url string, params *RequestParams, payload []byte) (*Response, error) {
+func SendMessage(ctx context.Context, client *http.Client, method, url string,
+	params *RequestParams, payload []byte,
+) (*Response, error) {
 	var (
 		resp      *http.Response
 		err       error
@@ -177,7 +182,7 @@ func SendMessage(ctx context.Context, client *http.Client, method, url string, p
 	bodyBytes = buff.Bytes()
 
 	if resp.StatusCode != http.StatusOK {
-		var errResponse ErrorResponse
+		var errResponse ResponseError
 		if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&errResponse); err != nil {
 			return nil, err
 		}
@@ -191,18 +196,19 @@ func SendMessage(ctx context.Context, client *http.Client, method, url string, p
 	)
 
 	if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&message); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode response body: %w", err)
 	}
 	response.StatusCode = resp.StatusCode
 	response.Headers = resp.Header
 	response.Message = &message
 
 	return &response, nil
-
 }
 
 // Send sends a http request and returns a *http.Response or an error.
-func Send(ctx context.Context, client *http.Client, method, url string, params *RequestParams, payload []byte) (*http.Response, error) {
+func Send(ctx context.Context, client *http.Client, method, url string,
+	params *RequestParams, payload []byte,
+) (*http.Response, error) {
 	req, err := NewRequestWithContext(ctx, method, url, params, payload)
 	if err != nil {
 		return nil, err
@@ -210,12 +216,12 @@ func Send(ctx context.Context, client *http.Client, method, url string, params *
 	return client.Do(req)
 }
 
-// Error returns the error message for ErrorResponse.
-func (e *ErrorResponse) Error() string {
+// Error returns the error message for ResponseError.
+func (e *ResponseError) Error() string {
 	return fmt.Sprintf("whatsapp error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
 }
 
 // Unwrap returns the underlying error.
-func (e *ErrorResponse) Unwrap() []error {
+func (e *ResponseError) Unwrap() []error {
 	return []error{e.Err}
 }

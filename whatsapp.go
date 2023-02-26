@@ -21,8 +21,10 @@ package whatsapp
 
 import "time"
 
-const BaseURL = "https://graph.facebook.com/"
-const ContactBirthDayDateFormat = "2006-01-02" //YYYY-MM-DD
+const (
+	BaseURL                   = "https://graph.facebook.com/"
+	ContactBirthDayDateFormat = "2006-01-02" // YYYY-MM-DD
+)
 
 const (
 	TextMessageType        = "text"

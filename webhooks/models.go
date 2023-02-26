@@ -36,7 +36,8 @@ type (
 	//
 	//	Category, string – Indicates the conversation pricing category, one of the following:
 	//		- business_initiated – The business sent a message to a customer more than 24 hours after the last customer message
-	//		- referral_conversion – The conversation originated from a free entry point. These conversations are always customer-initiated.
+	//		- referral_conversion – The conversation originated from a free entry point.
+	//		                        These conversations are always customer-initiated.
 	//		- customer_initiated – The business replied to a customer message within 24 hours of the last customer message
 	//
 	//	PricingModel, string – Type of pricing model used by the business. Current supported value is CBP
@@ -200,8 +201,10 @@ type (
 	//
 	// Body - Describes the change to the customer's identity or phone number.
 	// Identity - Hash for the identity fetched from server.
-	// NewWaID - New WhatsApp ID for the customer when their phone number is updated. Available on webhook versions v11.0 and earlier.
-	// WaID New WhatsApp ID for the customer when their phone number is updated. Available on webhook versions v12.0 and later.
+	// NewWaID - New WhatsApp ID for the customer when their phone number is updated.
+	// Available on webhook versions v11.0 and earlier.
+	// WaID New WhatsApp ID for the customer when their phone number is updated. Available on
+	// webhook versions v12.0 and later.
 	// Type – type of system update. Will be one of the following:.
 	// 		- customer_changed_number – A customer changed their phone number.
 	//		- customer_identity_changed – A customer changed their profile information.
@@ -228,8 +231,8 @@ type (
 	// ButtonReply, sent when a customer clicks a button
 	// ListReply, sent when a customer selects an item from a list
 	InteractiveType struct {
-		ButtonReply *ButtonReply `json:"button_reply,omitempty"` // sent when a customer clicks a button
-		ListReply   *ListReply   `json:"list_reply,omitempty"`   // sent when a customer selects an item from a list
+		ButtonReply *ButtonReply `json:"button_reply,omitempty"`
+		ListReply   *ListReply   `json:"list_reply,omitempty"`
 	}
 
 	ButtonReply struct {

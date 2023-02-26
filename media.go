@@ -23,10 +23,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	whttp "github.com/piusalfred/whatsapp/http"
 	"io"
 	"net/http"
 	"os"
+
+	whttp "github.com/piusalfred/whatsapp/http"
 )
 
 const (
@@ -242,5 +243,4 @@ func DownloadMedia(ctx context.Context, client *http.Client, options *DownloadMe
 	}
 
 	return bodyBytes, nil
-
 }

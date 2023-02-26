@@ -236,7 +236,6 @@ type ListPhoneNumbersRequest struct {
 //	   }
 //	}
 func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, req *ListPhoneNumbersRequest) (*PhoneNumbersList, error) {
-
 	params := &whttp.RequestParams{
 		Query: map[string]string{"access_token": req.Token},
 	}
@@ -276,7 +275,6 @@ func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, re
 	}
 
 	return &phoneNumbersList, nil
-
 }
 
 // GetPhoneNumberByID returns a phone number by id.
