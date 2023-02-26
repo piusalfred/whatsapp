@@ -101,7 +101,7 @@ func TestParseMessageType(t *testing.T) {
 func Test_getEncounteredError(t *testing.T) {
 	t.Parallel()
 	type args struct {
-		nonFatalErrsMap map[string]error
+		nonFatalErrs []error
 	}
 	tests := []struct {
 		name          string
@@ -112,7 +112,7 @@ func Test_getEncounteredError(t *testing.T) {
 		{
 			name: "empty",
 			args: args{
-				nonFatalErrsMap: map[string]error{},
+				nonFatalErrs: []error{},
 			},
 			wantErr:       false,
 			wantErrString: "",
@@ -120,31 +120,47 @@ func Test_getEncounteredError(t *testing.T) {
 		{
 			name: "non single error",
 			args: args{
-				nonFatalErrsMap: map[string]error{
-					"one": errors.New("single"),
+				nonFatalErrs: []error{
+					errors.New("single"),
 				},
 			},
 			wantErr:       true,
-			wantErrString: "one: single",
+			wantErrString: "single",
 		},
 		{
 			name: "multiple errors",
 			args: args{
-				nonFatalErrsMap: map[string]error{
-					"one":   errors.New("single"),
-					"two":   errors.New("double"),
-					"three": errors.New("triple"),
+				nonFatalErrs: []error{
+					errors.New("single"),
+					errors.New("double"),
+					errors.New("triple"),
 				},
 			},
 			wantErr:       true,
-			wantErrString: "one: single, two: double, three: triple",
+			wantErrString: "single, double, triple",
+		},
+		{
+			name: "multiple errors more than 6",
+			args: args{
+				nonFatalErrs: []error{
+					errors.New("single"),
+					errors.New("double"),
+					errors.New("triple"),
+					errors.New("quadruple"),
+					errors.New("quintuple"),
+					errors.New("sextuple"),
+					errors.New("septuple"),
+				},
+			},
+			wantErr:       true,
+			wantErrString: "single, double, triple, quadruple, quintuple, sextuple, septuple",
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := getEncounteredError(tt.args.nonFatalErrsMap)
+			err := getEncounteredError(tt.args.nonFatalErrs)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getEncounteredError() error = %v, wantErr %v", err, tt.wantErr)
 			}

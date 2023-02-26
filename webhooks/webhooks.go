@@ -409,17 +409,12 @@ func attachHooksToEntry(ctx context.Context, entry *Entry, hooks *Hooks, ef Hook
 	return nil
 }
 
-const (
-	onMessageStatusChangeErrorKey = "on_message_status_change_error"
-	onNotificationErrorKey        = "on_notification_error_error"
-	onMessageHooksErrorKey        = "on_message_hooks_error"
+var (
+	ErrOnMessageStatusChangeHook = errors.New("on message status change hook error")
+	ErrOnMessageHooks            = errors.New("on specific message hooks error")
+	ErrOnNotificationErrorHook   = errors.New("on notification error hook error")
+	ErrOnGlobalMessageHook       = errors.New("on global message hook error")
 )
-
-//var (
-//	ErrOnMessageStatusChangeHook = errors.New("on message status change hook error")
-//	ErrOnMessageHooks            = errors.New("on message hooks error")
-//	ErrOnNotificationErrorHook   = errors.New("on notification error hook error")
-//)
 
 func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks, hooksErrorHandler HooksErrorHandler) error {
 	if hooks == nil {
@@ -432,7 +427,9 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 		Metadata: value.Metadata,
 	}
 
-	nonFatalErrsMap := map[string]error{}
+	// nonFatalErrors is a slice of non-fatal errors that are collected from the hooks.
+	// can contain a maximum of 4 errors.
+	nonFatalErrors := make([]error, 0, 4)
 
 	// call the Hooks
 	if value.Errors != nil && hooks.N != nil {
@@ -442,7 +439,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 				if IsFatalError(hooksErrorHandler(err)) {
 					return err
 				}
-				nonFatalErrsMap[onNotificationErrorKey] = err
+				nonFatalErrors = append(nonFatalErrors, ErrOnNotificationErrorHook)
 			}
 		}
 	}
@@ -454,7 +451,8 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 				if IsFatalError(hooksErrorHandler(err)) {
 					return err
 				}
-				nonFatalErrsMap[onMessageStatusChangeErrorKey] = err
+				nonFatalErrors = append(nonFatalErrors, ErrOnMessageStatusChangeHook)
+
 			}
 		}
 	}
@@ -469,7 +467,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 					if IsFatalError(hooksErrorHandler(err)) {
 						return err
 					}
-					nonFatalErrsMap[onMessageHooksErrorKey] = err
+					nonFatalErrors = append(nonFatalErrors, ErrOnGlobalMessageHook)
 				}
 			}
 
@@ -477,25 +475,22 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 				if IsFatalError(hooksErrorHandler(err)) {
 					return err
 				}
-				nonFatalErrsMap[onMessageHooksErrorKey] = err
+				nonFatalErrors = append(nonFatalErrors, ErrOnMessageHooks)
 			}
 		}
 	}
 
-	return getEncounteredError(nonFatalErrsMap)
+	return getEncounteredError(nonFatalErrors)
 }
 
-func getEncounteredError(nonFatalErrsMap map[string]error) error {
+func getEncounteredError(errs []error) error {
 	var finalErr error
-	for key, err := range nonFatalErrsMap {
-		key, err := key, err
-		if err != nil {
-			if finalErr == nil {
-				finalErr = fmt.Errorf("%s: %w", key, err)
-				continue
-			}
-			finalErr = fmt.Errorf("%w, %s: %w", finalErr, key, err)
+	for i := 0; i < len(errs); i++ {
+		if finalErr == nil {
+			finalErr = errs[i]
+			continue
 		}
+		finalErr = fmt.Errorf("%w, %w", finalErr, errs[i])
 	}
 
 	return finalErr
@@ -653,19 +648,6 @@ func NotificationHandler(
 
 		writer.WriteHeader(http.StatusOK)
 	})
-}
-
-// handlerCleanup is a helper function that calls the AfterFunc function in a separate goroutine.
-// It takes in a context, an AfterFunc function, a Notification struct, and an error as arguments.
-// The implementation of the AfterFunc is executed here after the notification has been processed
-// and the hooks logics have been applied and their error if any has been handled but passed to the
-// handlerCleanup function for further processing like logging, instrumentation, etc.
-func handlerCleanup(ctx context.Context, after AfterFunc, notification *Notification, err error) {
-	if after != nil {
-		go func(ctx context.Context, after AfterFunc, notification *Notification, err error) {
-			after(ctx, notification, err)
-		}(ctx, after, notification, err)
-	}
 }
 
 // VerifySubscriptionHandler verifies the subscription to the webhooks.
