@@ -23,13 +23,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/piusalfred/whatsapp/errors"
+	werrors "github.com/piusalfred/whatsapp/errors"
 )
 
 const BaseURL = "https://graph.facebook.com"
@@ -74,8 +75,8 @@ type (
 	}
 
 	ResponseError struct {
-		Code int           `json:"code,omitempty"`
-		Err  *errors.Error `json:"error,omitempty"`
+		Code int            `json:"code,omitempty"`
+		Err  *werrors.Error `json:"error,omitempty"`
 	}
 
 	Sender func(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error)
@@ -176,7 +177,7 @@ func SendMessage(ctx context.Context, client *http.Client, method, url string,
 
 	buff := new(bytes.Buffer)
 	_, err = io.Copy(buff, resp.Body)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 	bodyBytes = buff.Bytes()
@@ -187,6 +188,7 @@ func SendMessage(ctx context.Context, client *http.Client, method, url string,
 			return nil, err
 		}
 		errResponse.Code = resp.StatusCode
+
 		return nil, &errResponse
 	}
 
@@ -213,6 +215,7 @@ func Send(ctx context.Context, client *http.Client, method, url string,
 	if err != nil {
 		return nil, err
 	}
+
 	return client.Do(req)
 }
 

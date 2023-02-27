@@ -1,4 +1,8 @@
 linters-settings:
+  revive:
+    naming:
+      ignore:
+        - "^[A-Z][a-z].*$"
   gocyclo:
     # limit the cyclomatic complexity to 15
     # you can adjust this value according to your needs
@@ -48,6 +52,18 @@ linters:
     - golint
     - tagliatelle
     - musttag
+    - exhaustivestruct
+    - exhaustruct
+    - varcheck
+    - nosnakecase
+    - deadcode
+    - interfacer
+    - structcheck
+    - ifshort
+    - scopelint
+    - maligned
+    - wastedassign
+
 
 # specify the output format for linter results
 # you can choose from various formats, including plain text, JSON, and HTML

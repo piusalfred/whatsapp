@@ -185,7 +185,7 @@ type (
 		     The language object can contain the following fields:
 			 	- Policy, policy (string). Required. The language policy the message should follow. The only supported option is deterministic.
 				  See Language Policy Options here https://developers.facebook.com/docs/whatsapp/api/messages/message-templates#language-policy-options.
-				- Code, code (string). Required. The code of the language or locale to use. Accepts both language and language_locale formats
+				- StatusCode, code (string). Required. The code of the language or locale to use. Accepts both language and language_locale formats
 				  (e.g., en and en_US). For all codes, see Supported Languages. https://developers.facebook.com/docs/whatsapp/api/messages/message-templates#supported-languages
 
 		   - Components, components (array of objects). Optional. Array of components objects containing the parameters of the message.

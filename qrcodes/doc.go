@@ -33,7 +33,7 @@ Before using this API in your application. You must have the following:
   - A User access token requested by someone who is an admin for the Business Manager
   - The whatsapp_business_messages permission
 
-# Create a QR Code Message
+# Create a QR StatusCode Message
 
 Example:
 
@@ -62,7 +62,7 @@ On success, a JSON array is returned:
 		"qr_image_url": "{image-url}"
 	}
 
-# Retrieve All QR Code Messages
+# Retrieve All QR StatusCode Messages
 
 Example:
 
@@ -99,7 +99,7 @@ This is an equivalent to the following curl command:
 	     ]
 		}
 
-# Retrive a single QR Code
+# Retrive a single QR StatusCode
 
 # Example Request
 
@@ -123,7 +123,7 @@ Example:
 
 	info, err := qrcodes.Get(context.TODO(),http.DefaultClient, "baseURL", "phoneID", "accessToken", "qrCodeID")
 
-# Update Details of a QR Code
+# Update Details of a QR StatusCode
 
 # Example Request
 
@@ -140,10 +140,10 @@ Formatted for readability
 	     "deep_link_url": "{short-link-to-qr-code}"
 	}
 
-Delete QR Code
+Delete QR StatusCode
 QR codes do not expire. You must delete a QR code in order to retire it.
 
-Formatted (for readability) curl command to delete a QR Code.
+Formatted (for readability) curl command to delete a QR StatusCode.
 curl -X DELETE "https://graph.facebook.com/v16.0/{phone-number-ID}/message_qrdls/{qr-code-id}
 
 	&access_token={user-access-token}"

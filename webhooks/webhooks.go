@@ -118,8 +118,6 @@ type (
 	// All the Hooks takes a context.Context, a NotificationContext which is used to identify and
 	// distinguish one notification to the rest. The Hooks that deals with messages like these
 	// OnMessageErrors, OnMessageReceived, OnTextMessageReceived, OnReferralMessageReceived takes a
-	// a MessageContext which is used to identify and distinguish one message to the rest.
-	//
 	// OnMessageStatusChange is a hook that is called when a message status changes.
 	// Status change is triggered when a message is sent or delivered to a customer or
 	// the customer reads the delivered message sent by a business that is subscribed
@@ -294,8 +292,32 @@ func ParseMessageType(s string) MessageType {
 const SignatureHeaderKey = "X-Hub-Signature-256"
 
 type (
-	HooksErrorHandler        func(err error) error
-	NotificationErrorHandler func(context.Context, http.ResponseWriter, *http.Request, error) error
+	Response struct {
+		StatusCode int
+		Headers    map[string]string
+		Body       []byte
+		Skip       bool
+	}
+
+	HooksErrorHandler func(err error) error
+	// NotificationErrorHandler is a function that handles errors that occur when processing a notification.
+	// The function returns a Response that is sent to the whatsapp server.
+	//
+	// Note that retuning nil will make the default use http.StatusOK as the status code.
+	//
+	// Returning a status code that is not 200, will make a whatsapp server retry the notification. In some
+	// cases this can lead to duplicate notifications. If your business logic is affected by this, you should
+	// be careful when returning a non 200 status code.
+	//
+	// This is a snippet from the whatsapp documentation:
+	//
+	//		If we send a webhook request to your endpoint and your server responds with an HTTP status code other
+	//		than 200, or if we are unable to deliver the webhook for another reason, we will keep trying with
+	//		decreasing frequency until the request succeeds, for up to 7 days.
+	//
+	//      Note that retries will be sent to all apps that have subscribed to webhooks (and their appropriate fields)
+	//      for the WhatsApp Business Account. This can result in duplicate webhook notifications.
+	NotificationErrorHandler func(context.Context, *http.Request, error) *Response
 	BeforeFunc               func(ctx context.Context, notification *Notification) error
 	AfterFunc                func(ctx context.Context, notification *Notification, err error)
 	HandlerOptions           struct {
@@ -343,6 +365,11 @@ type (
 	GenericNotificationHandler func(context.Context, http.ResponseWriter, *Notification, NotificationErrorHandler) error
 )
 
+// SetOnNotificationErrorHook sets the OnNotificationErrorHook.
+func (h *Hooks) SetOnNotificationErrorHook(f OnNotificationErrorHook) {
+	h.N = f
+}
+
 // NoOpHooksErrorHandler is a no-op hooks error handler. It just returns the error as is.
 // It is applied by AttachHooksToNotification if no Hooks error handler is provided.
 func NoOpHooksErrorHandler(err error) error {
@@ -351,8 +378,11 @@ func NoOpHooksErrorHandler(err error) error {
 
 // NoOpNotificationErrorHandler is a no-op notification error handler. It just returns the error as is.
 // It is applied by AttachHooksToNotification if no notification error handler is provided.
-func NoOpNotificationErrorHandler(_ context.Context, _ http.ResponseWriter, _ *http.Request, err error) error {
-	return err
+func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, err error) *Response {
+	return &Response{
+		StatusCode: http.StatusOK,
+		Skip:       false,
+	}
 }
 
 // AttachHooksToNotification applies the hooks to notification received. Sometimes the Hooks can return
@@ -378,7 +408,7 @@ func NoOpNotificationErrorHandler(_ context.Context, _ http.ResponseWriter, _ *h
 //	    }
 //	}
 func AttachHooksToNotification(ctx context.Context, notification *Notification,
-	hooks *Hooks, eh HooksErrorHandler,
+	hooks *Hooks, heh HooksErrorHandler,
 ) error {
 	if notification == nil || hooks == nil {
 		return nil
@@ -387,7 +417,7 @@ func AttachHooksToNotification(ctx context.Context, notification *Notification,
 	entries := notification.Entry
 	for _, entry := range entries {
 		entry := entry
-		if err := attachHooksToEntry(ctx, entry, hooks, eh); err != nil {
+		if err := attachHooksToEntry(ctx, entry, hooks, heh); err != nil {
 			return err
 		}
 	}
@@ -420,7 +450,8 @@ var (
 	ErrOnGlobalMessageHook       = errors.New("on global message hook error")
 )
 
-func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks, hooksErrorHandler HooksErrorHandler) error {
+func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks,
+	hooksErrorHandler HooksErrorHandler) error {
 	if hooks == nil {
 		return nil
 	}
@@ -456,7 +487,6 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 					return err
 				}
 				nonFatalErrors = append(nonFatalErrors, ErrOnMessageStatusChangeHook)
-
 			}
 		}
 	}
@@ -503,7 +533,7 @@ func getEncounteredError(errs []error) error {
 
 func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks MessageHooks, message *Message) error {
 	if hooks == nil || message == nil {
-		return fmt.Errorf("Hooks or message is nil")
+		return fmt.Errorf("hooks or message is nil")
 	}
 	mctx := &MessageContext{
 		From:      message.From,
@@ -582,6 +612,12 @@ func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks 
 	}
 }
 
+var (
+	ErrOnBeforeFuncHook          = errors.New("error on before func hook")
+	ErrOnAttachNotificationHooks = errors.New("error during attaching hooks to a notification")
+	ErrOnGenericHandlerFunc      = errors.New("error on generic handler func")
+)
+
 // NotificationHandler takes Hooks, NotificationErrorHandler,HooksErrorHandler and HandlerOptions
 // and returns http.Handler
 //
@@ -609,25 +645,26 @@ func NotificationHandler(
 			}
 		}()
 
-		if _, err = io.Copy(&buff, request.Body); err != nil && err != io.EOF {
+		if _, err = io.Copy(&buff, request.Body); err != nil && !errors.Is(err, io.EOF) {
 			writer.WriteHeader(http.StatusInternalServerError)
+
 			return
 		}
 		request.Body = io.NopCloser(&buff)
 
-		if err = json.NewDecoder(&buff).Decode(notification); err != nil && err != io.EOF {
-			if nErr := neh(ctx, writer, request, err); nErr != nil {
-				writer.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+		if err = json.NewDecoder(&buff).Decode(notification); err != nil && !errors.Is(err, io.EOF) {
+			writer.WriteHeader(http.StatusInternalServerError)
+
+			return
 		}
 
 		if options != nil {
 			// check if before func is set and call it
 			if options.BeforeFunc != nil {
 				if err = options.BeforeFunc(ctx, notification); err != nil {
-					if nErr := neh(request.Context(), writer, request, err); nErr != nil {
-						writer.WriteHeader(http.StatusInternalServerError)
+					err = fmt.Errorf("%w: %w", ErrOnBeforeFuncHook, err)
+					if handleError(
+						ctx, writer, request, neh, err) {
 						return
 					}
 				}
@@ -636,8 +673,7 @@ func NotificationHandler(
 			if options.ValidateSignature {
 				signature := request.Header.Get(SignatureHeaderKey)
 				if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
-					if nErr := neh(ctx, writer, request, ErrInvalidSignature); nErr != nil {
-						writer.WriteHeader(http.StatusUnauthorized)
+					if handleError(ctx, writer, request, neh, ErrInvalidSignature) {
 						return
 					}
 				}
@@ -645,14 +681,30 @@ func NotificationHandler(
 		}
 		// Apply the Hooks
 		if err = AttachHooksToNotification(ctx, notification, hooks, heh); err != nil {
-			if nErr := neh(ctx, writer, request, err); nErr != nil {
-				writer.WriteHeader(http.StatusInternalServerError)
+			err = fmt.Errorf("%w: %w", ErrOnAttachNotificationHooks, err)
+			if handleError(
+				ctx, writer, request, neh, err) {
 				return
 			}
 		}
 
 		writer.WriteHeader(http.StatusOK)
 	})
+}
+
+func handleError(ctx context.Context, writer http.ResponseWriter, request *http.Request,
+	neh NotificationErrorHandler, err error) bool {
+	res := neh(ctx, request, err)
+	if !res.Skip {
+		code, headers, message := res.StatusCode, res.Headers, res.Body
+		for k, v := range headers {
+			writer.Header().Set(k, v)
+		}
+		writer.WriteHeader(code)
+		_, _ = writer.Write(message)
+		return true
+	}
+	return false
 }
 
 // VerifySubscriptionHandler verifies the subscription to the webhooks.
@@ -840,29 +892,30 @@ func (ls *EventListener) GenericHandler() http.Handler {
 		if ls.options != nil && ls.options.ValidateSignature {
 			signature := request.Header.Get(SignatureHeaderKey)
 			if !ValidateSignature(buff.Bytes(), signature, ls.options.Secret) {
-				if nErr := nfh(request.Context(), writer, request, ErrInvalidSignature); nErr != nil {
-					writer.WriteHeader(http.StatusUnauthorized)
+				if handleError(request.Context(), writer, request, nfh, ErrInvalidSignature) {
 					return
 				}
+
 			}
 		}
 
 		// Construct the notification
 		var notification Notification
 		if err := json.NewDecoder(&buff).Decode(&notification); err != nil && err != io.EOF {
-			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
-				writer.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 
 		// call the generic handler
 		if err := ls.g(request.Context(), writer, &notification, nfh); err != nil {
-			if nErr := nfh(request.Context(), writer, request, err); nErr != nil {
-				writer.WriteHeader(http.StatusInternalServerError)
+			err = fmt.Errorf("%w: %w", ErrOnGenericHandlerFunc, err)
+			if handleError(request.Context(), writer, request, nfh, err) {
 				return
 			}
 		}
+
+		writer.WriteHeader(http.StatusOK)
+
 	})
 }
 

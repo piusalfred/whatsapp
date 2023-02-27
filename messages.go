@@ -148,6 +148,8 @@ func SendLocation(ctx context.Context, client *http.Client, req *SendLocationReq
 			Latitude:  req.Latitude,
 			Longitude: req.Longitude,
 		},
+		Contacts:    nil,
+		Interactive: nil,
 	}
 	payload, err := json.Marshal(location)
 	if err != nil {
@@ -162,9 +164,15 @@ func SendLocation(ctx context.Context, client *http.Client, req *SendLocationReq
 	}
 	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
 	if err != nil {
+		return nil, fmt.Errorf("request url: %w", err)
+	}
+
+	resp, err := whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	if err != nil {
 		return nil, err
 	}
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+
+	return resp, nil
 }
 
 type ReactRequest struct {
