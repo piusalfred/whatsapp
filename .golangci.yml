@@ -1,4 +1,6 @@
 linters-settings:
+  funlen:
+    lines: 70
   revive:
     naming:
       ignore:

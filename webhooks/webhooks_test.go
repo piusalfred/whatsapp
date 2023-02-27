@@ -41,10 +41,10 @@ func ExampleNewEventListener() {
 				return nil
 			}),
 		WithHooks(&Hooks{
-			N: nil,
-			S: nil,
-			M: nil,
-			H: nil,
+			OnNotificationErrorHook:   nil,
+			OnMessageStatusChangeHook: nil,
+			M:                         nil,
+			H:                         nil,
 		}),
 		WithSubscriptionVerifier(func(ctx context.Context, request *VerificationRequest) error {
 			return fmt.Errorf("subscription verification failed")
@@ -216,10 +216,13 @@ func humanReadableEntry(t *testing.T, entry *Entry) string {
 		}
 		buf.WriteString(humanReadableChange(t, change))
 	}
+
 	return buf.String()
 }
 
 func humanReadableChange(t *testing.T, change *Change) string {
+	t.Helper()
+
 	return fmt.Sprintf("change: field: %s, value: %+v", change.Field, change.Value)
 }
 
@@ -261,7 +264,7 @@ func TestNotificationHandler_Options(t *testing.T) {
 				ValidateSignature: false,
 				Secret:            "demo",
 				Hooks:             nil,
-				Body:              []byte(`{"object":"whatsapp_business_account","entry":[{"id":"WHATSAPP_BUSINESS_ACCOUNT_ID","changes":[{"value":{"messaging_product":"whatsapp","metadata":{"display_phone_number":"PHONE_NUMBER","phone_number_id":"PHONE_NUMBER_ID"},"contacts":[{"profile":{"name":"NAME"},"wa_id":"WHATSAPP_ID"}],"messages":[{"from":"PHONE_NUMBER","id":"wamid.ID","timestamp":"TIMESTAMP","type":"image","image":{"caption":"CAPTION","mime_type":"image/jpeg","sha256":"IMAGE_HASH","id":"ID"}}]},"field":"messages"}]}]}`),
+				Body:              []byte(`{"object":"whatsapp_business_account","entry":[{"id":"WHATSAPP_BUSINESS_ACCOUNT_ID","changes":[{"value":{"messaging_product":"whatsapp","metadata":{"display_phone_number":"PHONE_NUMBER","phone_number_id":"PHONE_NUMBER_ID"},"contacts":[{"profile":{"name":"NAME"},"wa_id":"WHATSAPP_ID"}],"messages":[{"from":"PHONE_NUMBER","id":"wamid.ID","timestamp":"TIMESTAMP","type":"image","image":{"caption":"CAPTION","mime_type":"image/jpeg","sha256":"IMAGE_HASH","id":"ID"}}]},"field":"messages"}]}]}`), //nolint:lll
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -280,7 +283,7 @@ func TestNotificationHandler_Options(t *testing.T) {
 			}
 			h := NotificationHandler(hooks, NoOpNotificationErrorHandler, NoOpHooksErrorHandler, options)
 
-			req, err := http.NewRequest("POST", "/webhook", bytes.NewReader(tt.fields.Body))
+			req, err := http.NewRequestWithContext(context.TODO(), "POST", "/webhook", bytes.NewReader(tt.fields.Body))
 			if err != nil {
 				t.Logf("error creating request: %v", err)
 			}
