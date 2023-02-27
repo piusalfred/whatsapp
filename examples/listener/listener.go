@@ -37,6 +37,7 @@ func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		handler = middlewares[i](handler)
 	}
+
 	return handler
 }
 
@@ -61,7 +62,9 @@ func EndTimeMiddleware(next http.Handler) http.Handler {
 }
 
 func GenericNotificationHandler() webhooks.GenericNotificationHandler {
-	return func(ctx context.Context, writer http.ResponseWriter, notification *webhooks.Notification, handler webhooks.NotificationErrorHandler) error {
+	return func(ctx context.Context, writer http.ResponseWriter, notification *webhooks.Notification,
+		handler webhooks.NotificationErrorHandler,
+	) error {
 		// print the notification and the time it took to process it
 		startTime := ctx.Value("startTime").(time.Time)
 		time.Sleep(2 * time.Second)
@@ -114,11 +117,13 @@ func main() {
 	ls := webhooks.NewEventListener(
 		webhooks.WithGenericNotificationHandler(GenericNotificationHandler()),
 		webhooks.WithNotificationErrorHandler(
-			func(ctx context.Context, writer http.ResponseWriter, request *http.Request, err error) error {
-				log.Printf("Error: %s\n", err)
-				writer.WriteHeader(http.StatusOK)
-				writer.Write([]byte("OK"))
-				return nil
+			func(ctx context.Context, request *http.Request, err error) *webhooks.Response {
+				return &webhooks.Response{
+					StatusCode: http.StatusBadRequest,
+					Headers:    nil,
+					Body:       []byte(err.Error()),
+					Skip:       false,
+				}
 			}),
 	)
 	middlewares := []Middleware{

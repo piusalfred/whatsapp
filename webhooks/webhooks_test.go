@@ -41,10 +41,23 @@ func ExampleNewEventListener() {
 				return nil
 			}),
 		WithHooks(&Hooks{
+			OnOrderMessageHook:        nil,
+			OnButtonMessageHook:       nil,
+			OnLocationMessageHook:     nil,
+			OnContactsMessageHook:     nil,
+			OnMessageReactionHook:     nil,
+			OnUnknownMessageHook:      nil,
+			OnProductEnquiryHook:      nil,
+			OnInteractiveMessageHook:  nil,
+			OnMessageErrorsHook:       nil,
+			OnTextMessageHook:         nil,
+			OnReferralMessageHook:     nil,
+			OnCustomerIDChangeHook:    nil,
+			OnSystemMessageHook:       nil,
+			OnMediaMessageHook:        nil,
 			OnNotificationErrorHook:   nil,
 			OnMessageStatusChangeHook: nil,
-			M:                         nil,
-			H:                         nil,
+			OnMessageReceivedHook:     nil,
 		}),
 		WithSubscriptionVerifier(func(ctx context.Context, request *VerificationRequest) error {
 			return fmt.Errorf("subscription verification failed")

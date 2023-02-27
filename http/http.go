@@ -105,7 +105,12 @@ func JoinUrlParts(parts *RequestUrlParts) (string, error) {
 func CreateRequestURL(baseURL, apiVersion, senderID string, endpoints ...string) (string, error) {
 	elems := append([]string{apiVersion, senderID}, endpoints...)
 
-	return url.JoinPath(baseURL, elems...)
+	path, err := url.JoinPath(baseURL, elems...)
+	if err != nil {
+		return "", fmt.Errorf("failed to join url path: %w", err)
+	}
+
+	return path, nil
 }
 
 func NewRequestWithContext(ctx context.Context, method, requestURL string, params *RequestParams,
@@ -216,15 +221,15 @@ func Send(ctx context.Context, client *http.Client, method, url string,
 		return nil, err
 	}
 
-	return client.Do(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %s: %w", strings.ToLower(params.Name), err)
+	}
+
+	return resp, nil
 }
 
 // Error returns the error message for ResponseError.
 func (e *ResponseError) Error() string {
 	return fmt.Sprintf("whatsapp error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
-}
-
-// Unwrap returns the underlying error.
-func (e *ResponseError) Unwrap() []error {
-	return []error{e.Err}
 }
