@@ -288,7 +288,7 @@ func (ls *EventListener) GenericHandler() http.Handler {
 		}
 
 		// call the generic handler
-		if err := ls.g(request.Context(), writer, &notification, ls.neh); err != nil {
+		if err := ls.g(request.Context(), writer, &notification); err != nil {
 			err = fmt.Errorf("%w: %w", ErrOnGenericHandlerFunc, err)
 			if handleError(request.Context(), writer, request, ls.neh, err) {
 				return

@@ -63,7 +63,6 @@ func EndTimeMiddleware(next http.Handler) http.Handler {
 
 func GenericNotificationHandler() webhooks.GenericNotificationHandler {
 	return func(ctx context.Context, writer http.ResponseWriter, notification *webhooks.Notification,
-		handler webhooks.NotificationErrorHandler,
 	) error {
 		// print the notification and the time it took to process it
 		startTime := ctx.Value("startTime").(time.Time)

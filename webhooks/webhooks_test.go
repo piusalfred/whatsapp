@@ -37,7 +37,7 @@ func ExampleNewEventListener() {
 			return nil
 		}),
 		WithGenericNotificationHandler(
-			func(ctx context.Context, writer http.ResponseWriter, notification *Notification, handler NotificationErrorHandler) error {
+			func(ctx context.Context, writer http.ResponseWriter, notification *Notification) error {
 				return nil
 			}),
 		WithHooks(&Hooks{

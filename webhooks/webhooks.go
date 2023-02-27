@@ -402,7 +402,7 @@ type (
 	// the one set in the App Dashboard.
 	SubscriptionVerifier func(context.Context, *VerificationRequest) error
 
-	GenericNotificationHandler func(context.Context, http.ResponseWriter, *Notification, NotificationErrorHandler) error
+	GenericNotificationHandler func(context.Context, http.ResponseWriter, *Notification) error
 )
 
 // SetOnNotificationErrorHook sets the OnNotificationErrorHook.
