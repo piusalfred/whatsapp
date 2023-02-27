@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 )
@@ -42,31 +41,26 @@ type (
 
 	// CreateSubscriptionResponse ....
 	CreateSubscriptionResponse struct {
-		Success bool
+		Success bool `json:"success,omitempty"`
 	}
 
 	DeleteSubscriptionResponse struct {
-		Success bool
+		Success bool `json:"success,omitempty"`
 	}
 
-	SubcribedApp struct {
-		Name string `json:"name"`
-		ID   string `json:"id"`
+	SubscribedApp struct {
+		Name string `json:"name,omitempty"`
+		ID   string `json:"id,omitempty"`
 	}
 
-	// ListSubscriptionsResponse contains a list of subscribed apps.
-	//{
-	// "data": [
-	// {
-	//"name": "<APP_NAME>",
-	//"id": "<APP_ID>" } ]
-	//}
 	ListSubscriptionsResponse struct {
-		Data []*SubcribedApp `json:"data"`
+		Data []*SubscribedApp `json:"data,omitempty"`
 	}
 )
 
-func CreateSubscription(ctx context.Context, client *http.Client, baseURL string, req *SubscriptionRequest) (*CreateSubscriptionResponse, error) {
+func CreateSubscription(ctx context.Context, client *http.Client, baseURL string,
+	req *SubscriptionRequest,
+) (*CreateSubscriptionResponse, error) {
 	reqURL, err := url.JoinPath(baseURL, req.ApiVersion, req.AccountID, "subscribed_apps")
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: failed to create subscription request url: %w", err)
@@ -86,7 +80,7 @@ func CreateSubscription(ctx context.Context, client *http.Client, baseURL string
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("whatsapp: failed to create subscription: %s", resp.Status)
 	}
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: failed to read subscription response body: %w", err)
 	}
@@ -99,7 +93,9 @@ func CreateSubscription(ctx context.Context, client *http.Client, baseURL string
 	return &response, nil
 }
 
-func ListSubscriptions(ctx context.Context, client *http.Client, baseURL string, req *SubscriptionRequest) (*ListSubscriptionsResponse, error) {
+func ListSubscriptions(ctx context.Context, client *http.Client, baseURL string,
+	req *SubscriptionRequest,
+) (*ListSubscriptionsResponse, error) {
 	reqURL, err := url.JoinPath(baseURL, req.ApiVersion, req.AccountID, "subscribed_apps")
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: failed to create subscription request url: %w", err)
@@ -119,7 +115,7 @@ func ListSubscriptions(ctx context.Context, client *http.Client, baseURL string,
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("whatsapp: failed to create subscription: %s", resp.Status)
 	}
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: failed to read subscription response body: %w", err)
 	}
@@ -133,7 +129,9 @@ func ListSubscriptions(ctx context.Context, client *http.Client, baseURL string,
 }
 
 // DeleteSubscription ...
-func DeleteSubscription(ctx context.Context, client *http.Client, baseURL string, req *SubscriptionRequest) (*DeleteSubscriptionResponse, error) {
+func DeleteSubscription(ctx context.Context, client *http.Client, baseURL string,
+	req *SubscriptionRequest,
+) (*DeleteSubscriptionResponse, error) {
 	reqURL, err := url.JoinPath(baseURL, req.ApiVersion, req.AccountID, "subscribed_apps")
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: failed to create subscription request url: %w", err)

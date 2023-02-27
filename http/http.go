@@ -23,13 +23,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/piusalfred/whatsapp/errors"
+	werrors "github.com/piusalfred/whatsapp/errors"
 )
 
 const BaseURL = "https://graph.facebook.com"
@@ -59,20 +60,23 @@ type (
 		Messages []*MessageID       `json:"messages,omitempty"`
 	}
 	RequestParams struct {
-		SenderID   string
-		ApiVersion string
-		Headers    map[string]string
-		Query      map[string]string
-		Bearer     string
-		Form       map[string]string
-		BaseURL    string
-		Endpoints  []string
-		Method     string
+		Name    string
+		Headers map[string]string
+		Query   map[string]string
+		Bearer  string
+		Form    map[string]string
 	}
 
-	ErrorResponse struct {
-		Code int           `json:"code,omitempty"`
-		Err  *errors.Error `json:"error,omitempty"`
+	RequestUrlParts struct {
+		BaseURL    string
+		ApiVersion string
+		SenderID   string
+		Endpoints  []string
+	}
+
+	ResponseError struct {
+		Code int            `json:"code,omitempty"`
+		Err  *werrors.Error `json:"error,omitempty"`
 	}
 
 	Sender func(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error)
@@ -85,9 +89,14 @@ type (
 
 	ResponseContact struct {
 		Input      string `json:"input"`
-		WhatsappId string `json:"wa_id"`
+		WhatsappID string `json:"wa_id"`
 	}
 )
+
+// JoinUrlParts joins the elements of url parts into a single url string.
+func JoinUrlParts(parts *RequestUrlParts) (string, error) {
+	return CreateRequestURL(parts.BaseURL, parts.ApiVersion, parts.SenderID, parts.Endpoints...)
+}
 
 // CreateRequestURL creates a new request url by joining the base url, api version
 // sender id and endpoints.
@@ -95,54 +104,53 @@ type (
 // passed from the RequestParams.
 func CreateRequestURL(baseURL, apiVersion, senderID string, endpoints ...string) (string, error) {
 	elems := append([]string{apiVersion, senderID}, endpoints...)
-	return url.JoinPath(baseURL, elems...)
-}
 
-// NewRequestWithContext creates a new *http.Request with context by using the
-// RequestParams.
-func NewRequestWithContext(ctx context.Context, params *RequestParams, payload []byte) (*http.Request, error) {
-	var (
-		req *http.Request
-		err error
-	)
-	requestURL, err := CreateRequestURL(params.BaseURL, params.ApiVersion, params.SenderID, params.Endpoints...)
+	path, err := url.JoinPath(baseURL, elems...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to join url parts: %w", err)
+		return "", fmt.Errorf("failed to join url path: %w", err)
 	}
 
+	return path, nil
+}
+
+func NewRequestWithContext(ctx context.Context, method, requestURL string, params *RequestParams,
+	payload []byte,
+) (*http.Request, error) {
+	var (
+		body io.Reader
+		req  *http.Request
+	)
 	if params.Form != nil {
 		form := url.Values{}
 		for key, value := range params.Form {
 			form.Add(key, value)
 		}
-		req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBufferString(form.Encode()))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create new request: %w", err)
-		}
-	} else {
+		body = strings.NewReader(form.Encode())
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	} else if payload != nil {
+		body = bytes.NewReader(payload)
+	}
 
-		if payload == nil {
-			req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create new request: %w", err)
-			}
-		} else {
-			req, err = http.NewRequestWithContext(ctx, params.Method, requestURL, bytes.NewBuffer(payload))
-			if err != nil {
-				return nil, fmt.Errorf("failed to create new request: %w", err)
-			}
+	// Create the HTTP request
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new request: %w", err)
+	}
+
+	// Set the request headers
+	if params.Headers != nil {
+		for key, value := range params.Headers {
+			req.Header.Set(key, value)
 		}
 	}
 
-	for key, value := range params.Headers {
-		req.Header.Set(key, value)
-	}
-
+	// Set the bearer token header
 	if params.Bearer != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", params.Bearer))
 	}
 
-	if len(params.Query) > 0 {
+	// Add the query parameters to the request URL
+	if params.Query != nil {
 		query := req.URL.Query()
 		for key, value := range params.Query {
 			query.Add(key, value)
@@ -153,14 +161,16 @@ func NewRequestWithContext(ctx context.Context, params *RequestParams, payload [
 	return req, nil
 }
 
-func SendMessage(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error) {
+func SendMessage(ctx context.Context, client *http.Client, method, url string,
+	params *RequestParams, payload []byte,
+) (*Response, error) {
 	var (
 		resp      *http.Response
 		err       error
 		bodyBytes []byte
 	)
 
-	if resp, err = Send(ctx, client, params, payload); err != nil {
+	if resp, err = Send(ctx, client, method, url, params, payload); err != nil {
 		return nil, err
 	}
 
@@ -172,17 +182,18 @@ func SendMessage(ctx context.Context, client *http.Client, params *RequestParams
 
 	buff := new(bytes.Buffer)
 	_, err = io.Copy(buff, resp.Body)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 	bodyBytes = buff.Bytes()
 
 	if resp.StatusCode != http.StatusOK {
-		var errResponse ErrorResponse
+		var errResponse ResponseError
 		if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&errResponse); err != nil {
 			return nil, err
 		}
 		errResponse.Code = resp.StatusCode
+
 		return nil, &errResponse
 	}
 
@@ -192,31 +203,33 @@ func SendMessage(ctx context.Context, client *http.Client, params *RequestParams
 	)
 
 	if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&message); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode response body: %w", err)
 	}
 	response.StatusCode = resp.StatusCode
 	response.Headers = resp.Header
 	response.Message = &message
 
 	return &response, nil
-
 }
 
 // Send sends a http request and returns a *http.Response or an error.
-func Send(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*http.Response, error) {
-	req, err := NewRequestWithContext(ctx, params, payload)
+func Send(ctx context.Context, client *http.Client, method, url string,
+	params *RequestParams, payload []byte,
+) (*http.Response, error) {
+	req, err := NewRequestWithContext(ctx, method, url, params, payload)
 	if err != nil {
 		return nil, err
 	}
-	return client.Do(req)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %s: %w", strings.ToLower(params.Name), err)
+	}
+
+	return resp, nil
 }
 
-// Error returns the error message for ErrorResponse.
-func (e *ErrorResponse) Error() string {
+// Error returns the error message for ResponseError.
+func (e *ResponseError) Error() string {
 	return fmt.Sprintf("whatsapp error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
-}
-
-// Unwrap returns the underlying error.
-func (e *ErrorResponse) Unwrap() []error {
-	return []error{e.Err}
 }

@@ -72,7 +72,7 @@ type (
 
 	// ErrorResponse struct {
 	// 	Err  *Error `json:"error,omitempty"`
-	// 	Code int    `json:"code,omitempty"` // http status code
+	// 	StatusCode int    `json:"code,omitempty"` // http status code
 	// }
 )
 
@@ -113,7 +113,7 @@ func (e *Error) String() string {
 		}
 
 		if e.Code != 0 {
-			b.WriteString(", Code: " + strconv.Itoa(e.Code))
+			b.WriteString(", StatusCode: " + strconv.Itoa(e.Code))
 		}
 
 		if e.Data != nil {

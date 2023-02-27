@@ -80,15 +80,13 @@ func (cmd *QrCodeGetCommand) Run(ctx *Context) error {
 	return nil
 }
 
-type QrCodeListCommand struct {
-}
+type QrCodeListCommand struct{}
 
 func (cmd *QrCodeListCommand) Run(ctx *Context) error {
 	resp, err := qrcodes.List(
 		ctx.ctx, ctx.http, ctx.BaseURL,
 		ctx.PhoneID, ctx.AccessToken,
 	)
-
 	if err != nil {
 		return err
 	}
@@ -108,7 +106,6 @@ func (cmd *QrCodeDeleteCommand) Run(ctx *Context) error {
 		ctx.PhoneID, ctx.AccessToken,
 		cmd.ImageID,
 	)
-
 	if err != nil {
 		return err
 	}

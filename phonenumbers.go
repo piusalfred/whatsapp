@@ -101,22 +101,17 @@ type (
 //	 -F 'language=en'
 func RequestCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest) error {
 	params := &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID,
-		ApiVersion: req.ApiVersion,
-		Headers: map[string]string{
-			"Content-Type": "application/x-www-form-urlencoded",
-		},
-		Query: nil,
-		Form: map[string]string{
-			"code_method": req.CodeMethod,
-			"language":    req.Language,
-		},
-		Bearer:    req.Token,
-		BaseURL:   req.BaseURL,
-		Endpoints: []string{"request_code"},
-		Method:    http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+		Query:   nil,
+		Form:    map[string]string{"code_method": req.CodeMethod, "language": req.Language},
+		Bearer:  req.Token,
 	}
-	response, err := whttp.Send(ctx, client, params, nil)
+
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "request_code")
+	if err != nil {
+		return err
+	}
+	response, err := whttp.Send(ctx, client, http.MethodPost, reqURL, params, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -143,22 +138,18 @@ func RequestCode(ctx context.Context, client *http.Client, req *VerificationCode
 //	}
 func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest, code string) error {
 	params := &whttp.RequestParams{
-		SenderID:   req.PhoneNumberID,
-		ApiVersion: req.ApiVersion,
-		Headers: map[string]string{
-			"Content-Type": "application/x-www-form-urlencoded",
-		},
-		Query:  nil,
-		Bearer: req.Token,
-		Form: map[string]string{
-			"code": code,
-		},
-		BaseURL:   req.BaseURL,
-		Endpoints: []string{"verify_code"},
-		Method:    http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+		Query:   nil,
+		Bearer:  req.Token,
+		Form:    map[string]string{"code": code},
 	}
-	// send the request
-	response, err := whttp.Send(ctx, client, params, nil)
+
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "verify_code")
+	if err != nil {
+		return err
+	}
+
+	response, err := whttp.Send(ctx, client, http.MethodPost, reqURL, params, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -245,14 +236,8 @@ type ListPhoneNumbersRequest struct {
 //	   }
 //	}
 func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, req *ListPhoneNumbersRequest) (*PhoneNumbersList, error) {
-
 	params := &whttp.RequestParams{
-		BaseURL:    req.BaseURL,
-		SenderID:   req.BusinessID,
-		ApiVersion: req.ApiVersion,
-		Method:     http.MethodGet,
-		Query:      map[string]string{"access_token": req.Token},
-		Endpoints:  []string{"phone_numbers"},
+		Query: map[string]string{"access_token": req.Token},
 	}
 	if req.FilterParams != nil {
 		p := req.FilterParams
@@ -262,8 +247,11 @@ func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, re
 		}
 		params.Query["filtering"] = string(jsonParams)
 	}
-	// send the request
-	response, err := whttp.Send(ctx, client, params, nil)
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.BusinessID, "phone_numbers")
+	if err != nil {
+		return nil, err
+	}
+	response, err := whttp.Send(ctx, client, http.MethodGet, reqURL, params, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -287,7 +275,6 @@ func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, re
 	}
 
 	return &phoneNumbersList, nil
-
 }
 
 // GetPhoneNumberByID returns a phone number by id.
@@ -342,7 +329,7 @@ type DisplayNameStatus struct {
 
 // GetDisplayNameStatus
 // //Include fields=name_status as a query string parameter to get the status of a display name associated with a specific phone number. This field is currently in beta and not available to all developers.
-
+//
 // Sample Request
 // curl \
 // 'https://graph.facebook.com/v15.0/105954558954427?fields=name_status' \

@@ -17,7 +17,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package qrcodes // import "github.com/piusalfred/whatsapp/qrcodes"
+package qrcodes
 
 import (
 	"context"
@@ -76,16 +76,16 @@ func Create(ctx context.Context, client *http.Client, req *CreateRequest) (*Crea
 		"access_token":      req.AccessToken,
 	}
 	params := &whttp.RequestParams{
-		Method:     http.MethodPost,
-		SenderID:   req.PhoneID,
-		ApiVersion: req.ApiVersion,
-		//Bearer:     req.AccessToken, // token is passed as a query param
-		BaseURL:   req.BaseURL,
-		Endpoints: []string{"message_qrdls"},
-		Query:     queryParams,
+		Bearer: req.AccessToken, // token is passed as a query param
+		Query:  queryParams,
 	}
 
-	response, err := whttp.Send(ctx, client, params, nil)
+	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneID, "message_qrdls")
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := whttp.Send(ctx, client, http.MethodPost, reqURL, params, nil)
 	if err != nil {
 		return nil, err
 	}

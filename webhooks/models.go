@@ -36,7 +36,8 @@ type (
 	//
 	//	Category, string – Indicates the conversation pricing category, one of the following:
 	//		- business_initiated – The business sent a message to a customer more than 24 hours after the last customer message
-	//		- referral_conversion – The conversation originated from a free entry point. These conversations are always customer-initiated.
+	//		- referral_conversion – The conversation originated from a free entry point.
+	//		                        These conversations are always customer-initiated.
 	//		- customer_initiated – The business replied to a customer message within 24 hours of the last customer message
 	//
 	//	PricingModel, string – Type of pricing model used by the business. Current supported value is CBP
@@ -138,24 +139,6 @@ type (
 	//  - Orders products being sold by the business
 	Event string
 
-	// NotificationMessageType is the type of message that was sent to the webhook.
-	// This is a filed in Message object. It can take the following values:
-	// - audio
-	// - button
-	// - document
-	// - text
-	// - image
-	// - interactive
-	// - order
-	// - sticker
-	// - system – for customer number change messages
-	// - unknown
-	// - video
-	// For interactive messages, there are two scenarios: when a user has
-	// clicked a button and when a user has selected an item from a list.
-	// The information of these Scenarios are ButtonReply and ListReply respectively.
-	NotificationMessageType string
-
 	Metadata struct {
 		DisplayPhoneNumber string `json:"display_phone_number,omitempty"`
 		PhoneNumberID      string `json:"phone_number_id,omitempty"`
@@ -200,8 +183,10 @@ type (
 	//
 	// Body - Describes the change to the customer's identity or phone number.
 	// Identity - Hash for the identity fetched from server.
-	// NewWaID - New WhatsApp ID for the customer when their phone number is updated. Available on webhook versions v11.0 and earlier.
-	// WaID New WhatsApp ID for the customer when their phone number is updated. Available on webhook versions v12.0 and later.
+	// NewWaID - New WhatsApp ID for the customer when their phone number is updated.
+	// Available on webhook versions v11.0 and earlier.
+	// WaID New WhatsApp ID for the customer when their phone number is updated. Available on
+	// webhook versions v12.0 and later.
 	// Type – type of system update. Will be one of the following:.
 	// 		- customer_changed_number – A customer changed their phone number.
 	//		- customer_identity_changed – A customer changed their profile information.
@@ -219,17 +204,16 @@ type (
 		Body string `json:"body,omitempty"`
 	}
 
-	// Interactive ...
+	// Interactive represent the interactive template.
 	Interactive struct {
 		Type *InteractiveType `json:"type,omitempty"`
 	}
 
-	// InteractiveType ...
-	// ButtonReply, sent when a customer clicks a button
-	// ListReply, sent when a customer selects an item from a list
+	// InteractiveType represent an item sent to user. It can be a reply button
+	// (ButtonReply) or a list reply containing a list of items (ListReply).
 	InteractiveType struct {
-		ButtonReply *ButtonReply `json:"button_reply,omitempty"` // sent when a customer clicks a button
-		ListReply   *ListReply   `json:"list_reply,omitempty"`   // sent when a customer selects an item from a list
+		ButtonReply *ButtonReply `json:"button_reply,omitempty"`
+		ListReply   *ListReply   `json:"list_reply,omitempty"`
 	}
 
 	ButtonReply struct {
@@ -243,11 +227,9 @@ type (
 		Description string `json:"description,omitempty"`
 	}
 
-	// ProductItem ...
-	// ProductRetailerID Unique identifier of the product in a catalog.
-	// Quantity Number of items.
-	// ItemPrice Price of each item.
-	// Currency — Price currency.
+	// ProductItem represents a product item, Whereas the ProductRetailerID is the unique identifier of
+	// the product in a catalog. Quantity represents the number of items. ItemPrice represents the price
+	// of a single item. Currency represents the price currency.
 	ProductItem struct {
 		ProductRetailerID string `json:"product_retailer_id,omitempty"`
 		Quantity          string `json:"quantity,omitempty"`
@@ -255,10 +237,9 @@ type (
 		Currency          string `json:"currency,omitempty"`
 	}
 
-	// Order ...
-	// CatalogID ID for the catalog the ordered item belongs to.
-	// Text message from the user sent along with the order.
-	// ProductItems Array of product item objects
+	// Order have information about order created by the customer. Order objects have the following properties:
+	// The CatalogID which is the ID for the catalog the ordered item belongs to. Text message from the user and
+	// ProductItems which is an array of product item objects.
 	Order struct {
 		CatalogID    string         `json:"catalog_id,omitempty"`
 		Text         string         `json:"text,omitempty"`
@@ -318,7 +299,7 @@ type (
 	// CreatedTimestamp, created_timestamp — String. The time when the WhatsApp Business Management API detected
 	// the customer may have changed their profile information.
 	//
-	// Hash, hash — String. The ID for the messages system customer_identity_changed
+	// Hash, hash — String. The ID for the messages system customer_identity_changed.
 	Identity struct {
 		Acknowledged     bool   `json:"acknowledged,omitempty"`
 		CreatedTimestamp int64  `json:"created_timestamp,omitempty"`

@@ -20,53 +20,57 @@
 package webhooks
 
 import (
-	"errors"
 	"fmt"
+	"testing"
 )
 
-var ErrInvalidSignature = fmt.Errorf("signature validation failed")
+var _ fatal = (*customError)(nil)
 
-type (
-	// FatalError wraps an error that that is fatal during the processing of a webhook notification.
-	// it includes a description of the error.
-	FatalError struct {
-		Err  error
-		Desc string
-	}
-
-	fatal interface {
-		Fatal() bool
-	}
-)
-
-// NewFatalError returns a new FatalError.
-func NewFatalError(err error, desc string) *FatalError {
-	return &FatalError{
-		Err:  err,
-		Desc: desc,
-	}
+type customError struct {
+	Code int
 }
 
-func (e *FatalError) Unwrap() error {
-	return e.Err
+func (c *customError) Fatal() bool {
+	return c.Code == 500
 }
 
-func (e *FatalError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Desc, e.Err.Error())
+func (c *customError) Error() string {
+	return fmt.Sprintf("error code: %d", c.Code)
 }
 
-// IsFatalError returns true if the error is a FatalError or the error has implemented
-// the fatal interface and Fatal() returns true.
-func IsFatalError(err error) bool {
-	var fe *FatalError
-	if err != nil && errors.As(err, &fe) {
-		return true
+func TestIsFatalError(t *testing.T) {
+	cases := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "fatal error",
+			err:      &FatalError{},
+			expected: true,
+		},
+		{
+			name:     "custom error but fatal",
+			err:      &customError{Code: 500},
+			expected: true,
+		},
+		{
+			name:     "custom error but not fatal",
+			err:      &customError{Code: 400},
+			expected: false,
+		},
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
 	}
-	if err != nil {
-		var f fatal
-		if errors.As(err, &f) {
-			return f.Fatal()
-		}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsFatalError(tc.err); got != tc.expected {
+				t.Errorf("expected %v, got %v", tc.expected, got)
+			}
+		})
 	}
-	return false
 }
