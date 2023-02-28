@@ -29,7 +29,7 @@ import (
 	"testing"
 )
 
-func ExampleNewEventListener() {
+func Example_newEventListener() {
 	_ = NewEventListener(
 		WithNotificationErrorHandler(NoOpNotificationErrorHandler),
 		WithAfterFunc(func(ctx context.Context, notification *Notification, err error) {}),
@@ -70,6 +70,8 @@ func ExampleNewEventListener() {
 		}),
 		WithHooksErrorHandler(NoOpHooksErrorHandler),
 	)
+
+	// Output:
 }
 
 func TestParseMessageType(t *testing.T) {
@@ -156,13 +158,13 @@ func Test_getEncounteredError(t *testing.T) {
 			name: "multiple errors more than 6",
 			args: args{
 				nonFatalErrs: []error{
-					errors.New("single"),
-					errors.New("double"),
-					errors.New("triple"),
-					errors.New("quadruple"),
-					errors.New("quintuple"),
-					errors.New("sextuple"),
-					errors.New("septuple"),
+					fmt.Errorf("single"),
+					fmt.Errorf("double"),
+					fmt.Errorf("triple"),
+					fmt.Errorf("quadruple"),
+					fmt.Errorf("quintuple"),
+					fmt.Errorf("sextuple"),
+					fmt.Errorf("septuple"),
 				},
 			},
 			wantErr:       true,
@@ -296,7 +298,7 @@ func TestNotificationHandler_Options(t *testing.T) {
 			}
 			h := NotificationHandler(hooks, NoOpNotificationErrorHandler, NoOpHooksErrorHandler, options)
 
-			req, err := http.NewRequestWithContext(context.TODO(), "POST", "/webhook", bytes.NewReader(tt.fields.Body))
+			req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/webhook", bytes.NewReader(tt.fields.Body))
 			if err != nil {
 				t.Logf("error creating request: %v", err)
 			}
@@ -305,6 +307,55 @@ func TestNotificationHandler_Options(t *testing.T) {
 
 			if status := rr.Code; status != tt.wantStatus {
 				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestExtractSignatureFromHeader(t *testing.T) {
+	t.Parallel()
+	type args struct {
+		header map[string][]string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "valid signature",
+			args: args{
+				header: map[string][]string{
+					SignatureHeaderKey: {"sha256=1234567890"},
+				},
+			},
+			want:    "1234567890",
+			wantErr: false,
+		},
+		{
+			name: "invalid signature",
+			args: args{
+				header: map[string][]string{},
+			},
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		name := tt.name
+		args := tt.args
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ExtractSignatureFromHeader(args.header)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ExtractSignatureFromHeader() error = %v, wantErr %v", err, tt.wantErr)
+
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ExtractSignatureFromHeader() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

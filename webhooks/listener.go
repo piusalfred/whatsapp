@@ -28,6 +28,44 @@ import (
 	"net/http"
 )
 
+// EventListener wraps all the parts needed to listen and respond to incoming events
+// to registered webhooks.
+// It contains unexported *Hooks, *HandlerOptions, HooksErrorHandler, NotificationErrorHandler
+// SubscriptionVerifier and GenericNotificationHandler.
+// All these can be set via exported ListenerOption functions like WithBeforeFunc and
+// Setter methods like GenericNotificationHandler which sets the GenericNotificationHandler.
+//
+// Example:
+//
+//	  listener := NewEventListener(
+//			WithNotificationErrorHandler(NoOpNotificationErrorHandler),
+//			WithAfterFunc(func(ctx context.Context, notification *Notification, err error) {}),
+//			WithBeforeFunc(func(ctx context.Context, notification *Notification) error {}),
+//			WithGenericNotificationHandler(nil),
+//			WithHooks(&Hooks{
+//				OnOrderMessageHook:        nil,
+//				OnButtonMessageHook:       nil,
+//				OnLocationMessageHook:     nil,
+//				OnContactsMessageHook:     nil,
+//				OnMessageReactionHook:     nil,
+//				OnUnknownMessageHook:      nil,
+//				OnProductEnquiryHook:      nil,
+//				OnInteractiveMessageHook:  nil,
+//				OnMessageErrorsHook:       nil,
+//				OnTextMessageHook:         nil,
+//				OnReferralMessageHook:     nil,
+//			}),
+//	  )
+//
+//	  example of setting a hook
+//
+//	  listener.OnOrderMessage(func(ctx context.Context, notification *Notification, order *Order) error {
+//			// do something with the order
+//			return nil
+//	  })
+//
+//	  using a generic handler
+//	  handler := listener.GenericNotificationHandler()
 type EventListener struct {
 	h       *Hooks
 	hef     HooksErrorHandler
@@ -250,8 +288,8 @@ func WithAfterFunc(afterFunc AfterFunc) ListenerOption {
 	}
 }
 
-// Handle returns a http.Handler that can be used to handle the notification
-func (ls *EventListener) Handle() http.Handler {
+// NotificationHandler returns a http.Handler that can be used to handle the notification
+func (ls *EventListener) NotificationHandler() http.Handler {
 	return NotificationHandler(ls.h, ls.neh, ls.hef, ls.options)
 }
 
@@ -299,7 +337,7 @@ func (ls *EventListener) GenericHandler() http.Handler {
 	})
 }
 
-// Verify returns a http.Handler that can be used to verify the subscription
-func (ls *EventListener) Verify() http.Handler {
+// SubscriptionVerificationHandler returns a http.Handler that can be used to verify the subscription
+func (ls *EventListener) SubscriptionVerificationHandler() http.Handler {
 	return VerifySubscriptionHandler(ls.v)
 }

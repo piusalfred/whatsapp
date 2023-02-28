@@ -766,34 +766,35 @@ func handleError(ctx context.Context, writer http.ResponseWriter, request *http.
 //
 //	     - hub.mode This value will always be set to subscribe.
 //	     - hub.challenge An int you must pass back to us.
-//	     - hub.verify_token A string that we grab from the Verify Token field in your app's App Dashboard.
+//	     - hub.verify_token A string that we grab from the SubscriptionVerificationHandler Token
+//	       field in your app's App Dashboard.
 //	       You will set this string when you complete the Webhooks configuration settings steps.
 //
 // Whenever your endpoint receives a verification request, it must:
 //
-//   - Verify that the hub.verify_token value matches the string you set in the Verify Token field when you configure
-//     the Webhooks product in your App Dashboard (you haven't set up this token string yet).
+//   - verify that the hub.verify_token value matches the string you set in the verification Token field
+//     when you configure the Webhooks product in your App Dashboard.
 //
 //   - Respond with the hub.challenge value. If you are in your App Dashboard and configuring your Webhooks product
 //     (and thus, triggering a Verification Request), the dashboard will indicate if your endpoint validated the request
 //     correctly. If you are using the Graph APIs /app/subscriptions endpoint to configure the Webhooks product, the API
 //     will indicate success or failure with a response.
 func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		// Retrieve the query parameters from the request.
-		q := r.URL.Query()
+		q := request.URL.Query()
 		mode := q.Get("hub.mode")
 		challenge := q.Get("hub.challenge")
 		token := q.Get("hub.verify_token")
-		if err := verifier(r.Context(), &VerificationRequest{
+		if err := verifier(request.Context(), &VerificationRequest{
 			Mode:      mode,
 			Challenge: challenge,
 			Token:     token,
 		}); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+			writer.WriteHeader(http.StatusBadRequest)
 		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(challenge))
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(challenge))
 	})
 }
 
@@ -829,4 +830,21 @@ func ValidateSignature(payload []byte, signature, secret string) bool {
 
 	// Compare the expected and actual signatures
 	return hmac.Equal(actualSignature, expectedSignature)
+}
+
+var ErrSignatureNotFound = errors.New("signature not found")
+
+// ExtractSignatureFromHeader extracts the signature from the header. A signature is a SHA256
+// hash of the payload, encoded in hexadecimal and prefixed with sha256=. It is found in the
+// X-Hub-Signature-256 header.
+// The signature is used to verify the authenticity of the payload. This method is used to extract
+// the actual signature from the header without the prefix.
+func ExtractSignatureFromHeader(header http.Header) (string, error) {
+	signature := header.Get(SignatureHeaderKey)
+	if !strings.HasPrefix(signature, "sha256=") {
+		return "",
+			fmt.Errorf("signature is empty or does not have prefix \"sha256\" %w", ErrSignatureNotFound)
+	}
+
+	return signature[7:], nil
 }
