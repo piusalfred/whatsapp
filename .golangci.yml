@@ -65,6 +65,8 @@ linters:
     - scopelint
     - maligned
     - wastedassign
+    - dupword
+    - varnamelen
 
 
 # specify the output format for linter results

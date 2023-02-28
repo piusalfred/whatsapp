@@ -39,6 +39,7 @@ func (c *customError) Error() string {
 }
 
 func TestIsFatalError(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -67,7 +68,9 @@ func TestIsFatalError(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if got := IsFatalError(tc.err); got != tc.expected {
 				t.Errorf("expected %v, got %v", tc.expected, got)
 			}

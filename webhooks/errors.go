@@ -68,5 +68,6 @@ func IsFatalError(err error) bool {
 			return f.Fatal()
 		}
 	}
+
 	return false
 }
