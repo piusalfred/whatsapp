@@ -81,7 +81,11 @@ Flags:
 Some things above like BaseURL have the default values set. So you can skip them.
 To send a simple text message you can run
 
-`./whatsapp send text  -T=<your access token> -p=<your phone id> -m="hello world" --to=<recipient-phone-number"`
+```bash
+
+./whatsapp send text  -T=<your access token> -p=<your phone id> -m="hello world" --to=<recipient-phone-number"
+
+```
 
 ## webhooks example
 
