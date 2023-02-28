@@ -173,9 +173,10 @@ func Test_getEncounteredError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt := tt
+		args := tt.args
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := getEncounteredError(tt.args.nonFatalErrs)
+			err := getEncounteredError(args.nonFatalErrs)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getEncounteredError() error = %v, wantErr %v", err, tt.wantErr)
 			}

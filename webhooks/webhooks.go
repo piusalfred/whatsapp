@@ -112,129 +112,6 @@ type (
 		Ctx       *Context
 	}
 
-	// NotificationHooks is a generic interface for all Hooks. It intends to have a dedicated hook  for each
-	// notification type or scenario.
-	//
-	// All the Hooks takes a context.Context, a NotificationContext which is used to identify and
-	// distinguish one notification to the rest. The Hooks that deals with messages like these
-	// OnMessageErrors, OnMessageReceived, OnTextMessageReceived, OnReferralMessageReceived takes a
-	// OnMessageStatusChange is a hook that is called when a message status changes.
-	// Status change is triggered when a message is sent or delivered to a customer or
-	// the customer reads the delivered message sent by a business that is subscribed
-	// to the Webhooks.
-	//
-	// OnNotificationError is a hook that is called when a notification error occurs. Sometimes a
-	// webhook notification being sent to a business contains errors. This hook is called when a
-	// webhook notification contains errors. This hook is called when a webhook notification contains
-	// errors.
-	//
-	// OnMessageReceived is a hook that is called when a message is received. This message can be a
-	// text message, image, video, audio, document, location, vcard, template, sticker, or file. It can
-	// be a reply to a message sent by the business. This is overridden by the more specific Hooks
-	// like OnTextMessageReceived, OnReferralMessageReceived, OnImageReceived, and OnVideoReceived.
-	//
-	// OnMessageErrors is a hook that is called when the notification contains errors.
-	//
-	// OnTextMessageReceived is a hook that is called when a text message is received.
-	//
-	// OnReferralMessageReceived is a hook that is called when a referral message is received.
-	// A referral message is a message is sent when a customer clicked an ad that redirects them
-	// to WhatsApp.
-	// Note that there is no message type for referral. According to documentation, it is included
-	// when the type is set to text. So when the message type is set to text, this hook is called.
-	// but when a condition that the message contains a referral object is met.
-	//
-	// OnCustomerIDChange is a hook that is called when a customer ID changes. Webhook is triggered
-	// when a customer's phone number or profile information has been updated.
-	//
-	// OnSystemMessage is a hook that is called when a system message is received.When messages type
-	// is set to system, a customer has updated their phone number or profile information, this object
-	// is included in the messages object.
-	//
-	// OnButtonMessage is a hook that is called when a button message is received.
-	// When your customer clicks on a quick reply button in an interactive message template,
-	// a response is sent. This hook is responsible for handling that response
-	//
-	// OnLocationReceived is a hook that is called when a location is received. From documentation
-	// there is no message type for location but it is included in the messages object when a customer
-	// sends a location.
-	// Example of that payload can be found here https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
-	//
-	// OnContactsReceived is a hook that is called when a contact is received. From documentation
-	// there is no message type for contact but it is included in the messages object when a customer
-	// sends a contact.
-	// Example of that payload can be found here https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
-	//
-	// OnMessageReaction is a hook that is called when a message reaction is received. From documentation
-	// there is no message type for reaction but it is included in the messages object when a customer
-	// reacts to a message.
-	// Example of that payload can be found here https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
-	//
-	// OnProductEnquiry is a hook that is called when a product enquiry is received. A product enquiry is
-	// a message that is sent when a customer clicks on a product in a catalog template.
-	//
-	// Snippet from documentation:
-	// A Product Inquiry Message is received when a customer asks for more information about a product.
-	// These can happen when:
-	// - a customer replies to Single or Multi-Product Messages, or
-	// - a customer accesses a business's catalog via another entry point, navigates to a Product Details page,
-	//   and clicks Message Business about this Product.
-	//
-	// There is no message type for product enquiry. According to documentation, it is included as a text
-	// Example:
-	//
-	//"messages": [
-	// {
-	// 	"from": "PHONE_NUMBER",
-	// 	"id": "wamid.ID",
-	// 	"text": {
-	// 	  "body": "MESSAGE_TEXT"
-	// 	},
-	// 	"context": {
-	// 	  "from": "PHONE_NUMBER",
-	// 	  "id": "wamid.ID",
-	// 	  "referred_product": {
-	// 		"catalog_id": "CATALOG_ID",
-	// 		"product_retailer_id": "PRODUCT_ID"
-	// 	  }
-	// 	},
-	// 	"timestamp": "TIMESTAMP",
-	// 	"type": "text"
-	//   }
-	// ]
-	// Referred product is the product being enquired.
-	//
-	// OnInteractiveMessage is a hook that is called when an interactive message is received.
-	// This can happen when a customer clicks on a button you sent them in a template message.
-	// Or they can click a list item in a list template you sent them. In case of a list template
-	// the reply will be of type list_reply and button_reply for a button template.
-	//NotificationHooks interface {
-	//	OnMessageStatusChange(ctx context.Context, nctx *NotificationContext, status *Status) error
-	//	OnNotificationError(ctx context.Context, nctx *NotificationContext, errors *werrors.Error) error
-	//	OnMessageReceived(ctx context.Context, nctx *NotificationContext, message *Message) error
-	//}
-	//
-	//MessageHooks interface {
-	//	OnMessageErrors(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
-	//	OnTextMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
-	//	OnReferralMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text, referral *Referral) error
-	//	OnCustomerIdChangeMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, customerID *Identity) error
-	//	OnSystemMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, system *System) error
-	//	OnImageMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, image *models.MediaInfo) error
-	//	OnAudioMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, audio *models.MediaInfo) error
-	//	OnVideoMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, video *models.MediaInfo) error
-	//	OnDocumentMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, document *models.MediaInfo) error
-	//	OnStickerMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, sticker *models.MediaInfo) error
-	//	OnOrderMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, order *Order) error
-	//	OnButtonMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, button *Button) error
-	//	OnLocationMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, location *models.Location) error
-	//	OnContactsMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, contacts *models.Contacts) error
-	//	OnMessageReaction(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, reaction *models.Reaction) error
-	//	OnUnknownMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
-	//	OnProductEnquiry(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
-	//	OnInteractiveMessage(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, interactive *Interactive) error
-	//}
-
 	OnOrderMessageHook func(
 		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, order *Order) error
 	OnButtonMessageHook func(
@@ -570,6 +447,8 @@ func getEncounteredError(errs []error) error {
 	return finalErr
 }
 
+var ErrFailedToAttachHookToMessage = errors.New("could not attach hooks to message")
+
 func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks *Hooks, message *Message) error {
 	if hooks == nil || message == nil {
 		return fmt.Errorf("hooks or message is nil")
@@ -589,26 +468,13 @@ func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks 
 	case ButtonMessageType:
 		return hooks.OnButtonMessageHook(ctx, nctx, mctx, message.Button)
 
-	case AudioMessageType:
+	case AudioMessageType, VideoMessageType, ImageMessageType, DocumentMessageType, StickerMessageType:
 		return hooks.OnMediaMessageHook(ctx, nctx, mctx, message.Audio)
-
-	case VideoMessageType:
-		return hooks.OnMediaMessageHook(ctx, nctx, mctx, message.Video)
-
-	case ImageMessageType:
-		return hooks.OnMediaMessageHook(ctx, nctx, mctx, message.Image)
-
-	case DocumentMessageType:
-		return hooks.OnMediaMessageHook(ctx, nctx, mctx, message.Document)
-
-	case StickerMessageType:
-		return hooks.OnMediaMessageHook(ctx, nctx, mctx, message.Sticker)
 
 	case InteractiveMessageType:
 		return hooks.OnInteractiveMessageHook(ctx, nctx, mctx, message.Interactive)
 
 	case SystemMessageType:
-		// TODO: documentation is not clear if the ID change will also be sent here:
 		return hooks.OnSystemMessageHook(ctx, nctx, mctx, message.System)
 
 	case UnknownMessageType:
@@ -647,7 +513,7 @@ func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks 
 			return hooks.OnCustomerIDChangeHook(ctx, nctx, mctx, message.Identity)
 		}
 
-		return fmt.Errorf("could not attach hook to this message")
+		return ErrFailedToAttachHookToMessage
 	}
 }
 
@@ -699,23 +565,20 @@ func NotificationHandler(
 			return
 		}
 
-		if options != nil {
-			// check if before func is set and call it
-			if options.BeforeFunc != nil {
-				if bfe := options.BeforeFunc(ctx, notification); bfe != nil {
-					err = fmt.Errorf("%w: %w", ErrOnBeforeFuncHook, bfe)
-					if handleError(ctx, writer, request, neh, err) {
-						return
-					}
+		if options != nil && options.BeforeFunc != nil {
+			if bfe := options.BeforeFunc(ctx, notification); bfe != nil {
+				err = fmt.Errorf("%w: %w", ErrOnBeforeFuncHook, bfe)
+				if handleError(ctx, writer, request, neh, err) {
+					return
 				}
 			}
+		}
 
-			if options.ValidateSignature {
-				signature := request.Header.Get(SignatureHeaderKey)
-				if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
-					if handleError(ctx, writer, request, neh, ErrInvalidSignature) {
-						return
-					}
+		if options != nil && options.ValidateSignature {
+			signature, _ := ExtractSignatureFromHeader(request.Header)
+			if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
+				if handleError(ctx, writer, request, neh, ErrInvalidSignature) {
+					return
 				}
 			}
 		}
@@ -811,11 +674,7 @@ func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
 // you will end up with a different signature.
 // For example, the string äöå should be escaped to \u00e4\u00f6\u00e5.
 func ValidateSignature(payload []byte, signature, secret string) bool {
-	// Extract the actual signature from the header
-	if !strings.HasPrefix(signature, "sha256=") {
-		return false
-	}
-	actualSignature, err := hex.DecodeString(signature[7:])
+	decodeSig, err := hex.DecodeString(signature)
 	if err != nil {
 		return false
 	}
@@ -829,7 +688,7 @@ func ValidateSignature(payload []byte, signature, secret string) bool {
 	expectedSignature := mac.Sum(nil)
 
 	// Compare the expected and actual signatures
-	return hmac.Equal(actualSignature, expectedSignature)
+	return hmac.Equal(decodeSig, expectedSignature)
 }
 
 var ErrSignatureNotFound = errors.New("signature not found")

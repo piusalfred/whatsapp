@@ -307,7 +307,7 @@ func (ls *EventListener) GenericHandler() http.Handler {
 		request.Body = io.NopCloser(&buff)
 
 		if ls.options != nil && ls.options.ValidateSignature {
-			signature := request.Header.Get(SignatureHeaderKey)
+			signature, _ := ExtractSignatureFromHeader(request.Header)
 			if !ValidateSignature(buff.Bytes(), signature, ls.options.Secret) {
 				if handleError(
 					request.Context(), writer, request,

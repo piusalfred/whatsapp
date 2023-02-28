@@ -339,28 +339,26 @@ type (
 		ProductRetailerID string `json:"product_retailer_id,omitempty"`
 	}
 
-	/*
-		Value The value object contains details for the change that triggered the webhook. This object is nested
-		within the Change array of the Entry array.
-
-		- Contacts, contacts — Array of Contact objects with information for the customer who sent
-		  a message to the business. Contact objects have the following properties:
-
-		- Errors, errors — An array of error objects describing the error. Error objects have the
-		  properties, which map to their equivalent properties in API error response payloads.
-
-		- MessagingProduct messaging_product (string) Product used to send the message.
-		  Value is always whatsapp.
-
-		- Messages messages (array of objects) Information about a message received by
-		  the business that is subscribed to the webhook. See Message Object.
-
-		- Metadata metadata (object) A metadata object describing the business subscribed to
-		  the webhook. See Metadata Object.
-
-		- Statuses statuses (array of objects) Status object for a message that was sent by
-		  the business that is subscribed to the webhook. See Status Object.
-	*/
+	// Value The value object contains details for the change that triggered the webhook. This object is nested
+	// within the Change array of the Entry array.
+	//
+	//- Contacts, contacts — Array of Contact objects with information for the customer who sent
+	//  a message to the business. Contact objects have the following properties:
+	//
+	//- Errors, errors — An array of error objects describing the error. Error objects have the
+	//  properties, which map to their equivalent properties in API error response payloads.
+	//
+	//- MessagingProduct messaging_product (string) Product used to send the message.
+	//  Value is always whatsapp.
+	//
+	//- Messages messages (array of objects) Information about a message received by
+	//  the business that is subscribed to the webhook. See Message Object.
+	//
+	//- Metadata metadata (object) A metadata object describing the business subscribed to
+	//  the webhook. See Metadata Object.
+	//
+	//- Statuses statuses (array of objects) Status object for a message that was sent by
+	//  the business that is subscribed to the webhook. See Status Object.
 	Value struct {
 		MessagingProduct string           `json:"messaging_product,omitempty"`
 		Metadata         *Metadata        `json:"metadata,omitempty"`

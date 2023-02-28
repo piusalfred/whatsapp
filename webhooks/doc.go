@@ -20,14 +20,16 @@
 /*
 Package webhooks provides a simple way to create a webhooks server in Go.
 
-Webhooks allows you to receive real-time HTTP notifications of changes to specific objects. For example, we could send you
-a notification when a user sends you a message or when a message template's status has changed. This prevents you from having
-to query our APIs for changes to objects that may or may not have happened, and helps you avoid reaching your rate limit.
+Webhook allows you to receive real-time HTTP notifications of changes to specific objects. For example,
+we could send you a notification when a user sends you a message or when a message template's status has
+changed. This prevents you from having to query our APIs for changes to objects that may or may not have
+happened, and helps you avoid reaching your rate limit.
 
-Before using this API, You must set up/subscribe to a webhooks to receive notifications from the WhatsApp Business Platform.
+Before using this API, You must set up/subscribe to a webhooks to receive notifications from the WhatsApp
+Business Platform.
 Follow Whatsapp Webhooks Getting Started guide (https://developers.facebook.com/docs/graph-api/webhooks/getting-started)
-to create your endpoint and configure your Webhooks. When you configure your Webhooks, make sure to choose WhatsApp Business
-Account and subscribe to one or more WhatsApp business account fields.
+to create your endpoint and configure your Webhooks. When you configure your Webhooks, make sure to choose
+WhatsApp Business Account and subscribe to one or more WhatsApp business account fields.
 
 Webhooks are triggered when a customer performs an action or the status for a message a business sends
 a customer changes.
@@ -46,7 +48,8 @@ You get a webhooks notification, When a customer performs one of the following a
   - Orders products being sold by the business
 
 Notification Payload Object
-NotificationPayloadObject is a combination of nested objects of JSON arrays and objects that contain information about a change.
+NotificationPayloadObject is a combination of nested objects of JSON arrays and objects that contain information
+about a change.
 
 Structure of the notification payload object
 
