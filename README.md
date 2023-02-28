@@ -86,7 +86,6 @@ To send a simple text message you can run
 ## webhooks example
 
 ```go
-
 package main
 
 import (
@@ -94,11 +93,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/julienschmidt/httprouter"
 	"github.com/piusalfred/whatsapp/models"
 	"github.com/piusalfred/whatsapp/webhooks"
-
-	// julieschmidt/httprouter
-	"github.com/julienschmidt/httprouter"
 )
 
 func main() {
@@ -106,31 +103,31 @@ func main() {
 
 	// Set your very own notification error handler
 	neh := func(ctx context.Context, request *http.Request, err error) *webhooks.Response {
-        fmt.Printf("error received in notification: %v\n", err) //nolint:forbidigo
+		fmt.Printf("error received in notification: %v\n", err) //nolint:forbidigo
 
-        return &webhooks.Response{
-            StatusCode: http.StatusInternalServerError,
-            Headers: map[string]string{
-                "Content-Type": "text/plain",
-            },
-            Body: []byte(err.Error()),
-            Skip: false,
-        }
-    }
+		return &webhooks.Response{
+			StatusCode: http.StatusInternalServerError,
+			Headers: map[string]string{
+				"Content-Type": "text/plain",
+			},
+			Body: []byte(err.Error()),
+			Skip: false,
+		}
+	}
 	nehOption := webhooks.WithNotificationErrorHandler(neh)
 	options = append(options, nehOption)
-	
+
 	// Set your very own subscription verifier
 	verifier := func(ctx context.Context, request *webhooks.VerificationRequest) error {
-        fmt.Printf("subscription verification request: %+v\n", request) //nolint:forbidigo
-        if request.Mode == "subscribe" && request.Challenge == "challenge" {
-            return nil
-        }
-        return fmt.Errorf("invalid subscription verification request\n")
-    }
+		fmt.Printf("subscription verification request: %+v\n", request) //nolint:forbidigo
+		if request.Mode == "subscribe" && request.Challenge == "challenge" {
+			return nil
+		}
+		return fmt.Errorf("invalid subscription verification request\n")
+	}
 	verifierOption := webhooks.WithSubscriptionVerifier(verifier)
 	options = append(options, verifierOption)
-	
+
 	// Set other Listener options here as you wish ........
 
 	// init the listener
@@ -139,37 +136,37 @@ func main() {
 	// What to do when we receive a reaction?
 	// all the logic goes here
 	reactionListener := func(
-		ctx context.Context, nctx *webhooks.NotificationContext,
-		mctx *webhooks.MessageContext, reaction *models.Reaction) error {
-        // do something with the reaction
-        fmt.Printf("reaction: %+v\n", reaction) //nolint:forbidigo
+		ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, reaction *models.Reaction,
+	) error {
+		// do something with the reaction
+		fmt.Printf("reaction: %+v\n", reaction) //nolint:forbidigo
 
-        return nil
-    }
+		return nil
+	}
 	listener.OnMessageReaction(reactionListener)
 
 	// You want to handle media? Things like document, audio, video, image and sticker
 	// Well add all your logic here.
 	mediaListener := func(
-        ctx context.Context, nctx *webhooks.NotificationContext,
-        mctx *webhooks.MessageContext, media *models.MediaInfo) error {
-        // do something with the media
-        fmt.Printf("media info: %+v\n", media) //nolint:forbidigo
+		ctx context.Context, nctx *webhooks.NotificationContext, mctx *webhooks.MessageContext, media *models.MediaInfo,
+	) error {
+		// do something with the media
+		fmt.Printf("media info: %+v\n", media) //nolint:forbidigo
 
-        return nil
-    }
+		return nil
+	}
 	listener.OnMediaMessage(mediaListener)
 
 	// What to do when we receive a notification of any type be it a media or a text you can handle it here
 	// in a generic way where all are caught in one place
 	// remember the notification error handler you set above? it will be called here to investigate
 	// the error you return
-	gh := func(ctx context.Context, writer http.ResponseWriter,notification *webhooks.Notification) error {
-        // do something with the notification
-        fmt.Printf("notification: %+v\n", notification) //nolint:forbidigo
+	gh := func(ctx context.Context, writer http.ResponseWriter, notification *webhooks.Notification) error {
+		// do something with the notification
+		fmt.Printf("notification: %+v\n", notification) //nolint:forbidigo
 
-        return nil
-    }
+		return nil
+	}
 	listener.GenericNotificationHandler(gh)
 
 	//// create a http server that listen to port 8080 and all notification on the path POST /webhooks
@@ -178,9 +175,9 @@ func main() {
 
 	// I have used httprouter here, but you can use any other router you wish
 	router := httprouter.New()
-	router.Handler(http.MethodPost, "/webhooks", listener.Handle())
+	router.Handler(http.MethodPost, "/webhooks", listener.NotificationHandler())
 	router.Handler(http.MethodPost, "/generic_webhooks", listener.GenericHandler())
-	router.Handler(http.MethodGet, "/webhooks", listener.Verify())
+	router.Handler(http.MethodGet, "/webhooks", listener.SubscriptionVerificationHandler())
 
 	// start the server
 	if err := http.ListenAndServe(":8080", router); err != nil {
