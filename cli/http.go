@@ -20,29 +20,160 @@
 package cli
 
 import (
+	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"os"
 	"time"
 )
 
-const (
-	JsonOutPutFormat  OutPutFormat = "json"
-	TextOutPutFormat  OutPutFormat = "text"
-	BytesOutPutFormat OutPutFormat = "bytes"
-)
-
 type (
-	OutPutFormat string
+	OutputFormat string
 	// HttpClient is a struct that wraps the *http.Client and hence it can be used to
 	// make http requests by the cli, with more fine grained control like logging,
 	// middlewares, retries, etc
 	HttpClient struct {
-		http       *http.Client
-		Debug      bool
-		Logger     io.Writer
-		MaxRetries int
-		Jitter     time.Duration
-		Timeout    time.Duration
-		Out        OutPutFormat
+		http   *http.Client
+		Debug  bool
+		Logger io.Writer
+		Out    OutputFormat
 	}
+
+	ClientOption func(*HttpClient)
 )
+
+func WithDebug(debug bool) ClientOption {
+	return func(client *HttpClient) {
+		client.Debug = debug
+	}
+}
+
+func WithLogger(logger io.Writer) ClientOption {
+	return func(client *HttpClient) {
+		client.Logger = logger
+	}
+}
+
+func WithOutPutFormat(out OutputFormat) ClientOption {
+	return func(client *HttpClient) {
+		client.Out = out
+	}
+}
+
+func WithRequestTimeout(timeout time.Duration) ClientOption {
+	return func(client *HttpClient) {
+		client.http.Timeout = timeout
+	}
+}
+
+func NewHttpClient(options ...ClientOption) *HttpClient {
+	client := &HttpClient{
+		http: &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+					DualStack: true,
+				}).DialContext,
+				MaxIdleConns:          1,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				ForceAttemptHTTP2:     true,
+				MaxIdleConnsPerHost:   -1,
+				DisableKeepAlives:     true,
+			},
+
+			Timeout: 30 * time.Second,
+		},
+		Out:    JsonOutputFormat,
+		Debug:  false,
+		Logger: os.Stdout,
+	}
+
+	for _, option := range options {
+		option(client)
+	}
+
+	client.http.CheckRedirect = client.redirectChecker
+
+	return client
+}
+
+// HTTP returns a http.Client
+func (c *HttpClient) HTTP() *http.Client {
+	return c.http
+}
+
+func (c *HttpClient) redirectChecker(req *http.Request, via []*http.Request) error {
+	if c.Debug {
+		if len(via) == 0 {
+			return nil
+		}
+
+		// Print the path of the redirected URL
+		redirectedUrl := req.URL.String()
+		previousUrl := via[len(via)-1].URL.String()
+		_, _ = fmt.Fprintf(c.Logger, "redirected from %s to %s\n", previousUrl, redirectedUrl)
+
+		return nil
+	}
+
+	return nil
+}
+
+// LogRequest dumps the request to the logger internally uses the DumpRequestOut
+// function.
+func (c *HttpClient) LogRequest(req *http.Request) error {
+	if c.Debug {
+		dump, err := httputil.DumpRequestOut(req, true)
+		if err != nil {
+			return err
+		}
+
+		_, _ = fmt.Fprintf(c.Logger, "\nrequest dump:\n%s\n", string(dump))
+	}
+
+	return nil
+}
+
+// LogResponse dumps the response to the logger internally uses the DumpResponse
+// function.
+func (c *HttpClient) LogResponse(resp *http.Response) error {
+	if c.Debug {
+		dump, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			return err
+		}
+
+		_, _ = fmt.Fprintf(c.Logger, "\nresponse dump:\n%s\n", string(dump))
+	}
+
+	return nil
+}
+
+type Tripper struct {
+	c *HttpClient
+}
+
+func (t *Tripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	err := t.c.LogRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := t.c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	err = t.c.LogResponse(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}

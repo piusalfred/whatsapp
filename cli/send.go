@@ -71,15 +71,14 @@ func (cmd *SendTextCommand) Run(ctx *Context) error {
 		AccessToken:   ctx.AccessToken,
 	}
 
-	fmt.Printf("Access Token: %s\n", ctx.AccessToken)
 	nctx, cancel := context.WithTimeout(ctx.ctx, time.Duration(ctx.Timeout)*time.Second)
 	defer cancel()
 	resp, err := whatsapp.SendText(nctx, ctx.http, req)
 	if err != nil {
-		return err
+		return fmt.Errorf("error sending text: %w", err)
 	}
-	fmt.Println(resp)
-	return nil
+
+	return printResponse(ctx.logger, resp, OutputFormat(ctx.Output))
 }
 
 func (cmd *SendLocationCommand) Run(ctx *Context) error {
@@ -98,10 +97,10 @@ func (cmd *SendLocationCommand) Run(ctx *Context) error {
 	defer cancel()
 	resp, err := whatsapp.SendLocation(nctx, ctx.http, req)
 	if err != nil {
-		return err
+		return fmt.Errorf("error sending location: %w", err)
 	}
-	fmt.Println(resp)
-	return nil
+
+	return printResponse(ctx.logger, resp, OutputFormat(ctx.Output))
 }
 
 func (cmd *SendTemplateCommand) Run(ctx *Context) error {
@@ -119,8 +118,8 @@ func (cmd *SendTemplateCommand) Run(ctx *Context) error {
 	defer cancel()
 	resp, err := whatsapp.SendTemplate(nctx, ctx.http, req)
 	if err != nil {
-		return err
+		return fmt.Errorf("error sending template: %w", err)
 	}
-	fmt.Println(resp)
-	return nil
+
+	return printResponse(ctx.logger, resp, OutputFormat(ctx.Output))
 }
