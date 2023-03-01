@@ -61,6 +61,8 @@ func (cmd *SendCommand) Run(globals *Context) error {
 }
 
 func (cmd *SendTextCommand) Run(ctx *Context) error {
+	configurations(ctx)
+
 	req := &whatsapp.SendTextRequest{
 		Recipient:     cmd.Recipient,
 		Message:       cmd.Message,
@@ -71,17 +73,51 @@ func (cmd *SendTextCommand) Run(ctx *Context) error {
 		AccessToken:   ctx.AccessToken,
 	}
 
-	nctx, cancel := context.WithTimeout(ctx.ctx, time.Duration(ctx.Timeout)*time.Second)
+	nctx, cancel := context.WithTimeout(context.TODO(), time.Duration(ctx.Timeout)*time.Second)
 	defer cancel()
 	resp, err := whatsapp.SendText(nctx, ctx.http, req)
 	if err != nil {
-		return fmt.Errorf("error sending text: %w", err)
+		return fmt.Errorf("error sending text: %s", err.Error())
 	}
 
 	return printResponse(ctx.logger, resp, OutputFormat(ctx.Output))
 }
 
+func configurations(ctx *Context) error {
+	configInFile, err := ctx.loader(ctx.ConfigPath)
+	if err != nil {
+		if ctx.Debug {
+			ctx.logger.Write([]byte(fmt.Sprintf("error looking for config in current dir: %v", err)))
+		}
+	}
+
+	if configInFile != nil {
+		if ctx.BaseURL == "" {
+			ctx.BaseURL = configInFile.BaseURL
+		}
+
+		if ctx.AccessToken == "" {
+			ctx.AccessToken = configInFile.AccessToken
+		}
+
+		if ctx.PhoneID == "" {
+			ctx.PhoneID = configInFile.PhoneID
+		}
+
+		if ctx.ApiVersion == "" {
+			ctx.ApiVersion = configInFile.Version
+		}
+
+		if ctx.WabaID == "" {
+			ctx.WabaID = configInFile.BusinessAccountID
+		}
+	}
+	return err
+}
+
 func (cmd *SendLocationCommand) Run(ctx *Context) error {
+	configurations(ctx)
+
 	req := &whatsapp.SendLocationRequest{
 		Recipient:     cmd.Recipient,
 		Latitude:      cmd.Latitude,
@@ -93,7 +129,7 @@ func (cmd *SendLocationCommand) Run(ctx *Context) error {
 		PhoneNumberID: ctx.PhoneID,
 		AccessToken:   ctx.AccessToken,
 	}
-	nctx, cancel := context.WithTimeout(ctx.ctx, time.Duration(ctx.Timeout)*time.Second)
+	nctx, cancel := context.WithTimeout(context.TODO(), time.Duration(ctx.Timeout)*time.Second)
 	defer cancel()
 	resp, err := whatsapp.SendLocation(nctx, ctx.http, req)
 	if err != nil {
@@ -104,6 +140,8 @@ func (cmd *SendLocationCommand) Run(ctx *Context) error {
 }
 
 func (cmd *SendTemplateCommand) Run(ctx *Context) error {
+	configurations(ctx)
+
 	req := &whatsapp.SendTemplateRequest{
 		Recipient:              cmd.Recipient,
 		TemplateName:           cmd.TemplateName,
@@ -114,7 +152,7 @@ func (cmd *SendTemplateCommand) Run(ctx *Context) error {
 		PhoneNumberID:          ctx.PhoneID,
 		AccessToken:            ctx.AccessToken,
 	}
-	nctx, cancel := context.WithTimeout(ctx.ctx, time.Duration(ctx.Timeout)*time.Second)
+	nctx, cancel := context.WithTimeout(context.TODO(), time.Duration(ctx.Timeout)*time.Second)
 	defer cancel()
 	resp, err := whatsapp.SendTemplate(nctx, ctx.http, req)
 	if err != nil {

@@ -27,8 +27,12 @@ import (
 )
 
 func main() {
-	if err := cli.NewApp().Run(); err != nil {
-		fmt.Println(err)
+	if err := cli.NewApp(
+		cli.WithLogger(os.Stdout),
+		cli.WithHTTPClient(cli.NewHttpClient()),
+		cli.WithConfigLoader(cli.DefaultEnvLoader),
+	); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v", err)
 		os.Exit(1)
 	}
 }

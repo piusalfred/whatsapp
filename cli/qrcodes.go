@@ -20,6 +20,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/piusalfred/whatsapp/qrcodes"
@@ -45,7 +46,7 @@ type QrCodeCreateCommand struct {
 
 func (cmd *QrCodeCreateCommand) Run(ctx *Context) error {
 	resp, err := qrcodes.Create(
-		ctx.ctx, ctx.http,
+		context.TODO(), ctx.http,
 		&qrcodes.CreateRequest{
 			BaseURL:          ctx.BaseURL,
 			PhoneID:          ctx.PhoneID,
@@ -68,7 +69,7 @@ type QrCodeGetCommand struct {
 
 func (cmd *QrCodeGetCommand) Run(ctx *Context) error {
 	resp, err := qrcodes.Get(
-		ctx.ctx, ctx.http, ctx.BaseURL,
+		context.TODO(), ctx.http, ctx.BaseURL,
 		ctx.PhoneID, ctx.AccessToken,
 		cmd.ImageID,
 	)
@@ -84,7 +85,7 @@ type QrCodeListCommand struct{}
 
 func (cmd *QrCodeListCommand) Run(ctx *Context) error {
 	resp, err := qrcodes.List(
-		ctx.ctx, ctx.http, ctx.BaseURL,
+		context.TODO(), ctx.http, ctx.BaseURL,
 		ctx.PhoneID, ctx.AccessToken,
 	)
 	if err != nil {
@@ -102,7 +103,7 @@ type QrCodeDeleteCommand struct {
 
 func (cmd *QrCodeDeleteCommand) Run(ctx *Context) error {
 	resp, err := qrcodes.Delete(
-		ctx.ctx, ctx.http, ctx.BaseURL,
+		context.TODO(), ctx.http, ctx.BaseURL,
 		ctx.PhoneID, ctx.AccessToken,
 		cmd.ImageID,
 	)

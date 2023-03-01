@@ -21,16 +21,16 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/piusalfred/whatsapp"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"text/template"
+
+	"github.com/piusalfred/whatsapp"
 
 	"github.com/alecthomas/kong"
 	dotenv "github.com/joho/godotenv"
@@ -40,10 +40,9 @@ import (
 type (
 	Context struct {
 		http        *http.Client
-		ctx         context.Context
 		logger      io.Writer
 		loader      ConfigLoader
-		ConfigPath  string `name: "config" help:"Location of client config files" default:".env" type:"path"`
+		ConfigPath  string `name: "config" help:"Location of client config files" default:"" type:"path"`
 		Debug       bool   `name: "debug" short:"D" help:"Enable debug mode" default:"false"`
 		LogLevel    string `name: "log-level" short:"L" help:"Set the logging level (debug|info|warn|error|fatal)" default:"info"`
 		Output      string `name: "output" short:"O" help:"Output format (json|text|pretty)" default:"text"`
@@ -65,7 +64,7 @@ type (
 
 	cli struct {
 		Context
-		Send    SendCommand    `cmd:"" name:"send" help:"send different types of messages like text, image, video, audio, document, location, vcard, template, sticker, and file"`
+		Send    SendCommand    `cmd:"" name:"send" help:"send different types of messages like text, image, video, audio, document, location, template, sticker"`
 		QrCodes QrcodesCommand `cmd:"" name:"qrcodes" help:"manage qr codes"`
 	}
 
@@ -83,7 +82,6 @@ func NewApp(options ...Option) *App {
 		cli: cli{
 			Context: Context{
 				http:   http.DefaultClient,
-				ctx:    context.Background(),
 				logger: os.Stdout,
 			},
 		},
@@ -94,6 +92,26 @@ func NewApp(options ...Option) *App {
 	}
 
 	return app
+}
+
+func WithConfigLoader(loader ConfigLoader) Option {
+	return func(app *App) {
+		app.cli.loader = loader
+	}
+}
+
+func WithLogger(logger io.Writer) Option {
+	return func(app *App) {
+		app.cli.logger = logger
+	}
+}
+
+func WithHTTPClient(client *http.Client) Option {
+	return func(app *App) {
+		if client != nil {
+			app.cli.http = client
+		}
+	}
 }
 
 // SetLogger sets the logger for the app
@@ -111,7 +129,7 @@ func SetConfigFile(config string) Option {
 		app.mu.Lock()
 		defer app.mu.Unlock()
 		app.cli.ConfigPath = config
-		app.envLoader = defaultEnvLoader
+		app.envLoader = DefaultEnvLoader
 		conf, err := app.envLoader(app.cli.ConfigPath)
 		if err != nil {
 			panic(fmt.Errorf("failed to load config file: %w", err))
@@ -122,15 +140,13 @@ func SetConfigFile(config string) Option {
 		app.cli.PhoneID = conf.PhoneID
 		app.cli.WabaID = conf.BusinessAccountID
 		app.cli.AccessToken = conf.AccessToken
-		app.cli.Timeout = conf.Timeout
-		app.cli.Output = conf.OutputFormat
 	}
 }
 
 // SetConfigFilePath sets the config file for the Context
 func (ctx *Context) SetConfigFilePath(path string) error {
 	ctx.ConfigPath = path
-	ctx.loader = defaultEnvLoader
+	ctx.loader = DefaultEnvLoader
 	conf, err := ctx.loader(ctx.ConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config file: %w", err)
@@ -152,14 +168,28 @@ func (app *App) Run() error {
 		kong.Description("using whatsapp cloud api from the command line"),
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{
-			Compact: true,
+			NoAppSummary:        false,
+			Summary:             false,
+			Compact:             true,
+			Tree:                false,
+			FlagsLast:           false,
+			Indenter:            nil,
+			NoExpandSubcommands: false,
+			WrapUpperBound:      0,
 		}),
 		kong.Vars{
 			"version": "0.0.1",
 		})
 
-	return ctx.Run(&cli.Context)
+	err := ctx.Run(&cli.Context)
+	if err != nil {
+		return fmt.Errorf("failed to run command: %w", err)
+	}
+
+	return nil
 }
+
+type OutputFormat string
 
 const (
 	JsonOutputFormat       OutputFormat = "json"
@@ -232,7 +262,7 @@ func printResponse(w io.Writer, response *whttp.Response, format OutputFormat) e
 
 type ConfigLoader func(path string) (*Config, error)
 
-func defaultEnvLoader(path string) (*Config, error) {
+func DefaultEnvLoader(path string) (*Config, error) {
 	if path == "" {
 		// take the current working directory and first check if there is a .env file
 		// if not, check if there is a whatsapp.env file
