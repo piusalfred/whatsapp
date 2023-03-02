@@ -49,9 +49,9 @@ type (
 	//	    	}]
 	//		}
 	Response struct {
-		StatusCode int
-		Headers    map[string][]string
-		Message    *ResponseMessage
+		StatusCode int                 `json:"status_code,omitempty"`
+		Headers    map[string][]string `json:"headers,omitempty"`
+		Message    *ResponseMessage    `json:"message,omitempty"`
 	}
 
 	ResponseMessage struct {

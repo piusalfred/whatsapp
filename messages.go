@@ -121,7 +121,12 @@ func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*
 		return nil, err
 	}
 
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	resp, err := whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	if err != nil {
+		return nil, fmt.Errorf("send text message: %w", err)
+	}
+
+	return resp, nil
 }
 
 type SendLocationRequest struct {
