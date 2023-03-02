@@ -43,50 +43,6 @@ func main() {
 
 ```
 
-
-## cli
-The library has an accompanying cli tool that can be used to send messages to your phone number.
-The cli tool can be used to send text, image, video, audio, document and sticker messages.
-It is not sophisticated,but it can be used to test the api.
-
-You can navigate to cmd folder and run `go build -o whatsapp whatsapp.go` to build the cli tool.
-
-Here is the output of `./whatsapp send text --help` on how to use the cli tool to send text messages.
-
-```text
-
-
-Usage: whatsapp send text
-
-send a text message
-
-Flags:
-  -h, --help                                      Show context-sensitive help.
-      --config=".env"                             Location of client config files
-  -D, --debug                                     Enable debug mode
-  -L, --log-level="info"                          Set the logging level (debug|info|warn|error|fatal)
-  -O, --output="text"                             Output format (json|text)
-  -V, --api-version="v16.0"                       the version of Whatsapp Cloud API to use
-  -b, --base-url="https://graph.facebook.com/"    the base URL of Whatsapp Cloud API to use
-  -p, --phone-id=STRING                           phone ID of Whatsapp Cloud API to use
-  -w, --waba-id=STRING                            whatsapp business account id
-  -T, --access-token=STRING                       access token of Whatsapp Cloud API to use
-  -t, --timeout=30                                http timeout for making api calls
-
-      --to=STRING                                 the recipient of the message
-  -m, --message=STRING                            the text to send
-  -P, --preview-url                               preview the url
-```
-
-Some things above like BaseURL have the default values set. So you can skip them.
-To send a simple text message you can run
-
-```bash
-
-./whatsapp send text  -T=<your access token> -p=<your phone id> -m="hello world" --to=<recipient-phone-number"
-
-```
-
 ## webhooks example
 
 ```go
@@ -190,3 +146,12 @@ func main() {
 }
 
 ```
+
+
+## Links
+
+### QR Codes
+
+- [Manage your WhatsApp Business platform QR code](https://web.facebook.com/business/help/890732351439459?_rdc=1&_rdr)
+
+- [Manage QR Code messages For Developers](https://developers.facebook.com/docs/whatsapp/business-management-api/qr-codes)
