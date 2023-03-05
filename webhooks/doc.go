@@ -20,7 +20,7 @@
 /*
 Package webhooks provides a simple way to create a webhooks server in Go.
 
-Webhook allows you to receive real-time HTTP notifications of changes to specific objects. For example,
+Webhook allows you to receive real-time http notifications of changes to specific objects. For example,
 we could send you a notification when a user sends you a message or when a message template's status has
 changed. This prevents you from having to query our APIs for changes to objects that may or may not have
 happened, and helps you avoid reaching your rate limit.

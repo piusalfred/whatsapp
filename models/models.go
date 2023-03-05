@@ -147,15 +147,15 @@ type (
 	//
 	//	- Link, link (string). Required when type is audio, document, image, sticker, or video, and you
 	//	  are not using an uploaded media ID (i.e. you are hosting the media asset on your server). The
-	//	  protocol and URL of the media to be sent. Use only with HTTP/HTTPS URLs. Do not use this field
+	//	  protocol and URL of the media to be sent. Use only with http/HTTPS URLs. Do not use this field
 	//	  when message type is set to text.
 	//
 	//		- Cloud API users only:
 	//
-	//		- See Media HTTP Caching if you would like us to cache the media asset for future messages.
+	//		- See Media http Caching if you would like us to cache the media asset for future messages.
 	//
 	//		- When we request the media asset from your server you must indicate the media's MIME type by including
-	//        the Content-Type HTTP header. For example: Content-Type: video/mp4. See Supported Media Types for a
+	//        the Content-Type http header. For example: Content-Type: video/mp4. See Supported Media Types for a
 	//        list of supported media and their MIME types.
 	//
 	//	- Caption, caption (string). For On-Premises API users on v2.41.2 or newer, this field is required when type
@@ -166,7 +166,7 @@ type (
 	//	   media. The extension of the filename will specify what format the document is displayed as in WhatsApp.
 	//
 	//	- Provider, provider (string). Optional. Only used for On-Premises API. This path is optionally used with a
-	//	  link when the HTTP/HTTPS link is not directly accessible and requires additional configurations like a bearer
+	//	  link when the http/HTTPS link is not directly accessible and requires additional configurations like a bearer
 	//	  token. For information on configuring providers, see the Media Providers documentation.
 	Media struct {
 		ID       string `json:"id,omitempty"`

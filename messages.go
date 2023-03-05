@@ -260,7 +260,12 @@ func React(ctx context.Context, client *http.Client, req *ReactRequest) (*whttp.
 		return nil, err
 	}
 
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	resp, err := whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	if err != nil {
+		return nil, fmt.Errorf("send reaction: %w", err)
+	}
+
+	return resp, nil
 }
 
 type SendContactRequest struct {
@@ -335,11 +340,11 @@ type ReplyRequest struct {
 //	}'
 func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*whttp.Response, error) {
 	if request == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("reply request is nil: %w", ErrNilRequest)
 	}
 	payload, err := formatReplyPayload(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reply: %w", err)
 	}
 
 	params := &whttp.RequestParams{
@@ -349,10 +354,15 @@ func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*wh
 
 	reqURL, err := whttp.CreateRequestURL(request.BaseURL, request.ApiVersion, request.PhoneNumberID, "messages")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reply: %w", err)
 	}
 
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	resp, err := whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	if err != nil {
+		return nil, fmt.Errorf("reply: %w", err)
+	}
+
+	return resp, nil
 }
 
 // formatReplyPayload builds the payload for a reply. It accepts ReplyRequest and returns a byte array
@@ -360,7 +370,7 @@ func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*wh
 func formatReplyPayload(options *ReplyRequest) ([]byte, error) {
 	contentByte, err := json.Marshal(options.Content)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("format reply payload: %w", err)
 	}
 	payloadBuilder := strings.Builder{}
 	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","context":{"message_id":"`)
@@ -374,6 +384,7 @@ func formatReplyPayload(options *ReplyRequest) ([]byte, error) {
 	payloadBuilder.WriteString(`":`)
 	payloadBuilder.Write(contentByte)
 	payloadBuilder.WriteString(`}`)
+
 	return []byte(payloadBuilder.String()), nil
 }
 
@@ -427,7 +438,7 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 CacheOptions contains the options on how to send a media message. You can specify either the
 ID or the link of the media. Also it allows you to specify caching options.
 
-The Cloud API supports media HTTP caching. If you are using a link (link) to a media asset on your
+The Cloud API supports media http caching. If you are using a link (link) to a media asset on your
 server (as opposed to the ID (id) of an asset you have uploaded to our servers),you can instruct us
 to cache your asset for reuse with future messages by including the headers below
 in your server response when we request the asset. If none of these headers are included, we will
@@ -493,7 +504,7 @@ type SendMediaRequest struct {
 SendMedia sends a media message to the recipient. To send a media message, make a POST call to the
 /PHONE_NUMBER_ID/messages endpoint with type parameter set to audio, document, image, sticker, or
 video, and the corresponding information for the media type such as its ID or
-link (see Media HTTP Caching).
+link (see Media http Caching).
 
 Be sure to keep the following in mind:
   - Uploaded media only lasts thirty days
@@ -588,7 +599,12 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) 
 		return nil, err
 	}
 
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	resp, err := whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	if err != nil {
+		return nil, fmt.Errorf("send media: %w", err)
+	}
+
+	return resp, nil
 }
 
 // formatMediaPayload builds the payload for a media message. It accepts SendMediaOptions

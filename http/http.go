@@ -131,7 +131,7 @@ func NewRequestWithContext(ctx context.Context, method, requestURL string, param
 		body = bytes.NewReader(payload)
 	}
 
-	// Create the HTTP request
+	// Create the http request
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new request: %w", err)

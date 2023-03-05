@@ -245,7 +245,7 @@ type (
 	//
 	// This is a snippet from the whatsapp documentation:
 	//
-	//		If we send a webhook request to your endpoint and your server responds with an HTTP status code other
+	//		If we send a webhook request to your endpoint and your server responds with an http status code other
 	//		than 200, or if we are unable to deliver the webhook for another reason, we will keep trying with
 	//		decreasing frequency until the request succeeds, for up to 7 days.
 	//
