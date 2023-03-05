@@ -380,3 +380,53 @@ func (client *Client) SendContacts(ctx context.Context, recipient string,
 
 	return resp, nil
 }
+
+// MarkMessageRead sends a read receipt for a message.
+func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*StatusResponse, error) {
+	baseURL := client.baseURL
+	phoneNumberID := client.PhoneNumberID()
+	apiVersion := client.version
+	accessToken := client.AccessToken()
+
+	reqURL, err := whttp.CreateRequestURL(baseURL, apiVersion, phoneNumberID, "/messages")
+	if err != nil {
+		return nil, fmt.Errorf("client mark message read: %w", err)
+	}
+	reqBody := &MessageStatusUpdateRequest{
+		MessagingProduct: "whatsapp",
+		Status:           MessageStatusRead,
+		MessageID:        messageID,
+	}
+
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("client mark message read: %w", err)
+	}
+
+	params := &whttp.RequestParams{
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Bearer:  accessToken,
+	}
+
+	request, err := whttp.NewRequestWithContext(ctx, http.MethodPost, reqURL, params, payload)
+	if err != nil {
+		return nil, fmt.Errorf("client mark message read: %w", err)
+	}
+
+	resp, err := client.http.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("client mark message read: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("client mark message read: status code: %d", resp.StatusCode)
+	}
+
+	var result StatusResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return nil, fmt.Errorf("client mark message read: %w", err)
+	}
+
+	return &result, nil
+}

@@ -30,6 +30,11 @@ import (
 	"github.com/piusalfred/whatsapp/models"
 )
 
+const (
+	// MessageStatusRead is the status for a read message
+	MessageStatusRead = "read"
+)
+
 type (
 	StatusResponse struct {
 		Success bool `json:"success,omitempty"`
