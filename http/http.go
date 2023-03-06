@@ -60,11 +60,13 @@ type (
 		Messages []*MessageID       `json:"messages,omitempty"`
 	}
 	RequestParams struct {
-		Name    string
-		Headers map[string]string
-		Query   map[string]string
-		Bearer  string
-		Form    map[string]string
+		Name      string
+		UrlParams *RequestUrlParts
+		Method    string
+		Headers   map[string]string
+		Query     map[string]string
+		Bearer    string
+		Form      map[string]string
 	}
 
 	RequestUrlParts struct {
