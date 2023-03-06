@@ -326,7 +326,8 @@ type (
 	//     ]
 	//   }]
 	// SubType,sub_type (string). Required when type=button. Not used for the other types. Type of button to create.
-	// Parameters,parameters array of objects. Required when type=button. Array of parameter objects with the content of the message.
+	// Parameters,parameters array of objects. Required when type=button. Array of parameter objects with
+	// the content of the message.
 	// For components of type=button, see the button parameter object.
 	// Index, index. Required when type=button. Not used for the other types. Only used for Cloud API.
 	// Position index of the button. You can have up to 3 buttons using index values of 0 to 2.
@@ -371,32 +372,32 @@ type (
 		Description string `json:"description,omitempty"`
 	}
 
-	/*
-		InteractiveSection contains information about a section in an interactive message.
-		A section object can contain the following parameters:
-			- ProductItems product_items, array of objects, Required for Multi-Product Messages. Array of product objects.
-		      There is a minimum of 1 product per section and a maximum of 30 products across all sections.
-		      Each product object contains the following field:
-		           - product_retailer_idstring – Required for Multi-Product Messages. Unique identifier of the product in a catalog.
-		             To get this ID, go to the Meta Commerce Manager, select your account and the shop you want to use. Then, click
-					 Catalog > Items, and find the item you want to mention. The ID for that item is displayed under the item's name.
-
-		    - Rows array of objects, Required for List Messages. Contains a list of rows. You can have a total of 10 rows across
-				  all sections. Each row must have a title (Maximum length: 24 characters) and an ID (Maximum length: 200 characters).
-				  You can add a description (Maximum length: 72 characters), but it is optional.
-
-				  - Example:
-
-						"rows": [
-							{
-								"id":"unique-row-identifier-here",
-								"title": "row-title-content-here",
-								"description": "row-description-content-here",
-							},
-						]
-
-		    - Title string. Required if the message has more than one section. Title of the section. Maximum length: 24 characters.
-	*/
+	// InteractiveSection contains information about a section in an interactive message.
+	// A section object can contain the following parameters:
+	//	- ProductItems product_items, array of objects, Required for Multi-Product Messages. Array of product objects.
+	//      There is a minimum of 1 product per section and a maximum of 30 products across all sections.
+	//      Each product object contains the following field:
+	//           - product_retailer_idstring – Required for Multi-Product Messages. Unique identifier of the
+	//             product in a catalog. To get this ID, go to the Meta Commerce Manager, select your account
+	//             and the shop you want to use. Then, click Catalog > Items, and find the item you want to mention.
+	//             The ID for that item is displayed under the item's name.
+	//
+	//    - Rows array of objects, Required for List Messages. Contains a list of rows. You can have a total of 10 rows across
+	//		  all sections. Each row must have a title (Maximum length: 24 characters) and an ID (Maximum length: 200 characters).
+	//		  You can add a description (Maximum length: 72 characters), but it is optional.
+	//
+	//		  - Example:
+	//
+	//				"rows": [
+	//					{
+	//						"id":"unique-row-identifier-here",
+	//						"title": "row-title-content-here",
+	//						"description": "row-description-content-here",
+	//					},
+	//				]
+	//
+	//    - Title string. Required if the message has more than one section. Title of the section.
+	//      Maximum length: 24 characters.
 	InteractiveSection struct {
 		Title        string                   `json:"title,omitempty"`
 		ProductItems []*Product               `json:"product_items,omitempty"`

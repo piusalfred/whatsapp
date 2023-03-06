@@ -29,7 +29,8 @@ If you can use the Business Manager to manage your QR codes instead of the API, 
 your WhatsApp QR Codes here https://web.facebook.com/business/help/890732351439459?_rdc=1&_rdr
 
 Before using this API in your application. You must have the following:
-  - The ID for the current phone number for your business (https://developers.facebook.com/docs/whatsapp/business-management-api/manage-phone-numbers#get-all-phone-numbers)
+  - The ID for the current phone number for your business
+    (https://developers.facebook.com/docs/whatsapp/business-management-api/manage-phone-numbers#get-all-phone-numbers)
   - A User access token requested by someone who is an admin for the Business Manager
   - The whatsapp_business_messages permission
 
@@ -99,7 +100,7 @@ This is an equivalent to the following curl command:
 	     ]
 		}
 
-# Retrive a single QR StatusCode
+# Retrieve a single QR StatusCode
 
 # Example Request
 

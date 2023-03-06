@@ -28,6 +28,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/piusalfred/whatsapp/qrcodes"
+
 	whttp "github.com/piusalfred/whatsapp/http"
 	"github.com/piusalfred/whatsapp/models"
 )
@@ -255,7 +257,6 @@ func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
 	return resp, nil
 }
 
-
 type ReactMessage struct {
 	MessageID string
 	Emoji     string
@@ -455,6 +456,95 @@ func (client *Client) SendTemplate(ctx context.Context, recipient string, req *T
 	}
 
 	resp, err := SendTemplate(ctx, client.http, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+////////////// QrCode
+
+func (client *Client) CreateQrCode(ctx context.Context, message *qrcodes.CreateRequest) (
+	*qrcodes.CreateResponse, error,
+) {
+	request := &qrcodes.CreateRequest{
+		PrefilledMessage: message.PrefilledMessage,
+		ImageFormat:      message.ImageFormat,
+	}
+
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+	resp, err := qrcodes.Create(ctx, client.http, rctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) ListQrCodes(ctx context.Context) (*qrcodes.ListResponse, error) {
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+
+	resp, err := qrcodes.List(ctx, client.http, rctx)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) GetQrCode(ctx context.Context, qrCodeID string) (*qrcodes.Information, error) {
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+
+	resp, err := qrcodes.Get(ctx, client.http, rctx, qrCodeID)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) UpdateQrCode(ctx context.Context, qrCodeID string, request *qrcodes.CreateRequest,
+) (*qrcodes.SuccessResponse, error) {
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+
+	resp, err := qrcodes.Update(ctx, client.http, rctx, qrCodeID, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) DeleteQrCode(ctx context.Context, qrCodeID string) (*qrcodes.SuccessResponse, error) {
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+
+	resp, err := qrcodes.Delete(ctx, client.http, rctx, qrCodeID)
 	if err != nil {
 		return nil, fmt.Errorf("client: %w", err)
 	}
