@@ -9,3 +9,6 @@ build-cli:
 
 format:
 	go fmt ./... && find . -type f -name "*.go" | cut -c 3- | xargs -I{} gofumpt -w "{}"
+
+gci:
+	find . -type f -name "*.go" | cut -c 3- | xargs -I{} gci write -s standard -s default -s "prefix(github.com/piusalfred/whatsapp)" "{}"

@@ -234,17 +234,16 @@ func Send(ctx context.Context, client *http.Client, request *Request, v any, hoo
 	}
 
 	response, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("http send: %w", err)
+	}
 	defer func() {
 		if response != nil && response.Body != nil {
 			response.Body.Close()
 		}
 	}()
-	if err != nil {
-		return fmt.Errorf("http send: %w", err)
-	}
 
-	// Execute the response hooks
-	executeResponseHooks(ctx, response, hooks)
+	defer executeResponseHooks(ctx, response, hooks)
 
 	if response.Body == nil && v == nil {
 		return nil

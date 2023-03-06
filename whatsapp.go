@@ -27,10 +27,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/piusalfred/whatsapp/qrcodes"
-
 	whttp "github.com/piusalfred/whatsapp/http"
 	"github.com/piusalfred/whatsapp/models"
+	"github.com/piusalfred/whatsapp/qrcodes"
 )
 
 var ErrNilRequest = errors.New("nil request")
@@ -524,4 +523,21 @@ func (client *Client) DeleteQrCode(ctx context.Context, qrCodeID string) (*qrcod
 	}
 
 	return resp, nil
+}
+
+////// PHONE NUMBERS
+
+func (client *Client) RequestVerificationMethod(ctx context.Context, codeMethod string, language string) error {
+	if err := RequestCode(ctx, client.http, &VerificationCodeRequest{
+		Token:         client.AccessToken(),
+		BaseURL:       client.baseURL,
+		ApiVersion:    client.version,
+		PhoneNumberID: client.PhoneNumberID(),
+		CodeMethod:    codeMethod,
+		Language:      language,
+	}); err != nil {
+		return fmt.Errorf("client: %w", err)
+	}
+
+	return nil
 }
