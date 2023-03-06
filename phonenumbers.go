@@ -100,7 +100,7 @@ type (
 //	 -F 'code_method=SMS' \
 //	 -F 'language=en'
 func RequestCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest) error {
-	params := &whttp.RequestParams{
+	params := &whttp.Request{
 		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 		Query:   nil,
 		Form:    map[string]string{"code_method": req.CodeMethod, "language": req.Language},
@@ -137,7 +137,7 @@ func RequestCode(ctx context.Context, client *http.Client, req *VerificationCode
 //	 "success": true
 //	}
 func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest, code string) error {
-	params := &whttp.RequestParams{
+	params := &whttp.Request{
 		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 		Query:   nil,
 		Bearer:  req.Token,
@@ -236,7 +236,7 @@ type ListPhoneNumbersRequest struct {
 //	   }
 //	}
 func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, req *ListPhoneNumbersRequest) (*PhoneNumbersList, error) {
-	params := &whttp.RequestParams{
+	params := &whttp.Request{
 		Query: map[string]string{"access_token": req.Token},
 	}
 	if req.FilterParams != nil {

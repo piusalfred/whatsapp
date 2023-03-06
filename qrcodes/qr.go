@@ -75,32 +75,27 @@ func Create(ctx context.Context, client *http.Client, rtx *RequestContext,
 		"generate_qr_image": string(req.ImageFormat),
 		"access_token":      rtx.AccessToken,
 	}
-	params := &whttp.RequestParams{
-		Query: queryParams,
+	reqCtx := &whttp.RequestContext{
+		Name:       "create qr code",
+		BaseURL:    rtx.BaseURL,
+		ApiVersion: rtx.ApiVersion,
+		SenderID:   rtx.PhoneID,
+		Endpoints:  []string{"message_qrdls"},
+	}
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
+		Query:   queryParams,
 	}
 
-	reqURL, err := whttp.CreateRequestURL(rtx.BaseURL, rtx.ApiVersion, rtx.PhoneID, "message_qrdls")
+	var response CreateResponse
+
+	err := whttp.Send(ctx, client, params, &response)
 	if err != nil {
 		return nil, fmt.Errorf("qr code create: %w", err)
 	}
 
-	response, err := whttp.Send(ctx, client, http.MethodPost, reqURL, params, nil)
-	if err != nil {
-		return nil, fmt.Errorf("qr code create: %w", err)
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("qr code create: %w: status code: %d", ErrUnexpectedResponseCode, response.StatusCode)
-	}
-
-	resp := CreateResponse{}
-	err = json.NewDecoder(response.Body).Decode(&resp)
-	if err != nil {
-		return nil, fmt.Errorf("qr code create: %w", err)
-	}
-
-	return &resp, nil
+	return &response, nil
 }
 
 func List(ctx context.Context, client *http.Client, rctx *RequestContext) (*ListResponse, error) {
@@ -110,11 +105,11 @@ func List(ctx context.Context, client *http.Client, rctx *RequestContext) (*List
 	)
 	requestURL, err := url.JoinPath(rctx.BaseURL, rctx.ApiVersion, rctx.PhoneID, "message_qrdls")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("qr code list: %w", err)
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("qr code list: %w", err)
 	}
 
 	q := request.URL.Query()
@@ -123,7 +118,7 @@ func List(ctx context.Context, client *http.Client, rctx *RequestContext) (*List
 
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("qr code list: %w", err)
 	}
 
 	if response.StatusCode != http.StatusOK {
@@ -134,7 +129,7 @@ func List(ctx context.Context, client *http.Client, rctx *RequestContext) (*List
 		defer response.Body.Close()
 		respBody, err = io.ReadAll(response.Body)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("qr code list: %w", err)
 		}
 	}
 

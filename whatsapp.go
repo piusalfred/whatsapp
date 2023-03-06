@@ -21,7 +21,6 @@ package whatsapp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -70,6 +69,19 @@ const (
 )
 
 type (
+	ResponseMessage struct {
+		Product  string             `json:"messaging_product,omitempty"`
+		Contacts []*ResponseContact `json:"contacts,omitempty"`
+		Messages []*MessageID       `json:"messages,omitempty"`
+	}
+	MessageID struct {
+		ID string `json:"id,omitempty"`
+	}
+
+	ResponseContact struct {
+		Input      string `json:"input"`
+		WhatsappID string `json:"wa_id"`
+	}
 
 	// MessageType represents the type of message currently supported.
 	// Which are Text messages,Reaction messages,Media messages,Location messages,Contact messages,
@@ -214,7 +226,7 @@ type TextMessage struct {
 // SendTextMessage sends a text message to a WhatsApp Business Account.
 func (client *Client) SendTextMessage(ctx context.Context, recipient string,
 	message *TextMessage,
-) (*whttp.Response, error) {
+) (*ResponseMessage, error) {
 	httpC := client.http
 	request := &SendTextRequest{
 		BaseURL:       client.baseURL,
@@ -236,7 +248,7 @@ func (client *Client) SendTextMessage(ctx context.Context, recipient string,
 // SendLocationMessage sends a location message to a WhatsApp Business Account.
 func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
 	message *models.Location,
-) (*whttp.Response, error) {
+) (*ResponseMessage, error) {
 	request := &SendLocationRequest{
 		BaseURL:       client.baseURL,
 		AccessToken:   client.accessToken,
@@ -262,7 +274,7 @@ type ReactMessage struct {
 	Emoji     string
 }
 
-func (client *Client) React(ctx context.Context, recipient string, req *ReactMessage) (*whttp.Response, error) {
+func (client *Client) React(ctx context.Context, recipient string, req *ReactMessage) (*ResponseMessage, error) {
 	request := &ReactRequest{
 		BaseURL:       client.baseURL,
 		AccessToken:   client.AccessToken(),
@@ -293,7 +305,7 @@ type MediaMessage struct {
 // SendMedia sends a media message to the recipient.
 func (client *Client) SendMedia(ctx context.Context, recipient string, req *MediaMessage,
 	cacheOptions *CacheOptions,
-) (*whttp.Response, error) {
+) (*ResponseMessage, error) {
 	request := &SendMediaRequest{
 		BaseURL:       client.baseURL,
 		AccessToken:   client.AccessToken(),
@@ -326,7 +338,7 @@ type ReplyMessage struct {
 	Content any
 }
 
-func (client *Client) Reply(ctx context.Context, recipient string, req *ReplyMessage) (*whttp.Response, error) {
+func (client *Client) Reply(ctx context.Context, recipient string, req *ReplyMessage) (*ResponseMessage, error) {
 	request := &ReplyRequest{
 		BaseURL:       client.baseURL,
 		AccessToken:   client.AccessToken(),
@@ -346,92 +358,55 @@ func (client *Client) Reply(ctx context.Context, recipient string, req *ReplyMes
 	return resp, nil
 }
 
-func (client *Client) SendContacts(ctx context.Context, recipient string,
-	contacts *models.Contacts,
-) (*whttp.Response, error) {
-	contact := &models.Message{
-		Product:       "whatsapp",
-		To:            recipient,
-		RecipientType: "individual",
-		Type:          "contact",
+func (client *Client) SendContacts(ctx context.Context, recipient string, contacts *models.Contacts) (*ResponseMessage, error) {
+
+	req := &SendContactRequest{
+		BaseURL:       client.baseURL,
+		AccessToken:   client.AccessToken(),
+		PhoneNumberID: client.PhoneNumberID(),
+		ApiVersion:    client.version,
+		Recipient:     recipient,
 		Contacts:      contacts,
 	}
-	payload, err := json.Marshal(contact)
-	if err != nil {
-		return nil, fmt.Errorf("client send contacts: marshal contact: %w", err)
-	}
 
-	baseURL := client.baseURL
-	apiVersion := client.version
-	phoneNumberID := client.PhoneNumberID()
-	accessToken := client.AccessToken()
-
-	params := &whttp.RequestParams{
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  accessToken,
-	}
-
-	reqURL, err := whttp.CreateRequestURL(baseURL, apiVersion, phoneNumberID, "messages")
-	if err != nil {
-		return nil, fmt.Errorf("client send contacts: create request url: %w", err)
-	}
-
-	resp, err := whttp.SendMessage(ctx, client.http, http.MethodPost, reqURL, params, payload)
+	resp, err := SendContact(ctx, client.http, req)
 	if err != nil {
 		return nil, fmt.Errorf("client: %w", err)
 	}
-
 	return resp, nil
 }
 
 // MarkMessageRead sends a read receipt for a message.
 func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*StatusResponse, error) {
-	baseURL := client.baseURL
-	phoneNumberID := client.PhoneNumberID()
-	apiVersion := client.version
-	accessToken := client.AccessToken()
-
-	reqURL, err := whttp.CreateRequestURL(baseURL, apiVersion, phoneNumberID, "/messages")
-	if err != nil {
-		return nil, fmt.Errorf("client mark message read: %w", err)
-	}
 	reqBody := &MessageStatusUpdateRequest{
 		MessagingProduct: "whatsapp",
 		Status:           MessageStatusRead,
 		MessageID:        messageID,
 	}
 
-	payload, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("client mark message read: %w", err)
+	reqCtx := &whttp.RequestContext{
+		Name:       "mark read",
+		BaseURL:    client.baseURL,
+		ApiVersion: client.version,
+		SenderID:   client.phoneNumberID,
+		Endpoints:  []string{"/messages"},
 	}
 
-	params := &whttp.RequestParams{
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  accessToken,
+		Bearer:  client.AccessToken(),
+		Payload: reqBody,
 	}
 
-	request, err := whttp.NewRequestWithContext(ctx, http.MethodPost, reqURL, params, payload)
+	var success StatusResponse
+	err := whttp.Send(ctx, client.http, params, &success)
 	if err != nil {
-		return nil, fmt.Errorf("client mark message read: %w", err)
+		return nil, fmt.Errorf("client: %w", err)
 	}
 
-	resp, err := client.http.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("client mark message read: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("client mark message read: status code: %d", resp.StatusCode)
-	}
-
-	var result StatusResponse
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		return nil, fmt.Errorf("client mark message read: %w", err)
-	}
-
-	return &result, nil
+	return &success, nil
 }
 
 type Template struct {
@@ -442,7 +417,7 @@ type Template struct {
 }
 
 // SendTemplate sends a template message to the recipient.
-func (client *Client) SendTemplate(ctx context.Context, recipient string, req *Template) (*whttp.Response, error) {
+func (client *Client) SendTemplate(ctx context.Context, recipient string, req *Template) (*ResponseMessage, error) {
 	request := &SendTemplateRequest{
 		BaseURL:                client.baseURL,
 		AccessToken:            client.AccessToken(),

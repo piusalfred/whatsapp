@@ -36,74 +36,56 @@ import (
 const BaseURL = "https://graph.facebook.com"
 
 type (
-	// Response is the response from the WhatsApp server
-	// Example:
-	//		{
-	//	  		"messaging_product": "whatsapp",
-	//	  		"contacts": [{
-	//	      		"input": "PHONE_NUMBER",
-	//	      		"wa_id": "WHATSAPP_ID",
-	//	    	}]
-	//	  		"messages": [{
-	//	      		"id": "wamid.ID",
-	//	    	}]
-	//		}
-	Response struct {
-		StatusCode int                 `json:"status_code,omitempty"`
-		Headers    map[string][]string `json:"headers,omitempty"`
-		Message    *ResponseMessage    `json:"message,omitempty"`
+	// Request is a struct that holds the details that can be used to make a http request.
+	// It is used by the Send function to make a request.
+	// It contains Payload which is an interface that can be used to pass any data type
+	// to the Send function. Payload is expected to be a struct that can be marshalled
+	// to json, or a slice of bytes or an io.Reader.
+	Request struct {
+		Context *RequestContext
+		Method  string
+		Headers map[string]string
+		Query   map[string]string
+		Bearer  string
+		Form    map[string]string
+		Payload any
 	}
 
-	ResponseMessage struct {
-		Product  string             `json:"messaging_product,omitempty"`
-		Contacts []*ResponseContact `json:"contacts,omitempty"`
-		Messages []*MessageID       `json:"messages,omitempty"`
-	}
-	RequestParams struct {
-		Name      string
-		UrlParams *RequestUrlParts
-		Method    string
-		Headers   map[string]string
-		Query     map[string]string
-		Bearer    string
-		Form      map[string]string
-	}
+	RequestOption func(*Request)
 
-	RequestUrlParts struct {
+	RequestContext struct {
+		Name       string
 		BaseURL    string
 		ApiVersion string
 		SenderID   string
 		Endpoints  []string
 	}
 
-	ResponseError struct {
-		Code int            `json:"code,omitempty"`
-		Err  *werrors.Error `json:"error,omitempty"`
-	}
-
-	Sender func(ctx context.Context, client *http.Client, params *RequestParams, payload []byte) (*Response, error)
-
-	SenderMiddleware func(next Sender) Sender
-
-	MessageID struct {
-		ID string `json:"id,omitempty"`
-	}
-
-	ResponseContact struct {
-		Input      string `json:"input"`
-		WhatsappID string `json:"wa_id"`
-	}
+	// ResponseHook is a function that takes a context and *http.Response and returns nothing.
+	// It is used to execute a function after a request has been made and response received.
+	// Send calls multiple hooks and pass the returned *http.Response Do not close the response body
+	// in your hooks implementations as it is closed by the Send function.
+	ResponseHook func(ctx context.Context, response *http.Response)
 )
 
-// JoinUrlParts joins the elements of url parts into a single url string.
-func JoinUrlParts(parts *RequestUrlParts) (string, error) {
+// executeResponseHooks take a context, *http.Response and a slice of ResponseHook and executes
+// each hook in the slice.
+func executeResponseHooks(ctx context.Context, response *http.Response, hooks []ResponseHook) {
+	// range over the hooks and execute each one
+	for i := 0; i < len(hooks); i++ {
+		hooks[i](ctx, response)
+	}
+}
+
+// requestURLFromContext joins the elements of url parts into a single url string.
+func requestURLFromContext(parts *RequestContext) (string, error) {
 	return CreateRequestURL(parts.BaseURL, parts.ApiVersion, parts.SenderID, parts.Endpoints...)
 }
 
 // CreateRequestURL creates a new request url by joining the base url, api version
 // sender id and endpoints.
 // It is called by the NewRequestWithContext function where these details are
-// passed from the RequestParams.
+// passed from the Request.
 func CreateRequestURL(baseURL, apiVersion, senderID string, endpoints ...string) (string, error) {
 	elems := append([]string{apiVersion, senderID}, endpoints...)
 
@@ -115,46 +97,101 @@ func CreateRequestURL(baseURL, apiVersion, senderID string, endpoints ...string)
 	return path, nil
 }
 
-func NewRequestWithContext(ctx context.Context, method, requestURL string, params *RequestParams,
-	payload []byte,
-) (*http.Request, error) {
+func NewRequest(ctx context.Context, options ...RequestOption) (*http.Request, error) {
+	request := &Request{
+		Context: &RequestContext{
+			BaseURL:    BaseURL,
+			ApiVersion: "v16.0",
+		},
+		Method:  http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/json"},
+	}
+	for _, option := range options {
+		option(request)
+	}
+	return NewRequestWithContext(ctx, request)
+}
+
+func WithContext(ctx *RequestContext) RequestOption {
+	return func(request *Request) {
+		request.Context = ctx
+	}
+}
+
+func WithMethod(method string) RequestOption {
+	return func(request *Request) {
+		request.Method = method
+	}
+}
+
+func WithHeaders(headers map[string]string) RequestOption {
+	return func(request *Request) {
+		request.Headers = headers
+	}
+}
+
+func WithQuery(query map[string]string) RequestOption {
+	return func(request *Request) {
+		request.Query = query
+	}
+}
+
+func WithBearer(bearer string) RequestOption {
+	return func(request *Request) {
+		request.Bearer = bearer
+	}
+}
+func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request, error) {
+	if request == nil {
+		return nil, errors.New("request cannot be nil")
+	}
 	var (
 		body io.Reader
 		req  *http.Request
 	)
-	if params.Form != nil {
+	if request.Form != nil {
 		form := url.Values{}
-		for key, value := range params.Form {
+		for key, value := range request.Form {
 			form.Add(key, value)
 		}
 		body = strings.NewReader(form.Encode())
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	} else if payload != nil {
-		body = bytes.NewReader(payload)
+	} else if request.Payload != nil {
+		rdr, err := extractPayloadFromRequest(request.Payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract payload from request: %w", err)
+		}
+
+		body = rdr
+	}
+
+	requestURL, err := requestURLFromContext(request.Context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request url: %w", err)
 	}
 
 	// Create the http request
-	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
+	req, err = http.NewRequestWithContext(ctx, request.Method, requestURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new request: %w", err)
 	}
 
 	// Set the request headers
-	if params.Headers != nil {
-		for key, value := range params.Headers {
+	if request.Headers != nil {
+		for key, value := range request.Headers {
 			req.Header.Set(key, value)
 		}
 	}
 
 	// Set the bearer token header
-	if params.Bearer != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", params.Bearer))
+	if request.Bearer != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", request.Bearer))
 	}
 
 	// Add the query parameters to the request URL
-	if params.Query != nil {
+	if request.Query != nil {
 		query := req.URL.Query()
-		for key, value := range params.Query {
+		for key, value := range request.Query {
 			query.Add(key, value)
 		}
 		req.URL.RawQuery = query.Encode()
@@ -163,72 +200,93 @@ func NewRequestWithContext(ctx context.Context, method, requestURL string, param
 	return req, nil
 }
 
-func SendMessage(ctx context.Context, client *http.Client, method, url string,
-	params *RequestParams, payload []byte,
-) (*Response, error) {
-	var (
-		resp      *http.Response
-		err       error
-		bodyBytes []byte
-	)
-
-	if resp, err = Send(ctx, client, method, url, params, payload); err != nil {
-		return nil, err
+func extractPayloadFromRequest(payload interface{}) (io.Reader, error) {
+	if payload != nil {
+		// Payload is expected to be a struct that can be marshalled to json, or a slice
+		// of bytes or an io.Reader.
+		// We need to check the type of the payload and convert it to an io.Reader
+		// if it is not already.
+		switch payload.(type) {
+		case []byte:
+			return bytes.NewReader(payload.([]byte)), nil
+		case io.Reader:
+			return payload.(io.Reader), nil
+		case string:
+			return strings.NewReader(payload.(string)), nil
+		default:
+			payload, err := json.Marshal(payload)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal payload: %w", err)
+			}
+			return bytes.NewReader(payload), nil
+		}
 	}
 
-	defer resp.Body.Close()
+	// FIXME
+	return nil, nil
+}
 
-	if resp.Body == nil {
-		return nil, fmt.Errorf("empty response body")
+func Send(ctx context.Context, client *http.Client, request *Request, v any, hooks ...ResponseHook) error {
+	req, err := NewRequestWithContext(ctx, request)
+	if err != nil {
+		return fmt.Errorf("http send: %w", err)
+	}
+
+	response, err := client.Do(req)
+	defer func() {
+		if response != nil && response.Body != nil {
+			response.Body.Close()
+		}
+	}()
+	if err != nil {
+		return fmt.Errorf("http send: %w", err)
+	}
+
+	// Execute the response hooks
+	executeResponseHooks(ctx, response, hooks)
+
+	if response.Body == nil && v == nil {
+		return nil
 	}
 
 	buff := new(bytes.Buffer)
-	_, err = io.Copy(buff, resp.Body)
+	_, err = io.Copy(buff, response.Body)
 	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, err
+		return fmt.Errorf("http send: %w", err)
 	}
-	bodyBytes = buff.Bytes()
+	bodyBytes := buff.Bytes()
 
-	if resp.StatusCode != http.StatusOK {
+	// Sometimes when there is an error, the response body is not empty
+	// as the error description is returned in the body. So we need to
+	// check the status code and the body to determine if there is an error
+	isResponseOk := response.StatusCode >= 200 && response.StatusCode <= 299
+	bodyIsEmpty := len(bodyBytes) == 0
+	if !isResponseOk && !bodyIsEmpty {
 		var errResponse ResponseError
 		if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&errResponse); err != nil {
-			return nil, err
+			return fmt.Errorf("http send: status (%d): body (%s): %w", response.StatusCode, string(bodyBytes), err)
 		}
-		errResponse.Code = resp.StatusCode
+		errResponse.Code = response.StatusCode
 
-		return nil, &errResponse
+		return &errResponse
 	}
 
-	var (
-		response Response
-		message  ResponseMessage
-	)
-
-	if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&message); err != nil {
-		return nil, fmt.Errorf("failed to decode response body: %w", err)
+	// Response is OK and the body is available
+	if isResponseOk && !bodyIsEmpty {
+		if v != nil {
+			if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(v); err != nil {
+				return fmt.Errorf("http send: status (%d): body (%s): %w", response.StatusCode, string(bodyBytes), err)
+			}
+			return nil
+		}
 	}
-	response.StatusCode = resp.StatusCode
-	response.Headers = resp.Header
-	response.Message = &message
 
-	return &response, nil
+	return nil
 }
 
-// Send sends a http request and returns a *http.Response or an error.
-func Send(ctx context.Context, client *http.Client, method, url string,
-	params *RequestParams, payload []byte,
-) (*http.Response, error) {
-	req, err := NewRequestWithContext(ctx, method, url, params, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %s: %w", strings.ToLower(params.Name), err)
-	}
-
-	return resp, nil
+type ResponseError struct {
+	Code int            `json:"code,omitempty"`
+	Err  *werrors.Error `json:"error,omitempty"`
 }
 
 // Error returns the error message for ResponseError.
