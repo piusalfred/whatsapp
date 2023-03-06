@@ -62,13 +62,13 @@ func testServer(t *testing.T, ctx *Context) *httptest.Server {
 	return httptest.NewServer(handler)
 }
 
-func TestSend(t *testing.T) {
-	type User struct {
-		Name string `json:"name"`
-		Age  int    `json:"age"`
-		Male bool   `json:"male"`
-	}
+type User struct {
+	Name string `json:"name"`
+	Age  int    `json:"age"`
+	Male bool   `json:"male"`
+}
 
+func TestSend(t *testing.T) {
 	ctx := &Context{
 		Method:     http.MethodGet,
 		StatusCode: http.StatusOK,
@@ -104,6 +104,16 @@ func TestSend(t *testing.T) {
 	var user User
 	if err := Send(context.TODO(), http.DefaultClient, request, &user); err != nil {
 		t.Errorf("failed to send request: %v", err)
+	}
+
+	// Compare the response body with the expected response body
+	usr, ok := ctx.Body.(*User)
+	if !ok {
+		t.Errorf("failed to cast body to user type")
+	}
+
+	if user != *usr {
+		t.Errorf("response body mismatch: got %v, want %v", user, *usr)
 	}
 
 	t.Logf("user: %+v", user)

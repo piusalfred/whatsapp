@@ -239,7 +239,9 @@ type ListPhoneNumbersRequest struct {
 //		}
 //	   }
 //	}
-func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, req *ListPhoneNumbersRequest) (*PhoneNumbersList, error) {
+func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, req *ListPhoneNumbersRequest) (
+	*PhoneNumbersList, error,
+) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "list phone numbers",
 		BaseURL:    req.BaseURL,
