@@ -359,7 +359,6 @@ func (client *Client) Reply(ctx context.Context, recipient string, req *ReplyMes
 }
 
 func (client *Client) SendContacts(ctx context.Context, recipient string, contacts *models.Contacts) (*ResponseMessage, error) {
-
 	req := &SendContactRequest{
 		BaseURL:       client.baseURL,
 		AccessToken:   client.AccessToken(),

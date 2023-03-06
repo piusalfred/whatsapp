@@ -20,20 +20,21 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
-type context struct {
+type Context struct {
 	Method     string
 	StatusCode int
 	Headers    map[string]string
 	Body       interface{}
 }
 
-func testServer(t *testing.T, ctx *context) *httptest.Server {
+func testServer(t *testing.T, ctx *Context) *httptest.Server {
 	t.Helper()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != ctx.Method {
@@ -62,33 +63,50 @@ func testServer(t *testing.T, ctx *context) *httptest.Server {
 }
 
 func TestSend(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		method string
-		url    string
-		status int
-		header map[string]string
-		body   interface{}
+	type User struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+		Male bool   `json:"male"`
 	}
 
-	tests := []struct {
-		name    string
-		args    args
-		result  interface{}
-		wantErr bool
-	}{
-		{
-			name: "test send request",
-			args: args{
-				method: http.MethodGet,
-				url:    "https://graph.facebook.com/v16.0/224225226/verify_code",
-			},
-			result: &Response{
-				StatusCode: http.StatusOK,
-				Body:       nil,
-			},
+	ctx := &Context{
+		Method:     http.MethodGet,
+		StatusCode: http.StatusOK,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body: &User{
+			Name: "Pius Alfred",
+			Age:  77,
+			Male: true,
 		},
 	}
+
+	server := testServer(t, ctx)
+	defer server.Close()
+
+	reqCtx := &RequestContext{
+		Name:       "test",
+		BaseURL:    server.URL,
+		ApiVersion: "",
+		SenderID:   "",
+		Endpoints:  nil,
+	}
+
+	request := &Request{
+		Context: reqCtx,
+		Method:  http.MethodGet,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Query:   nil,
+		Bearer:  "",
+		Form:    nil,
+		Payload: nil,
+	}
+
+	var user User
+	if err := Send(context.TODO(), http.DefaultClient, request, &user); err != nil {
+		t.Errorf("failed to send request: %v", err)
+	}
+
+	t.Logf("user: %+v", user)
 }
 
 func TestCreateRequestURL(t *testing.T) {

@@ -61,14 +61,14 @@ type (
 		Endpoints  []string
 	}
 
-	// ResponseHook is a function that takes a context and *http.Response and returns nothing.
+	// ResponseHook is a function that takes a Context and *http.Response and returns nothing.
 	// It is used to execute a function after a request has been made and response received.
 	// Send calls multiple hooks and pass the returned *http.Response Do not close the response body
 	// in your hooks implementations as it is closed by the Send function.
 	ResponseHook func(ctx context.Context, response *http.Response)
 )
 
-// executeResponseHooks take a context, *http.Response and a slice of ResponseHook and executes
+// executeResponseHooks take a Context, *http.Response and a slice of ResponseHook and executes
 // each hook in the slice.
 func executeResponseHooks(ctx context.Context, response *http.Response, hooks []ResponseHook) {
 	// range over the hooks and execute each one
@@ -141,6 +141,7 @@ func WithBearer(bearer string) RequestOption {
 		request.Bearer = bearer
 	}
 }
+
 func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request, error) {
 	if request == nil {
 		return nil, errors.New("request cannot be nil")
