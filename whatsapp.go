@@ -246,6 +246,7 @@ func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
 		Latitude:      message.Latitude,
 		Longitude:     message.Longitude,
 	}
+
 	resp, err := SendLocation(ctx, client.http, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send location message: %w", err)
@@ -253,6 +254,7 @@ func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
 
 	return resp, nil
 }
+
 
 type ReactMessage struct {
 	MessageID string
