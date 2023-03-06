@@ -26,7 +26,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
+
+	whttp "github.com/piusalfred/whatsapp/http"
 )
 
 const (
@@ -196,8 +197,8 @@ type (
 //}
 
 // GetMedia retrieve the media object by using its corresponding media ID.
-func GetMedia(ctx context.Context, client *http.Client, token string, id string) (*Media, error) {
-	req, err := whttp.NewRequestWithContext(ctx, http.MethodGet, "", nil, nil)
+func GetMedia(ctx context.Context, client *http.Client, id string) (*Media, error) {
+	req, err := whttp.NewRequestWithContext(ctx, &whttp.Request{})
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +210,6 @@ func GetMedia(ctx context.Context, client *http.Client, token string, id string)
 	defer resp.Body.Close()
 
 	media := new(Media)
-
 	err = json.NewDecoder(resp.Body).Decode(media)
 	if err != nil {
 		return nil, err
@@ -227,51 +227,27 @@ type DownloadMediaRequest struct {
 
 // DownloadMedia downloads a media file from the given URL. It accepts a DownloadMediaRequest
 // and returns a byte array and an error.
-func DownloadMedia(ctx context.Context, client *http.Client, options *DownloadMediaRequest) ([]byte, error) {
-	// create output file
-	outputFile, err := os.Create(options.OutputFilePath)
+func DownloadMedia(ctx context.Context, client *http.Client, url string) (io.Reader, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer outputFile.Close()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, options.MediaURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", options.Token))
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to download media: %s", string(""))
+	}
+
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, resp.Body)
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	resp.Body = io.NopCloser(bytes.NewBuffer(buf.Bytes()))
 
-	// Write the body to file
-
-	_, err = io.Copy(outputFile, resp.Body)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download media: %s", string(bodyBytes))
-	}
-
-	// write to file
-	_, cpErr := io.Copy(outputFile, bytes.NewReader(bodyBytes))
-	if cpErr != nil {
-		return nil, cpErr
-	}
-
-	return bodyBytes, nil
+	return &buf, nil
 }
