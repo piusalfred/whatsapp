@@ -375,7 +375,7 @@ func (client *Client) SendContacts(ctx context.Context, recipient string,
 
 	resp, err := whttp.SendMessage(ctx, client.http, http.MethodPost, reqURL, params, payload)
 	if err != nil {
-		return nil, fmt.Errorf("client send contacts: %w", err)
+		return nil, fmt.Errorf("client: %w", err)
 	}
 
 	return resp, nil
@@ -429,4 +429,33 @@ func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*S
 	}
 
 	return &result, nil
+}
+
+type Template struct {
+	LanguageCode   string
+	LanguagePolicy string
+	Name           string
+	Components     []*models.TemplateComponent
+}
+
+// SendTemplate sends a template message to the recipient.
+func (client *Client) SendTemplate(ctx context.Context, recipient string, req *Template) (*whttp.Response, error) {
+	request := &SendTemplateRequest{
+		BaseURL:                client.baseURL,
+		AccessToken:            client.AccessToken(),
+		PhoneNumberID:          client.PhoneNumberID(),
+		ApiVersion:             client.version,
+		Recipient:              recipient,
+		TemplateLanguageCode:   req.LanguageCode,
+		TemplateLanguagePolicy: req.LanguagePolicy,
+		TemplateName:           req.Name,
+		TemplateComponents:     req.Components,
+	}
+
+	resp, err := SendTemplate(ctx, client.http, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
 }

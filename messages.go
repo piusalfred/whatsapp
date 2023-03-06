@@ -390,14 +390,19 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 
 	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send template: %w", err)
 	}
 	payload, err := json.Marshal(template)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send template: %w", err)
 	}
 
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	resp, err := whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	if err != nil {
+		return nil, fmt.Errorf("send template: %w", err)
+	}
+
+	return resp, nil
 }
 
 /*
