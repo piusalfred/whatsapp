@@ -22,6 +22,7 @@ package whatsapp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,6 +37,15 @@ const (
 )
 
 type (
+	Media struct {
+		MessagingProduct string `json:"messaging_product"`
+		URL              string `json:"url"`
+		MimeType         string `json:"mime_type"`
+		Sha256           string `json:"sha256"`
+		FileSize         string `json:"file_size"`
+		ID               string `json:"id"`
+	}
+
 	// MediaOp represents the operations that can be performed on media. There are 4 different
 	// operations that can be performed on media:
 	// 	- POST /PHONE_NUMBER_ID/media Upload media.
@@ -184,6 +194,29 @@ type (
 //func UploadMedia(ctx context.Context, client *http.Client, params *whttp.Request, options *UploadMediaRequest) (*whttp.Response, error) {
 //	return nil, nil
 //}
+
+// GetMedia retrieve the media object by using its corresponding media ID.
+func GetMedia(ctx context.Context, client *http.Client, token string, id string) (*Media, error) {
+	req, err := whttp.NewRequestWithContext(ctx, http.MethodGet, "", nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	media := new(Media)
+
+	err = json.NewDecoder(resp.Body).Decode(media)
+	if err != nil {
+		return nil, err
+	}
+
+	return media, nil
+}
 
 type DownloadMediaRequest struct {
 	OutputFilePath string // The path to the file where the media will be downloaded to.
