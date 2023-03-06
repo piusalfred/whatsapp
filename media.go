@@ -26,8 +26,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-
-	whttp "github.com/piusalfred/whatsapp/http"
 )
 
 const (
@@ -183,9 +181,9 @@ type (
 // size we currently support: 100MB. Please communicate with your customer to send a media file that is smaller than 100MB"_.
 // We advise that you send customers a warning message that their media file exceeds the maximum file size when this webhook
 // event is triggered.
-func UploadMedia(ctx context.Context, client *http.Client, params *whttp.RequestParams, options *UploadMediaRequest) (*whttp.Response, error) {
-	return nil, nil
-}
+//func UploadMedia(ctx context.Context, client *http.Client, params *whttp.Request, options *UploadMediaRequest) (*whttp.Response, error) {
+//	return nil, nil
+//}
 
 type DownloadMediaRequest struct {
 	OutputFilePath string // The path to the file where the media will be downloaded to.

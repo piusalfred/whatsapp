@@ -20,6 +20,69 @@ When all the above is done you can start using this api.
 
 ## messaging
 
+Making api calls can be done in two ways. You can use the `functions` or you can use the `client`.
+
+### client
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/piusalfred/whatsapp"
+	"net/http"
+)
+
+func main() {
+
+	client := whatsapp.NewClient(
+		whatsapp.WithHTTPClient(http.DefaultClient),
+		whatsapp.WithBaseURL("https://graph.facebook.com"),
+		whatsapp.WithVersion("v16.0"),
+		whatsapp.WithPhoneNumberID("123456789"),
+		whatsapp.WithAccessToken("123456789"),
+		whatsapp.WithBusinessAccountID("123456789"),
+	)
+
+	// Send a text message
+	resp, err := client.SendTextMessage(context.TODO(), "123456789", &whatsapp.TextMessage{
+		Message:    "Hello World!!",
+		PreviewURL: false,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Response: %+v\n", resp)
+
+	// Send a media message
+	cachingOptions := &whatsapp.CacheOptions{
+		CacheControl: "",
+		LastModified: "",
+		ETag:         "",
+		Expires:      0,
+	}
+
+	resp, err = client.SendMedia(context.TODO(), "123456789", &whatsapp.MediaMessage{
+		Type:      whatsapp.MediaTypeImage,
+		MediaID:   "w6wttw76twtw",
+		MediaLink: "",
+		Caption:   "awesome cat",
+		Filename:  "cat.jpg",
+		Provider:  "",
+	}, cachingOptions)
+
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Response: %+v\n", resp)
+}
+
+```
+
+### functions
 ```go
 
 func main() {

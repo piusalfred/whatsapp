@@ -147,15 +147,15 @@ type (
 	//
 	//	- Link, link (string). Required when type is audio, document, image, sticker, or video, and you
 	//	  are not using an uploaded media ID (i.e. you are hosting the media asset on your server). The
-	//	  protocol and URL of the media to be sent. Use only with HTTP/HTTPS URLs. Do not use this field
+	//	  protocol and URL of the media to be sent. Use only with http/HTTPS URLs. Do not use this field
 	//	  when message type is set to text.
 	//
 	//		- Cloud API users only:
 	//
-	//		- See Media HTTP Caching if you would like us to cache the media asset for future messages.
+	//		- See Media http Caching if you would like us to cache the media asset for future messages.
 	//
 	//		- When we request the media asset from your server you must indicate the media's MIME type by including
-	//        the Content-Type HTTP header. For example: Content-Type: video/mp4. See Supported Media Types for a
+	//        the Content-Type http header. For example: Content-Type: video/mp4. See Supported Media Types for a
 	//        list of supported media and their MIME types.
 	//
 	//	- Caption, caption (string). For On-Premises API users on v2.41.2 or newer, this field is required when type
@@ -166,7 +166,7 @@ type (
 	//	   media. The extension of the filename will specify what format the document is displayed as in WhatsApp.
 	//
 	//	- Provider, provider (string). Optional. Only used for On-Premises API. This path is optionally used with a
-	//	  link when the HTTP/HTTPS link is not directly accessible and requires additional configurations like a bearer
+	//	  link when the http/HTTPS link is not directly accessible and requires additional configurations like a bearer
 	//	  token. For information on configuring providers, see the Media Providers documentation.
 	Media struct {
 		ID       string `json:"id,omitempty"`
@@ -326,7 +326,8 @@ type (
 	//     ]
 	//   }]
 	// SubType,sub_type (string). Required when type=button. Not used for the other types. Type of button to create.
-	// Parameters,parameters array of objects. Required when type=button. Array of parameter objects with the content of the message.
+	// Parameters,parameters array of objects. Required when type=button. Array of parameter objects with
+	// the content of the message.
 	// For components of type=button, see the button parameter object.
 	// Index, index. Required when type=button. Not used for the other types. Only used for Cloud API.
 	// Position index of the button. You can have up to 3 buttons using index values of 0 to 2.
@@ -371,32 +372,32 @@ type (
 		Description string `json:"description,omitempty"`
 	}
 
-	/*
-		InteractiveSection contains information about a section in an interactive message.
-		A section object can contain the following parameters:
-			- ProductItems product_items, array of objects, Required for Multi-Product Messages. Array of product objects.
-		      There is a minimum of 1 product per section and a maximum of 30 products across all sections.
-		      Each product object contains the following field:
-		           - product_retailer_idstring – Required for Multi-Product Messages. Unique identifier of the product in a catalog.
-		             To get this ID, go to the Meta Commerce Manager, select your account and the shop you want to use. Then, click
-					 Catalog > Items, and find the item you want to mention. The ID for that item is displayed under the item's name.
-
-		    - Rows array of objects, Required for List Messages. Contains a list of rows. You can have a total of 10 rows across
-				  all sections. Each row must have a title (Maximum length: 24 characters) and an ID (Maximum length: 200 characters).
-				  You can add a description (Maximum length: 72 characters), but it is optional.
-
-				  - Example:
-
-						"rows": [
-							{
-								"id":"unique-row-identifier-here",
-								"title": "row-title-content-here",
-								"description": "row-description-content-here",
-							},
-						]
-
-		    - Title string. Required if the message has more than one section. Title of the section. Maximum length: 24 characters.
-	*/
+	// InteractiveSection contains information about a section in an interactive message.
+	// A section object can contain the following parameters:
+	//	- ProductItems product_items, array of objects, Required for Multi-Product Messages. Array of product objects.
+	//      There is a minimum of 1 product per section and a maximum of 30 products across all sections.
+	//      Each product object contains the following field:
+	//           - product_retailer_idstring – Required for Multi-Product Messages. Unique identifier of the
+	//             product in a catalog. To get this ID, go to the Meta Commerce Manager, select your account
+	//             and the shop you want to use. Then, click Catalog > Items, and find the item you want to mention.
+	//             The ID for that item is displayed under the item's name.
+	//
+	//    - Rows array of objects, Required for List Messages. Contains a list of rows. You can have a total of 10 rows across
+	//		  all sections. Each row must have a title (Maximum length: 24 characters) and an ID (Maximum length: 200 characters).
+	//		  You can add a description (Maximum length: 72 characters), but it is optional.
+	//
+	//		  - Example:
+	//
+	//				"rows": [
+	//					{
+	//						"id":"unique-row-identifier-here",
+	//						"title": "row-title-content-here",
+	//						"description": "row-description-content-here",
+	//					},
+	//				]
+	//
+	//    - Title string. Required if the message has more than one section. Title of the section.
+	//      Maximum length: 24 characters.
 	InteractiveSection struct {
 		Title        string                   `json:"title,omitempty"`
 		ProductItems []*Product               `json:"product_items,omitempty"`

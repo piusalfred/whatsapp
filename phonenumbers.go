@@ -100,25 +100,28 @@ type (
 //	 -F 'code_method=SMS' \
 //	 -F 'language=en'
 func RequestCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest) error {
-	params := &whttp.RequestParams{
-		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
-		Query:   nil,
-		Form:    map[string]string{"code_method": req.CodeMethod, "language": req.Language},
-		Bearer:  req.Token,
+	reqCtx := &whttp.RequestContext{
+		Name:       "request code",
+		BaseURL:    req.BaseURL,
+		ApiVersion: req.ApiVersion,
+		SenderID:   req.PhoneNumberID,
+		Endpoints:  []string{"request_code"},
 	}
 
-	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "request_code")
-	if err != nil {
-		return err
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+		Query:   nil,
+		Bearer:  req.Token,
+		Form:    map[string]string{"code_method": req.CodeMethod, "language": req.Language},
+		Payload: nil,
 	}
-	response, err := whttp.Send(ctx, client, http.MethodPost, reqURL, params, nil)
+	err := whttp.Send(ctx, client, params, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	// check the response status code
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("request failed: %s", response.Status)
-	}
+
 	return nil
 }
 
@@ -137,26 +140,27 @@ func RequestCode(ctx context.Context, client *http.Client, req *VerificationCode
 //	 "success": true
 //	}
 func VerifyCode(ctx context.Context, client *http.Client, req *VerificationCodeRequest, code string) error {
-	params := &whttp.RequestParams{
+	reqCtx := &whttp.RequestContext{
+		Name:       "verify code",
+		BaseURL:    req.BaseURL,
+		ApiVersion: req.ApiVersion,
+		SenderID:   req.PhoneNumberID,
+		Endpoints:  []string{"verify_code"},
+	}
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 		Query:   nil,
 		Bearer:  req.Token,
 		Form:    map[string]string{"code": code},
 	}
 
-	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "verify_code")
-	if err != nil {
-		return err
-	}
-
-	response, err := whttp.Send(ctx, client, http.MethodPost, reqURL, params, nil)
+	err := whttp.Send(ctx, client, params, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	// check the response status code
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("request failed: %s", response.Status)
-	}
+
 	return nil
 }
 
@@ -235,9 +239,21 @@ type ListPhoneNumbersRequest struct {
 //		}
 //	   }
 //	}
-func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, req *ListPhoneNumbersRequest) (*PhoneNumbersList, error) {
-	params := &whttp.RequestParams{
-		Query: map[string]string{"access_token": req.Token},
+func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, req *ListPhoneNumbersRequest) (
+	*PhoneNumbersList, error,
+) {
+	reqCtx := &whttp.RequestContext{
+		Name:       "list phone numbers",
+		BaseURL:    req.BaseURL,
+		ApiVersion: req.ApiVersion,
+		SenderID:   req.BusinessID,
+		Endpoints:  []string{"phone_numbers"},
+	}
+
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodGet,
+		Query:   map[string]string{"access_token": req.Token},
 	}
 	if req.FilterParams != nil {
 		p := req.FilterParams
@@ -247,31 +263,10 @@ func ListPhoneNumbers(ctx context.Context, client *http.Client, token string, re
 		}
 		params.Query["filtering"] = string(jsonParams)
 	}
-	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.BusinessID, "phone_numbers")
-	if err != nil {
-		return nil, err
-	}
-	response, err := whttp.Send(ctx, client, http.MethodGet, reqURL, params, nil)
+	var phoneNumbersList PhoneNumbersList
+	err := whttp.Send(ctx, client, params, &phoneNumbersList)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-
-	// check the response status code
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("request failed: %s", response.Status)
-	}
-
-	// read the response body
-	body, err := io.ReadAll(response.Body)
-	defer response.Body.Close()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	// unmarshal the response body
-	var phoneNumbersList PhoneNumbersList
-	if err := json.Unmarshal(body, &phoneNumbersList); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
 	}
 
 	return &phoneNumbersList, nil

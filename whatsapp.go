@@ -21,6 +21,7 @@ package whatsapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -28,7 +29,10 @@ import (
 
 	whttp "github.com/piusalfred/whatsapp/http"
 	"github.com/piusalfred/whatsapp/models"
+	"github.com/piusalfred/whatsapp/qrcodes"
 )
+
+var ErrNilRequest = errors.New("nil request")
 
 const (
 	BaseURL                   = "https://graph.facebook.com/"
@@ -64,6 +68,19 @@ const (
 )
 
 type (
+	ResponseMessage struct {
+		Product  string             `json:"messaging_product,omitempty"`
+		Contacts []*ResponseContact `json:"contacts,omitempty"`
+		Messages []*MessageID       `json:"messages,omitempty"`
+	}
+	MessageID struct {
+		ID string `json:"id,omitempty"`
+	}
+
+	ResponseContact struct {
+		Input      string `json:"input"`
+		WhatsappID string `json:"wa_id"`
+	}
 
 	// MessageType represents the type of message currently supported.
 	// Which are Text messages,Reaction messages,Media messages,Location messages,Contact messages,
@@ -77,11 +94,11 @@ type (
 	// Example:
 	// 	client := whatsapp.NewClient(
 	// 		whatsapp.WithHTTPClient(http.DefaultClient),
-	// 		whatsapp.WithBaseURL(whatsapp.BaseURL),
+	// 		whatsapp.WithBaseURL(whatsapp.baseURL),
 	// 		whatsapp.WithVersion(whatsapp.LowestSupportedVersion),
 	// 		whatsapp.WithAccessToken("access_token"),
 	// 		whatsapp.WithPhoneNumberID("phone_number_id"),
-	// 		whatsapp.WithWhatsappBusinessAccountID("whatsapp_business_account_id"),
+	// 		whatsapp.WithBusinessAccountID("whatsapp_business_account_id"),
 	// 	)
 	//  // create a text message
 	//  message := whatsapp.TextMessage{
@@ -95,13 +112,13 @@ type (
 	//  	log.Fatal(err)
 	//  }
 	Client struct {
-		rwm                       *sync.RWMutex
-		HTTP                      *http.Client
-		BaseURL                   string
-		Version                   string
-		AccessToken               string
-		PhoneNumberID             string
-		WhatsappBusinessAccountID string
+		rwm               *sync.RWMutex
+		http              *http.Client
+		baseURL           string
+		version           string
+		accessToken       string
+		phoneNumberID     string
+		businessAccountID string
 	}
 
 	ClientOption func(*Client)
@@ -109,49 +126,49 @@ type (
 
 func WithHTTPClient(http *http.Client) ClientOption {
 	return func(client *Client) {
-		client.HTTP = http
+		client.http = http
 	}
 }
 
 func WithBaseURL(baseURL string) ClientOption {
 	return func(client *Client) {
-		client.BaseURL = baseURL
+		client.baseURL = baseURL
 	}
 }
 
 func WithVersion(version string) ClientOption {
 	return func(client *Client) {
-		client.Version = version
+		client.version = version
 	}
 }
 
 func WithAccessToken(accessToken string) ClientOption {
 	return func(client *Client) {
-		client.AccessToken = accessToken
+		client.accessToken = accessToken
 	}
 }
 
 func WithPhoneNumberID(phoneNumberID string) ClientOption {
 	return func(client *Client) {
-		client.PhoneNumberID = phoneNumberID
+		client.phoneNumberID = phoneNumberID
 	}
 }
 
-func WithWhatsappBusinessAccountID(whatsappBusinessAccountID string) ClientOption {
+func WithBusinessAccountID(whatsappBusinessAccountID string) ClientOption {
 	return func(client *Client) {
-		client.WhatsappBusinessAccountID = whatsappBusinessAccountID
+		client.businessAccountID = whatsappBusinessAccountID
 	}
 }
 
 func NewClient(opts ...ClientOption) *Client {
 	client := &Client{
-		rwm:                       &sync.RWMutex{},
-		HTTP:                      http.DefaultClient,
-		BaseURL:                   BaseURL,
-		Version:                   "v16.0",
-		AccessToken:               "",
-		PhoneNumberID:             "",
-		WhatsappBusinessAccountID: "",
+		rwm:               &sync.RWMutex{},
+		http:              http.DefaultClient,
+		baseURL:           BaseURL,
+		version:           "v16.0",
+		accessToken:       "",
+		phoneNumberID:     "",
+		businessAccountID: "",
 	}
 
 	for _, opt := range opts {
@@ -161,22 +178,43 @@ func NewClient(opts ...ClientOption) *Client {
 	return client
 }
 
-func (c *Client) SetAccessToken(accessToken string) {
-	c.rwm.Lock()
-	defer c.rwm.Unlock()
-	c.AccessToken = accessToken
+func (client *Client) AccessToken() string {
+	client.rwm.RLock()
+	defer client.rwm.RUnlock()
+
+	return client.accessToken
 }
 
-func (c *Client) SetPhoneNumberID(phoneNumberID string) {
-	c.rwm.Lock()
-	defer c.rwm.Unlock()
-	c.PhoneNumberID = phoneNumberID
+func (client *Client) PhoneNumberID() string {
+	client.rwm.RLock()
+	defer client.rwm.RUnlock()
+
+	return client.phoneNumberID
 }
 
-func (c *Client) SetWhatsappBusinessAccountID(whatsappBusinessAccountID string) {
-	c.rwm.Lock()
-	defer c.rwm.Unlock()
-	c.WhatsappBusinessAccountID = whatsappBusinessAccountID
+func (client *Client) BusinessAccountID() string {
+	client.rwm.RLock()
+	defer client.rwm.RUnlock()
+
+	return client.businessAccountID
+}
+
+func (client *Client) SetAccessToken(accessToken string) {
+	client.rwm.Lock()
+	defer client.rwm.Unlock()
+	client.accessToken = accessToken
+}
+
+func (client *Client) SetPhoneNumberID(phoneNumberID string) {
+	client.rwm.Lock()
+	defer client.rwm.Unlock()
+	client.phoneNumberID = phoneNumberID
+}
+
+func (client *Client) SetWhatsappBusinessAccountID(whatsappBusinessAccountID string) {
+	client.rwm.Lock()
+	defer client.rwm.Unlock()
+	client.businessAccountID = whatsappBusinessAccountID
 }
 
 type TextMessage struct {
@@ -185,13 +223,15 @@ type TextMessage struct {
 }
 
 // SendTextMessage sends a text message to a WhatsApp Business Account.
-func (c *Client) SendTextMessage(ctx context.Context, recipient string, message *TextMessage) (*whttp.Response, error) {
-	httpC := c.HTTP
+func (client *Client) SendTextMessage(ctx context.Context, recipient string,
+	message *TextMessage,
+) (*ResponseMessage, error) {
+	httpC := client.http
 	request := &SendTextRequest{
-		BaseURL:       c.BaseURL,
-		AccessToken:   c.AccessToken,
-		PhoneNumberID: c.PhoneNumberID,
-		ApiVersion:    c.Version,
+		BaseURL:       client.baseURL,
+		AccessToken:   client.accessToken,
+		PhoneNumberID: client.phoneNumberID,
+		ApiVersion:    client.version,
 		Recipient:     recipient,
 		Message:       message.Message,
 		PreviewURL:    message.PreviewURL,
@@ -205,24 +245,299 @@ func (c *Client) SendTextMessage(ctx context.Context, recipient string, message 
 }
 
 // SendLocationMessage sends a location message to a WhatsApp Business Account.
-func (c *Client) SendLocationMessage(ctx context.Context, recipient string, message *models.Location,
-) (*whttp.Response, error) {
-	httpC := c.HTTP
+func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
+	message *models.Location,
+) (*ResponseMessage, error) {
 	request := &SendLocationRequest{
-		BaseURL:       c.BaseURL,
-		AccessToken:   c.AccessToken,
-		PhoneNumberID: c.PhoneNumberID,
-		ApiVersion:    c.Version,
+		BaseURL:       client.baseURL,
+		AccessToken:   client.accessToken,
+		PhoneNumberID: client.phoneNumberID,
+		ApiVersion:    client.version,
 		Recipient:     recipient,
 		Name:          message.Name,
 		Address:       message.Address,
 		Latitude:      message.Latitude,
 		Longitude:     message.Longitude,
 	}
-	resp, err := SendLocation(ctx, httpC, request)
+
+	resp, err := SendLocation(ctx, client.http, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send location message: %w", err)
 	}
 
 	return resp, nil
+}
+
+type ReactMessage struct {
+	MessageID string
+	Emoji     string
+}
+
+func (client *Client) React(ctx context.Context, recipient string, req *ReactMessage) (*ResponseMessage, error) {
+	request := &ReactRequest{
+		BaseURL:       client.baseURL,
+		AccessToken:   client.AccessToken(),
+		PhoneNumberID: client.PhoneNumberID(),
+		ApiVersion:    client.version,
+		Recipient:     recipient,
+		MessageID:     req.MessageID,
+		Emoji:         req.Emoji,
+	}
+
+	resp, err := React(ctx, client.http, request)
+	if err != nil {
+		return nil, fmt.Errorf("react: %w", err)
+	}
+
+	return resp, nil
+}
+
+type MediaMessage struct {
+	Type      MediaType
+	MediaID   string
+	MediaLink string
+	Caption   string
+	Filename  string
+	Provider  string
+}
+
+// SendMedia sends a media message to the recipient.
+func (client *Client) SendMedia(ctx context.Context, recipient string, req *MediaMessage,
+	cacheOptions *CacheOptions,
+) (*ResponseMessage, error) {
+	request := &SendMediaRequest{
+		BaseURL:       client.baseURL,
+		AccessToken:   client.AccessToken(),
+		PhoneNumberID: client.PhoneNumberID(),
+		ApiVersion:    client.version,
+		Recipient:     recipient,
+		Type:          req.Type,
+		MediaID:       req.MediaID,
+		MediaLink:     req.MediaLink,
+		Caption:       req.Caption,
+		Filename:      req.Filename,
+		Provider:      req.Provider,
+		CacheOptions:  cacheOptions,
+	}
+
+	resp, err := SendMedia(ctx, client.http, request)
+	if err != nil {
+		return nil, fmt.Errorf("client send media: %w", err)
+	}
+
+	return resp, nil
+}
+
+// ReplyMessage is a message that is sent as a reply to a previous message. The previous message's ID
+// is needed and is set as Context in ReplyRequest.
+// Content is the message content. It can be a Text, Location, Media, Template, or Contact.
+type ReplyMessage struct {
+	Context string
+	Type    MessageType
+	Content any
+}
+
+func (client *Client) Reply(ctx context.Context, recipient string, req *ReplyMessage) (*ResponseMessage, error) {
+	request := &ReplyRequest{
+		BaseURL:       client.baseURL,
+		AccessToken:   client.AccessToken(),
+		PhoneNumberID: client.PhoneNumberID(),
+		ApiVersion:    client.version,
+		Recipient:     recipient,
+		Context:       req.Context,
+		MessageType:   req.Type,
+		Content:       req.Content,
+	}
+
+	resp, err := Reply(ctx, client.http, request)
+	if err != nil {
+		return nil, fmt.Errorf("client reply: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) SendContacts(ctx context.Context, recipient string, contacts *models.Contacts) (*ResponseMessage, error) {
+	req := &SendContactRequest{
+		BaseURL:       client.baseURL,
+		AccessToken:   client.AccessToken(),
+		PhoneNumberID: client.PhoneNumberID(),
+		ApiVersion:    client.version,
+		Recipient:     recipient,
+		Contacts:      contacts,
+	}
+
+	resp, err := SendContact(ctx, client.http, req)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+	return resp, nil
+}
+
+// MarkMessageRead sends a read receipt for a message.
+func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*StatusResponse, error) {
+	reqBody := &MessageStatusUpdateRequest{
+		MessagingProduct: "whatsapp",
+		Status:           MessageStatusRead,
+		MessageID:        messageID,
+	}
+
+	reqCtx := &whttp.RequestContext{
+		Name:       "mark read",
+		BaseURL:    client.baseURL,
+		ApiVersion: client.version,
+		SenderID:   client.phoneNumberID,
+		Endpoints:  []string{"/messages"},
+	}
+
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Bearer:  client.AccessToken(),
+		Payload: reqBody,
+	}
+
+	var success StatusResponse
+	err := whttp.Send(ctx, client.http, params, &success)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return &success, nil
+}
+
+type Template struct {
+	LanguageCode   string
+	LanguagePolicy string
+	Name           string
+	Components     []*models.TemplateComponent
+}
+
+// SendTemplate sends a template message to the recipient.
+func (client *Client) SendTemplate(ctx context.Context, recipient string, req *Template) (*ResponseMessage, error) {
+	request := &SendTemplateRequest{
+		BaseURL:                client.baseURL,
+		AccessToken:            client.AccessToken(),
+		PhoneNumberID:          client.PhoneNumberID(),
+		ApiVersion:             client.version,
+		Recipient:              recipient,
+		TemplateLanguageCode:   req.LanguageCode,
+		TemplateLanguagePolicy: req.LanguagePolicy,
+		TemplateName:           req.Name,
+		TemplateComponents:     req.Components,
+	}
+
+	resp, err := SendTemplate(ctx, client.http, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+////////////// QrCode
+
+func (client *Client) CreateQrCode(ctx context.Context, message *qrcodes.CreateRequest) (
+	*qrcodes.CreateResponse, error,
+) {
+	request := &qrcodes.CreateRequest{
+		PrefilledMessage: message.PrefilledMessage,
+		ImageFormat:      message.ImageFormat,
+	}
+
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+	resp, err := qrcodes.Create(ctx, client.http, rctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) ListQrCodes(ctx context.Context) (*qrcodes.ListResponse, error) {
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+
+	resp, err := qrcodes.List(ctx, client.http, rctx)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) GetQrCode(ctx context.Context, qrCodeID string) (*qrcodes.Information, error) {
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+
+	resp, err := qrcodes.Get(ctx, client.http, rctx, qrCodeID)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) UpdateQrCode(ctx context.Context, qrCodeID string, request *qrcodes.CreateRequest,
+) (*qrcodes.SuccessResponse, error) {
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+
+	resp, err := qrcodes.Update(ctx, client.http, rctx, qrCodeID, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) DeleteQrCode(ctx context.Context, qrCodeID string) (*qrcodes.SuccessResponse, error) {
+	rctx := &qrcodes.RequestContext{
+		BaseURL:     client.baseURL,
+		PhoneID:     client.PhoneNumberID(),
+		ApiVersion:  client.version,
+		AccessToken: client.AccessToken(),
+	}
+
+	resp, err := qrcodes.Delete(ctx, client.http, rctx, qrCodeID)
+	if err != nil {
+		return nil, fmt.Errorf("client: %w", err)
+	}
+
+	return resp, nil
+}
+
+////// PHONE NUMBERS
+
+func (client *Client) RequestVerificationMethod(ctx context.Context, codeMethod string, language string) error {
+	if err := RequestCode(ctx, client.http, &VerificationCodeRequest{
+		Token:         client.AccessToken(),
+		BaseURL:       client.baseURL,
+		ApiVersion:    client.version,
+		PhoneNumberID: client.PhoneNumberID(),
+		CodeMethod:    codeMethod,
+		Language:      language,
+	}); err != nil {
+		return fmt.Errorf("client: %w", err)
+	}
+
+	return nil
 }

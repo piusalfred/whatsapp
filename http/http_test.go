@@ -19,7 +19,105 @@
 
 package http
 
-import "testing"
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+type Context struct {
+	Method     string
+	StatusCode int
+	Headers    map[string]string
+	Body       interface{}
+}
+
+func testServer(t *testing.T, ctx *Context) *httptest.Server {
+	t.Helper()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != ctx.Method {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		for key, value := range ctx.Headers {
+			w.Header().Add(key, value)
+		}
+
+		w.WriteHeader(ctx.StatusCode)
+		if ctx.Body != nil {
+			body, err := json.Marshal(ctx.Body)
+			if err != nil {
+				t.Errorf("failed to marshal response body: %v", err)
+				return
+			}
+			if _, err := w.Write(body); err != nil {
+				t.Errorf("failed to write response body: %v", err)
+			}
+		}
+	})
+
+	return httptest.NewServer(handler)
+}
+
+type User struct {
+	Name string `json:"name"`
+	Age  int    `json:"age"`
+	Male bool   `json:"male"`
+}
+
+func TestSend(t *testing.T) {
+	ctx := &Context{
+		Method:     http.MethodGet,
+		StatusCode: http.StatusOK,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body: &User{
+			Name: "Pius Alfred",
+			Age:  77,
+			Male: true,
+		},
+	}
+
+	server := testServer(t, ctx)
+	defer server.Close()
+
+	reqCtx := &RequestContext{
+		Name:       "test",
+		BaseURL:    server.URL,
+		ApiVersion: "",
+		SenderID:   "",
+		Endpoints:  nil,
+	}
+
+	request := &Request{
+		Context: reqCtx,
+		Method:  http.MethodGet,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Query:   nil,
+		Bearer:  "",
+		Form:    nil,
+		Payload: nil,
+	}
+
+	var user User
+	if err := Send(context.TODO(), http.DefaultClient, request, &user); err != nil {
+		t.Errorf("failed to send request: %v", err)
+	}
+
+	// Compare the response body with the expected response body
+	usr, ok := ctx.Body.(*User)
+	if !ok {
+		t.Errorf("failed to cast body to user type")
+	}
+
+	if user != *usr {
+		t.Errorf("response body mismatch: got %v, want %v", user, *usr)
+	}
+
+	t.Logf("user: %+v", user)
+}
 
 func TestCreateRequestURL(t *testing.T) {
 	t.Parallel()
@@ -79,7 +177,7 @@ func TestCreateRequestURL(t *testing.T) {
 func TestJoinUrlParts(t *testing.T) {
 	t.Parallel()
 	type args struct {
-		parts *RequestUrlParts
+		parts *RequestContext
 	}
 	tests := []struct {
 		name    string
@@ -90,7 +188,7 @@ func TestJoinUrlParts(t *testing.T) {
 		{
 			name: "test join url parts",
 			args: args{
-				parts: &RequestUrlParts{
+				parts: &RequestContext{
 					BaseURL:    BaseURL,
 					SenderID:   "224225226",
 					ApiVersion: "v16.0",
@@ -105,13 +203,13 @@ func TestJoinUrlParts(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := JoinUrlParts(tt.args.parts)
+			got, err := requestURLFromContext(tt.args.parts)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("JoinUrlParts() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("requestURLFromContext() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("JoinUrlParts() got = %v, want %v", got, tt.want)
+				t.Errorf("requestURLFromContext() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

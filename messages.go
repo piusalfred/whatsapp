@@ -30,6 +30,11 @@ import (
 	"github.com/piusalfred/whatsapp/models"
 )
 
+const (
+	// MessageStatusRead is the status for a read message
+	MessageStatusRead = "read"
+)
+
 type (
 	StatusResponse struct {
 		Success bool `json:"success,omitempty"`
@@ -42,45 +47,6 @@ type (
 	}
 )
 
-// MarkMessageRead sends a read receipt for a message.
-// When you receive an incoming message from Webhooks, you can use the /messages endpoint
-// to mark the message as read by changing its status to read. Messages marked as read
-// display two blue check marks alongside their timestamp:
-// We recommend marking incoming messages as read within 30 days of receipt. You cannot mark
-// outgoing messages you sent as read. Marking a message as read will also mark earlier
-// messages in the conversation as read.
-func MarkMessageRead(ctx context.Context, client *http.Client, url, token string) (*StatusResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-
-	q := req.URL.Query()
-	q.Add("access_token", token)
-	req.URL.RawQuery = q.Encode()
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status code: %d", resp.StatusCode)
-	}
-
-	var result StatusResponse
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		return nil, err
-	}
-
-	return &result, nil
-}
-
 type SendTextRequest struct {
 	BaseURL       string
 	AccessToken   string
@@ -92,7 +58,7 @@ type SendTextRequest struct {
 }
 
 // SendText sends a text message to the recipient.
-func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*whttp.Response, error) {
+func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*ResponseMessage, error) {
 	text := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -104,29 +70,31 @@ func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*
 		},
 	}
 
-	params := &whttp.RequestParams{
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: req.AccessToken,
+	reqCtx := &whttp.RequestContext{
+		Name:       "send text",
+		BaseURL:    req.BaseURL,
+		ApiVersion: req.ApiVersion,
+		SenderID:   req.PhoneNumberID,
+		Endpoints:  []string{"messages"},
 	}
 
-	payload, err := json.Marshal(text)
-	if err != nil {
-		return nil, err
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Query:   nil,
+		Bearer:  req.AccessToken,
+		Form:    nil,
+		Payload: text,
 	}
 
-	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	var message ResponseMessage
+	err := whttp.Send(ctx, client, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send text message: %w", err)
 	}
 
-	return resp, nil
+	return &message, nil
 }
 
 type SendLocationRequest struct {
@@ -141,7 +109,7 @@ type SendLocationRequest struct {
 	Longitude     float64
 }
 
-func SendLocation(ctx context.Context, client *http.Client, req *SendLocationRequest) (*whttp.Response, error) {
+func SendLocation(ctx context.Context, client *http.Client, req *SendLocationRequest) (*ResponseMessage, error) {
 	location := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -156,28 +124,30 @@ func SendLocation(ctx context.Context, client *http.Client, req *SendLocationReq
 		Contacts:    nil,
 		Interactive: nil,
 	}
-	payload, err := json.Marshal(location)
-	if err != nil {
-		return nil, err
+
+	reqCtx := &whttp.RequestContext{
+		Name:       "send location",
+		BaseURL:    req.BaseURL,
+		ApiVersion: req.ApiVersion,
+		SenderID:   req.PhoneNumberID,
+		Endpoints:  []string{"messages"},
 	}
 
-	params := &whttp.RequestParams{
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: req.AccessToken,
-	}
-	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
-	if err != nil {
-		return nil, fmt.Errorf("request url: %w", err)
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Bearer:  req.AccessToken,
+		Payload: location,
 	}
 
-	resp, err := whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	var message ResponseMessage
+	err := whttp.Send(ctx, client, params, &message)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send location: %w", err)
 	}
 
-	return resp, nil
+	return &message, nil
 }
 
 type ReactRequest struct {
@@ -232,7 +202,7 @@ Example response:
 	    }]
 	}
 */
-func React(ctx context.Context, client *http.Client, req *ReactRequest) (*whttp.Response, error) {
+func React(ctx context.Context, client *http.Client, req *ReactRequest) (*ResponseMessage, error) {
 	reaction := &models.Message{
 		Product: "whatsapp",
 		To:      req.Recipient,
@@ -243,24 +213,29 @@ func React(ctx context.Context, client *http.Client, req *ReactRequest) (*whttp.
 		},
 	}
 
-	payload, err := json.Marshal(reaction)
+	reqCtx := &whttp.RequestContext{
+		Name:       "react",
+		BaseURL:    req.BaseURL,
+		ApiVersion: req.ApiVersion,
+		SenderID:   req.PhoneNumberID,
+		Endpoints:  []string{"messages"},
+	}
+
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Bearer:  req.AccessToken,
+		Payload: reaction,
+	}
+
+	var message ResponseMessage
+	err := whttp.Send(ctx, client, params, &message)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send reaction: %w", err)
 	}
 
-	params := &whttp.RequestParams{
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: req.AccessToken,
-	}
-
-	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
-	if err != nil {
-		return nil, err
-	}
-
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	return &message, nil
 }
 
 type SendContactRequest struct {
@@ -272,7 +247,7 @@ type SendContactRequest struct {
 	Contacts      *models.Contacts
 }
 
-func SendContact(ctx context.Context, client *http.Client, req *SendContactRequest) (*whttp.Response, error) {
+func SendContact(ctx context.Context, client *http.Client, req *SendContactRequest) (*ResponseMessage, error) {
 	contact := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -280,22 +255,32 @@ func SendContact(ctx context.Context, client *http.Client, req *SendContactReque
 		Type:          "contact",
 		Contacts:      req.Contacts,
 	}
-	payload, err := json.Marshal(contact)
-	if err != nil {
-		return nil, err
+	reqCtx := &whttp.RequestContext{
+		Name:       "send contacts",
+		BaseURL:    req.BaseURL,
+		ApiVersion: req.ApiVersion,
+		SenderID:   req.PhoneNumberID,
+		Endpoints:  []string{"messages"},
 	}
 
-	params := &whttp.RequestParams{
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/json"},
+		Query:   nil,
 		Bearer:  req.AccessToken,
+		Form:    nil,
+		Payload: contact,
 	}
 
-	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
+	var message ResponseMessage
+
+	err := whttp.Send(ctx, client, params, &message)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send contact: %w", err)
 	}
 
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	return &message, nil
 }
 
 // ReplyRequest contains options for replying to a message.
@@ -333,26 +318,39 @@ type ReplyRequest struct {
 //	    "body": "your-text-message-content"
 //	  }
 //	}'
-func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*whttp.Response, error) {
+func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*ResponseMessage, error) {
 	if request == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("reply request is nil: %w", ErrNilRequest)
 	}
 	payload, err := formatReplyPayload(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reply: %w", err)
+	}
+	reqCtx := &whttp.RequestContext{
+		Name:       "reply",
+		BaseURL:    request.BaseURL,
+		ApiVersion: request.ApiVersion,
+		SenderID:   request.PhoneNumberID,
+		Endpoints:  []string{"messages"},
 	}
 
-	params := &whttp.RequestParams{
+	req := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/json"},
+		Query:   nil,
 		Bearer:  request.AccessToken,
+		Form:    nil,
+		Payload: payload,
 	}
 
-	reqURL, err := whttp.CreateRequestURL(request.BaseURL, request.ApiVersion, request.PhoneNumberID, "messages")
+	var message ResponseMessage
+	err = whttp.Send(ctx, client, req, &message)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reply: %w", err)
 	}
 
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	return &message, nil
 }
 
 // formatReplyPayload builds the payload for a reply. It accepts ReplyRequest and returns a byte array
@@ -360,7 +358,7 @@ func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*wh
 func formatReplyPayload(options *ReplyRequest) ([]byte, error) {
 	contentByte, err := json.Marshal(options.Content)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("format reply payload: %w", err)
 	}
 	payloadBuilder := strings.Builder{}
 	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","context":{"message_id":"`)
@@ -374,6 +372,7 @@ func formatReplyPayload(options *ReplyRequest) ([]byte, error) {
 	payloadBuilder.WriteString(`":`)
 	payloadBuilder.Write(contentByte)
 	payloadBuilder.WriteString(`}`)
+
 	return []byte(payloadBuilder.String()), nil
 }
 
@@ -389,7 +388,7 @@ type SendTemplateRequest struct {
 	TemplateComponents     []*models.TemplateComponent
 }
 
-func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateRequest) (*whttp.Response, error) {
+func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateRequest) (*ResponseMessage, error) {
 	template := &models.Message{
 		Product:       "whatsapp",
 		To:            req.Recipient,
@@ -404,30 +403,36 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 			Components: req.TemplateComponents,
 		},
 	}
-	params := &whttp.RequestParams{
+	reqCtx := &whttp.RequestContext{
+		Name:       "send template",
+		BaseURL:    req.BaseURL,
+		ApiVersion: req.ApiVersion,
+		SenderID:   req.PhoneNumberID,
+		Endpoints:  []string{"messages"},
+	}
+	params := &whttp.Request{
+		Method:  http.MethodPost,
+		Payload: template,
+		Context: reqCtx,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
 		Bearer: req.AccessToken,
 	}
-
-	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
+	var message ResponseMessage
+	err := whttp.Send(ctx, client, params, &message)
 	if err != nil {
-		return nil, err
-	}
-	payload, err := json.Marshal(template)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send template: %w", err)
 	}
 
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	return &message, nil
 }
 
 /*
 CacheOptions contains the options on how to send a media message. You can specify either the
 ID or the link of the media. Also it allows you to specify caching options.
 
-The Cloud API supports media HTTP caching. If you are using a link (link) to a media asset on your
+The Cloud API supports media http caching. If you are using a link (link) to a media asset on your
 server (as opposed to the ID (id) of an asset you have uploaded to our servers),you can instruct us
 to cache your asset for reuse with future messages by including the headers below
 in your server response when we request the asset. If none of these headers are included, we will
@@ -493,7 +498,7 @@ type SendMediaRequest struct {
 SendMedia sends a media message to the recipient. To send a media message, make a POST call to the
 /PHONE_NUMBER_ID/messages endpoint with type parameter set to audio, document, image, sticker, or
 video, and the corresponding information for the media type such as its ID or
-link (see Media HTTP Caching).
+link (see Media http Caching).
 
 Be sure to keep the following in mind:
   - Uploaded media only lasts thirty days
@@ -554,7 +559,7 @@ downloaded successfully.
 	    }]
 	}
 */
-func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) (*whttp.Response, error) {
+func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) (*ResponseMessage, error) {
 	if req == nil {
 		return nil, fmt.Errorf("options cannot be nil")
 	}
@@ -564,9 +569,20 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) 
 		return nil, err
 	}
 
-	params := &whttp.RequestParams{
+	reqCtx := &whttp.RequestContext{
+		Name:       "send media",
+		BaseURL:    req.BaseURL,
+		ApiVersion: req.ApiVersion,
+		SenderID:   req.PhoneNumberID,
+		Endpoints:  []string{"messages"},
+	}
+
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
 		Bearer:  req.AccessToken,
 		Headers: map[string]string{"Content-Type": "application/json"},
+		Payload: payload,
 	}
 
 	if req.CacheOptions != nil {
@@ -583,12 +599,14 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) 
 		}
 	}
 
-	reqURL, err := whttp.CreateRequestURL(req.BaseURL, req.ApiVersion, req.PhoneNumberID, "messages")
+	var message ResponseMessage
+
+	err = whttp.Send(ctx, client, params, &message)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send media: %w", err)
 	}
 
-	return whttp.SendMessage(ctx, client, http.MethodPost, reqURL, params, payload)
+	return &message, nil
 }
 
 // formatMediaPayload builds the payload for a media message. It accepts SendMediaOptions
