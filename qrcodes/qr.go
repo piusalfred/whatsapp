@@ -21,11 +21,8 @@ package qrcodes
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 
 	whttp "github.com/piusalfred/whatsapp/http"
 )
@@ -99,46 +96,27 @@ func Create(ctx context.Context, client *http.Client, rtx *RequestContext,
 }
 
 func List(ctx context.Context, client *http.Client, rctx *RequestContext) (*ListResponse, error) {
-	var (
-		resp     ListResponse
-		respBody []byte
-	)
-	requestURL, err := url.JoinPath(rctx.BaseURL, rctx.ApiVersion, rctx.PhoneID, "message_qrdls")
+	reqCtx := &whttp.RequestContext{
+		Name:       "list qr codes",
+		BaseURL:    rctx.BaseURL,
+		ApiVersion: rctx.ApiVersion,
+		SenderID:   rctx.PhoneID,
+		Endpoints:  []string{"message_qrdls"},
+	}
+
+	req := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodGet,
+		Query:   map[string]string{"access_token": rctx.AccessToken},
+	}
+
+	var response ListResponse
+	err := whttp.Send(ctx, client, req, &response)
 	if err != nil {
 		return nil, fmt.Errorf("qr code list: %w", err)
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("qr code list: %w", err)
-	}
 
-	q := request.URL.Query()
-	q.Add("access_token", rctx.AccessToken)
-	request.URL.RawQuery = q.Encode()
-
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("qr code list: %w", err)
-	}
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", response.StatusCode)
-	}
-
-	if response.Body != nil {
-		defer response.Body.Close()
-		respBody, err = io.ReadAll(response.Body)
-		if err != nil {
-			return nil, fmt.Errorf("qr code list: %w", err)
-		}
-	}
-
-	err = json.Unmarshal(respBody, &resp)
-	if err != nil {
-		return nil, err
-	}
-
-	return &resp, nil
+	return &response, nil
 }
 
 type RequestContext struct {
@@ -148,49 +126,34 @@ type RequestContext struct {
 	AccessToken string `json:"-"`
 }
 
-func Get(ctx context.Context, client *http.Client, reqCtx *RequestContext, qrCodeID string) (*Information, error) {
+var ErrNoDataFound = fmt.Errorf("no data found")
+
+func Get(ctx context.Context, client *http.Client, rctx *RequestContext, qrCodeID string) (*Information, error) {
 	var (
-		list     ListResponse
-		resp     Information
-		respBody []byte
+		list ListResponse
+		resp Information
 	)
-	requestURL, err := url.JoinPath(reqCtx.BaseURL, reqCtx.ApiVersion, reqCtx.PhoneID, "message_qrdls", qrCodeID)
+	reqCtx := &whttp.RequestContext{
+		Name:       "get qr code",
+		BaseURL:    rctx.BaseURL,
+		ApiVersion: rctx.ApiVersion,
+		SenderID:   rctx.PhoneID,
+		Endpoints:  []string{"message_qrdls", qrCodeID},
+	}
+
+	req := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodGet,
+		Query:   map[string]string{"access_token": rctx.AccessToken},
+	}
+
+	err := whttp.Send(ctx, client, req, &list)
 	if err != nil {
-		return nil, err
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	q := request.URL.Query()
-	q.Add("access_token", reqCtx.AccessToken)
-	request.URL.RawQuery = q.Encode()
-
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", response.StatusCode)
-	}
-
-	if response.Body != nil {
-		defer response.Body.Close()
-		respBody, err = io.ReadAll(response.Body)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = json.Unmarshal(respBody, &list)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("qr code get: %w", err)
 	}
 
 	if len(list.Data) == 0 {
-		return nil, fmt.Errorf("no data found")
+		return nil, fmt.Errorf("qr code get: %w", ErrNoDataFound)
 	}
 
 	resp = *list.Data[0]
@@ -201,86 +164,49 @@ func Get(ctx context.Context, client *http.Client, reqCtx *RequestContext, qrCod
 func Update(ctx context.Context, client *http.Client, rtx *RequestContext, qrCodeID string, req *CreateRequest) (
 	*SuccessResponse, error,
 ) {
-	var (
-		resp     SuccessResponse
-		respBody []byte
-	)
-	requestURL, err := url.JoinPath(rtx.BaseURL, rtx.ApiVersion, rtx.PhoneID, "message_qrdls", qrCodeID)
+	reqCtx := &whttp.RequestContext{
+		Name:       "update qr code",
+		BaseURL:    rtx.BaseURL,
+		ApiVersion: rtx.ApiVersion,
+		SenderID:   rtx.PhoneID,
+		Endpoints:  []string{"message_qrdls", qrCodeID},
+	}
+
+	request := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
+		Query: map[string]string{
+			"prefilled_message": req.PrefilledMessage,
+			"generate_qr_image": string(req.ImageFormat),
+			"access_token":      rtx.AccessToken,
+		},
+	}
+
+	var resp SuccessResponse
+	err := whttp.Send(ctx, client, request, &resp)
 	if err != nil {
-		return nil, fmt.Errorf("qr code update: %w", err)
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPut, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("qr code update: %w", err)
-	}
-
-	q := request.URL.Query()
-	q.Add("prefilled_message", req.PrefilledMessage)
-	q.Add("generate_qr_image", string(req.ImageFormat))
-	q.Add("access_token", rtx.AccessToken)
-	request.URL.RawQuery = q.Encode()
-
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("qr code update: %w", err)
-	}
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: status code: %d", ErrUnexpectedResponseCode, response.StatusCode)
-	}
-
-	if response.Body != nil {
-		defer response.Body.Close()
-		respBody, err = io.ReadAll(response.Body)
-		if err != nil {
-			return nil, fmt.Errorf("qr code update: %w", err)
-		}
-	}
-
-	err = json.Unmarshal(respBody, &resp)
-	if err != nil {
-		return nil, fmt.Errorf("qr code update: %w", err)
+		return nil, fmt.Errorf("qr code update (%s): %w", qrCodeID, err)
 	}
 
 	return &resp, nil
 }
 
 func Delete(ctx context.Context, client *http.Client, rtx *RequestContext, qrCodeID string) (*SuccessResponse, error) {
-	var (
-		resp     SuccessResponse
-		respBody []byte
-	)
-	requestURL, err := url.JoinPath(rtx.BaseURL, rtx.ApiVersion, rtx.PhoneID, "message_qrdls", qrCodeID)
-	if err != nil {
-		return nil, fmt.Errorf("qr code delete: %w", err)
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("qr code delete: %w", err)
+	reqCtx := &whttp.RequestContext{
+		Name:       "delete qr code",
+		BaseURL:    rtx.BaseURL,
+		ApiVersion: rtx.ApiVersion,
+		SenderID:   rtx.PhoneID,
+		Endpoints:  []string{"message_qrdls", qrCodeID},
 	}
 
-	q := request.URL.Query()
-	q.Add("access_token", rtx.AccessToken)
-	request.URL.RawQuery = q.Encode()
-
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("qr code delete: %w", err)
+	req := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodDelete,
+		Query:   map[string]string{"access_token": rtx.AccessToken},
 	}
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: status code: %d", ErrUnexpectedResponseCode, response.StatusCode)
-	}
-
-	if response.Body != nil {
-		defer response.Body.Close()
-		respBody, err = io.ReadAll(response.Body)
-		if err != nil {
-			return nil, fmt.Errorf("qr code delete: %w", err)
-		}
-	}
-
-	err = json.Unmarshal(respBody, &resp)
+	var resp SuccessResponse
+	err := whttp.Send(ctx, client, req, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("qr code delete: %w", err)
 	}
