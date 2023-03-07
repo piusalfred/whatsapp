@@ -34,7 +34,7 @@ type (
 	// VerificationCodeRequest is the request body for requesting a verification code.
 	// doc link: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/phone-numbers
 	// BaseURL is the base url for the request
-	// ApiVersion is the version of the api
+	// ApiVersion is the apiVersion of the api
 	// PhoneNumberID is the phone number id
 	// CodeMethod is the method to use to send the code. It can be SMS or VOICE
 	// Language is the language to use for the code. eg. en

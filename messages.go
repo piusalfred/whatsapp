@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	// MessageStatusRead is the status for a read message
+	// MessageStatusRead is the status for a read message.
 	MessageStatusRead = "read"
 )
 
@@ -462,12 +462,12 @@ The Cache-Control header tells us how to handle asset caching. We support the fo
 
 Last-Modified Indicates when the asset was last modified. Used with Cache-Control: no-cache. If the Last-Modified value
 is different from a previous response and Cache-Control: no-cache is included in the response,
-we will update our cached version of the asset with the asset in the response.
+we will update our cached apiVersion of the asset with the asset in the response.
 Example: Date: Tue, 22 Feb 2022 22:22:22 GMT.
 
 # ETag
 
-The ETag header is a unique string that identifies a specific version of an asset.
+The ETag header is a unique string that identifies a specific apiVersion of an asset.
 Example: ETag: "33a64df5". This header is ignored unless both Cache-Control and Last-Modified headers
 are not included in the response. In this case, we will cache the asset according to our own, internal
 logic (which we do not disclose).
@@ -623,9 +623,9 @@ func formatMediaPayload(options *SendMediaRequest) ([]byte, error) {
 		Filename: options.Filename,
 		Provider: options.Provider,
 	}
-	mediaJson, err := json.Marshal(media)
+	mediaJSON, err := json.Marshal(media)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("format media payload: %w", err)
 	}
 	recipient := options.Recipient
 	mediaType := string(options.Type)
@@ -637,7 +637,7 @@ func formatMediaPayload(options *SendMediaRequest) ([]byte, error) {
 	payloadBuilder.WriteString(`","`)
 	payloadBuilder.WriteString(mediaType)
 	payloadBuilder.WriteString(`":`)
-	payloadBuilder.Write(mediaJson)
+	payloadBuilder.Write(mediaJSON)
 	payloadBuilder.WriteString(`}`)
 
 	return []byte(payloadBuilder.String()), nil
