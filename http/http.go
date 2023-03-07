@@ -219,6 +219,7 @@ func extractPayloadFromRequest(payload interface{}) (io.Reader, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal payload: %w", err)
 			}
+
 			return bytes.NewReader(payload), nil
 		}
 	}
@@ -277,6 +278,7 @@ func Send(ctx context.Context, client *http.Client, request *Request, v any, hoo
 			if err = json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(v); err != nil {
 				return fmt.Errorf("http send: status (%d): body (%s): %w", response.StatusCode, string(bodyBytes), err)
 			}
+
 			return nil
 		}
 	}
