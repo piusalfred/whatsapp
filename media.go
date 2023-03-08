@@ -19,40 +19,8 @@
 
 package whatsapp
 
-import (
-	"bytes"
-	"context"
-	"fmt"
-	"io"
-	"net/http"
-	"os"
-)
-
-const (
-	MediaUpload      MediaOp = "POST"
-	MediaURLRetrieve MediaOp = "GET"
-	MediaDelete      MediaOp = "DELETE"
-	MediaDownload    MediaOp = "GET"
-)
-
 type (
-	// MediaOp represents the operations that can be performed on media. There are 4 different
-	// operations that can be performed on media:
-	// 	- POST /PHONE_NUMBER_ID/media Upload media.
-	//	- GET /MEDIA_ID Retrieve the URL for a specific media.
-	//	- DELETE /MEDIA_ID Delete a specific media.
-	//	- GET /MEDIA_URL  Download media from a media URL.
-	MediaOp string
-
-	MediaType            string
-	MediaOperationParams struct {
-		Token         string
-		PhoneNumberID string
-		BaseURL       string
-		ApiVersion    string
-		Endpoint      string
-		Method        string
-	}
+	MediaType string
 
 	// UploadMediaRequest contains the information needed to upload a media file.
 	// File Path to the file stored in your local directory. For example: "@/local/path/file.jpg".
@@ -73,6 +41,36 @@ type (
 
 	UploadMediaResponse struct {
 		ID string `json:"id"`
+	}
+
+	// MediaInformation contains information about the media file.
+	////		{
+	////	 	"messaging_product": "whatsapp",
+	////	 	"url": "<URL>",
+	////	 	"mime_type": "<MIME_TYPE>",
+	////	 	"sha256": "<HASH>",
+	////	 	"file_size": "<FILE_SIZE>",
+	////	 	"id": "<MEDIA_ID>"
+	////		}
+	MediaInformation struct {
+		MessagingProduct string `json:"messaging_product"`
+		URL              string `json:"url"`
+		MimeType         string `json:"mime_type"`
+		Sha256           string `json:"sha256"`
+		FileSize         string `json:"file_size"`
+		ID               string `json:"id"`
+	}
+
+	// MediaInfoRequest contains the information needed to retrieve information about a media file.
+	// ID - ID of the media file. This is the ID that you will use to send the media file.
+	// Token - Access token for the business account.
+	// BaseURL - Base URL for the API. For example: https://graph.facebook.com.
+	// ApiVersion - API version. For example: v16.0.
+	MediaInfoRequest struct {
+		ID         string
+		Token      string
+		BaseURL    string
+		ApiVersion string
 	}
 )
 
@@ -190,55 +188,4 @@ type DownloadMediaRequest struct {
 	Filename       string // The filename of the media file.
 	MediaURL       string // The URL of the media file.
 	Token          string // The access token.
-}
-
-// DownloadMedia downloads a media file from the given URL. It accepts a DownloadMediaRequest
-// and returns a byte array and an error.
-func DownloadMedia(ctx context.Context, client *http.Client, options *DownloadMediaRequest) ([]byte, error) {
-	// create output file
-	outputFile, err := os.Create(options.OutputFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer outputFile.Close()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, options.MediaURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", options.Token))
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	var buf bytes.Buffer
-	_, err = io.Copy(&buf, resp.Body)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-	resp.Body = io.NopCloser(bytes.NewBuffer(buf.Bytes()))
-
-	// Write the body to file
-
-	_, err = io.Copy(outputFile, resp.Body)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download media: %s", string(bodyBytes))
-	}
-
-	// write to file
-	_, cpErr := io.Copy(outputFile, bytes.NewReader(bodyBytes))
-	if cpErr != nil {
-		return nil, cpErr
-	}
-
-	return bodyBytes, nil
 }

@@ -30,7 +30,14 @@ import (
 	whttp "github.com/piusalfred/whatsapp/http"
 )
 
+var (
+	SMSVerificationMethod   VerificationMethod = "SMS"
+	VoiceVerificationMethod VerificationMethod = "VOICE"
+)
+
 type (
+	// VerificationMethod is the method to use to verify the phone number. It can be SMS or VOICE
+	VerificationMethod string
 	// VerificationCodeRequest is the request body for requesting a verification code.
 	// doc link: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/phone-numbers
 	// BaseURL is the base url for the request
@@ -39,12 +46,12 @@ type (
 	// CodeMethod is the method to use to send the code. It can be SMS or VOICE
 	// Language is the language to use for the code. eg. en
 	VerificationCodeRequest struct {
-		Token         string `json:"token"`
-		BaseURL       string `json:"base_url"`
-		ApiVersion    string `json:"api_version"`
-		PhoneNumberID string `json:"phone_number_id"`
-		CodeMethod    string `json:"code_method"`
-		Language      string `json:"language"` // eg. en
+		Token         string             `json:"token"`
+		BaseURL       string             `json:"base_url"`
+		ApiVersion    string             `json:"api_version"`
+		PhoneNumberID string             `json:"phone_number_id"`
+		CodeMethod    VerificationMethod `json:"code_method"`
+		Language      string             `json:"language"` // eg. en
 	}
 
 	PhoneNumber struct {
@@ -75,7 +82,8 @@ type (
 
 	// PhoneNumberNameStatus value can be one of the following:
 	// APPROVED: The name has been approved. You can download your certificate now.
-	// AVAILABLE_WITHOUT_REVIEW: The certificate for the phone is available and display name is ready to use without review.
+	// AVAILABLE_WITHOUT_REVIEW: The certificate for the phone is available and display name is ready to use
+	// without review.
 	// DECLINED: The name has not been approved. You cannot download your certificate.
 	// EXPIRED: Your certificate has expired and can no longer be downloaded.
 	// PENDING_REVIEW: Your name request is under review. You cannot download your certificate.
@@ -114,7 +122,7 @@ func RequestCode(ctx context.Context, client *http.Client, req *VerificationCode
 		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 		Query:   nil,
 		Bearer:  req.Token,
-		Form:    map[string]string{"code_method": req.CodeMethod, "language": req.Language},
+		Form:    map[string]string{"code_method": string(req.CodeMethod), "language": req.Language},
 		Payload: nil,
 	}
 	err := whttp.Send(ctx, client, params, nil)
@@ -220,7 +228,10 @@ type ListPhoneNumbersRequest struct {
 // is currently being tested in beta mode. Not all developers have access to it.
 //
 // Sample Request
-// curl -i -X GET "https://graph.facebook.com/v16.0/{whatsapp-business-account-ID}/phone_numbers?filtering=[{"field":"account_mode","operator":"EQUAL","value":"SANDBOX"}]&access_token=access-token"
+//
+//	curl -i -X GET "https://graph.facebook.com/v16.0/{whatsapp-business-account-ID}/phone_numbers?\
+//		filtering=[{"field":"account_mode","operator":"EQUAL","value":"SANDBOX"}]&access_token=access-token"
+//
 // Sample Response
 //
 //	{
