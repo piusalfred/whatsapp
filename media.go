@@ -197,57 +197,62 @@ type (
 //}
 
 // GetMedia retrieve the media object by using its corresponding media ID.
-func GetMedia(ctx context.Context, client *http.Client, id string) (*Media, error) {
-	req, err := whttp.NewRequestWithContext(ctx, &whttp.Request{})
-	if err != nil {
-		return nil, err
+func (client *Client) GetMedia(ctx context.Context, id string) (*Media, error) {
+	reqCtx := &whttp.RequestContext{
+		Name:       "get media",
+		BaseURL:    client.baseURL,
+		ApiVersion: client.version,
+		SenderID:   client.phoneNumberID,
+		Endpoints:  []string{id, "media"},
 	}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodGet,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Bearer:  client.accessToken,
+		Payload: nil,
 	}
-	defer resp.Body.Close()
 
 	media := new(Media)
-	err = json.NewDecoder(resp.Body).Decode(media)
+	err := whttp.Send(ctx, client.http, params, &media)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get media: %w", err)
 	}
 
 	return media, nil
 }
 
-type DownloadMediaRequest struct {
-	OutputFilePath string // The path to the file where the media will be downloaded to.
-	Filename       string // The filename of the media file.
-	MediaURL       string // The URL of the media file.
-	Token          string // The access token.
-}
-
-// DownloadMedia downloads a media file from the given URL. It accepts a DownloadMediaRequest
-// and returns a byte array and an error.
-func DownloadMedia(ctx context.Context, client *http.Client, url string) (io.Reader, error) {
+// DownloadMedia downloads a media file from the given URL.
+// It accepts a media url and returns a byte array and an error.
+func (client *Client) DownloadMedia(ctx context.Context, url string) (io.Reader, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
 
-	resp, err := client.Do(req)
+	resp, err := client.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download media: %s", string(""))
+		var errResponse whttp.ResponseError
+		err = json.NewDecoder(resp.Body).Decode(&errResponse)
+		if err != nil {
+			return nil, fmt.Errorf("failed to download media: %w", err)
+		}
+
+		return nil, fmt.Errorf("failed to download media: %w", errResponse.Err)
 	}
 
-	var buf bytes.Buffer
-	_, err = io.Copy(&buf, resp.Body)
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, resp.Body)
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
 
-	return &buf, nil
+	return buf, nil
 }
