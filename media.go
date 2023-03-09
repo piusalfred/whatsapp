@@ -85,6 +85,10 @@ type (
 	UploadMediaResponse struct {
 		ID string `json:"id"`
 	}
+
+	DeleteMediaResponse struct {
+		Success bool `json:"success"`
+	}
 )
 
 // UploadMedia uploads a media file to the WhatsApp Server.To upload media, A POST call to /PHONE_NUMBER_ID/media is made.
@@ -201,7 +205,7 @@ func (client *Client) GetMedia(ctx context.Context, id string) (*Media, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "get media",
 		BaseURL:    client.baseURL,
-		ApiVersion: client.version,
+		ApiVersion: client.apiVersion,
 		SenderID:   client.phoneNumberID,
 		Endpoints:  []string{id, "media"},
 	}
@@ -221,6 +225,33 @@ func (client *Client) GetMedia(ctx context.Context, id string) (*Media, error) {
 	}
 
 	return media, nil
+}
+
+// DeleteMedia delete the media by using its corresponding media ID.
+func (client *Client) DeleteMedia(ctx context.Context, id string) (*DeleteMediaResponse, error) {
+	reqCtx := &whttp.RequestContext{
+		Name:       "delete media",
+		BaseURL:    client.baseURL,
+		ApiVersion: client.apiVersion,
+		SenderID:   client.phoneNumberID,
+		Endpoints:  []string{id, "media"},
+	}
+
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodDelete,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Bearer:  client.accessToken,
+		Payload: nil,
+	}
+
+	resp := new(DeleteMediaResponse)
+	err := whttp.Send(ctx, client.http, params, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("delete media: %w", err)
+	}
+
+	return resp, nil
 }
 
 // DownloadMedia downloads a media file from the given URL.
