@@ -24,8 +24,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
-	"os"
+	"net/textproto"
+	"path/filepath"
+
+	whttp "github.com/piusalfred/whatsapp/http"
 )
 
 const (
@@ -36,6 +41,15 @@ const (
 )
 
 type (
+	Media struct {
+		MessagingProduct string `json:"messaging_product"`
+		URL              string `json:"url"`
+		MimeType         string `json:"mime_type"`
+		Sha256           string `json:"sha256"`
+		FileSize         int64  `json:"file_size"`
+		ID               string `json:"id"`
+	}
+
 	// MediaOp represents the operations that can be performed on media. There are 4 different
 	// operations that can be performed on media:
 	// 	- POST /PHONE_NUMBER_ID/media Upload media.
@@ -73,6 +87,10 @@ type (
 
 	UploadMediaResponse struct {
 		ID string `json:"id"`
+	}
+
+	DeleteMediaResponse struct {
+		Success bool `json:"success"`
 	}
 )
 
@@ -185,60 +203,153 @@ type (
 //	return nil, nil
 //}
 
-type DownloadMediaRequest struct {
-	OutputFilePath string // The path to the file where the media will be downloaded to.
-	Filename       string // The filename of the media file.
-	MediaURL       string // The URL of the media file.
-	Token          string // The access token.
+// GetMedia retrieve the media object by using its corresponding media ID.
+func (client *Client) GetMedia(ctx context.Context, mediaID string) (*Media, error) {
+	reqCtx := &whttp.RequestContext{
+		Name:       "get media",
+		BaseURL:    client.baseURL,
+		ApiVersion: client.apiVersion,
+		Endpoints:  []string{mediaID},
+	}
+
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodGet,
+		Bearer:  client.accessToken,
+		Payload: nil,
+	}
+
+	media := new(Media)
+	err := whttp.Send(ctx, client.http, params, &media)
+	if err != nil {
+		return nil, fmt.Errorf("get media: %w", err)
+	}
+
+	return media, nil
 }
 
-// DownloadMedia downloads a media file from the given URL. It accepts a DownloadMediaRequest
-// and returns a byte array and an error.
-func DownloadMedia(ctx context.Context, client *http.Client, options *DownloadMediaRequest) ([]byte, error) {
-	// create output file
-	outputFile, err := os.Create(options.OutputFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer outputFile.Close()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, options.MediaURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", options.Token))
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	var buf bytes.Buffer
-	_, err = io.Copy(&buf, resp.Body)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-	resp.Body = io.NopCloser(bytes.NewBuffer(buf.Bytes()))
-
-	// Write the body to file
-
-	_, err = io.Copy(outputFile, resp.Body)
-	if err != nil && err != io.EOF {
-		return nil, err
+// DeleteMedia delete the media by using its corresponding media ID.
+func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteMediaResponse, error) {
+	reqCtx := &whttp.RequestContext{
+		Name:       "delete media",
+		BaseURL:    client.baseURL,
+		ApiVersion: client.apiVersion,
+		Endpoints:  []string{mediaID},
 	}
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodDelete,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Bearer:  client.accessToken,
+		Payload: nil,
+	}
+
+	resp := new(DeleteMediaResponse)
+	err := whttp.Send(ctx, client.http, params, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("delete media: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, filename string, fr io.Reader) (*UploadMediaResponse, error) {
+	payload, contentType, err := uploadMediaPayload(mediaType, filename, fr)
 	if err != nil {
 		return nil, err
 	}
-	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	reqCtx := &whttp.RequestContext{
+		Name:       "upload media",
+		BaseURL:    client.baseURL,
+		ApiVersion: client.apiVersion,
+		Endpoints:  []string{client.phoneNumberID, "media"},
+	}
+
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodPost,
+		Headers: map[string]string{"Content-Type": contentType},
+		Bearer:  client.accessToken,
+		Payload: payload,
+	}
+
+	resp := new(UploadMediaResponse)
+	err = whttp.Send(ctx, client.http, params, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("upload media: %w", err)
+	}
+
+	return resp, nil
+}
+
+// DownloadMedia downloads a media file from the given media ID.
+// It accepts a media url and returns a reader and an error.
+func (client *Client) DownloadMedia(ctx context.Context, mediaID string) (io.Reader, error) {
+	media, err := client.GetMedia(ctx, mediaID)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, media.URL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
+
+	resp, err := client.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download media: %s", string(bodyBytes))
+		return nil, fmt.Errorf("failed to download media: status %d", resp.StatusCode)
 	}
 
-	// write to file
-	_, cpErr := io.Copy(outputFile, bytes.NewReader(bodyBytes))
-	if cpErr != nil {
-		return nil, cpErr
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, resp.Body)
+	if err != nil {
+		return nil, err
 	}
 
-	return bodyBytes, nil
+	return buf, nil
+}
+
+// uploadMediaPayload creates upload media request payload.
+// If nor error, payload content and request content type is returned.
+func uploadMediaPayload(mediaType MediaType, filename string, fr io.Reader) ([]byte, string, error) {
+	var payload bytes.Buffer
+	writer := multipart.NewWriter(&payload)
+
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name=file; filename="%s"`, filename))
+
+	contentType := mime.TypeByExtension(filepath.Ext(filename))
+	header.Set("Content-Type", contentType)
+
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		return nil, "", err
+	}
+
+	_, err = io.Copy(part, fr)
+	if err != nil {
+		return nil, "", err
+	}
+
+	err = writer.WriteField("type", string(mediaType))
+	if err != nil {
+		return nil, "", err
+	}
+
+	err = writer.WriteField("messaging_product", "whatsapp")
+	if err != nil {
+		return nil, "", err
+	}
+
+	writer.Close()
+
+	return payload.Bytes(), writer.FormDataContentType(), nil
 }
