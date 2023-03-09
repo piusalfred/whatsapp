@@ -28,6 +28,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"path/filepath"
 
 	whttp "github.com/piusalfred/whatsapp/http"
@@ -257,8 +258,8 @@ func (client *Client) DeleteMedia(ctx context.Context, id string) (*DeleteMediaR
 	return resp, nil
 }
 
-func (client *Client) UploadMedia(ctx context.Context, filename string, fr io.Reader) (*UploadMediaResponse, error) {
-	payload, contentType, err := uploadMediaPayload(filename, fr)
+func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, filename string, fr io.Reader) (*UploadMediaResponse, error) {
+	payload, contentType, err := uploadMediaPayload(mediaType, filename, fr)
 	if err != nil {
 		return nil, err
 	}
@@ -267,16 +268,15 @@ func (client *Client) UploadMedia(ctx context.Context, filename string, fr io.Re
 		Name:       "upload media",
 		BaseURL:    client.baseURL,
 		ApiVersion: client.apiVersion,
-		SenderID:   client.phoneNumberID,
 		Endpoints:  []string{client.phoneNumberID, "media"},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
-		Method:  http.MethodDelete,
+		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": contentType},
 		Bearer:  client.accessToken,
-		Payload: &payload,
+		Payload: payload,
 	}
 
 	resp := new(UploadMediaResponse)
@@ -324,11 +324,17 @@ func (client *Client) DownloadMedia(ctx context.Context, url string) (io.Reader,
 
 // uploadMediaPayload creates upload media request payload.
 // If nor error, payload content and request content type is returned.
-func uploadMediaPayload(filename string, fr io.Reader) ([]byte, string, error) {
+func uploadMediaPayload(mediaType MediaType, filename string, fr io.Reader) ([]byte, string, error) {
 	var payload bytes.Buffer
 	w := multipart.NewWriter(&payload)
 
-	fw, err := w.CreateFormFile("file", filepath.Base(filename))
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=file; filename="%s"`, filename))
+
+	contentType := mime.TypeByExtension(filepath.Ext(filename))
+	h.Set("Content-Type", contentType)
+
+	fw, err := w.CreatePart(h)
 	if err != nil {
 		return nil, "", err
 	}
@@ -338,23 +344,12 @@ func uploadMediaPayload(filename string, fr io.Reader) ([]byte, string, error) {
 		return nil, "", err
 	}
 
-	formField, err := w.CreateFormField("type")
+	err = w.WriteField("type", string(mediaType))
 	if err != nil {
 		return nil, "", err
 	}
 
-	fileType := mime.TypeByExtension(filepath.Ext(filename))
-	_, err = formField.Write([]byte(fileType))
-	if err != nil {
-		return nil, "", err
-	}
-
-	formField, err = w.CreateFormField("messaging_product")
-	if err != nil {
-		return nil, "", err
-	}
-
-	_, err = formField.Write([]byte(`"whatsapp"`))
+	err = w.WriteField("messaging_product", "whatsapp")
 	if err != nil {
 		return nil, "", err
 	}
