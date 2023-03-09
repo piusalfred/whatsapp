@@ -47,7 +47,7 @@ type (
 		URL              string `json:"url"`
 		MimeType         string `json:"mime_type"`
 		Sha256           string `json:"sha256"`
-		FileSize         string `json:"file_size"`
+		FileSize         int64  `json:"file_size"`
 		ID               string `json:"id"`
 	}
 
@@ -210,14 +210,12 @@ func (client *Client) GetMedia(ctx context.Context, id string) (*Media, error) {
 		Name:       "get media",
 		BaseURL:    client.baseURL,
 		ApiVersion: client.apiVersion,
-		SenderID:   client.phoneNumberID,
-		Endpoints:  []string{id, "media"},
+		Endpoints:  []string{id},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Headers: map[string]string{"Content-Type": "application/json"},
 		Bearer:  client.accessToken,
 		Payload: nil,
 	}
