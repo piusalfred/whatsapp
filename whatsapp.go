@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -816,49 +815,6 @@ func (client *Client) PhoneNumberByID(ctx context.Context) (*PhoneNumber, error)
 
 /// MEDIA
 
-type MediaURLGetter func(ctx context.Context, mediaID string) (*MediaInformation, error)
-
-// MediaURL returns the URL for the media file. All the media URL expires after 5 minutes. Another one can be
-// retrieved by calling the MediaURL method again.
-// MediaURL methods requires the media ID and the access token. The mediaId is the ID of the media file. There
-// are two ways to get this ID:
-//
-//   - From the API call: Once you have successfully uploaded media files to the API, the media ID is included
-//     in the response to your call.
-//
-//   - From Webhooks: When a business account receives a media message, it downloads the media and uploads it to
-//     the Cloud API automatically. That event triggers the Webhooks and sends you a notification that includes
-//     the media ID.
-//
-// More info https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media
-func (client *Client) MediaURL(ctx context.Context, mediaID string) (*MediaInformation, error) {
-	cctx := client.context()
-	rctx := &whttp.RequestContext{
-		Name:       "retrieve-media-url",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   "",
-		Endpoints:  []string{mediaID},
-	}
-
-	request := &whttp.Request{
-		Context: rctx,
-		Method:  http.MethodGet,
-		Headers: nil,
-		Query:   nil,
-		Bearer:  cctx.accessToken,
-		Form:    nil,
-		Payload: nil,
-	}
-
-	var information MediaInformation
-	if err := whttp.Send(ctx, client.http, request, &information); err != nil {
-		return nil, fmt.Errorf("client: %w", err)
-	}
-
-	return &information, nil
-}
-
 type (
 	DownloadResponse struct {
 		Body    io.ReadCloser
@@ -870,77 +826,6 @@ type (
 		MaxRetries int
 	}
 )
-
-// DownloadMedia downloads the media file from the URL provided by the MediaURL method.To download media,
-// make a GET call to your media’s URL. All media URLs expire after 5 minutes —you need to retrieve the
-// media URL again if it expires. If you directly click on the URL you get from a /MEDIA_ID GET call, you
-// get an access error.
-//
-// You must also provide a token for Endpoint Authentication. Developers can authenticate their API calls
-// with the access token generated in the App Dashboard > WhatsApp > Getting Started (or Setup) panel.
-//
-// Business Solution Providers (BSPs) must authenticate themselves with an access token with the
-// whatsapp_business_messaging permission.
-//
-// If successful, you will receive the binary data of media saved in media_file, response headers contain
-// a content-type header to indicate the mime type of returned data. Check supported media types for more
-// information.
-//
-// If media fails to download, you will receive a 404 Not Found response code. In that case, we recommend you
-// try to retrieve a new media URL and download it again. If doing so doesn't resolve the issue, please try to
-// renew the ACCESS_TOKEN then retry downloading the media.
-func (client *Client) DownloadMedia(ctx context.Context, mediaID string, maxRetries int) (*DownloadResponse, error) {
-	mediaURLGetter := client.MediaURL
-	cctx := client.context()
-	accessToken := cctx.accessToken
-
-	for retry := 0; retry <= maxRetries; retry++ {
-		mediaInfo, err := mediaURLGetter(ctx, mediaID)
-		if err != nil {
-			return nil, fmt.Errorf("client: download media: failed to get media URL: %w", err)
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, mediaInfo.URL, nil)
-		if err != nil {
-			return nil, fmt.Errorf("client: download media: failed to create request: %w", err)
-		}
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-
-		resp, err := client.http.Do(req)
-		if err != nil {
-			if retry < maxRetries {
-				var netErr net.Error
-				if ok := errors.Is(err, netErr); ok && netErr.Timeout() {
-					continue // retry on timeouts
-				}
-
-				continue // retry on all errors
-			}
-
-			return nil, fmt.Errorf("client: download media: failed to download media: %w", err)
-		}
-		if resp.StatusCode == http.StatusNotFound {
-			resp.Body.Close()
-			if retry < maxRetries {
-				continue // retry on 404 errors
-			}
-
-			return nil, fmt.Errorf("client: download media: %w: (404)", ErrMediaNotFound)
-		}
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-
-			return nil, fmt.Errorf("client: download media: %w: status code %d", ErrDownloadFailed, resp.StatusCode)
-		}
-
-		return &DownloadResponse{
-			Body:    resp.Body,
-			Headers: resp.Header,
-		}, nil
-	}
-
-	return nil, fmt.Errorf("client: download media: retries (%d): %w", maxRetries, ErrMaxRetriesReached)
-}
 
 var (
 	ErrDownloadFailed    = errors.New("media download failed")
