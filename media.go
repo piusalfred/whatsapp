@@ -25,7 +25,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 
 	whttp "github.com/piusalfred/whatsapp/http"
 )
@@ -254,6 +257,37 @@ func (client *Client) DeleteMedia(ctx context.Context, id string) (*DeleteMediaR
 	return resp, nil
 }
 
+func (client *Client) UploadMedia(ctx context.Context, filename string, fr io.Reader) (*UploadMediaResponse, error) {
+	payload, contentType, err := uploadMediaPayload(filename, fr)
+	if err != nil {
+		return nil, err
+	}
+
+	reqCtx := &whttp.RequestContext{
+		Name:       "upload media",
+		BaseURL:    client.baseURL,
+		ApiVersion: client.apiVersion,
+		SenderID:   client.phoneNumberID,
+		Endpoints:  []string{client.phoneNumberID, "media"},
+	}
+
+	params := &whttp.Request{
+		Context: reqCtx,
+		Method:  http.MethodDelete,
+		Headers: map[string]string{"Content-Type": contentType},
+		Bearer:  client.accessToken,
+		Payload: &payload,
+	}
+
+	resp := new(UploadMediaResponse)
+	err = whttp.Send(ctx, client.http, params, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("upload media: %w", err)
+	}
+
+	return resp, nil
+}
+
 // DownloadMedia downloads a media file from the given URL.
 // It accepts a media url and returns a byte array and an error.
 func (client *Client) DownloadMedia(ctx context.Context, url string) (io.Reader, error) {
@@ -286,4 +320,46 @@ func (client *Client) DownloadMedia(ctx context.Context, url string) (io.Reader,
 	}
 
 	return buf, nil
+}
+
+// uploadMediaPayload creates upload media request payload.
+// If nor error, payload content and request content type is returned.
+func uploadMediaPayload(filename string, fr io.Reader) ([]byte, string, error) {
+	var payload bytes.Buffer
+	w := multipart.NewWriter(&payload)
+
+	fw, err := w.CreateFormFile("file", filepath.Base(filename))
+	if err != nil {
+		return nil, "", err
+	}
+
+	_, err = io.Copy(fw, fr)
+	if err != nil {
+		return nil, "", err
+	}
+
+	formField, err := w.CreateFormField("type")
+	if err != nil {
+		return nil, "", err
+	}
+
+	fileType := mime.TypeByExtension(filepath.Ext(filename))
+	_, err = formField.Write([]byte(fileType))
+	if err != nil {
+		return nil, "", err
+	}
+
+	formField, err = w.CreateFormField("messaging_product")
+	if err != nil {
+		return nil, "", err
+	}
+
+	_, err = formField.Write([]byte(`"whatsapp"`))
+	if err != nil {
+		return nil, "", err
+	}
+
+	w.Close()
+
+	return payload.Bytes(), w.FormDataContentType(), nil
 }
