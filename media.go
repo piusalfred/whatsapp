@@ -22,7 +22,6 @@ package whatsapp
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
@@ -205,12 +204,12 @@ type (
 //}
 
 // GetMedia retrieve the media object by using its corresponding media ID.
-func (client *Client) GetMedia(ctx context.Context, id string) (*Media, error) {
+func (client *Client) GetMedia(ctx context.Context, mediaID string) (*Media, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "get media",
 		BaseURL:    client.baseURL,
 		ApiVersion: client.apiVersion,
-		Endpoints:  []string{id},
+		Endpoints:  []string{mediaID},
 	}
 
 	params := &whttp.Request{
@@ -230,13 +229,12 @@ func (client *Client) GetMedia(ctx context.Context, id string) (*Media, error) {
 }
 
 // DeleteMedia delete the media by using its corresponding media ID.
-func (client *Client) DeleteMedia(ctx context.Context, id string) (*DeleteMediaResponse, error) {
+func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteMediaResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "delete media",
 		BaseURL:    client.baseURL,
 		ApiVersion: client.apiVersion,
-		SenderID:   client.phoneNumberID,
-		Endpoints:  []string{id, "media"},
+		Endpoints:  []string{mediaID},
 	}
 
 	params := &whttp.Request{
@@ -286,10 +284,15 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 	return resp, nil
 }
 
-// DownloadMedia downloads a media file from the given URL.
-// It accepts a media url and returns a byte array and an error.
-func (client *Client) DownloadMedia(ctx context.Context, url string) (io.Reader, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// DownloadMedia downloads a media file from the given media ID.
+// It accepts a media url and returns a reader and an error.
+func (client *Client) DownloadMedia(ctx context.Context, mediaID string) (io.Reader, error) {
+	media, err := client.GetMedia(ctx, mediaID)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, media.URL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -302,18 +305,12 @@ func (client *Client) DownloadMedia(ctx context.Context, url string) (io.Reader,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		var errResponse whttp.ResponseError
-		err = json.NewDecoder(resp.Body).Decode(&errResponse)
-		if err != nil {
-			return nil, fmt.Errorf("failed to download media: %w", err)
-		}
-
-		return nil, fmt.Errorf("failed to download media: %w", errResponse.Err)
+		return nil, fmt.Errorf("failed to download media: status %d", resp.StatusCode)
 	}
 
 	buf := new(bytes.Buffer)
 	_, err = io.Copy(buf, resp.Body)
-	if err != nil && err != io.EOF {
+	if err != nil {
 		return nil, err
 	}
 
@@ -324,35 +321,35 @@ func (client *Client) DownloadMedia(ctx context.Context, url string) (io.Reader,
 // If nor error, payload content and request content type is returned.
 func uploadMediaPayload(mediaType MediaType, filename string, fr io.Reader) ([]byte, string, error) {
 	var payload bytes.Buffer
-	w := multipart.NewWriter(&payload)
+	writer := multipart.NewWriter(&payload)
 
-	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=file; filename="%s"`, filename))
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name=file; filename="%s"`, filename))
 
 	contentType := mime.TypeByExtension(filepath.Ext(filename))
-	h.Set("Content-Type", contentType)
+	header.Set("Content-Type", contentType)
 
-	fw, err := w.CreatePart(h)
+	part, err := writer.CreatePart(header)
 	if err != nil {
 		return nil, "", err
 	}
 
-	_, err = io.Copy(fw, fr)
+	_, err = io.Copy(part, fr)
 	if err != nil {
 		return nil, "", err
 	}
 
-	err = w.WriteField("type", string(mediaType))
+	err = writer.WriteField("type", string(mediaType))
 	if err != nil {
 		return nil, "", err
 	}
 
-	err = w.WriteField("messaging_product", "whatsapp")
+	err = writer.WriteField("messaging_product", "whatsapp")
 	if err != nil {
 		return nil, "", err
 	}
 
-	w.Close()
+	writer.Close()
 
-	return payload.Bytes(), w.FormDataContentType(), nil
+	return payload.Bytes(), writer.FormDataContentType(), nil
 }
