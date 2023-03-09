@@ -20,16 +20,11 @@
 package whatsapp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -811,75 +806,4 @@ func (client *Client) PhoneNumberByID(ctx context.Context) (*PhoneNumber, error)
 	}
 
 	return &phoneNumber, nil
-}
-
-/// MEDIA
-
-type (
-	DownloadResponse struct {
-		Body    io.ReadCloser
-		Headers http.Header
-	}
-
-	DownloadOptions struct {
-		RetryOn404 bool
-		MaxRetries int
-	}
-)
-
-var (
-	ErrDownloadFailed    = errors.New("media download failed")
-	ErrMaxRetriesReached = errors.New("max retries reached")
-	ErrMediaNotFound     = errors.New("media not found")
-)
-
-func (client *Client) UploadFile(ctx context.Context, mediaPath string, mediaType string) (string, error) {
-	// Open media file
-	file, err := os.Open(mediaPath)
-	if err != nil {
-		return "", fmt.Errorf("client: upload file: failed to open media file: %w", err)
-	}
-	defer file.Close()
-
-	cctx := client.context()
-	reqURL, err := whttp.CreateRequestURL(cctx.baseURL, cctx.apiVersion, cctx.phoneNumberID, "media")
-	if err != nil {
-		return "", err
-	}
-
-	// Create multipart form request
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", filepath.Base(mediaPath))
-	if err != nil {
-		return "", fmt.Errorf("client: upload file: failed to create form file: %w", err)
-	}
-	if _, err := io.Copy(part, file); err != nil {
-		return "", fmt.Errorf("client: upload file: failed to copy media data: %w", err)
-	}
-	if err := writer.WriteField("type", mediaType); err != nil {
-		return "", fmt.Errorf("client: upload file: failed to write field: %w", err)
-	}
-	if err := writer.WriteField("messaging_product", "whatsapp"); err != nil {
-		return "", fmt.Errorf("client: upload file: failed to write field: %w", err)
-	}
-	if err := writer.Close(); err != nil {
-		return "", fmt.Errorf("client: upload file: failed to close writer: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, body)
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+cctx.accessToken)
-	req.Header.Add("Content-Type", writer.FormDataContentType())
-	resp, err := client.http.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	defer resp.Body.Close()
-
-	return "", nil
 }
