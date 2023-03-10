@@ -80,7 +80,7 @@ func TestIsFatalError(t *testing.T) {
 }
 
 func ExampleNewFatalError() {
-	err := NewFatalError(errors.New("something went wrong"), "something went wrong")
+	var err = NewFatalError(errors.New("something went wrong"), "something went wrong")
 	fmt.Println(err)
 	// Output: something went wrong: something went wrong
 }
