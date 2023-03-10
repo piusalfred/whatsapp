@@ -20,8 +20,10 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,6 +41,7 @@ func testServer(t *testing.T, ctx *Context) *httptest.Server {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != ctx.Method {
 			w.WriteHeader(http.StatusNotFound)
+
 			return
 		}
 
@@ -51,6 +54,7 @@ func testServer(t *testing.T, ctx *Context) *httptest.Server {
 			body, err := json.Marshal(ctx.Body)
 			if err != nil {
 				t.Errorf("failed to marshal response body: %v", err)
+
 				return
 			}
 			if _, err := w.Write(body); err != nil {
@@ -68,7 +72,7 @@ type User struct {
 	Male bool   `json:"male"`
 }
 
-func TestSend(t *testing.T) {
+func TestSend(t *testing.T) { //nolint:paralleltest
 	ctx := &Context{
 		Method:     http.MethodGet,
 		StatusCode: http.StatusOK,
@@ -165,6 +169,7 @@ func TestCreateRequestURL(t *testing.T) {
 			got, err := CreateRequestURL(tt.args.baseURL, tt.args.apiVersion, tt.args.senderID, tt.args.endpoints...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CreateRequestURL() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			if got != tt.want {
@@ -206,6 +211,7 @@ func TestJoinUrlParts(t *testing.T) {
 			got, err := requestURLFromContext(tt.args.parts)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("requestURLFromContext() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			if got != tt.want {
@@ -213,4 +219,211 @@ func TestJoinUrlParts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRequestNameFromContext(t *testing.T) {
+	t.Parallel()
+	type args struct {
+		name string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "test request name from context",
+			args: args{
+				name: "test",
+			},
+			want: "test",
+		},
+		{
+			name: "test request name from context",
+			args: args{
+				name: "",
+			},
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		args := tt.args
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := withRequestName(context.TODO(), args.name)
+			if got := RequestNameFromContext(ctx); got != tt.want {
+				t.Errorf("RequestNameFromContext() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+//nolint:funlen
+func Test_extractRequestBody(t *testing.T) {
+	t.Parallel()
+	type user struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+		Wise bool   `json:"wise"`
+	}
+	type args struct {
+		payload interface{}
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    []byte
+		wantErr bool
+	}{
+		{
+			name: "test []byte payload",
+			args: args{
+				payload: []byte("test"),
+			},
+			want:    []byte("test"),
+			wantErr: false,
+		},
+		{
+			name: "test string payload",
+			args: args{
+				payload: "test",
+			},
+			want:    []byte("test"),
+			wantErr: false,
+		},
+		{
+			name: "test struct payload",
+			args: args{
+				payload: user{
+					Name: "test",
+					Age:  10,
+					Wise: true,
+				},
+			},
+			want:    []byte(`{"name":"test","age":10,"wise":true}`),
+			wantErr: false,
+		},
+		{
+			name: "test pointer to struct payload",
+			args: args{
+				payload: &user{
+					Name: "test",
+					Age:  10,
+					Wise: true,
+				},
+			},
+			want:    []byte(`{"name":"test","age":10,"wise":true}`),
+			wantErr: false,
+		},
+		{
+			name: "slice of struct payload",
+			args: args{
+				payload: []user{
+					{
+						Name: "test",
+						Age:  10,
+						Wise: true,
+					},
+					{
+						Name: "test2",
+						Age:  20,
+						Wise: false,
+					},
+				},
+			},
+			want:    []byte(`[{"name":"test","age":10,"wise":true},{"name":"test2","age":20,"wise":false}]`),
+			wantErr: false,
+		},
+		{
+			name: "slice of pointer to struct payload",
+			args: args{
+				payload: []*user{
+					{
+						Name: "test",
+						Age:  10,
+						Wise: true,
+					},
+					{
+						Name: "test2",
+						Age:  20,
+						Wise: false,
+					},
+				},
+			},
+
+			want:    []byte(`[{"name":"test","age":10,"wise":true},{"name":"test2","age":20,"wise":false}]`),
+			wantErr: false,
+		},
+		{
+			name: "test nil payload",
+			args: args{
+				payload: nil,
+			},
+			want:    []byte(""),
+			wantErr: false,
+		},
+		{
+			name: "test invalid payload",
+			args: args{
+				payload: make(chan int),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		args := tt.args
+		name := tt.name
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := extractRequestBody(args.payload)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%s: extractRequestBody() error = %v, wantErr %v", name, err, tt.wantErr)
+
+				return
+			}
+
+			if (tt.wantErr && (err != nil)) || got == nil {
+				t.Logf("%s: extractPaylodFromRequest has error as expected: %v or returned a nil io.Reader", name, err)
+
+				return
+			}
+
+			// create a new buffer to read the payload
+			buf := new(bytes.Buffer)
+			_, err = buf.ReadFrom(got)
+			if err != nil {
+				t.Errorf("%s extractRequestBody() error = %v, wantErr %v", name, err, tt.wantErr)
+
+				return
+			}
+
+			// Json encoder by default adds a new line at the end of the payload,
+			// So we need to remove it to compare the payload.
+			bytesGot := bytes.TrimRight(buf.Bytes(), "\n")
+			if !bytes.Equal(bytesGot, tt.want) {
+				t.Errorf("%s: extractRequestBody() got = %s, want %s", name,
+					string(bytesGot), string(tt.want))
+			}
+		})
+	}
+}
+
+func ExampleNewRequest() {
+	options := []RequestOption{
+		WithMethod(http.MethodGet),
+		WithHeaders(map[string]string{"Content-Type": "application/json"}),
+		WithBearer("token"),
+		WithQuery(map[string]string{"key": "value"}),
+		WithContext(&RequestContext{}),
+	}
+	request, err := NewRequest(context.TODO(), options...)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(request.Method)
+
+	// Output: GET
 }

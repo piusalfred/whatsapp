@@ -20,9 +20,11 @@
 package errors
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 )
+
+var errTest = errors.New("TestError")
 
 func TestIsError(t *testing.T) {
 	t.Parallel()
@@ -44,7 +46,7 @@ func TestIsError(t *testing.T) {
 		{
 			name: "TestIsError",
 			args: args{
-				err: fmt.Errorf("TestError"),
+				err: errTest,
 			},
 			want: false,
 		},

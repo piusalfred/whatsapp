@@ -36,6 +36,13 @@ import (
 const BaseURL = "https://graph.facebook.com"
 
 type (
+	// requestNameKey is a type that holds the name of a request. This is usually passed
+	// extracted from Request.Context.Name and passed down to the Send function.
+	// then passed down with to the request hooks. In request hooks, the name can be
+	// used to identify the request and other multiple use cases like instrumentation,
+	// logging etc.
+	requestNameKey string
+
 	// Request is a struct that holds the details that can be used to make a http request.
 	// It is used by the Send function to make a request.
 	// It contains Payload which is an interface that can be used to pass any data type
@@ -61,19 +68,35 @@ type (
 		Endpoints  []string
 	}
 
-	// ResponseHook is a function that takes a Context and *http.Response and returns nothing.
-	// It is used to execute a function after a request has been made and response received.
+	// Hook is a function that takes a Context, a *http.Request and *http.Response and returns nothing.
+	// It exposes the request and response to the user.
 	// Send calls multiple hooks and pass the returned *http.Response Do not close the response body
 	// in your hooks implementations as it is closed by the Send function.
-	ResponseHook func(ctx context.Context, response *http.Response)
+	Hook func(ctx context.Context, request *http.Request, response *http.Response)
 )
 
-// executeResponseHooks take a Context, *http.Response and a slice of ResponseHook and executes
+// withRequestName takes a string and a context and returns a new context with the string
+// as the request name.
+func withRequestName(ctx context.Context, name string) context.Context {
+	return context.WithValue(ctx, requestNameKey("request-name"), name)
+}
+
+// RequestNameFromContext returns the request name from the context.
+func RequestNameFromContext(ctx context.Context) string {
+	name, ok := ctx.Value(requestNameKey("request-name")).(string)
+	if !ok {
+		return "unknown request name"
+	}
+
+	return name
+}
+
+// executeHooks take a Context,*http.Request, *http.Response and a slice of Hook and executes
 // each hook in the slice.
-func executeResponseHooks(ctx context.Context, response *http.Response, hooks []ResponseHook) {
+func executeHooks(ctx context.Context, request *http.Request, response *http.Response, hooks []Hook) {
 	// range over the hooks and execute each one
 	for i := 0; i < len(hooks); i++ {
-		hooks[i](ctx, response)
+		hooks[i](ctx, request, response)
 	}
 }
 
@@ -97,6 +120,8 @@ func CreateRequestURL(baseURL, apiVersion, senderID string, endpoints ...string)
 	return path, nil
 }
 
+// NewRequest takes a context.Context and a slice of RequestOption and returns a new *http.Request.
+// Internally, it calls the NewRequestWithContext function.
 func NewRequest(ctx context.Context, options ...RequestOption) (*http.Request, error) {
 	request := &Request{
 		Context: &RequestContext{
@@ -109,6 +134,7 @@ func NewRequest(ctx context.Context, options ...RequestOption) (*http.Request, e
 	for _, option := range options {
 		option(request)
 	}
+
 	return NewRequestWithContext(ctx, request)
 }
 
@@ -142,9 +168,14 @@ func WithBearer(bearer string) RequestOption {
 	}
 }
 
+var ErrInvalidRequestValue = errors.New("invalid request value")
+
+// NewRequestWithContext takes a context and a *Request and returns a new *http.Request.
+//
+//nolint:cyclop
 func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request, error) {
-	if request == nil {
-		return nil, errors.New("request cannot be nil")
+	if request == nil || request.Context == nil {
+		return nil, fmt.Errorf("%w: request or request context should not be nil", ErrInvalidRequestValue)
 	}
 	var (
 		body io.Reader
@@ -158,7 +189,7 @@ func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request
 		body = strings.NewReader(form.Encode())
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	} else if request.Payload != nil {
-		rdr, err := extractPayloadFromRequest(request.Payload)
+		rdr, err := extractRequestBody(request.Payload)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract payload from request: %w", err)
 		}
@@ -201,50 +232,61 @@ func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request
 	return req, nil
 }
 
-func extractPayloadFromRequest(payload interface{}) (io.Reader, error) {
-	if payload != nil {
-		// Payload is expected to be a struct that can be marshalled to json, or a slice
-		// of bytes or an io.Reader.
-		// We need to check the type of the payload and convert it to an io.Reader
-		// if it is not already.
-		switch payload.(type) {
-		case []byte:
-			return bytes.NewReader(payload.([]byte)), nil
-		case io.Reader:
-			return payload.(io.Reader), nil
-		case string:
-			return strings.NewReader(payload.(string)), nil
-		default:
-			payload, err := json.Marshal(payload)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal payload: %w", err)
-			}
-
-			return bytes.NewReader(payload), nil
-		}
+// extractRequestBody takes an interface{} and returns an io.Reader.
+// It is called by the NewRequestWithContext function to convert the payload in the
+// Request to an io.Reader. The io.Reader is then used to set the body of the http.Request.
+// Only the following types are supported:
+// 1. []byte
+// 2. io.Reader
+// 3. string
+// 4. any value that can be marshalled to json
+// 5. nil.
+func extractRequestBody(payload interface{}) (io.Reader, error) {
+	if payload == nil {
+		return nil, nil
 	}
+	switch p := payload.(type) {
+	case []byte:
+		return bytes.NewReader(p), nil
+	case io.Reader:
+		return p, nil
+	case string:
+		return strings.NewReader(p), nil
+	default:
+		buf := &bytes.Buffer{}
+		err := json.NewEncoder(buf).Encode(p)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode payload: %w", err)
+		}
 
-	// FIXME
-	return nil, nil
+		return buf, nil
+	}
 }
 
-func Send(ctx context.Context, client *http.Client, request *Request, v any, hooks ...ResponseHook) error {
-	req, err := NewRequestWithContext(ctx, request)
+// Send calls http.Client.Do after creating a *http.Request. It takes hooks that are executed after the request
+// is sent. Even when an error occurs, the hooks are executed. Except for the errors caused by NewRequestWithContext,
+// here Send terminates the execution and returns the error. Hooks passed here should always check for nil values of
+// the requests and responses before using them. As in some cases hooks may be called with nil values. Example when
+// http.Client.Do returns an error.
+//
+//nolint:cyclop
+func Send(ctx context.Context, client *http.Client, r *Request, v any, hooks ...Hook) error {
+	ctx = withRequestName(ctx, r.Context.Name)
+	request, err := NewRequestWithContext(ctx, r)
 	if err != nil {
 		return fmt.Errorf("http send: %w", err)
 	}
 
-	response, err := client.Do(req)
+	response, err := client.Do(request)
 	if err != nil {
+		defer executeHooks(ctx, request, response, hooks)
+
 		return fmt.Errorf("http send: %w", err)
 	}
 	defer func() {
-		if response != nil && response.Body != nil {
-			response.Body.Close()
-		}
+		executeHooks(ctx, request, response, hooks)
+		_ = response.Body.Close()
 	}()
-
-	defer executeResponseHooks(ctx, response, hooks)
 
 	if response.Body == nil && v == nil {
 		return nil
@@ -260,7 +302,7 @@ func Send(ctx context.Context, client *http.Client, request *Request, v any, hoo
 	// Sometimes when there is an error, the response body is not empty
 	// as the error description is returned in the body. So we need to
 	// check the status code and the body to determine if there is an error
-	isResponseOk := response.StatusCode >= 200 && response.StatusCode <= 299
+	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode <= http.StatusIMUsed
 	bodyIsEmpty := len(bodyBytes) == 0
 	if !isResponseOk && !bodyIsEmpty {
 		var errResponse ResponseError

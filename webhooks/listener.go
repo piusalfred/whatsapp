@@ -288,7 +288,7 @@ func WithAfterFunc(afterFunc AfterFunc) ListenerOption {
 	}
 }
 
-// NotificationHandler returns a http.Handler that can be used to handle the notification
+// NotificationHandler returns a http.Handler that can be used to handle the notification.
 func (ls *EventListener) NotificationHandler() http.Handler {
 	return NotificationHandler(ls.h, ls.neh, ls.hef, ls.options)
 }
@@ -296,6 +296,8 @@ func (ls *EventListener) NotificationHandler() http.Handler {
 // GenericHandler returns a http.Handler that handles all type of notification in one function.
 // It  calls GenericNotificationHandler. So before using this function, you should set GenericNotificationHandler
 // with WithGenericNotificationHandler.
+//
+//nolint:cyclop
 func (ls *EventListener) GenericHandler() http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var buff bytes.Buffer
@@ -337,7 +339,7 @@ func (ls *EventListener) GenericHandler() http.Handler {
 	})
 }
 
-// SubscriptionVerificationHandler returns a http.Handler that can be used to verify the subscription
+// SubscriptionVerificationHandler returns a http.Handler that can be used to verify the subscription.
 func (ls *EventListener) SubscriptionVerificationHandler() http.Handler {
 	return VerifySubscriptionHandler(ls.v)
 }

@@ -33,13 +33,6 @@ import (
 	whttp "github.com/piusalfred/whatsapp/http"
 )
 
-const (
-	MediaUpload      MediaOp = "POST"
-	MediaURLRetrieve MediaOp = "GET"
-	MediaDelete      MediaOp = "DELETE"
-	MediaDownload    MediaOp = "GET"
-)
-
 type (
 	Media struct {
 		MessagingProduct string `json:"messaging_product"`
@@ -50,23 +43,7 @@ type (
 		ID               string `json:"id"`
 	}
 
-	// MediaOp represents the operations that can be performed on media. There are 4 different
-	// operations that can be performed on media:
-	// 	- POST /PHONE_NUMBER_ID/media Upload media.
-	//	- GET /MEDIA_ID Retrieve the URL for a specific media.
-	//	- DELETE /MEDIA_ID Delete a specific media.
-	//	- GET /MEDIA_URL  Download media from a media URL.
-	MediaOp string
-
-	MediaType            string
-	MediaOperationParams struct {
-		Token         string
-		PhoneNumberID string
-		BaseURL       string
-		ApiVersion    string
-		Endpoint      string
-		Method        string
-	}
+	MediaType string
 
 	// UploadMediaRequest contains the information needed to upload a media file.
 	// File Path to the file stored in your local directory. For example: "@/local/path/file.jpg".
@@ -240,7 +217,7 @@ func uploadMediaPayload(mediaType MediaType, filename string, fr io.Reader) ([]b
 		return nil, "", err
 	}
 
-	writer.Close()
+	_ = writer.Close()
 
 	return payload.Bytes(), writer.FormDataContentType(), nil
 }

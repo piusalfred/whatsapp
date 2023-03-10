@@ -141,7 +141,7 @@ type (
 		accessToken       string
 		phoneNumberID     string
 		businessAccountID string
-		responseHooks     []whttp.ResponseHook
+		responseHooks     []whttp.Hook
 	}
 
 	ClientOption func(*Client)
@@ -183,7 +183,7 @@ func WithBusinessAccountID(whatsappBusinessAccountID string) ClientOption {
 	}
 }
 
-func WithResponseHooks(hooks ...whttp.ResponseHook) ClientOption {
+func WithResponseHooks(hooks ...whttp.Hook) ClientOption {
 	return func(client *Client) {
 		client.responseHooks = hooks
 	}

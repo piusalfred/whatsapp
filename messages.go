@@ -65,7 +65,7 @@ func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*
 		RecipientType: "individual",
 		Type:          "text",
 		Text: &models.Text{
-			PreviewUrl: req.PreviewURL,
+			PreviewURL: req.PreviewURL,
 			Body:       req.Message,
 		},
 	}

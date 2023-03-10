@@ -245,7 +245,7 @@ type (
 	//
 	// This is a snippet from the whatsapp documentation:
 	//
-	//		If we send a webhook request to your endpoint and your server responds with an http status code other
+	//		If we send a webhook request to your endpoint and your server responds with a http status code other
 	//		than 200, or if we are unable to deliver the webhook for another reason, we will keep trying with
 	//		decreasing frequency until the request succeeds, for up to 7 days.
 	//
@@ -256,7 +256,7 @@ type (
 	//
 	// -  ErrOnBeforeFuncHook when an error is received in the BeforeFunc hook
 	// -  ErrOnAttachNotificationHooks when an error is received in the AttachNotificationHooks hook
-	// -  ErrOnGenericHandlerFunc when an error is received in the GenericHandlerFunc hook
+	// -  ErrOnGenericHandlerFunc when an error is received in the GenericHandlerFunc hook.
 	NotificationErrorHandler func(context.Context, *http.Request, error) *Response
 	BeforeFunc               func(ctx context.Context, notification *Notification) error
 	AfterFunc                func(ctx context.Context, notification *Notification, err error)
@@ -367,6 +367,7 @@ var (
 	ErrOnGlobalMessageHook       = errors.New("on global message hook error")
 )
 
+//nolint:gocognit
 func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks,
 	hooksErrorHandler HooksErrorHandler,
 ) error {
@@ -382,7 +383,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 
 	// nonFatalErrors is a slice of non-fatal errors that are collected from the hooks.
 	// can contain a maximum of 4 errors.
-	nonFatalErrors := make([]error, 0, 4)
+	nonFatalErrors := make([]error, 0, 4) //nolint:gomnd
 
 	// call the Hooks
 	if value.Errors != nil && hooks.OnNotificationErrorHook != nil {
@@ -449,9 +450,11 @@ func getEncounteredError(errs []error) error {
 
 var ErrFailedToAttachHookToMessage = errors.New("could not attach hooks to message")
 
+var errHooksOrMessageIsNil = fmt.Errorf("%w: hooks or message is nil", ErrFailedToAttachHookToMessage)
+
 func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks *Hooks, message *Message) error {
 	if hooks == nil || message == nil {
-		return fmt.Errorf("hooks or message is nil")
+		return errHooksOrMessageIsNil
 	}
 	mctx := &MessageContext{
 		From:      message.From,
