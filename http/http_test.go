@@ -465,8 +465,9 @@ func ExampleSend() {
 		Form:    nil,
 		Payload: nil,
 	}, nil, hook)
-
 	if err != nil {
 		fmt.Printf("error sending request: %s", err)
 	}
+
+	//
 }

@@ -20,108 +20,40 @@
 package whatsapp
 
 import (
-	"encoding/json"
+	"bytes"
 	"testing"
-
-	"github.com/piusalfred/whatsapp/models"
 )
 
-func TestBuildPayloadForMediaMessage(t *testing.T) {
-	type args struct {
-		options *SendMediaRequest
+func TestBuildPayloadForAudioMessage(t *testing.T) { //nolint:paralleltest
+	request := &SendMediaRequest{
+		Recipient: "2348123456789",
+		Type:      "audio",
+		MediaID:   "1234567890",
+		MediaLink: "https://example.com/audio.mp3",
+		Caption:   "Audio caption",
+		Filename:  "audio.mp3",
+		Provider:  "whatsapp",
+
+		CacheOptions: nil,
 	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "build audio message",
-			args: args{
-				options: &SendMediaRequest{
-					Recipient: "2348123456789",
-					Type:      "audio",
-					MediaID:   "1234567890",
-					MediaLink: "https://example.com/audio.mp3",
-					Caption:   "Audio caption",
-					Filename:  "audio.mp3",
-					Provider:  "whatsapp",
 
-					CacheOptions: nil,
-				},
-			},
-			wantErr: false,
-		},
+	payload, err := formatMediaPayload(request)
+	if err != nil {
+		t.Errorf("formatMediaPayload() error = %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := formatMediaPayload(tt.args.options)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
 
-			var message models.Message
-			err = json.Unmarshal(got, &message)
-			if err != nil {
-				t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+	expected := `{"messaging_product":"whatsapp","recipient_type":"individual","to":"2348123456789","type": "audio","audio":{"id":"1234567890","link":"https://example.com/audio.mp3","caption":"Audio caption","filename":"audio.mp3","provider":"whatsapp"}}` //nolint:lll
 
-			if message.Product != "whatsapp" {
-				t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if message.To != tt.args.options.Recipient {
-				t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if message.RecipientType != "individual" {
-				t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if message.Type != string(tt.args.options.Type) {
-				t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			// check the media values
-			if tt.args.options.Type == "audio" {
-				if message.Audio == nil {
-					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-					return
-				}
-				if message.Audio.ID != tt.args.options.MediaID {
-					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-					return
-				}
-				if message.Audio.Link != tt.args.options.MediaLink {
-					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-					return
-				}
-				if message.Audio.Caption != tt.args.options.Caption {
-					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-					return
-				}
-				if message.Audio.Filename != tt.args.options.Filename {
-					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-					return
-				}
-				if message.Audio.Provider != tt.args.options.Provider {
-					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-					return
-				}
-			}
-		})
+	if !bytes.Equal(payload, []byte(expected)) {
+		t.Errorf("formatMediaPayload() got = %v, want %v", payload, expected)
 	}
+
+	t.Logf("audio payload: %s", payload)
 }
 
 func BenchmarkBuildPayloadForMediaMessage(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		formatMediaPayload(&SendMediaRequest{
+		_, err := formatMediaPayload(&SendMediaRequest{
 			Recipient: "2348123456789",
 			Type:      "audio",
 			MediaID:   "1234567890",
@@ -132,5 +64,10 @@ func BenchmarkBuildPayloadForMediaMessage(b *testing.B) {
 
 			CacheOptions: nil,
 		})
+		if err != nil {
+			b.Errorf("formatMediaPayload() error = %v", err)
+
+			return
+		}
 	}
 }

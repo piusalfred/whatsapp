@@ -279,7 +279,7 @@ type (
 	// the one set in the App Dashboard.
 	SubscriptionVerifier func(context.Context, *VerificationRequest) error
 
-	GenericNotificationHandler func(context.Context, http.ResponseWriter, *Notification) error
+	GlobalNotificationHandler func(context.Context, http.ResponseWriter, *Notification) error
 )
 
 // SetOnNotificationErrorHook sets the OnNotificationErrorHook.
@@ -367,11 +367,10 @@ var (
 	ErrOnGlobalMessageHook       = errors.New("on global message hook error")
 )
 
-//nolint:gocognit
 func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks,
 	hooksErrorHandler HooksErrorHandler,
 ) error {
-	if hooks == nil {
+	if hooks == nil || value == nil {
 		return nil
 	}
 
@@ -383,10 +382,10 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 
 	// nonFatalErrors is a slice of non-fatal errors that are collected from the hooks.
 	// can contain a maximum of 4 errors.
-	nonFatalErrors := make([]error, 0, 4) //nolint:gomnd
+	nonFatalErrors := make([]error, 0, 4)
 
 	// call the Hooks
-	if value.Errors != nil && hooks.OnNotificationErrorHook != nil {
+	if hooks.OnNotificationErrorHook != nil {
 		for _, ev := range value.Errors {
 			ev := ev
 			if err := hooks.OnNotificationErrorHook(ctx, notificationCtx, ev); err != nil {
@@ -398,7 +397,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 		}
 	}
 
-	if value.Statuses != nil && hooks.OnMessageStatusChangeHook != nil {
+	if hooks.OnMessageStatusChangeHook != nil {
 		for _, sv := range value.Statuses {
 			sv := sv
 			if err := hooks.OnMessageStatusChangeHook(ctx, notificationCtx, sv); err != nil {
@@ -410,24 +409,22 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 		}
 	}
 
-	if value.Messages != nil {
-		for _, mv := range value.Messages {
-			mv := mv
-			if hooks.OnMessageReceivedHook != nil {
-				if err := hooks.OnMessageReceivedHook(ctx, notificationCtx, mv); err != nil {
-					if IsFatalError(hooksErrorHandler(err)) {
-						return err
-					}
-					nonFatalErrors = append(nonFatalErrors, ErrOnGlobalMessageHook)
-				}
-			}
-
-			if err := attachHooksToMessage(ctx, notificationCtx, hooks, mv); err != nil {
+	for _, mv := range value.Messages {
+		mv := mv
+		if hooks.OnMessageReceivedHook != nil {
+			if err := hooks.OnMessageReceivedHook(ctx, notificationCtx, mv); err != nil {
 				if IsFatalError(hooksErrorHandler(err)) {
 					return err
 				}
-				nonFatalErrors = append(nonFatalErrors, ErrOnMessageHooks)
+				nonFatalErrors = append(nonFatalErrors, ErrOnGlobalMessageHook)
 			}
+		}
+
+		if err := attachHooksToMessage(ctx, notificationCtx, hooks, mv); err != nil {
+			if IsFatalError(hooksErrorHandler(err)) {
+				return err
+			}
+			nonFatalErrors = append(nonFatalErrors, ErrOnMessageHooks)
 		}
 	}
 

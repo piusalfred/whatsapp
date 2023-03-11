@@ -33,21 +33,22 @@ import (
 	"github.com/piusalfred/whatsapp/qrcodes"
 )
 
-var ErrNilRequest = errors.New("nil request")
+var ErrBadRequestFormat = errors.New("bad request")
 
 const (
+	messagingProduct          = "whatsapp"
+	individualRecipientType   = "individual"
 	BaseURL                   = "https://graph.facebook.com/"
 	LowestSupportedVersion    = "v16.0"
 	ContactBirthDayDateFormat = "2006-01-02" // YYYY-MM-DD
 )
 
 const (
-	TextMessageType        = "text"
-	ReactionMessageType    = "reaction"
-	MediaMessageType       = "media"
-	LocationMessageType    = "location"
-	ContactMessageType     = "contact"
-	InteractiveMessageType = "interactive"
+	templateMessageType = "template"
+	textMessageType     = "text"
+	reactionMessageType = "reaction"
+	locationMessageType = "location"
+	contactMessageType  = "contact"
 )
 
 const (
@@ -413,7 +414,7 @@ func (client *Client) SendContacts(ctx context.Context, recipient string, contac
 // MarkMessageRead sends a read receipt for a message.
 func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*StatusResponse, error) {
 	reqBody := &MessageStatusUpdateRequest{
-		MessagingProduct: "whatsapp",
+		MessagingProduct: messagingProduct,
 		Status:           MessageStatusRead,
 		MessageID:        messageID,
 	}
@@ -484,9 +485,7 @@ func (client *Client) CreateQrCode(ctx context.Context, message *qrcodes.CreateR
 		PrefilledMessage: message.PrefilledMessage,
 		ImageFormat:      message.ImageFormat,
 	}
-
 	cctx := client.context()
-
 	rctx := &qrcodes.RequestContext{
 		BaseURL:     cctx.baseURL,
 		PhoneID:     cctx.phoneNumberID,
@@ -572,13 +571,13 @@ func (client *Client) DeleteQrCode(ctx context.Context, qrCodeID string) (*qrcod
 
 ////// PHONE NUMBERS
 
-var (
+const (
 	SMSVerificationMethod   VerificationMethod = "SMS"
 	VoiceVerificationMethod VerificationMethod = "VOICE"
 )
 
 type (
-	// VerificationMethod is the method to use to verify the phone number. It can be SMS or VOICE
+	// VerificationMethod is the method to use to verify the phone number. It can be SMS or VOICE.
 	VerificationMethod string
 
 	PhoneNumber struct {

@@ -123,7 +123,8 @@ func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteM
 }
 
 func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, filename string,
-	fr io.Reader) (*UploadMediaResponse, error) {
+	fr io.Reader,
+) (*UploadMediaResponse, error) {
 	payload, contentType, err := uploadMediaPayload(mediaType, filename, fr)
 	if err != nil {
 		return nil, err
@@ -153,6 +154,8 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 	return resp, nil
 }
 
+var ErrMediaDownload = fmt.Errorf("failed to download media")
+
 // DownloadMedia downloads a media file from the given media ID.
 // It accepts a media url and returns a reader and an error.
 func (client *Client) DownloadMedia(ctx context.Context, mediaID string) (io.Reader, error) {
@@ -163,28 +166,30 @@ func (client *Client) DownloadMedia(ctx context.Context, mediaID string) (io.Rea
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, media.URL, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("media download: create a request: %w", err)
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
 
 	resp, err := client.http.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("media download: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download media: status %d", resp.StatusCode)
+		return nil, fmt.Errorf("%w: status %d", ErrMediaDownload, resp.StatusCode)
 	}
 
 	buf := new(bytes.Buffer)
 	_, err = io.Copy(buf, resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("media download: %w", err)
 	}
 
 	return buf, nil
 }
+
+var ErrMediaUpload = fmt.Errorf("failed to upload media")
 
 // uploadMediaPayload creates upload media request payload.
 // If nor error, payload content and request content type is returned.
@@ -200,22 +205,22 @@ func uploadMediaPayload(mediaType MediaType, filename string, fr io.Reader) ([]b
 
 	part, err := writer.CreatePart(header)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("media upload: %w", err)
 	}
 
 	_, err = io.Copy(part, fr)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("media upload: %w", err)
 	}
 
 	err = writer.WriteField("type", string(mediaType))
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("media upload: %w", err)
 	}
 
 	err = writer.WriteField("messaging_product", "whatsapp")
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("media upload: %w", err)
 	}
 
 	_ = writer.Close()

@@ -60,10 +60,10 @@ type SendTextRequest struct {
 // SendText sends a text message to the recipient.
 func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*ResponseMessage, error) {
 	text := &models.Message{
-		Product:       "whatsapp",
+		Product:       messagingProduct,
 		To:            req.Recipient,
-		RecipientType: "individual",
-		Type:          "text",
+		RecipientType: individualRecipientType,
+		Type:          textMessageType,
 		Text: &models.Text{
 			PreviewURL: req.PreviewURL,
 			Body:       req.Message,
@@ -111,10 +111,10 @@ type SendLocationRequest struct {
 
 func SendLocation(ctx context.Context, client *http.Client, req *SendLocationRequest) (*ResponseMessage, error) {
 	location := &models.Message{
-		Product:       "whatsapp",
+		Product:       messagingProduct,
 		To:            req.Recipient,
-		RecipientType: "individual",
-		Type:          "location",
+		RecipientType: individualRecipientType,
+		Type:          locationMessageType,
 		Location: &models.Location{
 			Name:      req.Name,
 			Address:   req.Address,
@@ -184,7 +184,7 @@ Sample request:
 
 If the message you are reacting to is more than 30 days old, doesn't correspond to any message
 in the conversation, has been deleted, or is itself a reaction message, the reaction message will
-not be delivered and you will receive a webhooks with the code 131009.
+not be delivered, and you will receive a webhooks with the code 131009.
 
 A successful response includes an object with an identifier prefixed with wamid. Use the ID listed
 after wamid to track your message status.
@@ -204,9 +204,9 @@ Example response:
 */
 func React(ctx context.Context, client *http.Client, req *ReactRequest) (*ResponseMessage, error) {
 	reaction := &models.Message{
-		Product: "whatsapp",
+		Product: messagingProduct,
 		To:      req.Recipient,
-		Type:    "reaction",
+		Type:    reactionMessageType,
 		Reaction: &models.Reaction{
 			MessageID: req.MessageID,
 			Emoji:     req.Emoji,
@@ -249,10 +249,10 @@ type SendContactRequest struct {
 
 func SendContact(ctx context.Context, client *http.Client, req *SendContactRequest) (*ResponseMessage, error) {
 	contact := &models.Message{
-		Product:       "whatsapp",
+		Product:       messagingProduct,
 		To:            req.Recipient,
-		RecipientType: "individual",
-		Type:          "contact",
+		RecipientType: individualRecipientType,
+		Type:          contactMessageType,
 		Contacts:      req.Contacts,
 	}
 	reqCtx := &whttp.RequestContext{
@@ -320,7 +320,7 @@ type ReplyRequest struct {
 //	}'
 func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*ResponseMessage, error) {
 	if request == nil {
-		return nil, fmt.Errorf("reply request is nil: %w", ErrNilRequest)
+		return nil, fmt.Errorf("reply request is nil: %w", ErrBadRequestFormat)
 	}
 	payload, err := formatReplyPayload(request)
 	if err != nil {
@@ -390,10 +390,10 @@ type SendTemplateRequest struct {
 
 func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateRequest) (*ResponseMessage, error) {
 	template := &models.Message{
-		Product:       "whatsapp",
+		Product:       messagingProduct,
 		To:            req.Recipient,
-		RecipientType: "individual",
-		Type:          "template",
+		RecipientType: individualRecipientType,
+		Type:          templateMessageType,
 		Template: &models.Template{
 			Language: &models.TemplateLanguage{
 				Code:   req.TemplateLanguageCode,
@@ -430,7 +430,7 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 
 /*
 CacheOptions contains the options on how to send a media message. You can specify either the
-ID or the link of the media. Also it allows you to specify caching options.
+ID or the link of the media. Also, it allows you to specify caching options.
 
 The Cloud API supports media http caching. If you are using a link (link) to a media asset on your
 server (as opposed to the ID (id) of an asset you have uploaded to our servers),you can instruct us
@@ -507,7 +507,7 @@ Be sure to keep the following in mind:
 
 Here’s a list of the currently supported media types. Check out Supported Media Types for more information.
   - Audio (<16 MB) – ACC, MP4, MPEG, AMR, and OGG formats
-  - Documents (<100 MB) – text, PDF, Office, and Open Office formats
+  - Documents (<100 MB) – text, PDF, Office, and OpenOffice formats
   - Images (<5 MB) – JPEG and PNG formats
   - Video (<16 MB) – MP4 and 3GP formats
   - Stickers (<100 KB) – WebP format
@@ -561,7 +561,7 @@ downloaded successfully.
 */
 func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) (*ResponseMessage, error) {
 	if req == nil {
-		return nil, fmt.Errorf("options cannot be nil")
+		return nil, fmt.Errorf("request is nil: %w", ErrBadRequestFormat)
 	}
 
 	payload, err := formatMediaPayload(req)
@@ -612,9 +612,6 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) 
 // formatMediaPayload builds the payload for a media message. It accepts SendMediaOptions
 // and returns a byte array and an error. This function is used internally by SendMedia.
 // if neither ID nor Link is specified, it returns an error.
-//
-// For Link requests, the payload should be something like this:
-// {"messaging_product": "whatsapp","recipient_type": "individual","to": "PHONE-NUMBER","type": "image","image": {"link" : "https://IMAGE_URL"}}
 func formatMediaPayload(options *SendMediaRequest) ([]byte, error) {
 	media := &models.Media{
 		ID:       options.MediaID,

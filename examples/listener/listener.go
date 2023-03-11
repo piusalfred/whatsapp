@@ -61,7 +61,7 @@ func EndTimeMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func GenericNotificationHandler() webhooks.GenericNotificationHandler {
+func GenericNotificationHandler() webhooks.GlobalNotificationHandler {
 	return func(ctx context.Context, writer http.ResponseWriter, notification *webhooks.Notification,
 	) error {
 		// print the notification and the time it took to process it

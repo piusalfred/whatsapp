@@ -178,8 +178,9 @@ func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request
 		return nil, fmt.Errorf("%w: request or request context should not be nil", ErrInvalidRequestValue)
 	}
 	var (
-		body io.Reader
-		req  *http.Request
+		body    io.Reader
+		req     *http.Request
+		headers = map[string]string{}
 	)
 	if request.Form != nil {
 		form := url.Values{}
@@ -187,7 +188,7 @@ func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request
 			form.Add(key, value)
 		}
 		body = strings.NewReader(form.Encode())
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		headers["Content-Type"] = "application/x-www-form-urlencoded"
 	} else if request.Payload != nil {
 		rdr, err := extractRequestBody(request.Payload)
 		if err != nil {
@@ -213,6 +214,11 @@ func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request
 		for key, value := range request.Headers {
 			req.Header.Set(key, value)
 		}
+	}
+
+	// extra headers
+	for key, value := range headers {
+		req.Header.Add(key, value)
 	}
 
 	// Set the bearer token header
@@ -288,7 +294,7 @@ func Do(ctx context.Context, client *http.Client, r *Request, v any, hooks ...Ho
 		_ = response.Body.Close()
 	}()
 
-	if response.Body == nil && v == nil {
+	if v == nil {
 		return nil
 	}
 

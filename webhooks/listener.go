@@ -31,9 +31,9 @@ import (
 // EventListener wraps all the parts needed to listen and respond to incoming events
 // to registered webhooks.
 // It contains unexported *Hooks, *HandlerOptions, HooksErrorHandler, NotificationErrorHandler
-// SubscriptionVerifier and GenericNotificationHandler.
+// SubscriptionVerifier and GlobalNotificationHandler.
 // All these can be set via exported ListenerOption functions like WithBeforeFunc and
-// Setter methods like GenericNotificationHandler which sets the GenericNotificationHandler.
+// Setter methods like GlobalNotificationHandler which sets the GlobalNotificationHandler.
 //
 // Example:
 //
@@ -65,14 +65,14 @@ import (
 //	  })
 //
 //	  using a generic handler
-//	  handler := listener.GenericNotificationHandler()
+//	  handler := listener.GlobalNotificationHandler()
 type EventListener struct {
 	h       *Hooks
 	hef     HooksErrorHandler
 	neh     NotificationErrorHandler
 	v       SubscriptionVerifier
 	options *HandlerOptions
-	g       GenericNotificationHandler
+	g       GlobalNotificationHandler
 }
 
 type ListenerOption func(*EventListener)
@@ -99,7 +99,7 @@ func NewEventListener(options ...ListenerOption) *EventListener {
 	return listener
 }
 
-func (ls *EventListener) GenericNotificationHandler(handler GenericNotificationHandler) {
+func (ls *EventListener) GenericNotificationHandler(handler GlobalNotificationHandler) {
 	ls.g = handler
 }
 
@@ -234,7 +234,7 @@ func (ls *EventListener) OnMessageReceived(hook OnMessageReceivedHook) {
 	ls.h.OnMessageReceivedHook = hook
 }
 
-func WithGenericNotificationHandler(g GenericNotificationHandler) ListenerOption {
+func WithGenericNotificationHandler(g GlobalNotificationHandler) ListenerOption {
 	return func(ls *EventListener) {
 		ls.g = g
 	}
@@ -294,7 +294,7 @@ func (ls *EventListener) NotificationHandler() http.Handler {
 }
 
 // GlobalHandler returns a http.Handler that handles all type of notification in one function.
-// It  calls GenericNotificationHandler. So before using this function, you should set GenericNotificationHandler
+// It  calls GlobalNotificationHandler. So before using this function, you should set GlobalNotificationHandler
 // with WithGenericNotificationHandler.
 //
 //nolint:cyclop
