@@ -88,7 +88,7 @@ func (client *Client) GetMedia(ctx context.Context, mediaID string) (*Media, err
 	}
 
 	media := new(Media)
-	err := whttp.Send(ctx, client.http, params, &media)
+	err := whttp.Do(ctx, client.http, params, &media)
 	if err != nil {
 		return nil, fmt.Errorf("get media: %w", err)
 	}
@@ -114,7 +114,7 @@ func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteM
 	}
 
 	resp := new(DeleteMediaResponse)
-	err := whttp.Send(ctx, client.http, params, &resp)
+	err := whttp.Do(ctx, client.http, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("delete media: %w", err)
 	}
@@ -122,7 +122,8 @@ func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteM
 	return resp, nil
 }
 
-func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, filename string, fr io.Reader) (*UploadMediaResponse, error) {
+func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, filename string,
+	fr io.Reader) (*UploadMediaResponse, error) {
 	payload, contentType, err := uploadMediaPayload(mediaType, filename, fr)
 	if err != nil {
 		return nil, err
@@ -144,7 +145,7 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 	}
 
 	resp := new(UploadMediaResponse)
-	err = whttp.Send(ctx, client.http, params, &resp)
+	err = whttp.Do(ctx, client.http, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("upload media: %w", err)
 	}

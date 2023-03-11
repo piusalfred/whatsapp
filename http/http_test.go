@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"testing"
 )
 
@@ -106,7 +107,7 @@ func TestSend(t *testing.T) { //nolint:paralleltest
 	}
 
 	var user User
-	if err := Send(context.TODO(), http.DefaultClient, request, &user); err != nil {
+	if err := Do(context.TODO(), http.DefaultClient, request, &user); err != nil {
 		t.Errorf("failed to send request: %v", err)
 	}
 
@@ -426,4 +427,46 @@ func ExampleNewRequest() {
 	fmt.Println(request.Method)
 
 	// Output: GET
+}
+
+func ExampleSend() {
+	hook := Hook(func(ctx context.Context, request *http.Request, response *http.Response) {
+		requestName := RequestNameFromContext(ctx)
+		fmt.Printf("request name: %s\n", requestName)
+		requestDump, err := httputil.DumpRequestOut(request, true)
+		if err != nil {
+			fmt.Printf("error dumping request: %s", err)
+		}
+
+		fmt.Printf("request: %s\n", requestDump)
+
+		fmt.Printf("response %+v\n", response)
+
+		responseDump, err := httputil.DumpResponse(response, true)
+		if err != nil {
+			fmt.Printf("error dumping response: %s", err)
+		}
+
+		fmt.Printf("response: %s\n", responseDump)
+	})
+
+	err := Do(context.TODO(), http.DefaultClient, &Request{
+		Context: &RequestContext{
+			Name:       "test request",
+			BaseURL:    "https://httpbin.org/brotli",
+			ApiVersion: "",
+			SenderID:   "",
+			Endpoints:  nil,
+		},
+		Method:  http.MethodGet,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Query:   nil,
+		Bearer:  "",
+		Form:    nil,
+		Payload: nil,
+	}, nil, hook)
+
+	if err != nil {
+		fmt.Printf("error sending request: %s", err)
+	}
 }

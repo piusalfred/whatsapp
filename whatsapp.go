@@ -437,7 +437,7 @@ func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*S
 	}
 
 	var success StatusResponse
-	err := whttp.Send(ctx, client.http, params, &success)
+	err := whttp.Do(ctx, client.http, params, &success)
 	if err != nil {
 		return nil, fmt.Errorf("client: %w", err)
 	}
@@ -651,7 +651,7 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 		Form:    map[string]string{"code_method": string(codeMethod), "language": language},
 		Payload: nil,
 	}
-	err := whttp.Send(ctx, client.http, params, nil, client.responseHooks...)
+	err := whttp.Do(ctx, client.http, params, nil, client.responseHooks...)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -679,7 +679,7 @@ func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusRespo
 	}
 
 	var resp StatusResponse
-	err := whttp.Send(ctx, client.http, params, &resp, client.responseHooks...)
+	err := whttp.Do(ctx, client.http, params, &resp, client.responseHooks...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -776,7 +776,7 @@ func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterPar
 		params.Query["filtering"] = string(jsonParams)
 	}
 	var phoneNumbersList PhoneNumbersList
-	err := whttp.Send(ctx, client.http, params, &phoneNumbersList, client.responseHooks...)
+	err := whttp.Do(ctx, client.http, params, &phoneNumbersList, client.responseHooks...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -801,7 +801,7 @@ func (client *Client) PhoneNumberByID(ctx context.Context) (*PhoneNumber, error)
 		},
 	}
 	var phoneNumber PhoneNumber
-	if err := whttp.Send(ctx, client.http, request, &phoneNumber, client.responseHooks...); err != nil {
+	if err := whttp.Do(ctx, client.http, request, &phoneNumber, client.responseHooks...); err != nil {
 		return nil, fmt.Errorf("get phone muber by id: %w", err)
 	}
 

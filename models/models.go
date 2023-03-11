@@ -178,20 +178,21 @@ type (
 
 	// Template is a template for a message. It contains the parameters of the message as listed below.
 	//
-	//   - Name, name (string). Required. Name of the template.
+	//  - Name, name (string). Required. Name of the template.
 	//
-	//   - Language, language (object). Required. Contains a language object. Specifies the language the
-	//     template may be rendered in. The language object can contain the following fields:
+	//  - Language, language (object). Required. Contains a language object. Specifies the language the
+	//    template may be rendered in. The language object can contain the following fields:
 	//
-	//	 - Policy, policy (string). Required. The language policy the message should follow. The only supported
-	//	   option is deterministic. See Language Policy Options here
-	//	   https://developers.facebook.com/docs/whatsapp/api/messages/message-templates#language-policy-options.
+	//	- Policy, policy (string). Required. The language policy the message should follow. The only supported
+	//	  option is deterministic. See Language Policy Options here
+	//	  https://developers.facebook.com/docs/whatsapp/api/messages/message-templates#language-policy-options.
 	//
-	//	  - StatusCode, code (string). Required. The code of the language or locale to use. Accepts both language
-	//	    and language_locale formats (e.g., en and en_US). For all codes, see Supported Languages.
-	//	    https://developers.facebook.com/docs/whatsapp/api/messages/message-templates#supported-languages
+	//	 - StatusCode, code (string). Required. The code of the language or locale to use. Accepts both language
+	//	   and language_locale formats (e.g., en and en_US). For all codes, see Supported Languages.
+	//	   https://developers.facebook.com/docs/whatsapp/api/messages/message-templates#supported-languages
 	//
-	//   - Components, components (array of objects). Optional. Array of components objects containing the parameters of the message.
+	//   - Components, components (array of objects). Optional. Array of components objects containing the parameters
+	//     of the message.
 	//
 	//   - Namespace, namespace (string). Optional. Only used for On-Premises API. Namespace of the template.
 	Template struct {
@@ -207,11 +208,11 @@ type (
 	}
 
 	// TemplateButton contains information about a template button.
-	// 		- Type, type (string) Required. Indicates the type of parameter for the button.
-	//		- Payload, payload (string) Required for quick_reply buttons. Developer-defined payload that is returned
-	// 		  when the button is clicked in addition to the display text on the button.
-	//		- Text, text (string) Required for URL buttons. Developer-provided suffix that is appended to the predefined
-	//		  prefix URL in the template.
+	// 	- Type, type (string) Required. Indicates the type of parameter for the button.
+	//	- Payload, payload (string) Required for quick_reply buttons. Developer-defined payload that is returned
+	// 	  when the button is clicked in addition to the display text on the button.
+	//	- Text, text (string) Required for URL buttons. Developer-provided suffix that is appended to the predefined
+	//	  prefix URL in the template.
 	TemplateButton struct {
 		Type    string `json:"type,omitempty"`
 		Payload string `json:"payload,omitempty"`

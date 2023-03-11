@@ -93,27 +93,26 @@ func TestBuildPayloadForMediaMessage(t *testing.T) {
 				if message.Audio == nil {
 					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
 					return
-				} else {
-					if message.Audio.ID != tt.args.options.MediaID {
-						t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-						return
-					}
-					if message.Audio.Link != tt.args.options.MediaLink {
-						t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-						return
-					}
-					if message.Audio.Caption != tt.args.options.Caption {
-						t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-						return
-					}
-					if message.Audio.Filename != tt.args.options.Filename {
-						t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-						return
-					}
-					if message.Audio.Provider != tt.args.options.Provider {
-						t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
-						return
-					}
+				}
+				if message.Audio.ID != tt.args.options.MediaID {
+					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if message.Audio.Link != tt.args.options.MediaLink {
+					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if message.Audio.Caption != tt.args.options.Caption {
+					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if message.Audio.Filename != tt.args.options.Filename {
+					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if message.Audio.Provider != tt.args.options.Provider {
+					t.Errorf("formatMediaPayload() error = %v, wantErr %v", err, tt.wantErr)
+					return
 				}
 			}
 		})

@@ -293,12 +293,12 @@ func (ls *EventListener) NotificationHandler() http.Handler {
 	return NotificationHandler(ls.h, ls.neh, ls.hef, ls.options)
 }
 
-// GenericHandler returns a http.Handler that handles all type of notification in one function.
+// GlobalHandler returns a http.Handler that handles all type of notification in one function.
 // It  calls GenericNotificationHandler. So before using this function, you should set GenericNotificationHandler
 // with WithGenericNotificationHandler.
 //
 //nolint:cyclop
-func (ls *EventListener) GenericHandler() http.Handler {
+func (ls *EventListener) GlobalHandler() http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var buff bytes.Buffer
 		if _, err := io.Copy(&buff, request.Body); err != nil && !errors.Is(err, io.EOF) {

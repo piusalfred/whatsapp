@@ -129,7 +129,7 @@ func main() {
 		StartTimeMiddleware,
 		EndTimeMiddleware,
 	}
-	finalHandler := Wrap(ls.GenericHandler(), middlewares...)
+	finalHandler := Wrap(ls.GlobalHandler(), middlewares...)
 	mux := http.NewServeMux()
 	mux.Handle("/webhooks", finalHandler)
 

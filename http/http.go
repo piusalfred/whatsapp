@@ -37,16 +37,16 @@ const BaseURL = "https://graph.facebook.com"
 
 type (
 	// requestNameKey is a type that holds the name of a request. This is usually passed
-	// extracted from Request.Context.Name and passed down to the Send function.
+	// extracted from Request.Context.Name and passed down to the Do function.
 	// then passed down with to the request hooks. In request hooks, the name can be
 	// used to identify the request and other multiple use cases like instrumentation,
 	// logging etc.
 	requestNameKey string
 
 	// Request is a struct that holds the details that can be used to make a http request.
-	// It is used by the Send function to make a request.
+	// It is used by the Do function to make a request.
 	// It contains Payload which is an interface that can be used to pass any data type
-	// to the Send function. Payload is expected to be a struct that can be marshalled
+	// to the Do function. Payload is expected to be a struct that can be marshalled
 	// to json, or a slice of bytes or an io.Reader.
 	Request struct {
 		Context *RequestContext
@@ -70,8 +70,8 @@ type (
 
 	// Hook is a function that takes a Context, a *http.Request and *http.Response and returns nothing.
 	// It exposes the request and response to the user.
-	// Send calls multiple hooks and pass the returned *http.Response Do not close the response body
-	// in your hooks implementations as it is closed by the Send function.
+	// Do calls multiple hooks and pass the returned *http.Response Do not close the response body
+	// in your hooks implementations as it is closed by the Do function.
 	Hook func(ctx context.Context, request *http.Request, response *http.Response)
 )
 
@@ -263,14 +263,14 @@ func extractRequestBody(payload interface{}) (io.Reader, error) {
 	}
 }
 
-// Send calls http.Client.Do after creating a *http.Request. It takes hooks that are executed after the request
+// Do calls http.Client.Do after creating a *http.Request. It takes hooks that are executed after the request
 // is sent. Even when an error occurs, the hooks are executed. Except for the errors caused by NewRequestWithContext,
-// here Send terminates the execution and returns the error. Hooks passed here should always check for nil values of
+// here Do terminates the execution and returns the error. Hooks passed here should always check for nil values of
 // the requests and responses before using them. As in some cases hooks may be called with nil values. Example when
 // http.Client.Do returns an error.
 //
 //nolint:cyclop
-func Send(ctx context.Context, client *http.Client, r *Request, v any, hooks ...Hook) error {
+func Do(ctx context.Context, client *http.Client, r *Request, v any, hooks ...Hook) error {
 	ctx = withRequestName(ctx, r.Context.Name)
 	request, err := NewRequestWithContext(ctx, r)
 	if err != nil {

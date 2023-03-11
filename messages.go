@@ -89,7 +89,7 @@ func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*
 	}
 
 	var message ResponseMessage
-	err := whttp.Send(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send text message: %w", err)
 	}
@@ -142,7 +142,7 @@ func SendLocation(ctx context.Context, client *http.Client, req *SendLocationReq
 	}
 
 	var message ResponseMessage
-	err := whttp.Send(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send location: %w", err)
 	}
@@ -230,7 +230,7 @@ func React(ctx context.Context, client *http.Client, req *ReactRequest) (*Respon
 	}
 
 	var message ResponseMessage
-	err := whttp.Send(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send reaction: %w", err)
 	}
@@ -275,7 +275,7 @@ func SendContact(ctx context.Context, client *http.Client, req *SendContactReque
 
 	var message ResponseMessage
 
-	err := whttp.Send(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send contact: %w", err)
 	}
@@ -345,7 +345,7 @@ func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*Re
 	}
 
 	var message ResponseMessage
-	err = whttp.Send(ctx, client, req, &message)
+	err = whttp.Do(ctx, client, req, &message)
 	if err != nil {
 		return nil, fmt.Errorf("reply: %w", err)
 	}
@@ -420,7 +420,7 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 		Bearer: req.AccessToken,
 	}
 	var message ResponseMessage
-	err := whttp.Send(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send template: %w", err)
 	}
@@ -601,7 +601,7 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) 
 
 	var message ResponseMessage
 
-	err = whttp.Send(ctx, client, params, &message)
+	err = whttp.Do(ctx, client, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send media: %w", err)
 	}
