@@ -429,7 +429,7 @@ func ExampleNewRequest() {
 	// Output: GET
 }
 
-func ExampleSend() {
+func ExampleDo() {
 	hook := Hook(func(ctx context.Context, request *http.Request, response *http.Response) {
 		requestName := RequestNameFromContext(ctx)
 		fmt.Printf("request name: %s\n", requestName)

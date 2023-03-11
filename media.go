@@ -189,8 +189,6 @@ func (client *Client) DownloadMedia(ctx context.Context, mediaID string) (io.Rea
 	return buf, nil
 }
 
-var ErrMediaUpload = fmt.Errorf("failed to upload media")
-
 // uploadMediaPayload creates upload media request payload.
 // If nor error, payload content and request content type is returned.
 func uploadMediaPayload(mediaType MediaType, filename string, fr io.Reader) ([]byte, string, error) {

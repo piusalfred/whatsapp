@@ -449,6 +449,7 @@ var ErrFailedToAttachHookToMessage = errors.New("could not attach hooks to messa
 
 var errHooksOrMessageIsNil = fmt.Errorf("%w: hooks or message is nil", ErrFailedToAttachHookToMessage)
 
+//nolint:gocyclo
 func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks *Hooks, message *Message) error {
 	if hooks == nil || message == nil {
 		return errHooksOrMessageIsNil
