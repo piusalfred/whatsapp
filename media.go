@@ -22,6 +22,7 @@ package whatsapp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -194,24 +195,28 @@ func (client *Client) DownloadMedia(ctx context.Context, mediaID string, retries
 			return nil, fmt.Errorf("media download: %w", err)
 		}
 
+		// retry ...
 		if resp.StatusCode == http.StatusNotFound {
-			resp.Body.Close()
+			_ = resp.Body.Close()
+
 			continue
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			_ = resp.Body.Close()
+
 			return nil, fmt.Errorf("%w: status %d", ErrMediaDownload, resp.StatusCode)
 		}
 
 		var buf bytes.Buffer
-		_, err = io.CopyN(&buf, resp.Body, MaxDocSize) // TODO: This should be configurable.
-		if err != nil && err != io.EOF {
-			resp.Body.Close()
+		_, err = io.CopyN(&buf, resp.Body, MaxDocSize)
+		if err != nil && !errors.Is(err, io.EOF) {
+			_ = resp.Body.Close()
+
 			return nil, fmt.Errorf("media download: %w", err)
 		}
 
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		return &DownloadMediaResponse{
 			Headers: resp.Header,
