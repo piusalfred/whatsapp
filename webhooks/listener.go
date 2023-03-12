@@ -41,7 +41,7 @@ import (
 //			WithNotificationErrorHandler(NoOpNotificationErrorHandler),
 //			WithAfterFunc(func(ctx context.Context, notification *Notification, err error) {}),
 //			WithBeforeFunc(func(ctx context.Context, notification *Notification) error {}),
-//			WithGenericNotificationHandler(nil),
+//			WithGlobalNotificationHandler(nil),
 //			WithHooks(&Hooks{
 //				OnOrderMessageHook:        nil,
 //				OnButtonMessageHook:       nil,
@@ -234,7 +234,7 @@ func (ls *EventListener) OnMessageReceived(hook OnMessageReceivedHook) {
 	ls.h.OnMessageReceivedHook = hook
 }
 
-func WithGenericNotificationHandler(g GlobalNotificationHandler) ListenerOption {
+func WithGlobalNotificationHandler(g GlobalNotificationHandler) ListenerOption {
 	return func(ls *EventListener) {
 		ls.g = g
 	}
@@ -295,7 +295,7 @@ func (ls *EventListener) NotificationHandler() http.Handler {
 
 // GlobalHandler returns a http.Handler that handles all type of notification in one function.
 // It  calls GlobalNotificationHandler. So before using this function, you should set GlobalNotificationHandler
-// with WithGenericNotificationHandler.
+// with WithGlobalNotificationHandler.
 //
 //nolint:cyclop
 func (ls *EventListener) GlobalHandler() http.Handler {

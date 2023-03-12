@@ -114,7 +114,7 @@ func GenericNotificationHandler() webhooks.GlobalNotificationHandler {
 */
 func main() {
 	ls := webhooks.NewEventListener(
-		webhooks.WithGenericNotificationHandler(GenericNotificationHandler()),
+		webhooks.WithGlobalNotificationHandler(GenericNotificationHandler()),
 		webhooks.WithNotificationErrorHandler(
 			func(ctx context.Context, request *http.Request, err error) *webhooks.Response {
 				return &webhooks.Response{
