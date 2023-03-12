@@ -105,7 +105,7 @@ type (
 	}
 
 	// MessageType represents the type of message currently supported.
-	// Which are Text messages,Reaction messages,Media messages,Location messages,Contact messages,
+	// Which are Text messages,Reaction messages,MediaInformation messages,Location messages,Contact messages,
 	// and Interactive messages.
 	// You may also send any of these message types as a reply, except reaction messages.
 	// For more go to https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages
@@ -362,7 +362,7 @@ func (client *Client) SendMedia(ctx context.Context, recipient string, req *Medi
 
 // ReplyMessage is a message that is sent as a reply to a previous message. The previous message's ID
 // is needed and is set as Context in ReplyRequest.
-// Content is the message content. It can be a Text, Location, Media, Template, or Contact.
+// Content is the message content. It can be a Text, Location, MediaInformation, Template, or Contact.
 type ReplyMessage struct {
 	Context string
 	Type    MessageType

@@ -498,14 +498,14 @@ type SendMediaRequest struct {
 SendMedia sends a media message to the recipient. To send a media message, make a POST call to the
 /PHONE_NUMBER_ID/messages endpoint with type parameter set to audio, document, image, sticker, or
 video, and the corresponding information for the media type such as its ID or
-link (see Media http Caching).
+link (see MediaInformation http Caching).
 
 Be sure to keep the following in mind:
   - Uploaded media only lasts thirty days
   - Generated download URLs only last five minutes
   - Always save the media ID when you upload a file
 
-Here’s a list of the currently supported media types. Check out Supported Media Types for more information.
+Here’s a list of the currently supported media types. Check out Supported MediaInformation Types for more information.
   - Audio (<16 MB) – ACC, MP4, MPEG, AMR, and OGG formats
   - Documents (<100 MB) – text, PDF, Office, and OpenOffice formats
   - Images (<5 MB) – JPEG and PNG formats
