@@ -87,7 +87,7 @@ func Create(ctx context.Context, client *http.Client, rtx *RequestContext,
 
 	var response CreateResponse
 
-	err := whttp.Send(ctx, client, params, &response)
+	err := whttp.Do(ctx, client, params, &response)
 	if err != nil {
 		return nil, fmt.Errorf("qr code create: %w", err)
 	}
@@ -111,7 +111,7 @@ func List(ctx context.Context, client *http.Client, rctx *RequestContext) (*List
 	}
 
 	var response ListResponse
-	err := whttp.Send(ctx, client, req, &response)
+	err := whttp.Do(ctx, client, req, &response)
 	if err != nil {
 		return nil, fmt.Errorf("qr code list: %w", err)
 	}
@@ -122,7 +122,7 @@ func List(ctx context.Context, client *http.Client, rctx *RequestContext) (*List
 type RequestContext struct {
 	BaseURL     string `json:"-"`
 	PhoneID     string `json:"-"`
-	ApiVersion  string `json:"-"`
+	ApiVersion  string `json:"-"` //nolint: revive,stylecheck
 	AccessToken string `json:"-"`
 }
 
@@ -147,7 +147,7 @@ func Get(ctx context.Context, client *http.Client, rctx *RequestContext, qrCodeI
 		Query:   map[string]string{"access_token": rctx.AccessToken},
 	}
 
-	err := whttp.Send(ctx, client, req, &list)
+	err := whttp.Do(ctx, client, req, &list)
 	if err != nil {
 		return nil, fmt.Errorf("qr code get: %w", err)
 	}
@@ -183,7 +183,7 @@ func Update(ctx context.Context, client *http.Client, rtx *RequestContext, qrCod
 	}
 
 	var resp SuccessResponse
-	err := whttp.Send(ctx, client, request, &resp)
+	err := whttp.Do(ctx, client, request, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("qr code update (%s): %w", qrCodeID, err)
 	}
@@ -206,7 +206,7 @@ func Delete(ctx context.Context, client *http.Client, rtx *RequestContext, qrCod
 		Query:   map[string]string{"access_token": rtx.AccessToken},
 	}
 	var resp SuccessResponse
-	err := whttp.Send(ctx, client, req, &resp)
+	err := whttp.Do(ctx, client, req, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("qr code delete: %w", err)
 	}

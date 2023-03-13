@@ -1,4 +1,7 @@
 linters-settings:
+  goerr113:
+    # ignore all test files
+    check-test-files: false
   funlen:
     lines: 70
   revive:
@@ -6,16 +9,10 @@ linters-settings:
       ignore:
         - "^[A-Z][a-z].*$"
   gocyclo:
-    # limit the cyclomatic complexity to 15
-    # you can adjust this value according to your needs
-    # gocyclo reports the cyclomatic complexity of functions
-    # cyclomatic complexity measures the number of independent paths through code
-    # higher values indicate more complex code
-    # this linter helps to identify functions that are too complex and hard to read
-    # and may benefit from refactoring
-    # for more information, see https://en.wikipedia.org/wiki/Cyclomatic_complexity
     skip-dirs-use-default: true
-    min-complexity: 15
+    min-complexity: 20
+  gocognit:
+    min-complexity: 45
   golint:
     min-confidence: 0.8
   govet:
@@ -39,12 +36,23 @@ linters-settings:
   # this linter is particularly useful for identifying redundant code
   # and can help to reduce the size and complexity of your codebase
   # for more information, see https://github.com/dominikh/go-simple
-
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - funlen
+        - goerr113
+        - dupl
+        - gosec
 linters:
   # enable all available linters
   enable-all: true
   # enable some additional linters that are not enabled by default
   disable:
+    - cyclop
     - testpackage
     - prealloc
     - execinquery

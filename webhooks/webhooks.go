@@ -226,7 +226,11 @@ func ParseMessageType(s string) MessageType {
 const SignatureHeaderKey = "X-Hub-Signature-256"
 
 type (
-	Response struct {
+	// NotificationErrHandlerResponse is the response is returned by the NotificationErrorHandler instructing
+	// how the http.Response sent to the whatsapp server should be.
+	// Note that the NotificationErrorHandler can instruct the caller to ignore the error by setting the Skip
+	// field to true. In this case the caller will just return http.StatusOK to whatsapp server.
+	NotificationErrHandlerResponse struct {
 		StatusCode int
 		Headers    map[string]string
 		Body       []byte
@@ -235,7 +239,7 @@ type (
 
 	HooksErrorHandler func(err error) error
 	// NotificationErrorHandler is a function that handles errors that occur when processing a notification.
-	// The function returns a Response that is sent to the whatsapp server.
+	// The function returns a NotificationErrHandlerResponse that is sent to the whatsapp server.
 	//
 	// Note that retuning nil will make the default use http.StatusOK as the status code.
 	//
@@ -245,7 +249,7 @@ type (
 	//
 	// This is a snippet from the whatsapp documentation:
 	//
-	//		If we send a webhook request to your endpoint and your server responds with an http status code other
+	//		If we send a webhook request to your endpoint and your server responds with a http status code other
 	//		than 200, or if we are unable to deliver the webhook for another reason, we will keep trying with
 	//		decreasing frequency until the request succeeds, for up to 7 days.
 	//
@@ -256,17 +260,32 @@ type (
 	//
 	// -  ErrOnBeforeFuncHook when an error is received in the BeforeFunc hook
 	// -  ErrOnAttachNotificationHooks when an error is received in the AttachNotificationHooks hook
-	// -  ErrOnGenericHandlerFunc when an error is received in the GenericHandlerFunc hook
-	NotificationErrorHandler func(context.Context, *http.Request, error) *Response
-	BeforeFunc               func(ctx context.Context, notification *Notification) error
-	AfterFunc                func(ctx context.Context, notification *Notification, err error)
-	HandlerOptions           struct {
+	// -  ErrOnGenericHandlerFunc when an error is received in the GenericHandlerFunc hook.
+	NotificationErrorHandler func(context.Context, *http.Request, error) *NotificationErrHandlerResponse
+
+	// BeforeFunc is a function that is called before a notification is processed. It receives the notification
+	// and can return an error. If an error is returned, the notification is not processed and the error is
+	// passed to the NotificationErrorHandler. A lot of use cases can be implemented using the BeforeFunc.
+	// For example, you can use it to validate the notification, to check if it is a duplicate notification,
+	// To check db availability etc.
+	BeforeFunc func(ctx context.Context, notification *Notification) error
+
+	// AfterFunc is a function that is called after a notification is processed. It also receives the error
+	// that occurred during processing. There can be a number of use cases where the AfterFunc is useful.
+	// For example, you can use it to log the error or send a notification to a monitoring service. Or have the
+	// instrumentation logic put here.
+	AfterFunc func(ctx context.Context, notification *Notification, err error)
+
+	// HandlerOptions is a struct that contains the options that can be passed to the NotificationHandler. Note that
+	// the options are optional. NotificationHandler can be used without any options set.
+	HandlerOptions struct {
 		BeforeFunc        BeforeFunc
 		AfterFunc         AfterFunc
 		ValidateSignature bool
 		Secret            string
 	}
 
+	// VerificationRequest contains details sent by the whatsapp server during the verification process.
 	VerificationRequest struct {
 		Mode      string `json:"hub.mode"`
 		Challenge string `json:"hub.challenge"`
@@ -279,7 +298,11 @@ type (
 	// the one set in the App Dashboard.
 	SubscriptionVerifier func(context.Context, *VerificationRequest) error
 
-	GenericNotificationHandler func(context.Context, http.ResponseWriter, *Notification) error
+	// GlobalNotificationHandler is a function that handles all notifications. Use this function if you want to
+	// create your own logic in handling different types of notifications. Because when this is used for receiving
+	// notifications all types of notifications from Templates, Messages, Media, Contacts, etc. will be passed here,
+	// and you can handle them as you wish.
+	GlobalNotificationHandler func(context.Context, http.ResponseWriter, *Notification) error
 )
 
 // SetOnNotificationErrorHook sets the OnNotificationErrorHook.
@@ -295,8 +318,8 @@ func NoOpHooksErrorHandler(err error) error {
 
 // NoOpNotificationErrorHandler is a no-op notification error handler. It ignores the error and
 // returns a response with status code 200.
-func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, err error) *Response {
-	return &Response{
+func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, err error) *NotificationErrHandlerResponse {
+	return &NotificationErrHandlerResponse{
 		StatusCode: http.StatusOK,
 		Skip:       false,
 	}
@@ -367,10 +390,11 @@ var (
 	ErrOnGlobalMessageHook       = errors.New("on global message hook error")
 )
 
+//nolint:cyclop
 func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks,
 	hooksErrorHandler HooksErrorHandler,
 ) error {
-	if hooks == nil {
+	if hooks == nil || value == nil {
 		return nil
 	}
 
@@ -382,10 +406,10 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 
 	// nonFatalErrors is a slice of non-fatal errors that are collected from the hooks.
 	// can contain a maximum of 4 errors.
-	nonFatalErrors := make([]error, 0, 4)
+	nonFatalErrors := make([]error, 0, 4) //nolint:gomnd
 
 	// call the Hooks
-	if value.Errors != nil && hooks.OnNotificationErrorHook != nil {
+	if hooks.OnNotificationErrorHook != nil {
 		for _, ev := range value.Errors {
 			ev := ev
 			if err := hooks.OnNotificationErrorHook(ctx, notificationCtx, ev); err != nil {
@@ -397,7 +421,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 		}
 	}
 
-	if value.Statuses != nil && hooks.OnMessageStatusChangeHook != nil {
+	if hooks.OnMessageStatusChangeHook != nil {
 		for _, sv := range value.Statuses {
 			sv := sv
 			if err := hooks.OnMessageStatusChangeHook(ctx, notificationCtx, sv); err != nil {
@@ -409,24 +433,22 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 		}
 	}
 
-	if value.Messages != nil {
-		for _, mv := range value.Messages {
-			mv := mv
-			if hooks.OnMessageReceivedHook != nil {
-				if err := hooks.OnMessageReceivedHook(ctx, notificationCtx, mv); err != nil {
-					if IsFatalError(hooksErrorHandler(err)) {
-						return err
-					}
-					nonFatalErrors = append(nonFatalErrors, ErrOnGlobalMessageHook)
-				}
-			}
-
-			if err := attachHooksToMessage(ctx, notificationCtx, hooks, mv); err != nil {
+	for _, mv := range value.Messages {
+		mv := mv
+		if hooks.OnMessageReceivedHook != nil {
+			if err := hooks.OnMessageReceivedHook(ctx, notificationCtx, mv); err != nil {
 				if IsFatalError(hooksErrorHandler(err)) {
 					return err
 				}
-				nonFatalErrors = append(nonFatalErrors, ErrOnMessageHooks)
+				nonFatalErrors = append(nonFatalErrors, ErrOnGlobalMessageHook)
 			}
+		}
+
+		if err := attachHooksToMessage(ctx, notificationCtx, hooks, mv); err != nil {
+			if IsFatalError(hooksErrorHandler(err)) {
+				return err
+			}
+			nonFatalErrors = append(nonFatalErrors, ErrOnMessageHooks)
 		}
 	}
 
@@ -449,9 +471,12 @@ func getEncounteredError(errs []error) error {
 
 var ErrFailedToAttachHookToMessage = errors.New("could not attach hooks to message")
 
+var errHooksOrMessageIsNil = fmt.Errorf("%w: hooks or message is nil", ErrFailedToAttachHookToMessage)
+
+//nolint:cyclop
 func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks *Hooks, message *Message) error {
 	if hooks == nil || message == nil {
-		return fmt.Errorf("hooks or message is nil")
+		return errHooksOrMessageIsNil
 	}
 	mctx := &MessageContext{
 		From:      message.From,

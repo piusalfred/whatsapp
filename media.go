@@ -22,6 +22,7 @@ package whatsapp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -33,15 +34,8 @@ import (
 	whttp "github.com/piusalfred/whatsapp/http"
 )
 
-const (
-	MediaUpload      MediaOp = "POST"
-	MediaURLRetrieve MediaOp = "GET"
-	MediaDelete      MediaOp = "DELETE"
-	MediaDownload    MediaOp = "GET"
-)
-
 type (
-	Media struct {
+	MediaInformation struct {
 		MessagingProduct string `json:"messaging_product"`
 		URL              string `json:"url"`
 		MimeType         string `json:"mime_type"`
@@ -50,27 +44,11 @@ type (
 		ID               string `json:"id"`
 	}
 
-	// MediaOp represents the operations that can be performed on media. There are 4 different
-	// operations that can be performed on media:
-	// 	- POST /PHONE_NUMBER_ID/media Upload media.
-	//	- GET /MEDIA_ID Retrieve the URL for a specific media.
-	//	- DELETE /MEDIA_ID Delete a specific media.
-	//	- GET /MEDIA_URL  Download media from a media URL.
-	MediaOp string
-
-	MediaType            string
-	MediaOperationParams struct {
-		Token         string
-		PhoneNumberID string
-		BaseURL       string
-		ApiVersion    string
-		Endpoint      string
-		Method        string
-	}
+	MediaType string
 
 	// UploadMediaRequest contains the information needed to upload a media file.
 	// File Path to the file stored in your local directory. For example: "@/local/path/file.jpg".
-	// Type - type of media file being uploaded. See Supported Media Types for more information.
+	// Type - type of media file being uploaded. See Supported MediaInformation Types for more information.
 	// Product Messaging service used for the request. In this case, use whatsapp.
 	// MediaID - ID of the media file. This is the ID that you will use to send the media file.
 	UploadMediaRequest struct {
@@ -94,8 +72,8 @@ type (
 	}
 )
 
-// GetMedia retrieve the media object by using its corresponding media ID.
-func (client *Client) GetMedia(ctx context.Context, mediaID string) (*Media, error) {
+// GetMediaInformation retrieve the media object by using its corresponding media ID.
+func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (*MediaInformation, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "get media",
 		BaseURL:    client.baseURL,
@@ -110,8 +88,8 @@ func (client *Client) GetMedia(ctx context.Context, mediaID string) (*Media, err
 		Payload: nil,
 	}
 
-	media := new(Media)
-	err := whttp.Send(ctx, client.http, params, &media)
+	media := new(MediaInformation)
+	err := whttp.Do(ctx, client.http, params, &media)
 	if err != nil {
 		return nil, fmt.Errorf("get media: %w", err)
 	}
@@ -137,7 +115,7 @@ func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteM
 	}
 
 	resp := new(DeleteMediaResponse)
-	err := whttp.Send(ctx, client.http, params, &resp)
+	err := whttp.Do(ctx, client.http, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("delete media: %w", err)
 	}
@@ -145,7 +123,9 @@ func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteM
 	return resp, nil
 }
 
-func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, filename string, fr io.Reader) (*UploadMediaResponse, error) {
+func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, filename string,
+	fr io.Reader,
+) (*UploadMediaResponse, error) {
 	payload, contentType, err := uploadMediaPayload(mediaType, filename, fr)
 	if err != nil {
 		return nil, err
@@ -167,7 +147,7 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 	}
 
 	resp := new(UploadMediaResponse)
-	err = whttp.Send(ctx, client.http, params, &resp)
+	err = whttp.Do(ctx, client.http, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("upload media: %w", err)
 	}
@@ -175,37 +155,76 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 	return resp, nil
 }
 
-// DownloadMedia downloads a media file from the given media ID.
-// It accepts a media url and returns a reader and an error.
-func (client *Client) DownloadMedia(ctx context.Context, mediaID string) (io.Reader, error) {
-	media, err := client.GetMedia(ctx, mediaID)
-	if err != nil {
-		return nil, err
+var ErrMediaDownload = fmt.Errorf("failed to download media")
+
+type DownloadMediaResponse struct {
+	Headers http.Header
+	Body    io.Reader
+}
+
+// DownloadMedia download the media by using its corresponding media ID. It uses the media ID to retrieve
+// the media URL. All media URLs expire after 5 minutes —you need to retrieve the media URL again if it
+// expires.
+// If successful, *DownloadMediaResponse will be returned. It contains headers and io.Reader. From the headers
+// you  can check a content-type header to indicate the mime type of returned data.
+//
+// If media fails to download, Facebook returns a 404 http status code. It is recommended to try to retrieve
+// a new media URL and download it again. This will go on for an n retries. If doing so doesn't resolve the issue,
+// please try to renew the access token, then retry downloading the media.
+func (client *Client) DownloadMedia(ctx context.Context, mediaID string, retries int) (*DownloadMediaResponse, error) {
+	// create a for loop to retry the download if it fails with a 404 http status code.
+	for i := 0; i <= retries; i++ {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("media download: %w", ctx.Err())
+		default:
+		}
+		media, err := client.GetMediaInformation(ctx, mediaID)
+		if err != nil {
+			return nil, err
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, media.URL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("media download: create a request: %w", err)
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
+
+		resp, err := client.http.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("media download: %w", err)
+		}
+
+		// retry ...
+		if resp.StatusCode == http.StatusNotFound {
+			_ = resp.Body.Close()
+
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			_ = resp.Body.Close()
+
+			return nil, fmt.Errorf("%w: status %d", ErrMediaDownload, resp.StatusCode)
+		}
+
+		var buf bytes.Buffer
+		_, err = io.CopyN(&buf, resp.Body, MaxDocSize)
+		if err != nil && !errors.Is(err, io.EOF) {
+			_ = resp.Body.Close()
+
+			return nil, fmt.Errorf("media download: %w", err)
+		}
+
+		_ = resp.Body.Close()
+
+		return &DownloadMediaResponse{
+			Headers: resp.Header,
+			Body:    &buf,
+		}, nil
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, media.URL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
-
-	resp, err := client.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download media: status %d", resp.StatusCode)
-	}
-
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return buf, nil
+	return nil, fmt.Errorf("%w: retries exceeded", ErrMediaDownload)
 }
 
 // uploadMediaPayload creates upload media request payload.
@@ -222,25 +241,25 @@ func uploadMediaPayload(mediaType MediaType, filename string, fr io.Reader) ([]b
 
 	part, err := writer.CreatePart(header)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("media upload: %w", err)
 	}
 
 	_, err = io.Copy(part, fr)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("media upload: %w", err)
 	}
 
 	err = writer.WriteField("type", string(mediaType))
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("media upload: %w", err)
 	}
 
 	err = writer.WriteField("messaging_product", "whatsapp")
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("media upload: %w", err)
 	}
 
-	writer.Close()
+	_ = writer.Close()
 
 	return payload.Bytes(), writer.FormDataContentType(), nil
 }

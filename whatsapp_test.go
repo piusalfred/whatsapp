@@ -20,6 +20,7 @@
 package whatsapp
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -50,6 +51,28 @@ func ExampleNewClient() {
 	// token: myexampletoken
 	// phone id: myexamplephoneid
 	// business id: businessaccountID
+}
+
+func ExampleClient_RequestVerificationCode() {
+	client := NewClient(
+		WithHTTPClient(http.DefaultClient),
+		WithBaseURL(BaseURL),
+		WithVersion(LowestSupportedVersion),
+		WithAccessToken("access_token"),
+		WithPhoneNumberID("phone_number_id"),
+		WithBusinessAccountID("whatsapp_business_account_id"),
+	)
+
+	err := client.RequestVerificationCode(context.TODO(), SMSVerificationMethod, "en_US")
+	if err != nil {
+		fmt.Println(err)
+	}
+	err = client.RequestVerificationCode(context.TODO(), VoiceVerificationMethod, "en_US")
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Output:
 }
 
 func TestMediaMaxAllowedSize(t *testing.T) {

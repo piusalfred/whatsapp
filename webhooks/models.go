@@ -313,10 +313,10 @@ type (
 	//	- FrequentlyForwarded,frequently_forwarded — Boolean. Set to true if the message received by the business
 	//	  has been forwarded more than 5 times.
 	//	- From, from — String. The WhatsApp ID for the customer who replied to an inbound message.
-	//	- ID, id — String. The message ID for the sent message for an inbound reply.
+	//	- ID, id — String. The message ID for the send message for an inbound reply.
 	//	- ReferredProduct, referred_product — Object. Referred product object describing the product the user is
 	//	  requesting information about. You must parse this value if you support Product Enquiry Messages. See
-	//	  Receive Response From Customers. Referred product objects have the following properties:
+	//	  Receive NotificationErrHandlerResponse From Customers. Referred product objects have the following properties:
 	//	  	- CatalogID, catalog_id — String. Unique identifier of the Meta catalog linked to the WhatsApp Business Account.
 	//      - ProductRetailerID,product_retailer_id — String. Unique identifier of the product in a catalog.
 	Context struct {
@@ -329,7 +329,7 @@ type (
 
 	// ReferredProduct ,Referred product object describing the product the user is
 	// requesting information about. You must parse this value if you support Product Enquiry Messages. See
-	// Receive Response From Customers. Referred product objects have the following properties:
+	// Receive NotificationErrHandlerResponse From Customers. Referred product objects have the following properties:
 	//
 	// CatalogID, catalog_id — String. Unique identifier of the Meta catalog linked to the WhatsApp Business Account.
 	//
@@ -354,7 +354,7 @@ type (
 	//- Messages messages (array of objects) Information about a message received by
 	//  the business that is subscribed to the webhook. See Message Object.
 	//
-	//- Metadata metadata (object) A metadata object describing the business subscribed to
+	//- Metadata (object) A metadata object describing the business subscribed to
 	//  the webhook. See Metadata Object.
 	//
 	//- Statuses statuses (array of objects) Status object for a message that was sent by

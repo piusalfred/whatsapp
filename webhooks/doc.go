@@ -34,7 +34,7 @@ WhatsApp Business Account and subscribe to one or more WhatsApp business account
 Webhooks are triggered when a customer performs an action or the status for a message a business sends
 a customer changes.
 
-You get a webhooks notification, When a customer performs one of the following an action
+You get a webhooks' notification, When a customer performs one of the following an action
 
   - Sends a text message to the business
   - Sends an image, video, audio, document, or sticker to the business

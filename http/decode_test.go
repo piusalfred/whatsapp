@@ -45,7 +45,7 @@ func TestErrorDecodeFunc(t *testing.T) {
 							"code": 131030,
 							"error_data": {
 								"messaging_product": "whatsapp",
-								"details": "Recipient phone number not in allowed list: Add recipient phone number to recipient list and try again."
+								"details": "Recipient phone number not in allowed list"
 							},
 							"error_subcode": 2655007,
 							"error_user_title": "Recipient phone number not in allowed list",
@@ -58,7 +58,7 @@ func TestErrorDecodeFunc(t *testing.T) {
 				Code:    131030,
 				Data: &errors.ErrorData{
 					MessagingProduct: "whatsapp",
-					Details:          "Recipient phone number not in allowed list: Add recipient phone number to recipient list and try again.", //nolint:lll
+					Details:          "Recipient phone number not in allowed list",
 				},
 				Subcode:   2655007,
 				UserTitle: "Recipient phone number not in allowed list",

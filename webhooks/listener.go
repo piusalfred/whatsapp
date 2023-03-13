@@ -31,9 +31,9 @@ import (
 // EventListener wraps all the parts needed to listen and respond to incoming events
 // to registered webhooks.
 // It contains unexported *Hooks, *HandlerOptions, HooksErrorHandler, NotificationErrorHandler
-// SubscriptionVerifier and GenericNotificationHandler.
+// SubscriptionVerifier and GlobalNotificationHandler.
 // All these can be set via exported ListenerOption functions like WithBeforeFunc and
-// Setter methods like GenericNotificationHandler which sets the GenericNotificationHandler.
+// Setter methods like GlobalNotificationHandler which sets the GlobalNotificationHandler.
 //
 // Example:
 //
@@ -41,7 +41,7 @@ import (
 //			WithNotificationErrorHandler(NoOpNotificationErrorHandler),
 //			WithAfterFunc(func(ctx context.Context, notification *Notification, err error) {}),
 //			WithBeforeFunc(func(ctx context.Context, notification *Notification) error {}),
-//			WithGenericNotificationHandler(nil),
+//			WithGlobalNotificationHandler(nil),
 //			WithHooks(&Hooks{
 //				OnOrderMessageHook:        nil,
 //				OnButtonMessageHook:       nil,
@@ -65,14 +65,14 @@ import (
 //	  })
 //
 //	  using a generic handler
-//	  handler := listener.GenericNotificationHandler()
+//	  handler := listener.GlobalNotificationHandler()
 type EventListener struct {
 	h       *Hooks
 	hef     HooksErrorHandler
 	neh     NotificationErrorHandler
 	v       SubscriptionVerifier
 	options *HandlerOptions
-	g       GenericNotificationHandler
+	g       GlobalNotificationHandler
 }
 
 type ListenerOption func(*EventListener)
@@ -99,7 +99,7 @@ func NewEventListener(options ...ListenerOption) *EventListener {
 	return listener
 }
 
-func (ls *EventListener) GenericNotificationHandler(handler GenericNotificationHandler) {
+func (ls *EventListener) GenericNotificationHandler(handler GlobalNotificationHandler) {
 	ls.g = handler
 }
 
@@ -234,7 +234,7 @@ func (ls *EventListener) OnMessageReceived(hook OnMessageReceivedHook) {
 	ls.h.OnMessageReceivedHook = hook
 }
 
-func WithGenericNotificationHandler(g GenericNotificationHandler) ListenerOption {
+func WithGlobalNotificationHandler(g GlobalNotificationHandler) ListenerOption {
 	return func(ls *EventListener) {
 		ls.g = g
 	}
@@ -288,15 +288,17 @@ func WithAfterFunc(afterFunc AfterFunc) ListenerOption {
 	}
 }
 
-// NotificationHandler returns a http.Handler that can be used to handle the notification
+// NotificationHandler returns a http.Handler that can be used to handle the notification.
 func (ls *EventListener) NotificationHandler() http.Handler {
 	return NotificationHandler(ls.h, ls.neh, ls.hef, ls.options)
 }
 
-// GenericHandler returns a http.Handler that handles all type of notification in one function.
-// It  calls GenericNotificationHandler. So before using this function, you should set GenericNotificationHandler
-// with WithGenericNotificationHandler.
-func (ls *EventListener) GenericHandler() http.Handler {
+// GlobalHandler returns a http.Handler that handles all type of notification in one function.
+// It  calls GlobalNotificationHandler. So before using this function, you should set GlobalNotificationHandler
+// with WithGlobalNotificationHandler.
+//
+//nolint:cyclop
+func (ls *EventListener) GlobalHandler() http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var buff bytes.Buffer
 		if _, err := io.Copy(&buff, request.Body); err != nil && !errors.Is(err, io.EOF) {
@@ -337,7 +339,7 @@ func (ls *EventListener) GenericHandler() http.Handler {
 	})
 }
 
-// SubscriptionVerificationHandler returns a http.Handler that can be used to verify the subscription
+// SubscriptionVerificationHandler returns a http.Handler that can be used to verify the subscription.
 func (ls *EventListener) SubscriptionVerificationHandler() http.Handler {
 	return VerifySubscriptionHandler(ls.v)
 }

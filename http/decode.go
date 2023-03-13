@@ -27,7 +27,7 @@ import (
 	"github.com/piusalfred/whatsapp/errors"
 )
 
-var ErrInvalidType = fmt.Errorf("invalid type")
+var ErrDecodeFuncInvalidType = fmt.Errorf("decode func: invalid type")
 
 // DecodeFunc is a function type that decodes data from an io.Reader into a specific
 // type of value. The function takes an io.Reader and a pointer to an empty interface{},
@@ -53,10 +53,8 @@ var ErrorDecoder DecodeFunc = func(reader io.Reader, v interface{}) error { //no
 
 	_, ok := v.(*errors.Error)
 	if !ok {
-		return fmt.Errorf("error decoding error: %w", ErrInvalidType)
+		return fmt.Errorf("error decoding error: %w", ErrDecodeFuncInvalidType)
 	}
-
-	*v.(*errors.Error) = val
 
 	return nil
 }
