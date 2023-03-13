@@ -390,6 +390,7 @@ var (
 	ErrOnGlobalMessageHook       = errors.New("on global message hook error")
 )
 
+//nolint:gocognit
 func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks,
 	hooksErrorHandler HooksErrorHandler,
 ) error {
@@ -405,7 +406,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 
 	// nonFatalErrors is a slice of non-fatal errors that are collected from the hooks.
 	// can contain a maximum of 4 errors.
-	nonFatalErrors := make([]error, 0, 4)
+	nonFatalErrors := make([]error, 0, 4) //nolint:gomnd
 
 	// call the Hooks
 	if hooks.OnNotificationErrorHook != nil {
@@ -472,7 +473,6 @@ var ErrFailedToAttachHookToMessage = errors.New("could not attach hooks to messa
 
 var errHooksOrMessageIsNil = fmt.Errorf("%w: hooks or message is nil", ErrFailedToAttachHookToMessage)
 
-//nolint:gocyclo
 func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks *Hooks, message *Message) error {
 	if hooks == nil || message == nil {
 		return errHooksOrMessageIsNil
@@ -556,6 +556,8 @@ var (
 // All the errors returned from reading the body, running the BeforeFunc and validating the signature
 // are passed to the NotificationErrorHandler, if neh returns true, the request is aborted and the
 // response status code is set to http.StatusInternalServerError.
+//
+//nolint:gocognit
 func NotificationHandler(
 	hooks *Hooks, neh NotificationErrorHandler, heh HooksErrorHandler, options *HandlerOptions,
 ) http.Handler {

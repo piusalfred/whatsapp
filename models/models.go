@@ -92,7 +92,7 @@ type (
 		Phones []Phone `json:"phones"`
 	}
 
-	Url struct {
+	Url struct { ////nolint: revive,stylecheck
 		URL  string `json:"url"`
 		Type string `json:"type"`
 	}

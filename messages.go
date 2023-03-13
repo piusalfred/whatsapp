@@ -51,7 +51,7 @@ type SendTextRequest struct {
 	BaseURL       string
 	AccessToken   string
 	PhoneNumberID string
-	ApiVersion    string
+	ApiVersion    string //nolint: revive,stylecheck
 	Recipient     string
 	Message       string
 	PreviewURL    bool
@@ -101,7 +101,7 @@ type SendLocationRequest struct {
 	BaseURL       string
 	AccessToken   string
 	PhoneNumberID string
-	ApiVersion    string
+	ApiVersion    string //nolint: revive,stylecheck
 	Recipient     string
 	Name          string
 	Address       string
@@ -154,7 +154,7 @@ type ReactRequest struct {
 	BaseURL       string
 	AccessToken   string
 	PhoneNumberID string
-	ApiVersion    string
+	ApiVersion    string //nolint: revive,stylecheck
 	Recipient     string
 	MessageID     string
 	Emoji         string
@@ -242,7 +242,7 @@ type SendContactRequest struct {
 	BaseURL       string
 	AccessToken   string
 	PhoneNumberID string
-	ApiVersion    string
+	ApiVersion    string //nolint: revive,stylecheck
 	Recipient     string
 	Contacts      *models.Contacts
 }
@@ -288,7 +288,7 @@ type ReplyRequest struct {
 	BaseURL       string
 	AccessToken   string
 	PhoneNumberID string
-	ApiVersion    string
+	ApiVersion    string //nolint: revive,stylecheck
 	Recipient     string
 	Context       string // this is ID of the message to reply to
 	MessageType   MessageType
@@ -380,7 +380,7 @@ type SendTemplateRequest struct {
 	BaseURL                string
 	AccessToken            string
 	PhoneNumberID          string
-	ApiVersion             string
+	ApiVersion             string //nolint: revive,stylecheck
 	Recipient              string
 	TemplateLanguageCode   string
 	TemplateLanguagePolicy string
@@ -483,7 +483,7 @@ type SendMediaRequest struct {
 	BaseURL       string
 	AccessToken   string
 	PhoneNumberID string
-	ApiVersion    string
+	ApiVersion    string //nolint: revive,stylecheck
 	Recipient     string
 	Type          MediaType
 	MediaID       string

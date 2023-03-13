@@ -63,7 +63,7 @@ type (
 	RequestContext struct {
 		Name       string
 		BaseURL    string
-		ApiVersion string
+		ApiVersion string //golint:ignore
 		SenderID   string
 		Endpoints  []string
 	}

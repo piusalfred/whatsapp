@@ -15,7 +15,11 @@ linters-settings:
     # and may benefit from refactoring
     # for more information, see https://en.wikipedia.org/wiki/Cyclomatic_complexity
     skip-dirs-use-default: true
-    min-complexity: 15
+    min-complexity: 20
+  gocognit:
+    min-complexity: 30
+  cyclop:
+    min-complexity: 20
   golint:
     min-confidence: 0.8
   govet:

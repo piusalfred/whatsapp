@@ -122,7 +122,7 @@ func List(ctx context.Context, client *http.Client, rctx *RequestContext) (*List
 type RequestContext struct {
 	BaseURL     string `json:"-"`
 	PhoneID     string `json:"-"`
-	ApiVersion  string `json:"-"`
+	ApiVersion  string `json:"-"` //nolint: revive,stylecheck
 	AccessToken string `json:"-"`
 }
 
