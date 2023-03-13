@@ -390,6 +390,7 @@ var (
 	ErrOnGlobalMessageHook       = errors.New("on global message hook error")
 )
 
+//nolint:cyclop
 func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks,
 	hooksErrorHandler HooksErrorHandler,
 ) error {
