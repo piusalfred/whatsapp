@@ -259,7 +259,6 @@ func TestRequestNameFromContext(t *testing.T) {
 	}
 }
 
-//nolint:funlen
 func Test_extractRequestBody(t *testing.T) {
 	t.Parallel()
 	type user struct {

@@ -63,7 +63,7 @@ type (
 	RequestContext struct {
 		Name       string
 		BaseURL    string
-		ApiVersion string //golint:ignore
+		ApiVersion string //nolint: revive,stylecheck
 		SenderID   string
 		Endpoints  []string
 	}
