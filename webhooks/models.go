@@ -316,7 +316,7 @@ type (
 	//	- ID, id — String. The message ID for the send message for an inbound reply.
 	//	- ReferredProduct, referred_product — Object. Referred product object describing the product the user is
 	//	  requesting information about. You must parse this value if you support Product Enquiry Messages. See
-	//	  Receive Response From Customers. Referred product objects have the following properties:
+	//	  Receive NotificationErrHandlerResponse From Customers. Referred product objects have the following properties:
 	//	  	- CatalogID, catalog_id — String. Unique identifier of the Meta catalog linked to the WhatsApp Business Account.
 	//      - ProductRetailerID,product_retailer_id — String. Unique identifier of the product in a catalog.
 	Context struct {
@@ -329,7 +329,7 @@ type (
 
 	// ReferredProduct ,Referred product object describing the product the user is
 	// requesting information about. You must parse this value if you support Product Enquiry Messages. See
-	// Receive Response From Customers. Referred product objects have the following properties:
+	// Receive NotificationErrHandlerResponse From Customers. Referred product objects have the following properties:
 	//
 	// CatalogID, catalog_id — String. Unique identifier of the Meta catalog linked to the WhatsApp Business Account.
 	//

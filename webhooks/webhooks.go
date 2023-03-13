@@ -226,7 +226,11 @@ func ParseMessageType(s string) MessageType {
 const SignatureHeaderKey = "X-Hub-Signature-256"
 
 type (
-	Response struct {
+	// NotificationErrHandlerResponse is the response is returned by the NotificationErrorHandler instructing
+	// how the http.Response sent to the whatsapp server should be.
+	// Note that the NotificationErrorHandler can instruct the caller to ignore the error by setting the Skip
+	// field to true. In this case the caller will just return http.StatusOK to whatsapp server.
+	NotificationErrHandlerResponse struct {
 		StatusCode int
 		Headers    map[string]string
 		Body       []byte
@@ -235,7 +239,7 @@ type (
 
 	HooksErrorHandler func(err error) error
 	// NotificationErrorHandler is a function that handles errors that occur when processing a notification.
-	// The function returns a Response that is sent to the whatsapp server.
+	// The function returns a NotificationErrHandlerResponse that is sent to the whatsapp server.
 	//
 	// Note that retuning nil will make the default use http.StatusOK as the status code.
 	//
@@ -257,16 +261,31 @@ type (
 	// -  ErrOnBeforeFuncHook when an error is received in the BeforeFunc hook
 	// -  ErrOnAttachNotificationHooks when an error is received in the AttachNotificationHooks hook
 	// -  ErrOnGenericHandlerFunc when an error is received in the GenericHandlerFunc hook.
-	NotificationErrorHandler func(context.Context, *http.Request, error) *Response
-	BeforeFunc               func(ctx context.Context, notification *Notification) error
-	AfterFunc                func(ctx context.Context, notification *Notification, err error)
-	HandlerOptions           struct {
+	NotificationErrorHandler func(context.Context, *http.Request, error) *NotificationErrHandlerResponse
+
+	// BeforeFunc is a function that is called before a notification is processed. It receives the notification
+	// and can return an error. If an error is returned, the notification is not processed and the error is
+	// passed to the NotificationErrorHandler. A lot of use cases can be implemented using the BeforeFunc.
+	// For example, you can use it to validate the notification, to check if it is a duplicate notification,
+	// To check db availability etc.
+	BeforeFunc func(ctx context.Context, notification *Notification) error
+
+	// AfterFunc is a function that is called after a notification is processed. It also receives the error
+	// that occurred during processing. There can be a number of use cases where the AfterFunc is useful.
+	// For example, you can use it to log the error or send a notification to a monitoring service. Or have the
+	// instrumentation logic put here.
+	AfterFunc func(ctx context.Context, notification *Notification, err error)
+
+	// HandlerOptions is a struct that contains the options that can be passed to the NotificationHandler. Note that
+	// the options are optional. NotificationHandler can be used without any options set.
+	HandlerOptions struct {
 		BeforeFunc        BeforeFunc
 		AfterFunc         AfterFunc
 		ValidateSignature bool
 		Secret            string
 	}
 
+	// VerificationRequest contains details sent by the whatsapp server during the verification process.
 	VerificationRequest struct {
 		Mode      string `json:"hub.mode"`
 		Challenge string `json:"hub.challenge"`
@@ -279,6 +298,10 @@ type (
 	// the one set in the App Dashboard.
 	SubscriptionVerifier func(context.Context, *VerificationRequest) error
 
+	// GlobalNotificationHandler is a function that handles all notifications. Use this function if you want to
+	// create your own logic in handling different types of notifications. Because when this is used for receiving
+	// notifications all types of notifications from Templates, Messages, Media, Contacts, etc. will be passed here,
+	// and you can handle them as you wish.
 	GlobalNotificationHandler func(context.Context, http.ResponseWriter, *Notification) error
 )
 
@@ -295,8 +318,8 @@ func NoOpHooksErrorHandler(err error) error {
 
 // NoOpNotificationErrorHandler is a no-op notification error handler. It ignores the error and
 // returns a response with status code 200.
-func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, err error) *Response {
-	return &Response{
+func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, err error) *NotificationErrHandlerResponse {
+	return &NotificationErrHandlerResponse{
 		StatusCode: http.StatusOK,
 		Skip:       false,
 	}
