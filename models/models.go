@@ -607,6 +607,8 @@ const (
 	InteractiveHeaderTypeDoc   InteractiveHeaderType = "document"
 )
 
+// CreateInteractiveReplyButtonList creates a list of InteractiveButton with type reply, A max of
+// 3 buttons can be added to a message. So do not add more than 3 buttons.
 func CreateInteractiveRelyButtonList(buttons ...*InteractiveReplyButton) []*InteractiveButton {
 	var list []*InteractiveButton
 	for _, button := range buttons {
