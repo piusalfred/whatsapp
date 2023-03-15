@@ -19,6 +19,8 @@
 
 package models
 
+import "time"
+
 const (
 	InteractiveMessageButton      = "button"
 	InteractiveMessageList        = "list"
@@ -54,18 +56,14 @@ type (
 		Type        string `json:"type"`
 	}
 
-	Addresses struct {
-		Addresses []Address `json:"addresses"`
-	}
+	Addresses []*Address
 
 	Email struct {
 		Email string `json:"email"`
 		Type  string `json:"type"`
 	}
 
-	Emails struct {
-		Emails []Email `json:"emails"`
-	}
+	Emails []*Email
 
 	Name struct {
 		FormattedName string `json:"formatted_name"`
@@ -88,32 +86,26 @@ type (
 		WaID  string `json:"wa_id,omitempty"`
 	}
 
-	Phones struct {
-		Phones []Phone `json:"phones"`
-	}
+	Phones []*Phone
 
 	Url struct { ////nolint: revive,stylecheck
 		URL  string `json:"url"`
 		Type string `json:"type"`
 	}
 
-	Urls struct {
-		Urls []Url `json:"urls"`
-	}
+	Urls []*Url
 
 	Contact struct {
 		Addresses Addresses `json:"addresses,omitempty"`
 		Birthday  string    `json:"birthday"`
 		Emails    Emails    `json:"emails,omitempty"`
-		Name      Name      `json:"name"`
-		Org       Org       `json:"org"`
+		Name      *Name     `json:"name"`
+		Org       *Org      `json:"org"`
 		Phones    Phones    `json:"phones,omitempty"`
 		Urls      Urls      `json:"urls,omitempty"`
 	}
 
-	Contacts struct {
-		Contacts []*Contact `json:"contacts"`
-	}
+	Contacts []*Contact
 
 	// Context used to store the context of the conversation.
 	// You can send any message as a reply to a previous message in a conversation by including
@@ -581,7 +573,66 @@ type (
 		Sticker       *Media       `json:"sticker,omitempty"`
 		Reaction      *Reaction    `json:"reaction,omitempty"`
 		Location      *Location    `json:"location,omitempty"`
-		Contacts      *Contacts    `json:"contacts,omitempty"`
+		Contacts      Contacts     `json:"contacts,omitempty"`
 		Interactive   *Interactive `json:"interactive,omitempty"`
 	}
 )
+
+type ContactOption func(*Contact)
+
+func NewContact(name string, options ...ContactOption) *Contact {
+	contact := &Contact{
+		Name: &Name{
+			FormattedName: name,
+		},
+	}
+	for _, option := range options {
+		option(contact)
+	}
+
+	return contact
+}
+
+func WithContactName(name *Name) ContactOption {
+	return func(c *Contact) {
+		c.Name = name
+	}
+}
+
+func WithContactAddresses(addresses ...*Address) ContactOption {
+	return func(c *Contact) {
+		c.Addresses = addresses
+	}
+}
+
+func WithContactOrganization(organization *Org) ContactOption {
+	return func(c *Contact) {
+		c.Org = organization
+	}
+}
+
+func WithContactURLs(urls ...*Url) ContactOption {
+	return func(c *Contact) {
+		c.Urls = urls
+	}
+}
+
+func WithContactPhones(phones ...*Phone) ContactOption {
+	return func(c *Contact) {
+		c.Phones = phones
+	}
+}
+
+func WithContactBirthdays(birthday time.Time) ContactOption {
+	return func(c *Contact) {
+		// should be formatted as YYYY-MM-DD
+		bd := birthday.Format("2006-01-02")
+		c.Birthday = bd
+	}
+}
+
+func WithContactEmails(emails ...*Email) ContactOption {
+	return func(c *Contact) {
+		c.Emails = emails
+	}
+}

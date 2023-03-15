@@ -48,7 +48,7 @@ const (
 	textMessageType     = "text"
 	reactionMessageType = "reaction"
 	locationMessageType = "location"
-	contactMessageType  = "contact"
+	contactsMessageType = "contacts"
 )
 
 const (
@@ -137,6 +137,7 @@ type (
 	Client struct {
 		rwm               *sync.RWMutex
 		http              *http.Client
+		debug             bool
 		baseURL           string
 		apiVersion        string
 		accessToken       string
@@ -194,11 +195,13 @@ func NewClient(opts ...ClientOption) *Client {
 	client := &Client{
 		rwm:               &sync.RWMutex{},
 		http:              http.DefaultClient,
+		debug:             true,
 		baseURL:           BaseURL,
 		apiVersion:        "v16.0",
 		accessToken:       "",
 		phoneNumberID:     "",
 		businessAccountID: "",
+		hooks:             nil,
 	}
 
 	for _, opt := range opts {
@@ -332,7 +335,9 @@ type MediaMessage struct {
 	Provider  string
 }
 
-// SendMedia sends a media message to the recipient.
+// SendMedia sends a media message to the recipient. Media can be sent using ID or Link. If using id, you must
+// first upload your media asset to our servers and capture the returned media ID. If using link, your asset must
+// be on a publicly accessible server or the message will fail to send.
 func (client *Client) SendMedia(ctx context.Context, recipient string, req *MediaMessage,
 	cacheOptions *CacheOptions,
 ) (*ResponseMessage, error) {
@@ -390,7 +395,7 @@ func (client *Client) Reply(ctx context.Context, recipient string, req *ReplyMes
 	return resp, nil
 }
 
-func (client *Client) SendContacts(ctx context.Context, recipient string, contacts *models.Contacts) (
+func (client *Client) SendContacts(ctx context.Context, recipient string, contacts []*models.Contact) (
 	*ResponseMessage, error,
 ) {
 	cctx := client.context()

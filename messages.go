@@ -248,7 +248,7 @@ type SendContactRequest struct {
 	PhoneNumberID string
 	ApiVersion    string //nolint: revive,stylecheck
 	Recipient     string
-	Contacts      *models.Contacts
+	Contacts      []*models.Contact
 }
 
 func SendContact(ctx context.Context, client *http.Client, req *SendContactRequest,
@@ -258,7 +258,7 @@ func SendContact(ctx context.Context, client *http.Client, req *SendContactReque
 		Product:       messagingProduct,
 		To:            req.Recipient,
 		RecipientType: individualRecipientType,
-		Type:          contactMessageType,
+		Type:          contactsMessageType,
 		Contacts:      req.Contacts,
 	}
 	reqCtx := &whttp.RequestContext{
