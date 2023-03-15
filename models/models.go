@@ -723,3 +723,31 @@ func NewInteractiveMessage(interactiveType string, options ...InteractiveOption)
 
 	return interactive
 }
+
+func InterativeHeaderText(text string) *InteractiveHeader {
+	return &InteractiveHeader{
+		Type: "text",
+		Text: text,
+	}
+}
+
+func InterativeHeaderImage(image *Media) *InteractiveHeader {
+	return &InteractiveHeader{
+		Type:  "image",
+		Image: image,
+	}
+}
+
+func InterativeHeaderVideo(video *Media) *InteractiveHeader {
+	return &InteractiveHeader{
+		Type:  "video",
+		Video: video,
+	}
+}
+
+func InterativeHeaderDocument(document *Media) *InteractiveHeader {
+	return &InteractiveHeader{
+		Type:     "document",
+		Document: document,
+	}
+}
