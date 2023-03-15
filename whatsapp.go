@@ -481,6 +481,43 @@ func (client *Client) SendTemplate(ctx context.Context, recipient string, req *T
 	return resp, nil
 }
 
+// SendInteractiveMessage sends an interactive message to the recipient.
+func (client *Client) SendInteractiveMessage(ctx context.Context, recipient string, req *models.Interactive) (
+	*ResponseMessage, error,
+) {
+	cctx := client.context()
+	template := &models.Message{
+		Product:       messagingProduct,
+		To:            recipient,
+		RecipientType: individualRecipientType,
+		Type:          "interactive",
+		Interactive:   req,
+	}
+	reqCtx := &whttp.RequestContext{
+		Name:       "send interactive message",
+		BaseURL:    cctx.baseURL,
+		ApiVersion: cctx.apiVersion,
+		SenderID:   cctx.phoneNumberID,
+		Endpoints:  []string{"messages"},
+	}
+	params := &whttp.Request{
+		Method:  http.MethodPost,
+		Payload: template,
+		Context: reqCtx,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Bearer: cctx.accessToken,
+	}
+	var message ResponseMessage
+	err := whttp.Do(ctx, client.http, params, &message, client.hooks...)
+	if err != nil {
+		return nil, fmt.Errorf("send interactive: %w", err)
+	}
+
+	return &message, nil
+}
+
 ////////////// QrCode
 
 func (client *Client) CreateQrCode(ctx context.Context, message *qrcodes.CreateRequest) (

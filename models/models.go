@@ -357,9 +357,19 @@ type (
 	//
 	// You can have up to 3 buttons. You cannot have leading or trailing spaces when setting the ID.
 	InteractiveButton struct {
-		Type  string `json:"type,omitempty"`
-		Title string `json:"title,omitempty"`
+		Type  string                  `json:"type,omitempty"`
+		Title string                  `json:"title,omitempty"`
+		ID    string                  `json:"id,omitempty"`
+		Reply *InteractiveReplyButton `json:"reply,omitempty"`
+	}
+
+	// InteractiveReplyButton contains information about a reply button in an interactive message.
+	// A reply button object can contain the following parameters:
+	// ID: Unique identifier for your button. This ID is returned in the webhook when the button
+	// Title: Button title. It cannot be an empty string and must be unique within the message.
+	InteractiveReplyButton struct {
 		ID    string `json:"id,omitempty"`
+		Title string `json:"title,omitempty"`
 	}
 
 	// InteractiveSectionRow contains information about a row in an interactive section.
@@ -576,6 +586,26 @@ type (
 		Contacts      Contacts     `json:"contacts,omitempty"`
 		Interactive   *Interactive `json:"interactive,omitempty"`
 	}
+
+	// InteractiveHeaderType represent required value of InteractiveHeader.Type
+	// The header type you would like to use. Supported values:
+	// text: Used for List Messages, Reply Buttons, and Multi-Product Messages.
+	// video: Used for Reply Buttons.
+	// image: Used for Reply Buttons.
+	// document: Used for Reply Buttons.
+	InteractiveHeaderType string
+)
+
+const (
+	// InteractiveHeaderTypeText is used for List Messages, Reply Buttons, and Multi-Product Messages.
+	InteractiveHeaderTypeText  InteractiveHeaderType = "text"
+	InteractiveHeaderTypeVideo InteractiveHeaderType = "video"
+	InteractiveHeaderTypeImage InteractiveHeaderType = "image"
+	InteractiveHeaderTypeDoc   InteractiveHeaderType = "document"
+)
+
+const (
+	InteractiveButtonReply = "reply"
 )
 
 type ContactOption func(*Contact)
