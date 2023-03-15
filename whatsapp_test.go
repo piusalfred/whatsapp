@@ -34,6 +34,7 @@ func ExampleNewClient() {
 		WithAccessToken("access_token"),
 		WithPhoneNumberID("phone_number_id"),
 		WithBusinessAccountID("whatsapp_business_account_id"),
+		WithHooks(nil),
 	)
 
 	client.SetAccessToken("myexampletoken")

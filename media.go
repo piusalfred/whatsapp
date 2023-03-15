@@ -89,7 +89,7 @@ func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (
 	}
 
 	media := new(MediaInformation)
-	err := whttp.Do(ctx, client.http, params, &media)
+	err := whttp.Do(ctx, client.http, params, &media, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("get media: %w", err)
 	}
@@ -115,7 +115,7 @@ func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteM
 	}
 
 	resp := new(DeleteMediaResponse)
-	err := whttp.Do(ctx, client.http, params, &resp)
+	err := whttp.Do(ctx, client.http, params, &resp, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("delete media: %w", err)
 	}
@@ -147,7 +147,7 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 	}
 
 	resp := new(UploadMediaResponse)
-	err = whttp.Do(ctx, client.http, params, &resp)
+	err = whttp.Do(ctx, client.http, params, &resp, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("upload media: %w", err)
 	}

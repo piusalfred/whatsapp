@@ -184,7 +184,7 @@ func WithBusinessAccountID(whatsappBusinessAccountID string) ClientOption {
 	}
 }
 
-func WithResponseHooks(hooks ...whttp.Hook) ClientOption {
+func WithHooks(hooks ...whttp.Hook) ClientOption {
 	return func(client *Client) {
 		client.hooks = hooks
 	}
