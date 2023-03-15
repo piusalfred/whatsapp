@@ -465,8 +465,11 @@ type (
 	//
 	//	- Video, video (object) Required if type is set to video. Contains the media object for this video.
 	InteractiveHeader struct {
-		Text string `json:"text,omitempty"`
-		Type string `json:"type,omitempty"`
+		Document *Media `json:"document,omitempty"`
+		Image    *Media `json:"image,omitempty"`
+		Video    *Media `json:"video,omitempty"`
+		Text     string `json:"text,omitempty"`
+		Type     string `json:"type,omitempty"`
 	}
 
 	// InteractiveFooter contains information about an interactive footer.
@@ -604,9 +607,17 @@ const (
 	InteractiveHeaderTypeDoc   InteractiveHeaderType = "document"
 )
 
-const (
-	InteractiveButtonReply = "reply"
-)
+func CreateInteractiveRelyButtonList(buttons ...*InteractiveReplyButton) []*InteractiveButton {
+	var list []*InteractiveButton
+	for _, button := range buttons {
+		list = append(list, &InteractiveButton{
+			Type:  "reply",
+			Reply: button,
+		})
+	}
+
+	return list
+}
 
 type ContactOption func(*Contact)
 
@@ -665,4 +676,50 @@ func WithContactEmails(emails ...*Email) ContactOption {
 	return func(c *Contact) {
 		c.Emails = emails
 	}
+}
+
+const (
+	BodyMaxLength   = 1024
+	FooterMaxLength = 60
+)
+
+type InteractiveOption func(*Interactive)
+
+func WithInteractiveFooter(footer string) InteractiveOption {
+	return func(i *Interactive) {
+		i.Footer = &InteractiveFooter{
+			Text: footer,
+		}
+	}
+}
+
+func WithInteractiveBody(body string) InteractiveOption {
+	return func(i *Interactive) {
+		i.Body = &InteractiveBody{
+			Text: body,
+		}
+	}
+}
+
+func WithInteractiveHeader(header *InteractiveHeader) InteractiveOption {
+	return func(i *Interactive) {
+		i.Header = header
+	}
+}
+
+func WithInteractiveAction(action *InteractiveAction) InteractiveOption {
+	return func(i *Interactive) {
+		i.Action = action
+	}
+}
+
+func NewInteractiveMessage(interactiveType string, options ...InteractiveOption) *Interactive {
+	interactive := &Interactive{
+		Type: interactiveType,
+	}
+	for _, option := range options {
+		option(interactive)
+	}
+
+	return interactive
 }
