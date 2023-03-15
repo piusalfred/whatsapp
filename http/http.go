@@ -168,6 +168,32 @@ func WithBearer(bearer string) RequestOption {
 	}
 }
 
+// ReaderFunc is a function that takes a *Request and returns a func that takes nothing
+// but returns an io.Reader and an error.
+func (request *Request) ReaderFunc() func() (io.Reader, error) {
+	return func() (io.Reader, error) {
+		return extractRequestBody(request.Payload)
+	}
+}
+
+// BodyBytes takes a *Request and returns a slice of bytes or an error.
+func (request *Request) BodyBytes() ([]byte, error) {
+	if request.Payload == nil {
+		return nil, nil
+	}
+	body, err := request.ReaderFunc()()
+	if err != nil {
+		return nil, fmt.Errorf("reader func: %w", err)
+	}
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(body)
+	if err != nil {
+		return nil, fmt.Errorf("read from: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
 var ErrInvalidRequestValue = errors.New("invalid request value")
 
 // NewRequestWithContext takes a context and a *Request and returns a new *http.Request.
@@ -282,14 +308,20 @@ func Do(ctx context.Context, client *http.Client, r *Request, v any, hooks ...Ho
 	if err != nil {
 		return fmt.Errorf("http send: %w", err)
 	}
-
+	reqBodyBytes, err := r.BodyBytes()
+	if err != nil {
+		return fmt.Errorf("http send: %w", err)
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		defer executeHooks(ctx, request, response, hooks)
+		request.Body = io.NopCloser(bytes.NewBuffer(reqBodyBytes))
 
 		return fmt.Errorf("http send: %w", err)
 	}
 	defer func() {
+		// restore the request body
+		request.Body = io.NopCloser(bytes.NewBuffer(reqBodyBytes))
 		executeHooks(ctx, request, response, hooks)
 		_ = response.Body.Close()
 	}()
@@ -304,6 +336,9 @@ func Do(ctx context.Context, client *http.Client, r *Request, v any, hooks ...Ho
 		return fmt.Errorf("http send: %w", err)
 	}
 	bodyBytes := buff.Bytes()
+
+	// restore the response body
+	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	// Sometimes when there is an error, the response body is not empty
 	// as the error description is returned in the body. So we need to
