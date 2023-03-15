@@ -21,13 +21,12 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-
-	"github.com/piusalfred/whatsapp/errors"
 )
 
-var ErrDecodeFuncInvalidType = fmt.Errorf("decode func: invalid type")
+var ErrDecoderFunc = fmt.Errorf("decode func error")
 
 // DecodeFunc is a function type that decodes data from an io.Reader into a specific
 // type of value. The function takes an io.Reader and a pointer to an empty interface{},
@@ -42,18 +41,34 @@ type DecodeFunc func(reader io.Reader, v interface{}) error
 // in this case is errors.Error.
 // Usage example:
 //
-//	var err errors.Error
-//	err = ErrorDecoder(bytes.NewReader(data), &err)
-var ErrorDecoder DecodeFunc = func(reader io.Reader, v interface{}) error { //nolint:gochecknoglobals
-	var val errors.Error
-	err := json.NewDecoder(reader).Decode(&val)
-	if err != nil {
-		return fmt.Errorf("error decoding error: %w", err)
+//	var err werrors.Error
+//	er := ErrorDecoder()(resp.Body, nil)
+var ErrorDecoder = func(statusCode int) DecodeFunc { //nolint:gochecknoglobals
+	decoder := func(reader io.Reader, _ interface{}) error {
+		var val ResponseError
+		err := json.NewDecoder(reader).Decode(&val)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("error decoding error: %w", err)
+		}
+		val.Code = statusCode
+
+		return &val
 	}
 
-	_, ok := v.(*errors.Error)
-	if !ok {
-		return fmt.Errorf("error decoding error: %w", ErrDecodeFuncInvalidType)
+	return decoder
+}
+
+var JsonDecoder DecodeFunc = func(reader io.Reader, v interface{}) error { //nolint:gochecknoglobals,stylecheck,revive
+	if v == nil {
+		return nil
+	}
+
+	if v != nil && reader == nil {
+		return fmt.Errorf("%w: reader is empty", ErrDecoderFunc)
+	}
+
+	if err := json.NewDecoder(reader).Decode(&v); err != nil {
+		return fmt.Errorf("decode func: %w", err)
 	}
 
 	return nil

@@ -142,7 +142,7 @@ type (
 		accessToken       string
 		phoneNumberID     string
 		businessAccountID string
-		responseHooks     []whttp.Hook
+		hooks             []whttp.Hook
 	}
 
 	ClientOption func(*Client)
@@ -186,7 +186,7 @@ func WithBusinessAccountID(whatsappBusinessAccountID string) ClientOption {
 
 func WithResponseHooks(hooks ...whttp.Hook) ClientOption {
 	return func(client *Client) {
-		client.responseHooks = hooks
+		client.hooks = hooks
 	}
 }
 
@@ -266,7 +266,7 @@ func (client *Client) SendTextMessage(ctx context.Context, recipient string,
 		Message:       message.Message,
 		PreviewURL:    message.PreviewURL,
 	}
-	resp, err := SendText(ctx, client.http, request)
+	resp, err := SendText(ctx, client.http, request, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send text message: %w", err)
 	}
@@ -290,7 +290,7 @@ func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
 		Longitude:     message.Longitude,
 	}
 
-	resp, err := SendLocation(ctx, client.http, request)
+	resp, err := SendLocation(ctx, client.http, request, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send location message: %w", err)
 	}
@@ -315,7 +315,7 @@ func (client *Client) React(ctx context.Context, recipient string, req *ReactMes
 		Emoji:         req.Emoji,
 	}
 
-	resp, err := React(ctx, client.http, request)
+	resp, err := React(ctx, client.http, request, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("react: %w", err)
 	}
@@ -352,7 +352,7 @@ func (client *Client) SendMedia(ctx context.Context, recipient string, req *Medi
 		CacheOptions:  cacheOptions,
 	}
 
-	resp, err := SendMedia(ctx, client.http, request)
+	resp, err := SendMedia(ctx, client.http, request, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("client send media: %w", err)
 	}
@@ -382,7 +382,7 @@ func (client *Client) Reply(ctx context.Context, recipient string, req *ReplyMes
 		Content:       req.Content,
 	}
 
-	resp, err := Reply(ctx, client.http, request)
+	resp, err := Reply(ctx, client.http, request, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("client reply: %w", err)
 	}
@@ -403,7 +403,7 @@ func (client *Client) SendContacts(ctx context.Context, recipient string, contac
 		Contacts:      contacts,
 	}
 
-	resp, err := SendContact(ctx, client.http, req)
+	resp, err := SendContact(ctx, client.http, req, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("client: %w", err)
 	}
@@ -438,7 +438,7 @@ func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*S
 	}
 
 	var success StatusResponse
-	err := whttp.Do(ctx, client.http, params, &success)
+	err := whttp.Do(ctx, client.http, params, &success, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("client: %w", err)
 	}
@@ -468,7 +468,7 @@ func (client *Client) SendTemplate(ctx context.Context, recipient string, req *T
 		TemplateComponents:     req.Components,
 	}
 
-	resp, err := SendTemplate(ctx, client.http, request)
+	resp, err := SendTemplate(ctx, client.http, request, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("client: %w", err)
 	}
@@ -650,7 +650,7 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 		Form:    map[string]string{"code_method": string(codeMethod), "language": language},
 		Payload: nil,
 	}
-	err := whttp.Do(ctx, client.http, params, nil, client.responseHooks...)
+	err := whttp.Do(ctx, client.http, params, nil, client.hooks...)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -678,7 +678,7 @@ func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusRespo
 	}
 
 	var resp StatusResponse
-	err := whttp.Do(ctx, client.http, params, &resp, client.responseHooks...)
+	err := whttp.Do(ctx, client.http, params, &resp, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -775,7 +775,7 @@ func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterPar
 		params.Query["filtering"] = string(jsonParams)
 	}
 	var phoneNumbersList PhoneNumbersList
-	err := whttp.Do(ctx, client.http, params, &phoneNumbersList, client.responseHooks...)
+	err := whttp.Do(ctx, client.http, params, &phoneNumbersList, client.hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -800,7 +800,7 @@ func (client *Client) PhoneNumberByID(ctx context.Context) (*PhoneNumber, error)
 		},
 	}
 	var phoneNumber PhoneNumber
-	if err := whttp.Do(ctx, client.http, request, &phoneNumber, client.responseHooks...); err != nil {
+	if err := whttp.Do(ctx, client.http, request, &phoneNumber, client.hooks...); err != nil {
 		return nil, fmt.Errorf("get phone muber by id: %w", err)
 	}
 

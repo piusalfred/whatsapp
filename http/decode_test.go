@@ -50,7 +50,7 @@ func TestErrorDecodeFunc(t *testing.T) {
 							"error_subcode": 2655007,
 							"error_user_title": "Recipient phone number not in allowed list",
 							"error_user_msg": "Add recipient phone number to recipient list and try again.",
-							"fbtrace_id": "AI5Ob2z72R0JAUB5zOF-nao"}`),
+							"fbtrace_id": "AI5Ob2z72R0JAUB5zOF-nao"}}`),
 			},
 			wantsErr: &errors.Error{
 				Message: "(#131030) Recipient phone number not in allowed list",
@@ -64,7 +64,7 @@ func TestErrorDecodeFunc(t *testing.T) {
 				UserTitle: "Recipient phone number not in allowed list",
 				UserMsg:   "Add recipient phone number to recipient list and try again.",
 			},
-			shouldErr: false,
+			shouldErr: true,
 		},
 	}
 
@@ -72,18 +72,28 @@ func TestErrorDecodeFunc(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var err errors.Error
-			decodeErr := ErrorDecoder(bytes.NewReader(tt.args.data), &err)
+			decodeErr := ErrorDecoder(500)(bytes.NewReader(tt.args.data), nil)
 			if decodeErr != nil {
-				t.Logf("Error decoding error: %v", decodeErr)
-			}
-			if tt.shouldErr {
-				if err != *tt.wantsErr {
-					t.Errorf("Error decoding error, got: %v, wants: %v", err, tt.wantsErr)
-				}
+				t.Logf("error: %v", decodeErr)
 			}
 
-			t.Logf("Error decoding error, got: %v, wants: %v", err, tt.wantsErr)
+			// if decodeErr is nil but tt.shouldErr is true, means failure
+			// and vice versa
+			if tt.shouldErr != (decodeErr != nil) {
+				t.Errorf("expected error: %v, got: %v", tt.shouldErr, decodeErr)
+			}
+			if tt.shouldErr {
+				re, ok := decodeErr.(*ResponseError)
+				if !ok {
+					t.Errorf("expected type: %T, got: %T", &ResponseError{}, decodeErr)
+				}
+
+				if !errors.IsError(re.Err) {
+					t.Errorf("expected type: %T, got: %T", &errors.Error{}, re.Err)
+				}
+
+				t.Logf("error: %+v", re.Err)
+			}
 		})
 	}
 }

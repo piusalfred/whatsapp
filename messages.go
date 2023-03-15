@@ -58,7 +58,9 @@ type SendTextRequest struct {
 }
 
 // SendText sends a text message to the recipient.
-func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*ResponseMessage, error) {
+func SendText(ctx context.Context, client *http.Client, req *SendTextRequest,
+	hooks ...whttp.Hook,
+) (*ResponseMessage, error) {
 	text := &models.Message{
 		Product:       messagingProduct,
 		To:            req.Recipient,
@@ -89,7 +91,7 @@ func SendText(ctx context.Context, client *http.Client, req *SendTextRequest) (*
 	}
 
 	var message ResponseMessage
-	err := whttp.Do(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message, hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("send text message: %w", err)
 	}
@@ -109,7 +111,9 @@ type SendLocationRequest struct {
 	Longitude     float64
 }
 
-func SendLocation(ctx context.Context, client *http.Client, req *SendLocationRequest) (*ResponseMessage, error) {
+func SendLocation(ctx context.Context, client *http.Client, req *SendLocationRequest,
+	hooks ...whttp.Hook,
+) (*ResponseMessage, error) {
 	location := &models.Message{
 		Product:       messagingProduct,
 		To:            req.Recipient,
@@ -142,7 +146,7 @@ func SendLocation(ctx context.Context, client *http.Client, req *SendLocationReq
 	}
 
 	var message ResponseMessage
-	err := whttp.Do(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message, hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("send location: %w", err)
 	}
@@ -202,7 +206,7 @@ Example response:
 	    }]
 	}
 */
-func React(ctx context.Context, client *http.Client, req *ReactRequest) (*ResponseMessage, error) {
+func React(ctx context.Context, client *http.Client, req *ReactRequest, hooks ...whttp.Hook) (*ResponseMessage, error) {
 	reaction := &models.Message{
 		Product: messagingProduct,
 		To:      req.Recipient,
@@ -230,7 +234,7 @@ func React(ctx context.Context, client *http.Client, req *ReactRequest) (*Respon
 	}
 
 	var message ResponseMessage
-	err := whttp.Do(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message, hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("send reaction: %w", err)
 	}
@@ -247,7 +251,9 @@ type SendContactRequest struct {
 	Contacts      *models.Contacts
 }
 
-func SendContact(ctx context.Context, client *http.Client, req *SendContactRequest) (*ResponseMessage, error) {
+func SendContact(ctx context.Context, client *http.Client, req *SendContactRequest,
+	hooks ...whttp.Hook,
+) (*ResponseMessage, error) {
 	contact := &models.Message{
 		Product:       messagingProduct,
 		To:            req.Recipient,
@@ -275,7 +281,7 @@ func SendContact(ctx context.Context, client *http.Client, req *SendContactReque
 
 	var message ResponseMessage
 
-	err := whttp.Do(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message, hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("send contact: %w", err)
 	}
@@ -318,7 +324,9 @@ type ReplyRequest struct {
 //	    "body": "your-text-message-content"
 //	  }
 //	}'
-func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*ResponseMessage, error) {
+func Reply(ctx context.Context, client *http.Client, request *ReplyRequest,
+	hooks ...whttp.Hook,
+) (*ResponseMessage, error) {
 	if request == nil {
 		return nil, fmt.Errorf("reply request is nil: %w", ErrBadRequestFormat)
 	}
@@ -345,7 +353,7 @@ func Reply(ctx context.Context, client *http.Client, request *ReplyRequest) (*Re
 	}
 
 	var message ResponseMessage
-	err = whttp.Do(ctx, client, req, &message)
+	err = whttp.Do(ctx, client, req, &message, hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("reply: %w", err)
 	}
@@ -388,7 +396,9 @@ type SendTemplateRequest struct {
 	TemplateComponents     []*models.TemplateComponent
 }
 
-func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateRequest) (*ResponseMessage, error) {
+func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateRequest,
+	hooks ...whttp.Hook,
+) (*ResponseMessage, error) {
 	template := &models.Message{
 		Product:       messagingProduct,
 		To:            req.Recipient,
@@ -420,7 +430,7 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 		Bearer: req.AccessToken,
 	}
 	var message ResponseMessage
-	err := whttp.Do(ctx, client, params, &message)
+	err := whttp.Do(ctx, client, params, &message, hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("send template: %w", err)
 	}
@@ -559,7 +569,9 @@ downloaded successfully.
 	    }]
 	}
 */
-func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) (*ResponseMessage, error) {
+func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest,
+	hooks ...whttp.Hook,
+) (*ResponseMessage, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil: %w", ErrBadRequestFormat)
 	}
@@ -601,7 +613,7 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest) 
 
 	var message ResponseMessage
 
-	err = whttp.Do(ctx, client, params, &message)
+	err = whttp.Do(ctx, client, params, &message, hooks...)
 	if err != nil {
 		return nil, fmt.Errorf("send media: %w", err)
 	}

@@ -35,7 +35,7 @@ type (
 	// Code: An error code. Common values are listed below, along with common recovery tactics.
 	// Data (optional): Additional information about the error.
 	// Subcode: Additional information about the error. Common values are listed below.
-	// UserMessage: The message to display to the user. The language of the message is based on the
+	// UserMsg: The message to display to the user. The language of the message is based on the
 	// locale of the API request.
 	// UserTitle: The title of the dialog, if shown. The language of the message is based on the locale
 	// of the API request.
