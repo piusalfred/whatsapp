@@ -764,39 +764,40 @@ const (
 	TemplateComponentTypeBody   TemplateComponentType = "body"
 )
 
-// Make a Text Based Template
-func NewTextTemplate(name string, language string, components ...*TemplateComponent) *Template {
-	return &Template{
-		Name: name,
-		Language: &TemplateLanguage{
-			Code: language,
-		},
+// Make a Text Based Template.
+func NewTextTemplate(name string, language *TemplateLanguage, parameters []*TemplateParameter) *Template {
+	component := &TemplateComponent{
+		Type:       "body",
+		Parameters: parameters,
+	}
 
-		Components: components,
+	return &Template{
+		Name:       name,
+		Language:   language,
+		Components: []*TemplateComponent{component},
 	}
 }
 
-// Make a Media Based Template
-func NewMediaTemplate(name string, language string, header *TemplateParameter, bodies ...*TemplateParameter) *Template {
+// NewMediaTemplate create a media based template.
+func NewMediaTemplate(name string, language *TemplateLanguage, header *TemplateParameter,
+	bodies []*TemplateParameter,
+) *Template {
 	var components []*TemplateComponent
 	headerTemplate := &TemplateComponent{
 		Type:       "header",
 		Parameters: []*TemplateParameter{header},
 	}
 	components = append(components, headerTemplate)
-	for _, body := range bodies {
-		bodyTemplate := &TemplateComponent{
-			Type:       "body",
-			Parameters: []*TemplateParameter{body},
-		}
-		components = append(components, bodyTemplate)
+
+	bodyTemplate := &TemplateComponent{
+		Type:       "body",
+		Parameters: bodies,
 	}
+	components = append(components, bodyTemplate)
 
 	return &Template{
-		Name: name,
-		Language: &TemplateLanguage{
-			Code: language,
-		},
+		Name:       name,
+		Language:   language,
 		Components: components,
 	}
 }
@@ -807,22 +808,21 @@ type InteractiveButtonTemplate struct {
 	Button  *TemplateButton
 }
 
-func NewInteractiveTemplate(name string, language string, header *TemplateParameter,
+func NewInteractiveTemplate(name string, language *TemplateLanguage, headers []*TemplateParameter,
 	bodies []*TemplateParameter, buttons []*InteractiveButtonTemplate,
 ) *Template {
 	var components []*TemplateComponent
 	headerTemplate := &TemplateComponent{
 		Type:       "header",
-		Parameters: []*TemplateParameter{header},
+		Parameters: headers,
 	}
 	components = append(components, headerTemplate)
-	for _, body := range bodies {
-		bodyTemplate := &TemplateComponent{
-			Type:       "body",
-			Parameters: []*TemplateParameter{body},
-		}
-		components = append(components, bodyTemplate)
+
+	bodyTemplate := &TemplateComponent{
+		Type:       "body",
+		Parameters: bodies,
 	}
+	components = append(components, bodyTemplate)
 
 	for _, button := range buttons {
 		b := &TemplateComponent{
@@ -842,10 +842,8 @@ func NewInteractiveTemplate(name string, language string, header *TemplateParame
 	}
 
 	return &Template{
-		Name: name,
-		Language: &TemplateLanguage{
-			Code: language,
-		},
+		Name:       name,
+		Language:   language,
 		Components: components,
 	}
 }
