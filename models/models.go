@@ -285,6 +285,7 @@ type (
 	TemplateParameter struct {
 		Type     string            `json:"type,omitempty"`
 		Text     string            `json:"text,omitempty"`
+		payload  string            `json:"payload,omitempty"`
 		Currency *TemplateCurrency `json:"currency,omitempty"`
 		DateTime *TemplateDateTime `json:"date_time,omitempty"`
 		Image    *Media            `json:"image,omitempty"`
@@ -751,5 +752,102 @@ func InterativeHeaderDocument(document *Media) *InteractiveHeader {
 	return &InteractiveHeader{
 		Type:     "document",
 		Document: document,
+	}
+}
+
+// TemplateComponentType is a type of component of a template message.
+// It can be a header, body.
+type TemplateComponentType string
+
+const (
+	TemplateComponentTypeHeader TemplateComponentType = "header"
+	TemplateComponentTypeBody   TemplateComponentType = "body"
+)
+
+// Make a Text Based Template
+func NewTextTemplate(name string, language string, components ...*TemplateComponent) *Template {
+	return &Template{
+		Name: name,
+		Language: &TemplateLanguage{
+			Code: language,
+		},
+
+		Components: components,
+	}
+}
+
+// Make a Media Based Template
+func NewMediaTemplate(name string, language string, header *TemplateParameter, bodies ...*TemplateParameter) *Template {
+	var components []*TemplateComponent
+	headerTemplate := &TemplateComponent{
+		Type:       "header",
+		Parameters: []*TemplateParameter{header},
+	}
+	components = append(components, headerTemplate)
+	for _, body := range bodies {
+		bodyTemplate := &TemplateComponent{
+			Type:       "body",
+			Parameters: []*TemplateParameter{body},
+		}
+		components = append(components, bodyTemplate)
+	}
+
+	return &Template{
+		Name: name,
+		Language: &TemplateLanguage{
+			Code: language,
+		},
+		Components: components,
+	}
+}
+
+type InteractiveButtonTemplate struct {
+	SubType string
+	Index   int
+	Button  *TemplateButton
+}
+
+func NewInteractiveTemplate(name string, language string, header *TemplateParameter,
+	bodies []*TemplateParameter, buttons []*InteractiveButtonTemplate,
+) *Template {
+	var components []*TemplateComponent
+	headerTemplate := &TemplateComponent{
+		Type:       "header",
+		Parameters: []*TemplateParameter{header},
+	}
+	components = append(components, headerTemplate)
+	for _, body := range bodies {
+		bodyTemplate := &TemplateComponent{
+			Type:       "body",
+			Parameters: []*TemplateParameter{body},
+		}
+		components = append(components, bodyTemplate)
+	}
+	var interactiveButtons []*TemplateComponent
+	for _, button := range buttons {
+		b := &TemplateComponent{
+			Type:    "button",
+			SubType: button.SubType,
+			Index:   button.Index,
+			Parameters: []*TemplateParameter{
+				{
+					Type:    button.Button.Type,
+					Text:    button.Button.Text,
+					payload: button.Button.Payload,
+				},
+			},
+		}
+
+		interactiveButtons = append(interactiveButtons, b)
+	}
+
+	components = append(components, interactiveButtons...)
+
+	return &Template{
+		Name: name,
+		Language: &TemplateLanguage{
+			Code: language,
+		},
+		Components: components,
 	}
 }
