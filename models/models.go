@@ -823,7 +823,7 @@ func NewInteractiveTemplate(name string, language string, header *TemplateParame
 		}
 		components = append(components, bodyTemplate)
 	}
-	var interactiveButtons []*TemplateComponent
+
 	for _, button := range buttons {
 		b := &TemplateComponent{
 			Type:    "button",
@@ -838,10 +838,8 @@ func NewInteractiveTemplate(name string, language string, header *TemplateParame
 			},
 		}
 
-		interactiveButtons = append(interactiveButtons, b)
+		components = append(components, b)
 	}
-
-	components = append(components, interactiveButtons...)
 
 	return &Template{
 		Name: name,
