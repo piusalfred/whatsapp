@@ -285,7 +285,7 @@ type (
 	TemplateParameter struct {
 		Type     string            `json:"type,omitempty"`
 		Text     string            `json:"text,omitempty"`
-		payload  string            `json:"payload,omitempty"`
+		Payload  string            `json:"payload,omitempty"`
 		Currency *TemplateCurrency `json:"currency,omitempty"`
 		DateTime *TemplateDateTime `json:"date_time,omitempty"`
 		Image    *Media            `json:"image,omitempty"`
@@ -591,6 +591,8 @@ type (
 		Interactive   *Interactive `json:"interactive,omitempty"`
 	}
 
+	MessageOption func(*Message)
+
 	// InteractiveHeaderType represent required value of InteractiveHeader.Type
 	// The header type you would like to use. Supported values:
 	// text: Used for List Messages, Reply Buttons, and Multi-Product Messages.
@@ -833,7 +835,7 @@ func NewInteractiveTemplate(name string, language *TemplateLanguage, headers []*
 				{
 					Type:    button.Button.Type,
 					Text:    button.Button.Text,
-					payload: button.Button.Payload,
+					Payload: button.Button.Payload,
 				},
 			},
 		}
@@ -846,4 +848,31 @@ func NewInteractiveTemplate(name string, language *TemplateLanguage, headers []*
 		Language:   language,
 		Components: components,
 	}
+}
+
+// NewMessage creates a new message.
+func NewMessage(recipient string, options ...MessageOption) *Message {
+	message := &Message{
+		Product:       "whatsapp",
+		RecipientType: "individual",
+		To:            recipient,
+	}
+	for _, option := range options {
+		option(message)
+	}
+
+	return message
+}
+
+func WithTemplate(template *Template) MessageOption {
+	return func(m *Message) {
+		m.Type = "template"
+		m.Template = template
+	}
+}
+
+// SetTemplate sets the template of the message.
+func (m *Message) SetTemplate(template *Template) {
+	m.Type = "template"
+	m.Template = template
 }

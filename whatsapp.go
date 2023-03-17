@@ -590,14 +590,7 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 		Code:   req.LanguageCode,
 	}
 	template := models.NewTextTemplate(req.Name, tmpLanguage, req.Body)
-	payload := &models.Message{
-		Product:       messagingProduct,
-		To:            recipient,
-		RecipientType: individualRecipientType,
-		Type:          templateMessageType,
-		Template:      template,
-	}
-
+	payload := models.NewMessage(recipient, models.WithTemplate(template))
 	reqCtx := &whttp.RequestContext{
 		Name:       "send text template",
 		BaseURL:    cctx.baseURL,
