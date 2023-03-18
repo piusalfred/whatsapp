@@ -65,7 +65,8 @@ type (
 )
 
 func Create(ctx context.Context, client *http.Client, rtx *RequestContext,
-	req *CreateRequest, hooks ...whttp.Hook) (*CreateResponse, error) {
+	req *CreateRequest, hooks ...whttp.Hook,
+) (*CreateResponse, error) {
 	queryParams := map[string]string{
 		"prefilled_message": req.PrefilledMessage,
 		"generate_qr_image": string(req.ImageFormat),
@@ -128,7 +129,8 @@ type RequestContext struct {
 var ErrNoDataFound = fmt.Errorf("no data found")
 
 func Get(ctx context.Context, client *http.Client, rctx *RequestContext, qrCodeID string,
-	hooks ...whttp.Hook) (*Information, error) {
+	hooks ...whttp.Hook,
+) (*Information, error) {
 	var (
 		list ListResponse
 		resp Information
@@ -192,7 +194,8 @@ func Update(ctx context.Context, client *http.Client, rtx *RequestContext, qrCod
 }
 
 func Delete(ctx context.Context, client *http.Client, rtx *RequestContext, qrCodeID string,
-	hooks ...whttp.Hook) (*SuccessResponse, error) {
+	hooks ...whttp.Hook,
+) (*SuccessResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "delete qr code",
 		BaseURL:    rtx.BaseURL,

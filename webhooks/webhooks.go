@@ -526,9 +526,7 @@ func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks 
 
 	default:
 		if message.Contacts != nil {
-			if len(message.Contacts.Contacts) > 0 {
-				return hooks.OnContactsMessageHook(ctx, nctx, mctx, message.Contacts)
-			}
+			return hooks.OnContactsMessageHook(ctx, nctx, mctx, message.Contacts)
 		}
 		if message.Location != nil {
 			return hooks.OnLocationMessageHook(ctx, nctx, mctx, message.Location)

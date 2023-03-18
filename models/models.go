@@ -19,6 +19,8 @@
 
 package models
 
+import "time"
+
 const (
 	InteractiveMessageButton      = "button"
 	InteractiveMessageList        = "list"
@@ -54,18 +56,14 @@ type (
 		Type        string `json:"type"`
 	}
 
-	Addresses struct {
-		Addresses []Address `json:"addresses"`
-	}
+	Addresses []*Address
 
 	Email struct {
 		Email string `json:"email"`
 		Type  string `json:"type"`
 	}
 
-	Emails struct {
-		Emails []Email `json:"emails"`
-	}
+	Emails []*Email
 
 	Name struct {
 		FormattedName string `json:"formatted_name"`
@@ -88,32 +86,26 @@ type (
 		WaID  string `json:"wa_id,omitempty"`
 	}
 
-	Phones struct {
-		Phones []Phone `json:"phones"`
-	}
+	Phones []*Phone
 
 	Url struct { ////nolint: revive,stylecheck
 		URL  string `json:"url"`
 		Type string `json:"type"`
 	}
 
-	Urls struct {
-		Urls []Url `json:"urls"`
-	}
+	Urls []*Url
 
 	Contact struct {
 		Addresses Addresses `json:"addresses,omitempty"`
 		Birthday  string    `json:"birthday"`
 		Emails    Emails    `json:"emails,omitempty"`
-		Name      Name      `json:"name"`
-		Org       Org       `json:"org"`
+		Name      *Name     `json:"name"`
+		Org       *Org      `json:"org"`
 		Phones    Phones    `json:"phones,omitempty"`
 		Urls      Urls      `json:"urls,omitempty"`
 	}
 
-	Contacts struct {
-		Contacts []*Contact `json:"contacts"`
-	}
+	Contacts []*Contact
 
 	// Context used to store the context of the conversation.
 	// You can send any message as a reply to a previous message in a conversation by including
@@ -293,6 +285,7 @@ type (
 	TemplateParameter struct {
 		Type     string            `json:"type,omitempty"`
 		Text     string            `json:"text,omitempty"`
+		Payload  string            `json:"payload,omitempty"`
 		Currency *TemplateCurrency `json:"currency,omitempty"`
 		DateTime *TemplateDateTime `json:"date_time,omitempty"`
 		Image    *Media            `json:"image,omitempty"`
@@ -365,9 +358,19 @@ type (
 	//
 	// You can have up to 3 buttons. You cannot have leading or trailing spaces when setting the ID.
 	InteractiveButton struct {
-		Type  string `json:"type,omitempty"`
-		Title string `json:"title,omitempty"`
+		Type  string                  `json:"type,omitempty"`
+		Title string                  `json:"title,omitempty"`
+		ID    string                  `json:"id,omitempty"`
+		Reply *InteractiveReplyButton `json:"reply,omitempty"`
+	}
+
+	// InteractiveReplyButton contains information about a reply button in an interactive message.
+	// A reply button object can contain the following parameters:
+	// ID: Unique identifier for your button. This ID is returned in the webhook when the button
+	// Title: Button title. It cannot be an empty string and must be unique within the message.
+	InteractiveReplyButton struct {
 		ID    string `json:"id,omitempty"`
+		Title string `json:"title,omitempty"`
 	}
 
 	// InteractiveSectionRow contains information about a row in an interactive section.
@@ -463,8 +466,11 @@ type (
 	//
 	//	- Video, video (object) Required if type is set to video. Contains the media object for this video.
 	InteractiveHeader struct {
-		Text string `json:"text,omitempty"`
-		Type string `json:"type,omitempty"`
+		Document *Media `json:"document,omitempty"`
+		Image    *Media `json:"image,omitempty"`
+		Video    *Media `json:"video,omitempty"`
+		Text     string `json:"text,omitempty"`
+		Type     string `json:"type,omitempty"`
 	}
 
 	// InteractiveFooter contains information about an interactive footer.
@@ -581,7 +587,293 @@ type (
 		Sticker       *Media       `json:"sticker,omitempty"`
 		Reaction      *Reaction    `json:"reaction,omitempty"`
 		Location      *Location    `json:"location,omitempty"`
-		Contacts      *Contacts    `json:"contacts,omitempty"`
+		Contacts      Contacts     `json:"contacts,omitempty"`
 		Interactive   *Interactive `json:"interactive,omitempty"`
 	}
+
+	MessageOption func(*Message)
+
+	// InteractiveHeaderType represent required value of InteractiveHeader.Type
+	// The header type you would like to use. Supported values:
+	// text: Used for List Messages, Reply Buttons, and Multi-Product Messages.
+	// video: Used for Reply Buttons.
+	// image: Used for Reply Buttons.
+	// document: Used for Reply Buttons.
+	InteractiveHeaderType string
 )
+
+const (
+	// InteractiveHeaderTypeText is used for List Messages, Reply Buttons, and Multi-Product Messages.
+	InteractiveHeaderTypeText  InteractiveHeaderType = "text"
+	InteractiveHeaderTypeVideo InteractiveHeaderType = "video"
+	InteractiveHeaderTypeImage InteractiveHeaderType = "image"
+	InteractiveHeaderTypeDoc   InteractiveHeaderType = "document"
+)
+
+// CreateInteractiveReplyButtonList creates a list of InteractiveButton with type reply, A max of
+// 3 buttons can be added to a message. So do not add more than 3 buttons.
+func CreateInteractiveRelyButtonList(buttons ...*InteractiveReplyButton) []*InteractiveButton {
+	var list []*InteractiveButton
+	for _, button := range buttons {
+		list = append(list, &InteractiveButton{
+			Type:  "reply",
+			Reply: button,
+		})
+	}
+
+	return list
+}
+
+type ContactOption func(*Contact)
+
+func NewContact(name string, options ...ContactOption) *Contact {
+	contact := &Contact{
+		Name: &Name{
+			FormattedName: name,
+		},
+	}
+	for _, option := range options {
+		option(contact)
+	}
+
+	return contact
+}
+
+func WithContactName(name *Name) ContactOption {
+	return func(c *Contact) {
+		c.Name = name
+	}
+}
+
+func WithContactAddresses(addresses ...*Address) ContactOption {
+	return func(c *Contact) {
+		c.Addresses = addresses
+	}
+}
+
+func WithContactOrganization(organization *Org) ContactOption {
+	return func(c *Contact) {
+		c.Org = organization
+	}
+}
+
+func WithContactURLs(urls ...*Url) ContactOption {
+	return func(c *Contact) {
+		c.Urls = urls
+	}
+}
+
+func WithContactPhones(phones ...*Phone) ContactOption {
+	return func(c *Contact) {
+		c.Phones = phones
+	}
+}
+
+func WithContactBirthdays(birthday time.Time) ContactOption {
+	return func(c *Contact) {
+		// should be formatted as YYYY-MM-DD
+		bd := birthday.Format("2006-01-02")
+		c.Birthday = bd
+	}
+}
+
+func WithContactEmails(emails ...*Email) ContactOption {
+	return func(c *Contact) {
+		c.Emails = emails
+	}
+}
+
+const (
+	BodyMaxLength   = 1024
+	FooterMaxLength = 60
+)
+
+type InteractiveOption func(*Interactive)
+
+func WithInteractiveFooter(footer string) InteractiveOption {
+	return func(i *Interactive) {
+		i.Footer = &InteractiveFooter{
+			Text: footer,
+		}
+	}
+}
+
+func WithInteractiveBody(body string) InteractiveOption {
+	return func(i *Interactive) {
+		i.Body = &InteractiveBody{
+			Text: body,
+		}
+	}
+}
+
+func WithInteractiveHeader(header *InteractiveHeader) InteractiveOption {
+	return func(i *Interactive) {
+		i.Header = header
+	}
+}
+
+func WithInteractiveAction(action *InteractiveAction) InteractiveOption {
+	return func(i *Interactive) {
+		i.Action = action
+	}
+}
+
+func NewInteractiveMessage(interactiveType string, options ...InteractiveOption) *Interactive {
+	interactive := &Interactive{
+		Type: interactiveType,
+	}
+	for _, option := range options {
+		option(interactive)
+	}
+
+	return interactive
+}
+
+func InterativeHeaderText(text string) *InteractiveHeader {
+	return &InteractiveHeader{
+		Type: "text",
+		Text: text,
+	}
+}
+
+func InterativeHeaderImage(image *Media) *InteractiveHeader {
+	return &InteractiveHeader{
+		Type:  "image",
+		Image: image,
+	}
+}
+
+func InterativeHeaderVideo(video *Media) *InteractiveHeader {
+	return &InteractiveHeader{
+		Type:  "video",
+		Video: video,
+	}
+}
+
+func InterativeHeaderDocument(document *Media) *InteractiveHeader {
+	return &InteractiveHeader{
+		Type:     "document",
+		Document: document,
+	}
+}
+
+// TemplateComponentType is a type of component of a template message.
+// It can be a header, body.
+type TemplateComponentType string
+
+const (
+	TemplateComponentTypeHeader TemplateComponentType = "header"
+	TemplateComponentTypeBody   TemplateComponentType = "body"
+)
+
+// Make a Text Based Template.
+func NewTextTemplate(name string, language *TemplateLanguage, parameters []*TemplateParameter) *Template {
+	component := &TemplateComponent{
+		Type:       "body",
+		Parameters: parameters,
+	}
+
+	return &Template{
+		Name:       name,
+		Language:   language,
+		Components: []*TemplateComponent{component},
+	}
+}
+
+// NewMediaTemplate create a media based template.
+func NewMediaTemplate(name string, language *TemplateLanguage, header *TemplateParameter,
+	bodies []*TemplateParameter,
+) *Template {
+	var components []*TemplateComponent
+	headerTemplate := &TemplateComponent{
+		Type:       "header",
+		Parameters: []*TemplateParameter{header},
+	}
+	components = append(components, headerTemplate)
+
+	bodyTemplate := &TemplateComponent{
+		Type:       "body",
+		Parameters: bodies,
+	}
+	components = append(components, bodyTemplate)
+
+	return &Template{
+		Name:       name,
+		Language:   language,
+		Components: components,
+	}
+}
+
+type InteractiveButtonTemplate struct {
+	SubType string
+	Index   int
+	Button  *TemplateButton
+}
+
+// NewInteractiveTemplate creates a new interactive template.
+func NewInteractiveTemplate(name string, language *TemplateLanguage, headers []*TemplateParameter,
+	bodies []*TemplateParameter, buttons []*InteractiveButtonTemplate,
+) *Template {
+	var components []*TemplateComponent
+	headerTemplate := &TemplateComponent{
+		Type:       "header",
+		Parameters: headers,
+	}
+	components = append(components, headerTemplate)
+
+	bodyTemplate := &TemplateComponent{
+		Type:       "body",
+		Parameters: bodies,
+	}
+	components = append(components, bodyTemplate)
+
+	for _, button := range buttons {
+		b := &TemplateComponent{
+			Type:    "button",
+			SubType: button.SubType,
+			Index:   button.Index,
+			Parameters: []*TemplateParameter{
+				{
+					Type:    button.Button.Type,
+					Text:    button.Button.Text,
+					Payload: button.Button.Payload,
+				},
+			},
+		}
+
+		components = append(components, b)
+	}
+
+	return &Template{
+		Name:       name,
+		Language:   language,
+		Components: components,
+	}
+}
+
+// NewMessage creates a new message.
+func NewMessage(recipient string, options ...MessageOption) *Message {
+	message := &Message{
+		Product:       "whatsapp",
+		RecipientType: "individual",
+		To:            recipient,
+	}
+	for _, option := range options {
+		option(message)
+	}
+
+	return message
+}
+
+func WithTemplate(template *Template) MessageOption {
+	return func(m *Message) {
+		m.Type = "template"
+		m.Template = template
+	}
+}
+
+// SetTemplate sets the template of the message.
+func (m *Message) SetTemplate(template *Template) {
+	m.Type = "template"
+	m.Template = template
+}
