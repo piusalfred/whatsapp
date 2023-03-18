@@ -810,6 +810,7 @@ type InteractiveButtonTemplate struct {
 	Button  *TemplateButton
 }
 
+// NewInteractiveTemplate creates a new interactive template.
 func NewInteractiveTemplate(name string, language *TemplateLanguage, headers []*TemplateParameter,
 	bodies []*TemplateParameter, buttons []*InteractiveButtonTemplate,
 ) *Template {
