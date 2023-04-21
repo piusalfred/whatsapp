@@ -30,7 +30,7 @@ import (
 	"github.com/piusalfred/whatsapp/models"
 )
 
-const (
+const ( 
 	// MessageStatusRead is the status for a read message.
 	MessageStatusRead = "read"
 )
