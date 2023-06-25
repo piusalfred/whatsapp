@@ -400,8 +400,8 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 
 	notificationCtx := &NotificationContext{
 		ID:       id,
-		Contacts: value.Contacts,
-		Metadata: value.Metadata,
+		Contacts: value.WhatsappBusinessApiData.Contacts,
+		Metadata: value.WhatsappBusinessApiData.Metadata,
 	}
 
 	// nonFatalErrors is a slice of non-fatal errors that are collected from the hooks.
@@ -410,7 +410,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 
 	// call the Hooks
 	if hooks.OnNotificationErrorHook != nil {
-		for _, ev := range value.Errors {
+		for _, ev := range value.WhatsappBusinessApiData.Errors {
 			ev := ev
 			if err := hooks.OnNotificationErrorHook(ctx, notificationCtx, ev); err != nil {
 				if IsFatalError(hooksErrorHandler(err)) {
@@ -422,7 +422,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 	}
 
 	if hooks.OnMessageStatusChangeHook != nil {
-		for _, sv := range value.Statuses {
+		for _, sv := range value.WhatsappBusinessApiData.Statuses {
 			sv := sv
 			if err := hooks.OnMessageStatusChangeHook(ctx, notificationCtx, sv); err != nil {
 				if IsFatalError(hooksErrorHandler(err)) {
@@ -433,7 +433,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 		}
 	}
 
-	for _, mv := range value.Messages {
+	for _, mv := range value.WhatsappBusinessApiData.Messages {
 		mv := mv
 		if hooks.OnMessageReceivedHook != nil {
 			if err := hooks.OnMessageReceivedHook(ctx, notificationCtx, mv); err != nil {
