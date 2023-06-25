@@ -338,7 +338,7 @@ type (
 		CatalogID         string `json:"catalog_id,omitempty"`
 		ProductRetailerID string `json:"product_retailer_id,omitempty"`
 	}
-
+	// WhatsappBusinessApiData details of the change
 	// Value The value object contains details for the change that triggered the webhook. This object is nested
 	// within the Change array of the Entry array.
 	//
@@ -359,13 +359,18 @@ type (
 	//
 	//- Statuses statuses (array of objects) Status object for a message that was sent by
 	//  the business that is subscribed to the webhook. See Status Object.
-	Value struct {
+
+	WhatsappBusinessApiData struct {
 		MessagingProduct string           `json:"messaging_product,omitempty"`
 		Metadata         *Metadata        `json:"metadata,omitempty"`
 		Errors           []*werrors.Error `json:"werrors,omitempty"`
 		Contacts         []*Contact       `json:"contacts,omitempty"`
 		Messages         []*Message       `json:"messages,omitempty"`
 		Statuses         []*Status        `json:"statuses,omitempty"`
+	}
+
+	Value struct {
+		WhatsappBusinessApiData WhatsappBusinessApiData `json:"whatsapp_business_api_data"`
 	}
 
 	Change struct {
