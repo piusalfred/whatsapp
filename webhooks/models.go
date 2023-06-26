@@ -361,12 +361,14 @@ type (
 	//  the business that is subscribed to the webhook. See Status Object.
 
 	WhatsappBusinessApiData struct {
-		MessagingProduct string           `json:"messaging_product,omitempty"`
-		Metadata         *Metadata        `json:"metadata,omitempty"`
-		Errors           []*werrors.Error `json:"werrors,omitempty"`
-		Contacts         []*Contact       `json:"contacts,omitempty"`
-		Messages         []*Message       `json:"messages,omitempty"`
-		Statuses         []*Status        `json:"statuses,omitempty"`
+		MessagingProduct   string           `json:"messaging_product,omitempty"`
+		Metadata           *Metadata        `json:"metadata,omitempty"`
+		Errors             []*werrors.Error `json:"werrors,omitempty"`
+		Contacts           []*Contact       `json:"contacts,omitempty"`
+		Messages           []*Message       `json:"messages,omitempty"`
+		Statuses           []*Status        `json:"statuses,omitempty"`
+		PhoneNumberID      *string          `json:"phone_number_id,omitempty"`
+		DisplayPhoneNumber *string          `json:"display_phone_number,omitempty"`
 	}
 
 	Value struct {
@@ -388,3 +390,14 @@ type (
 		Entry  []*Entry `json:"entry,omitempty"`
 	}
 )
+
+func (receiver WhatsappBusinessApiData) GetMetadata() Metadata {
+	var data Metadata
+	if receiver.Metadata != nil {
+		data = *receiver.Metadata
+	} else if receiver.PhoneNumberID != nil && receiver.DisplayPhoneNumber != nil {
+		data.PhoneNumberID = *receiver.PhoneNumberID
+		data.DisplayPhoneNumber = *receiver.DisplayPhoneNumber
+	}
+	return data
+}
