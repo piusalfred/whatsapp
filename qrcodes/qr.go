@@ -27,8 +27,6 @@ import (
 	whttp "github.com/piusalfred/whatsapp/http"
 )
 
-var ErrUnexpectedResponseCode = fmt.Errorf("unexpected response code")
-
 const (
 	ImageFormatPNG ImageFormat = "PNG"
 	ImageFormatSVG ImageFormat = "SVG"
@@ -95,7 +93,7 @@ func Create(ctx context.Context, client *http.Client, rtx *RequestContext,
 	return &response, nil
 }
 
-func List(ctx context.Context, client *http.Client, rctx *RequestContext, hooks ...whttp.Hook) (*ListResponse, error) {
+func List(ctx context.Context, client *gphttp.Client, rctx *RequestContext, hooks ...whttp.Hook) (*ListResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "list qr codes",
 		BaseURL:    rctx.BaseURL,
