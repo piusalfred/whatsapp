@@ -318,7 +318,7 @@ func NoOpHooksErrorHandler(err error) error {
 
 // NoOpNotificationErrorHandler is a no-op notification error handler. It ignores the error and
 // returns a response with status code 200.
-func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, err error) *NotificationErrHandlerResponse {
+func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, _ error) *NotificationErrHandlerResponse {
 	return &NotificationErrHandlerResponse{
 		StatusCode: http.StatusOK,
 		Skip:       false,
@@ -452,21 +452,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 		}
 	}
 
-	return getEncounteredError(nonFatalErrors)
-}
-
-func getEncounteredError(errs []error) error {
-	var finalErr error
-	for i := 0; i < len(errs); i++ {
-		if finalErr == nil {
-			finalErr = errs[i]
-
-			continue
-		}
-		finalErr = fmt.Errorf("%w, %w", finalErr, errs[i])
-	}
-
-	return finalErr
+	return errors.Join(nonFatalErrors...)
 }
 
 var ErrFailedToAttachHookToMessage = errors.New("could not attach hooks to message")

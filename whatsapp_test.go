@@ -41,10 +41,10 @@ func ExampleNewClient() {
 	client.SetPhoneNumberID("myexamplephoneid")
 	client.SetBusinessAccountID("businessaccountID")
 
-	cctx := client.context()
+	cctx := client.Context()
 
 	fmt.Printf("base url: %s\napi version: %s\ntoken: %s\nphone id: %s\nbusiness id: %s\n",
-		cctx.baseURL, cctx.apiVersion, cctx.accessToken, cctx.phoneNumberID, cctx.businessAccountID)
+		cctx.BaseURL, cctx.ApiVersion, cctx.AccessToken, cctx.PhoneNumberID, cctx.BusinessAccountID)
 
 	// Output:
 	// base url: https://graph.facebook.com/

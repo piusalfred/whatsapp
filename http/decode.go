@@ -26,8 +26,6 @@ import (
 	"io"
 )
 
-var ErrDecoderFunc = fmt.Errorf("decode func error")
-
 // DecodeFunc is a function type that decodes data from an io.Reader into a specific
 // type of value. The function takes an io.Reader and a pointer to an empty interface{},
 // and returns an error. The type of value to decode is determined by the type of the
@@ -56,20 +54,4 @@ var ErrorDecoder = func(statusCode int) DecodeFunc { //nolint:gochecknoglobals
 	}
 
 	return decoder
-}
-
-var JsonDecoder DecodeFunc = func(reader io.Reader, v interface{}) error { //nolint:gochecknoglobals,stylecheck,revive
-	if v == nil {
-		return nil
-	}
-
-	if v != nil && reader == nil {
-		return fmt.Errorf("%w: reader is empty", ErrDecoderFunc)
-	}
-
-	if err := json.NewDecoder(reader).Decode(&v); err != nil {
-		return fmt.Errorf("decode func: %w", err)
-	}
-
-	return nil
 }

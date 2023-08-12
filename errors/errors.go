@@ -26,6 +26,8 @@ import (
 	"strings"
 )
 
+const DeveloperErrorDescLink = "https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes"
+
 type (
 
 	// Error represents a WhatsApp error returned by the API when a request fails.

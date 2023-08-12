@@ -22,7 +22,6 @@ package webhooks
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -108,81 +107,6 @@ func TestParseMessageType(t *testing.T) {
 			got := ParseMessageType(tt.args.messageType)
 			if got != tt.want {
 				t.Errorf("ParseMessageType() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_getEncounteredError(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		nonFatalErrs []error
-	}
-	tests := []struct {
-		name          string
-		args          args
-		wantErr       bool
-		wantErrString string
-	}{
-		{
-			name: "empty",
-			args: args{
-				nonFatalErrs: []error{},
-			},
-			wantErr:       false,
-			wantErrString: "",
-		},
-		{
-			name: "non single error",
-			args: args{
-				nonFatalErrs: []error{
-					errors.New("single"),
-				},
-			},
-			wantErr:       true,
-			wantErrString: "single",
-		},
-		{
-			name: "multiple errors",
-			args: args{
-				nonFatalErrs: []error{
-					errors.New("single"),
-					errors.New("double"),
-					errors.New("triple"),
-				},
-			},
-			wantErr:       true,
-			wantErrString: "single, double, triple",
-		},
-		{
-			name: "multiple errors more than 6",
-			args: args{
-				nonFatalErrs: []error{
-					fmt.Errorf("single"),
-					fmt.Errorf("double"),
-					fmt.Errorf("triple"),
-					fmt.Errorf("quadruple"),
-					fmt.Errorf("quintuple"),
-					fmt.Errorf("sextuple"),
-					fmt.Errorf("septuple"),
-				},
-			},
-			wantErr:       true,
-			wantErrString: "single, double, triple, quadruple, quintuple, sextuple, septuple",
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		args := tt.args
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			err := getEncounteredError(args.nonFatalErrs)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("getEncounteredError() error = %v, wantErr %v", err, tt.wantErr)
-			}
-
-			if err != nil && err.Error() != tt.wantErrString {
-				t.Errorf("getEncounteredError() error = %v, wantErrString %v", err, tt.wantErrString)
 			}
 		})
 	}

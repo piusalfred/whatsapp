@@ -21,9 +21,10 @@ package http
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 
-	"github.com/piusalfred/whatsapp/errors"
+	werrors "github.com/piusalfred/whatsapp/errors"
 )
 
 func TestErrorDecodeFunc(t *testing.T) {
@@ -32,7 +33,7 @@ func TestErrorDecodeFunc(t *testing.T) {
 	tests := []struct {
 		name      string
 		args      args
-		wantsErr  *errors.Error
+		wantsErr  *werrors.Error
 		shouldErr bool
 	}{
 		{
@@ -52,11 +53,11 @@ func TestErrorDecodeFunc(t *testing.T) {
 							"error_user_msg": "Add recipient phone number to recipient list and try again.",
 							"fbtrace_id": "AI5Ob2z72R0JAUB5zOF-nao"}}`),
 			},
-			wantsErr: &errors.Error{
+			wantsErr: &werrors.Error{
 				Message: "(#131030) Recipient phone number not in allowed list",
 				Type:    "OAuthException",
 				Code:    131030,
-				Data: &errors.ErrorData{
+				Data: &werrors.ErrorData{
 					MessagingProduct: "whatsapp",
 					Details:          "Recipient phone number not in allowed list",
 				},
@@ -83,13 +84,14 @@ func TestErrorDecodeFunc(t *testing.T) {
 				t.Errorf("expected error: %v, got: %v", tt.shouldErr, decodeErr)
 			}
 			if tt.shouldErr {
-				re, ok := decodeErr.(*ResponseError)
+				var re *ResponseError
+				ok := errors.As(decodeErr, &re)
 				if !ok {
 					t.Errorf("expected type: %T, got: %T", &ResponseError{}, decodeErr)
 				}
 
-				if !errors.IsError(re.Err) {
-					t.Errorf("expected type: %T, got: %T", &errors.Error{}, re.Err)
+				if !werrors.IsError(re.Err) {
+					t.Errorf("expected type: %T, got: %T", &werrors.Error{}, re.Err)
 				}
 
 				t.Logf("error: %+v", re.Err)

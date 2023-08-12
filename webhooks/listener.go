@@ -65,7 +65,7 @@ import (
 //	  })
 //
 //	  using a generic handler
-//	  handler := listener.GlobalNotificationHandler()
+//	   := listener.GlobalNotificationHandler()
 type EventListener struct {
 	h       *Hooks
 	hef     HooksErrorHandler

@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	whttp "github.com/piusalfred/whatsapp/http"
@@ -110,221 +109,7 @@ type (
 	// You may also send any of these message types as a reply, except reaction messages.
 	// For more go to https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages
 	MessageType string
-
-	// Client includes the http client, base url, apiVersion, access token, phone number id,
-	// and whatsapp business account id.
-	// which are used to make requests to the whatsapp api.
-	// Example:
-	// 	client := whatsapp.NewClient(
-	// 		whatsapp.WithHTTPClient(http.DefaultClient),
-	// 		whatsapp.WithBaseURL(whatsapp.BaseURL),
-	// 		whatsapp.WithVersion(whatsapp.LowestSupportedVersion),
-	// 		whatsapp.WithAccessToken("access_token"),
-	// 		whatsapp.WithPhoneNumberID("phone_number_id"),
-	// 		whatsapp.WithBusinessAccountID("whatsapp_business_account_id"),
-	// 	)
-	//  // create a text message
-	//  message := whatsapp.TextMessage{
-	//  	Recipient: "<phone_number>",
-	//  	Message:   "Hello World",
-	//      PreviewURL: false,
-	//  }
-	// // send the text message
-	//  _, err := client.SendTextMessage(context.Background(), message)
-	//  if err != nil {
-	//  	log.Fatal(err)
-	//  }
-	Client struct {
-		rwm               *sync.RWMutex
-		http              *http.Client
-		debug             bool
-		baseURL           string
-		apiVersion        string
-		accessToken       string
-		phoneNumberID     string
-		businessAccountID string
-		hooks             []whttp.Hook
-	}
-
-	ClientOption func(*Client)
 )
-
-func WithHTTPClient(http *http.Client) ClientOption {
-	return func(client *Client) {
-		client.http = http
-	}
-}
-
-func WithBaseURL(baseURL string) ClientOption {
-	return func(client *Client) {
-		client.baseURL = baseURL
-	}
-}
-
-func WithVersion(version string) ClientOption {
-	return func(client *Client) {
-		client.apiVersion = version
-	}
-}
-
-func WithAccessToken(accessToken string) ClientOption {
-	return func(client *Client) {
-		client.accessToken = accessToken
-	}
-}
-
-func WithPhoneNumberID(phoneNumberID string) ClientOption {
-	return func(client *Client) {
-		client.phoneNumberID = phoneNumberID
-	}
-}
-
-func WithBusinessAccountID(whatsappBusinessAccountID string) ClientOption {
-	return func(client *Client) {
-		client.businessAccountID = whatsappBusinessAccountID
-	}
-}
-
-func WithHooks(hooks ...whttp.Hook) ClientOption {
-	return func(client *Client) {
-		client.hooks = hooks
-	}
-}
-
-func NewClient(opts ...ClientOption) *Client {
-	client := &Client{
-		rwm:               &sync.RWMutex{},
-		http:              http.DefaultClient,
-		debug:             true,
-		baseURL:           BaseURL,
-		apiVersion:        "v16.0",
-		accessToken:       "",
-		phoneNumberID:     "",
-		businessAccountID: "",
-		hooks:             nil,
-	}
-
-	for _, opt := range opts {
-		opt(client)
-	}
-
-	return client
-}
-
-type clientContext struct {
-	baseURL           string
-	apiVersion        string
-	accessToken       string
-	phoneNumberID     string
-	businessAccountID string
-}
-
-func (client *Client) context() *clientContext {
-	client.rwm.RLock()
-	defer client.rwm.RUnlock()
-
-	return &clientContext{
-		baseURL:           client.baseURL,
-		apiVersion:        client.apiVersion,
-		accessToken:       client.accessToken,
-		phoneNumberID:     client.phoneNumberID,
-		businessAccountID: client.businessAccountID,
-	}
-}
-
-func (client *Client) SetAccessToken(accessToken string) {
-	client.rwm.Lock()
-	defer client.rwm.Unlock()
-	client.accessToken = accessToken
-}
-
-func (client *Client) SetPhoneNumberID(phoneNumberID string) {
-	client.rwm.Lock()
-	defer client.rwm.Unlock()
-	client.phoneNumberID = phoneNumberID
-}
-
-func (client *Client) SetBusinessAccountID(businessAccountID string) {
-	client.rwm.Lock()
-	defer client.rwm.Unlock()
-	client.businessAccountID = businessAccountID
-}
-
-type TextMessage struct {
-	Message    string
-	PreviewURL bool
-}
-
-// SendTextMessage sends a text message to a WhatsApp Business Account.
-func (client *Client) SendTextMessage(ctx context.Context, recipient string,
-	message *TextMessage,
-) (*ResponseMessage, error) {
-	cctx := client.context()
-	request := &SendTextRequest{
-		BaseURL:       cctx.baseURL,
-		AccessToken:   cctx.accessToken,
-		PhoneNumberID: cctx.phoneNumberID,
-		ApiVersion:    cctx.apiVersion,
-		Recipient:     recipient,
-		Message:       message.Message,
-		PreviewURL:    message.PreviewURL,
-	}
-	resp, err := SendText(ctx, client.http, request, client.hooks...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send text message: %w", err)
-	}
-
-	return resp, nil
-}
-
-// SendLocationMessage sends a location message to a WhatsApp Business Account.
-func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
-	message *models.Location,
-) (*ResponseMessage, error) {
-	request := &SendLocationRequest{
-		BaseURL:       client.baseURL,
-		AccessToken:   client.accessToken,
-		PhoneNumberID: client.phoneNumberID,
-		ApiVersion:    client.apiVersion,
-		Recipient:     recipient,
-		Name:          message.Name,
-		Address:       message.Address,
-		Latitude:      message.Latitude,
-		Longitude:     message.Longitude,
-	}
-
-	resp, err := SendLocation(ctx, client.http, request, client.hooks...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send location message: %w", err)
-	}
-
-	return resp, nil
-}
-
-type ReactMessage struct {
-	MessageID string
-	Emoji     string
-}
-
-func (client *Client) React(ctx context.Context, recipient string, req *ReactMessage) (*ResponseMessage, error) {
-	cctx := client.context()
-	request := &ReactRequest{
-		BaseURL:       cctx.baseURL,
-		AccessToken:   cctx.accessToken,
-		PhoneNumberID: cctx.phoneNumberID,
-		ApiVersion:    cctx.apiVersion,
-		Recipient:     recipient,
-		MessageID:     req.MessageID,
-		Emoji:         req.Emoji,
-	}
-
-	resp, err := React(ctx, client.http, request, client.hooks...)
-	if err != nil {
-		return nil, fmt.Errorf("react: %w", err)
-	}
-
-	return resp, nil
-}
 
 type MediaMessage struct {
 	Type      MediaType
@@ -341,12 +126,12 @@ type MediaMessage struct {
 func (client *Client) SendMedia(ctx context.Context, recipient string, req *MediaMessage,
 	cacheOptions *CacheOptions,
 ) (*ResponseMessage, error) {
-	cctx := client.context()
+	cctx := client.Context()
 	request := &SendMediaRequest{
-		BaseURL:       cctx.baseURL,
-		AccessToken:   cctx.accessToken,
-		PhoneNumberID: cctx.phoneNumberID,
-		ApiVersion:    cctx.apiVersion,
+		BaseURL:       cctx.BaseURL,
+		AccessToken:   cctx.AccessToken,
+		PhoneNumberID: cctx.PhoneNumberID,
+		ApiVersion:    cctx.ApiVersion,
 		Recipient:     recipient,
 		Type:          req.Type,
 		MediaID:       req.MediaID,
@@ -363,92 +148,6 @@ func (client *Client) SendMedia(ctx context.Context, recipient string, req *Medi
 	}
 
 	return resp, nil
-}
-
-// ReplyMessage is a message that is sent as a reply to a previous message. The previous message's ID
-// is needed and is set as Context in ReplyRequest.
-// Content is the message content. It can be a Text, Location, MediaInformation, Template, or Contact.
-type ReplyMessage struct {
-	Context string
-	Type    MessageType
-	Content any
-}
-
-func (client *Client) Reply(ctx context.Context, recipient string, req *ReplyMessage) (*ResponseMessage, error) {
-	cctx := client.context()
-	request := &ReplyRequest{
-		BaseURL:       cctx.baseURL,
-		AccessToken:   cctx.accessToken,
-		PhoneNumberID: cctx.phoneNumberID,
-		ApiVersion:    cctx.apiVersion,
-		Recipient:     recipient,
-		Context:       req.Context,
-		MessageType:   req.Type,
-		Content:       req.Content,
-	}
-
-	resp, err := Reply(ctx, client.http, request, client.hooks...)
-	if err != nil {
-		return nil, fmt.Errorf("client reply: %w", err)
-	}
-
-	return resp, nil
-}
-
-func (client *Client) SendContacts(ctx context.Context, recipient string, contacts []*models.Contact) (
-	*ResponseMessage, error,
-) {
-	cctx := client.context()
-	req := &SendContactRequest{
-		BaseURL:       cctx.baseURL,
-		AccessToken:   cctx.accessToken,
-		PhoneNumberID: cctx.phoneNumberID,
-		ApiVersion:    cctx.apiVersion,
-		Recipient:     recipient,
-		Contacts:      contacts,
-	}
-
-	resp, err := SendContact(ctx, client.http, req, client.hooks...)
-	if err != nil {
-		return nil, fmt.Errorf("client: %w", err)
-	}
-
-	return resp, nil
-}
-
-// MarkMessageRead sends a read receipt for a message.
-func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*StatusResponse, error) {
-	reqBody := &MessageStatusUpdateRequest{
-		MessagingProduct: messagingProduct,
-		Status:           MessageStatusRead,
-		MessageID:        messageID,
-	}
-
-	cctx := client.context()
-
-	reqCtx := &whttp.RequestContext{
-		Name:       "mark read",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   cctx.phoneNumberID,
-		Endpoints:  []string{"/messages"},
-	}
-
-	params := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  cctx.accessToken,
-		Payload: reqBody,
-	}
-
-	var success StatusResponse
-	err := whttp.Do(ctx, client.http, params, &success, client.hooks...)
-	if err != nil {
-		return nil, fmt.Errorf("client: %w", err)
-	}
-
-	return &success, nil
 }
 
 type Template struct {
@@ -480,7 +179,7 @@ type InteractiveTemplateRequest struct {
 func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient string, req *InteractiveTemplateRequest) (
 	*ResponseMessage, error,
 ) {
-	cctx := client.context()
+	cctx := client.Context()
 	tmpLanguage := &models.TemplateLanguage{
 		Policy: req.LanguagePolicy,
 		Code:   req.LanguageCode,
@@ -495,9 +194,9 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 	}
 	reqCtx := &whttp.RequestContext{
 		Name:       "send template",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   cctx.phoneNumberID,
+		BaseURL:    cctx.BaseURL,
+		ApiVersion: cctx.ApiVersion,
+		SenderID:   cctx.PhoneNumberID,
 		Endpoints:  []string{"messages"},
 	}
 	params := &whttp.Request{
@@ -507,7 +206,7 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: cctx.accessToken,
+		Bearer: cctx.AccessToken,
 	}
 	var message ResponseMessage
 	err := whttp.Do(ctx, client.http, params, &message, client.hooks...)
@@ -531,7 +230,7 @@ type MediaTemplateRequest struct {
 func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, req *MediaTemplateRequest) (
 	*ResponseMessage, error,
 ) {
-	cctx := client.context()
+	cctx := client.Context()
 	tmpLanguage := &models.TemplateLanguage{
 		Policy: req.LanguagePolicy,
 		Code:   req.LanguageCode,
@@ -547,9 +246,9 @@ func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, r
 
 	reqCtx := &whttp.RequestContext{
 		Name:       "send media template",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   cctx.phoneNumberID,
+		BaseURL:    cctx.BaseURL,
+		ApiVersion: cctx.ApiVersion,
+		SenderID:   cctx.PhoneNumberID,
 		Endpoints:  []string{"messages"},
 	}
 
@@ -560,7 +259,7 @@ func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, r
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: cctx.accessToken,
+		Bearer: cctx.AccessToken,
 	}
 
 	var message ResponseMessage
@@ -584,7 +283,7 @@ type TextTemplateRequest struct {
 func (client *Client) SendTextTemplate(ctx context.Context, recipient string, req *TextTemplateRequest) (
 	*ResponseMessage, error,
 ) {
-	cctx := client.context()
+	cctx := client.Context()
 	tmpLanguage := &models.TemplateLanguage{
 		Policy: req.LanguagePolicy,
 		Code:   req.LanguageCode,
@@ -593,9 +292,9 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 	payload := models.NewMessage(recipient, models.WithTemplate(template))
 	reqCtx := &whttp.RequestContext{
 		Name:       "send text template",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   cctx.phoneNumberID,
+		BaseURL:    cctx.BaseURL,
+		ApiVersion: cctx.ApiVersion,
+		SenderID:   cctx.PhoneNumberID,
 		Endpoints:  []string{"messages"},
 	}
 
@@ -606,7 +305,7 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: cctx.accessToken,
+		Bearer: cctx.AccessToken,
 	}
 
 	var message ResponseMessage
@@ -625,12 +324,12 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 // You can use models.NewTextTemplate, models.NewMediaTemplate and models.NewInteractiveTemplate to create a Template.
 // These are helper functions that will make your life easier.
 func (client *Client) SendTemplate(ctx context.Context, recipient string, req *Template) (*ResponseMessage, error) {
-	cctx := client.context()
+	cctx := client.Context()
 	request := &SendTemplateRequest{
-		BaseURL:                cctx.baseURL,
-		AccessToken:            cctx.accessToken,
-		PhoneNumberID:          cctx.phoneNumberID,
-		ApiVersion:             cctx.apiVersion,
+		BaseURL:                cctx.BaseURL,
+		AccessToken:            cctx.AccessToken,
+		PhoneNumberID:          cctx.PhoneNumberID,
+		ApiVersion:             cctx.ApiVersion,
 		Recipient:              recipient,
 		TemplateLanguageCode:   req.LanguageCode,
 		TemplateLanguagePolicy: req.LanguagePolicy,
@@ -650,7 +349,7 @@ func (client *Client) SendTemplate(ctx context.Context, recipient string, req *T
 func (client *Client) SendInteractiveMessage(ctx context.Context, recipient string, req *models.Interactive) (
 	*ResponseMessage, error,
 ) {
-	cctx := client.context()
+	cctx := client.Context()
 	template := &models.Message{
 		Product:       messagingProduct,
 		To:            recipient,
@@ -660,9 +359,9 @@ func (client *Client) SendInteractiveMessage(ctx context.Context, recipient stri
 	}
 	reqCtx := &whttp.RequestContext{
 		Name:       "send interactive message",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   cctx.phoneNumberID,
+		BaseURL:    cctx.BaseURL,
+		ApiVersion: cctx.ApiVersion,
+		SenderID:   cctx.PhoneNumberID,
 		Endpoints:  []string{"messages"},
 	}
 	params := &whttp.Request{
@@ -672,7 +371,7 @@ func (client *Client) SendInteractiveMessage(ctx context.Context, recipient stri
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: cctx.accessToken,
+		Bearer: cctx.AccessToken,
 	}
 	var message ResponseMessage
 	err := whttp.Do(ctx, client.http, params, &message, client.hooks...)
@@ -692,11 +391,11 @@ func (client *Client) CreateQrCode(ctx context.Context, message *qrcodes.CreateR
 		PrefilledMessage: message.PrefilledMessage,
 		ImageFormat:      message.ImageFormat,
 	}
-	cctx := client.context()
+	cctx := client.Context()
 	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.baseURL,
-		PhoneID:     cctx.phoneNumberID,
-		ApiVersion:  cctx.apiVersion,
+		BaseURL:     cctx.BaseURL,
+		PhoneID:     cctx.PhoneNumberID,
+		ApiVersion:  cctx.ApiVersion,
 		AccessToken: client.accessToken,
 	}
 	resp, err := qrcodes.Create(ctx, client.http, rctx, request)
@@ -708,12 +407,12 @@ func (client *Client) CreateQrCode(ctx context.Context, message *qrcodes.CreateR
 }
 
 func (client *Client) ListQrCodes(ctx context.Context) (*qrcodes.ListResponse, error) {
-	cctx := client.context()
+	cctx := client.Context()
 	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.baseURL,
-		PhoneID:     cctx.phoneNumberID,
-		ApiVersion:  cctx.apiVersion,
-		AccessToken: cctx.accessToken,
+		BaseURL:     cctx.BaseURL,
+		PhoneID:     cctx.PhoneNumberID,
+		ApiVersion:  cctx.ApiVersion,
+		AccessToken: cctx.AccessToken,
 	}
 
 	resp, err := qrcodes.List(ctx, client.http, rctx)
@@ -725,12 +424,12 @@ func (client *Client) ListQrCodes(ctx context.Context) (*qrcodes.ListResponse, e
 }
 
 func (client *Client) GetQrCode(ctx context.Context, qrCodeID string) (*qrcodes.Information, error) {
-	cctx := client.context()
+	cctx := client.Context()
 	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.baseURL,
-		PhoneID:     cctx.phoneNumberID,
-		ApiVersion:  cctx.apiVersion,
-		AccessToken: cctx.accessToken,
+		BaseURL:     cctx.BaseURL,
+		PhoneID:     cctx.PhoneNumberID,
+		ApiVersion:  cctx.ApiVersion,
+		AccessToken: cctx.AccessToken,
 	}
 
 	resp, err := qrcodes.Get(ctx, client.http, rctx, qrCodeID)
@@ -743,12 +442,12 @@ func (client *Client) GetQrCode(ctx context.Context, qrCodeID string) (*qrcodes.
 
 func (client *Client) UpdateQrCode(ctx context.Context, qrCodeID string, request *qrcodes.CreateRequest,
 ) (*qrcodes.SuccessResponse, error) {
-	cctx := client.context()
+	cctx := client.Context()
 	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.baseURL,
-		PhoneID:     cctx.phoneNumberID,
-		ApiVersion:  cctx.apiVersion,
-		AccessToken: cctx.accessToken,
+		BaseURL:     cctx.BaseURL,
+		PhoneID:     cctx.PhoneNumberID,
+		ApiVersion:  cctx.ApiVersion,
+		AccessToken: cctx.AccessToken,
 	}
 
 	resp, err := qrcodes.Update(ctx, client.http, rctx, qrCodeID, request)
@@ -760,12 +459,12 @@ func (client *Client) UpdateQrCode(ctx context.Context, qrCodeID string, request
 }
 
 func (client *Client) DeleteQrCode(ctx context.Context, qrCodeID string) (*qrcodes.SuccessResponse, error) {
-	cctx := client.context()
+	cctx := client.Context()
 	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.baseURL,
-		PhoneID:     cctx.phoneNumberID,
-		ApiVersion:  cctx.apiVersion,
-		AccessToken: cctx.accessToken,
+		BaseURL:     cctx.BaseURL,
+		PhoneID:     cctx.PhoneNumberID,
+		ApiVersion:  cctx.ApiVersion,
+		AccessToken: cctx.AccessToken,
 	}
 
 	resp, err := qrcodes.Delete(ctx, client.http, rctx, qrCodeID)
@@ -839,12 +538,12 @@ type (
 func (client *Client) RequestVerificationCode(ctx context.Context,
 	codeMethod VerificationMethod, language string,
 ) error {
-	cctx := client.context()
+	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
 		Name:       "request code",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   cctx.phoneNumberID,
+		BaseURL:    cctx.BaseURL,
+		ApiVersion: cctx.ApiVersion,
+		SenderID:   cctx.PhoneNumberID,
 		Endpoints:  []string{"request_code"},
 	}
 
@@ -853,7 +552,7 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 		Query:   nil,
-		Bearer:  cctx.accessToken,
+		Bearer:  cctx.AccessToken,
 		Form:    map[string]string{"code_method": string(codeMethod), "language": language},
 		Payload: nil,
 	}
@@ -867,12 +566,12 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 
 // VerifyCode should be run to verify the code retrieved by RequestVerificationCode.
 func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusResponse, error) {
-	cctx := client.context()
+	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
 		Name:       "verify code",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   cctx.phoneNumberID,
+		BaseURL:    cctx.BaseURL,
+		ApiVersion: cctx.ApiVersion,
+		SenderID:   cctx.PhoneNumberID,
 		Endpoints:  []string{"verify_code"},
 	}
 	params := &whttp.Request{
@@ -880,7 +579,7 @@ func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusRespo
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 		Query:   nil,
-		Bearer:  cctx.accessToken,
+		Bearer:  cctx.AccessToken,
 		Form:    map[string]string{"code": code},
 	}
 
@@ -959,19 +658,19 @@ func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusRespo
 //	   }
 //	}
 func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterParams) (*PhoneNumbersList, error) {
-	cctx := client.context()
+	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
 		Name:       "list phone numbers",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   cctx.businessAccountID,
+		BaseURL:    cctx.BaseURL,
+		ApiVersion: cctx.ApiVersion,
+		SenderID:   cctx.BusinessAccountID,
 		Endpoints:  []string{"phone_numbers"},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Query:   map[string]string{"access_token": cctx.accessToken},
+		Query:   map[string]string{"access_token": cctx.AccessToken},
 	}
 	if filters != nil {
 		p := filters
@@ -992,18 +691,18 @@ func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterPar
 
 // PhoneNumberByID returns the phone number associated with the given ID.
 func (client *Client) PhoneNumberByID(ctx context.Context) (*PhoneNumber, error) {
-	cctx := client.context()
+	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
 		Name:       "get phone number by id",
-		BaseURL:    cctx.baseURL,
-		ApiVersion: cctx.apiVersion,
-		SenderID:   cctx.phoneNumberID,
+		BaseURL:    cctx.BaseURL,
+		ApiVersion: cctx.ApiVersion,
+		SenderID:   cctx.PhoneNumberID,
 	}
 	request := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
 		Headers: map[string]string{
-			"Authorization": "Bearer " + cctx.accessToken,
+			"Authorization": "Bearer " + cctx.AccessToken,
 		},
 	}
 	var phoneNumber PhoneNumber

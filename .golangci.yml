@@ -75,6 +75,7 @@ linters:
     - wastedassign
     - dupword
     - varnamelen
+    - depguard
 
 
 # specify the output format for linter results
