@@ -378,3 +378,8 @@ type ResponseError struct {
 func (e *ResponseError) Error() string {
 	return fmt.Sprintf("whatsapp error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
 }
+
+// Unwrap returns the underlying error for ResponseError.
+func (e *ResponseError) Unwrap() error {
+	return e.Err
+}

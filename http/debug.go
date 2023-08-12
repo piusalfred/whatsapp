@@ -24,7 +24,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httputil"
-	"os"
 	"strings"
 )
 
@@ -36,30 +35,38 @@ type DebugFunc func(io.Writer) Hook
 // the request and response.
 func DebugHook(writer io.Writer) Hook {
 	return func(ctx context.Context, req *http.Request, resp *http.Response) {
-		var buff strings.Builder
+		buff := &strings.Builder{}
 		name := strings.ToUpper(RequestNameFromContext(ctx))
 		buff.WriteString(name)
-		buff.WriteString("\n")
-		if req != nil {
-			b, err := httputil.DumpRequestOut(req, true)
-			if err == nil {
-				buff.Write(b)
-				buff.WriteString("\n")
-			}
-		}
+		buff.WriteString("\n\n")
 
-		if resp != nil {
-			b, err := httputil.DumpResponse(resp, true)
-			if err == nil {
-				buff.Write(b)
-				buff.WriteString("\n")
-			}
-		}
+		dumpRequest(buff, req)
+		dumpResponse(buff, resp)
+		//
+		//if writer == nil {
+		//	_, _ = os.Stdout.Write(buff.Bytes())
+		//} else {
+		//	_, _ = writer.Write(buff.Bytes())
+		//}
+	}
+}
 
-		if writer == nil {
-			_, _ = os.Stdout.Write([]byte(buff.String()))
+func dumpRequest(buff *strings.Builder, req *http.Request) {
+	if req != nil {
+		b, err := httputil.DumpRequestOut(req, true)
+		if err == nil {
+			buff.Write(b)
+			buff.WriteString("\n\n")
 		}
+	}
+}
 
-		_, _ = writer.Write([]byte(buff.String()))
+func dumpResponse(buff *strings.Builder, resp *http.Response) {
+	if resp != nil {
+		b, err := httputil.DumpResponse(resp, true)
+		if err == nil {
+			buff.Write(b)
+			buff.WriteString("\n\n")
+		}
 	}
 }
