@@ -21,7 +21,6 @@ package whatsapp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -29,7 +28,6 @@ import (
 
 	whttp "github.com/piusalfred/whatsapp/http"
 	"github.com/piusalfred/whatsapp/models"
-	"github.com/piusalfred/whatsapp/qrcodes"
 )
 
 var ErrBadRequestFormat = errors.New("bad request")
@@ -324,32 +322,27 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 // You can use models.NewTextTemplate, models.NewMediaTemplate and models.NewInteractiveTemplate to create a Template.
 // These are helper functions that will make your life easier.
 func (client *Client) SendTemplate(ctx context.Context, recipient string, req *Template) (*ResponseMessage, error) {
-	cctx := client.Context()
-	request := &SendTemplateRequest{
-		BaseURL:                cctx.BaseURL,
-		AccessToken:            cctx.AccessToken,
-		PhoneNumberID:          cctx.PhoneNumberID,
-		ApiVersion:             cctx.ApiVersion,
-		Recipient:              recipient,
-		TemplateLanguageCode:   req.LanguageCode,
-		TemplateLanguagePolicy: req.LanguagePolicy,
-		TemplateName:           req.Name,
-		TemplateComponents:     req.Components,
+	template := &models.Message{
+		Product:       messagingProduct,
+		To:            recipient,
+		RecipientType: individualRecipientType,
+		Type:          templateMessageType,
+		Template: &models.Template{
+			Language: &models.TemplateLanguage{
+				Code:   req.LanguageCode,
+				Policy: req.LanguagePolicy,
+			},
+			Name:       req.Name,
+			Components: req.Components,
+		},
 	}
 
-	resp, err := SendTemplate(ctx, client.http, request, client.hooks...)
-	if err != nil {
-		return nil, fmt.Errorf("client: %w", err)
-	}
-
-	return resp, nil
+	return client.SendMessage(ctx, "send template message", template)
 }
 
 // SendInteractiveMessage sends an interactive message to the recipient.
 func (client *Client) SendInteractiveMessage(ctx context.Context, recipient string, req *models.Interactive) (
-	*ResponseMessage, error,
-) {
-	cctx := client.Context()
+	*ResponseMessage, error) {
 	template := &models.Message{
 		Product:       messagingProduct,
 		To:            recipient,
@@ -357,358 +350,6 @@ func (client *Client) SendInteractiveMessage(ctx context.Context, recipient stri
 		Type:          "interactive",
 		Interactive:   req,
 	}
-	reqCtx := &whttp.RequestContext{
-		Name:       "send interactive message",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
-		SenderID:   cctx.PhoneNumberID,
-		Endpoints:  []string{"messages"},
-	}
-	params := &whttp.Request{
-		Method:  http.MethodPost,
-		Payload: template,
-		Context: reqCtx,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: cctx.AccessToken,
-	}
-	var message ResponseMessage
-	err := whttp.Do(ctx, client.http, params, &message, client.hooks...)
-	if err != nil {
-		return nil, fmt.Errorf("send interactive: %w", err)
-	}
 
-	return &message, nil
-}
-
-////////////// QrCode
-
-func (client *Client) CreateQrCode(ctx context.Context, message *qrcodes.CreateRequest) (
-	*qrcodes.CreateResponse, error,
-) {
-	request := &qrcodes.CreateRequest{
-		PrefilledMessage: message.PrefilledMessage,
-		ImageFormat:      message.ImageFormat,
-	}
-	cctx := client.Context()
-	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.BaseURL,
-		PhoneID:     cctx.PhoneNumberID,
-		ApiVersion:  cctx.ApiVersion,
-		AccessToken: client.accessToken,
-	}
-	resp, err := qrcodes.Create(ctx, client.http, rctx, request)
-	if err != nil {
-		return nil, fmt.Errorf("client: %w", err)
-	}
-
-	return resp, nil
-}
-
-func (client *Client) ListQrCodes(ctx context.Context) (*qrcodes.ListResponse, error) {
-	cctx := client.Context()
-	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.BaseURL,
-		PhoneID:     cctx.PhoneNumberID,
-		ApiVersion:  cctx.ApiVersion,
-		AccessToken: cctx.AccessToken,
-	}
-
-	resp, err := qrcodes.List(ctx, client.http, rctx)
-	if err != nil {
-		return nil, fmt.Errorf("client: %w", err)
-	}
-
-	return resp, nil
-}
-
-func (client *Client) GetQrCode(ctx context.Context, qrCodeID string) (*qrcodes.Information, error) {
-	cctx := client.Context()
-	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.BaseURL,
-		PhoneID:     cctx.PhoneNumberID,
-		ApiVersion:  cctx.ApiVersion,
-		AccessToken: cctx.AccessToken,
-	}
-
-	resp, err := qrcodes.Get(ctx, client.http, rctx, qrCodeID)
-	if err != nil {
-		return nil, fmt.Errorf("client: %w", err)
-	}
-
-	return resp, nil
-}
-
-func (client *Client) UpdateQrCode(ctx context.Context, qrCodeID string, request *qrcodes.CreateRequest,
-) (*qrcodes.SuccessResponse, error) {
-	cctx := client.Context()
-	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.BaseURL,
-		PhoneID:     cctx.PhoneNumberID,
-		ApiVersion:  cctx.ApiVersion,
-		AccessToken: cctx.AccessToken,
-	}
-
-	resp, err := qrcodes.Update(ctx, client.http, rctx, qrCodeID, request)
-	if err != nil {
-		return nil, fmt.Errorf("client: %w", err)
-	}
-
-	return resp, nil
-}
-
-func (client *Client) DeleteQrCode(ctx context.Context, qrCodeID string) (*qrcodes.SuccessResponse, error) {
-	cctx := client.Context()
-	rctx := &qrcodes.RequestContext{
-		BaseURL:     cctx.BaseURL,
-		PhoneID:     cctx.PhoneNumberID,
-		ApiVersion:  cctx.ApiVersion,
-		AccessToken: cctx.AccessToken,
-	}
-
-	resp, err := qrcodes.Delete(ctx, client.http, rctx, qrCodeID)
-	if err != nil {
-		return nil, fmt.Errorf("client: %w", err)
-	}
-
-	return resp, nil
-}
-
-////// PHONE NUMBERS
-
-const (
-	SMSVerificationMethod   VerificationMethod = "SMS"
-	VoiceVerificationMethod VerificationMethod = "VOICE"
-)
-
-type (
-	// VerificationMethod is the method to use to verify the phone number. It can be SMS or VOICE.
-	VerificationMethod string
-
-	PhoneNumber struct {
-		VerifiedName       string `json:"verified_name"`
-		DisplayPhoneNumber string `json:"display_phone_number"`
-		ID                 string `json:"id"`
-		QualityRating      string `json:"quality_rating"`
-	}
-
-	PhoneNumbersList struct {
-		Data    []*PhoneNumber `json:"data,omitempty"`
-		Paging  *Paging        `json:"paging,omitempty"`
-		Summary *Summary       `json:"summary,omitempty"`
-	}
-
-	Paging struct {
-		Cursors *Cursors `json:"cursors,omitempty"`
-	}
-
-	Cursors struct {
-		Before string `json:"before,omitempty"`
-		After  string `json:"after,omitempty"`
-	}
-
-	Summary struct {
-		TotalCount int `json:"total_count,omitempty"`
-	}
-
-	// PhoneNumberNameStatus value can be one of the following:
-	// APPROVED: The name has been approved. You can download your certificate now.
-	// AVAILABLE_WITHOUT_REVIEW: The certificate for the phone is available and display name is ready to use
-	// without review.
-	// DECLINED: The name has not been approved. You cannot download your certificate.
-	// EXPIRED: Your certificate has expired and can no longer be downloaded.
-	// PENDING_REVIEW: Your name request is under review. You cannot download your certificate.
-	// NONE: No certificate is available.
-	PhoneNumberNameStatus string
-
-	FilterParams struct {
-		Field    string `json:"field,omitempty"`
-		Operator string `json:"operator,omitempty"`
-		Value    string `json:"value,omitempty"`
-	}
-)
-
-// RequestVerificationCode requests a verification code to be sent via SMS or VOICE.
-// doc link: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/phone-numbers
-//
-// You need to verify the phone number you want to use to send messages to your customers. After the
-// API call, you will receive your verification code via the method you selected. To finish the verification
-// process, include your code in the VerifyCode method.
-func (client *Client) RequestVerificationCode(ctx context.Context,
-	codeMethod VerificationMethod, language string,
-) error {
-	cctx := client.Context()
-	reqCtx := &whttp.RequestContext{
-		Name:       "request code",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
-		SenderID:   cctx.PhoneNumberID,
-		Endpoints:  []string{"request_code"},
-	}
-
-	params := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
-		Query:   nil,
-		Bearer:  cctx.AccessToken,
-		Form:    map[string]string{"code_method": string(codeMethod), "language": language},
-		Payload: nil,
-	}
-	err := client.http.Do(ctx, params, nil)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
-	}
-
-	return nil
-}
-
-// VerifyCode should be run to verify the code retrieved by RequestVerificationCode.
-func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusResponse, error) {
-	cctx := client.Context()
-	reqCtx := &whttp.RequestContext{
-		Name:       "verify code",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
-		SenderID:   cctx.PhoneNumberID,
-		Endpoints:  []string{"verify_code"},
-	}
-	params := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
-		Query:   nil,
-		Bearer:  cctx.AccessToken,
-		Form:    map[string]string{"code": code},
-	}
-
-	var resp StatusResponse
-	err := client.http.Do(ctx, params, &resp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-
-	return &resp, nil
-}
-
-// ListPhoneNumbers returns a list of phone numbers that are associated with the business account.
-// using the WhatsApp Business Management API.
-//
-// You will need to have
-//   - The WhatsApp Business Account ID for the business' phone numbers you want to retrieve
-//   - A System User access token linked to your WhatsApp Business Account
-//   - The whatsapp_business_management permission
-//
-// Limitations
-// This API can only retrieve phone numbers that have been registered. Adding, updating, or
-// deleting phone numbers is not permitted using the API.
-//
-// The equivalent curl command to retrieve phone numbers is (formatted for readability):
-//
-//		curl -X GET "https://graph.facebook.com/v16.0/{whatsapp-business-account-id}/phone_numbers
-//	      	?access_token={system-user-access-token}"
-//
-// On success, a JSON object is returned with a list of all the business names, phone numbers,
-// phone number IDs, and quality ratings associated with a business.
-//
-//	{
-//	  "data": [
-//	    {
-//	      "verified_name": "Jasper's Market",
-//	      "display_phone_number": "+1 631-555-5555",
-//	      "id": "1906385232743451",
-//	      "quality_rating": "GREEN"
-//
-//		    },
-//		    {
-//		      "verified_name": "Jasper's Ice Cream",
-//		      "display_phone_number": "+1 631-555-5556",
-//		      "id": "1913623884432103",
-//		      "quality_rating": "NA"
-//		    }
-//		  ],
-//		}
-//
-// Filter Phone Numbers
-// You can query phone numbers and filter them based on their account_mode. This filtering option
-// is currently being tested in beta mode. Not all developers have access to it.
-//
-// Sample Request
-//
-//	curl -i -X GET "https://graph.facebook.com/v16.0/{whatsapp-business-account-ID}/phone_numbers?\
-//		filtering=[{"field":"account_mode","operator":"EQUAL","value":"SANDBOX"}]&access_token=access-token"
-//
-// Sample Response
-//
-//	{
-//	  "data": [
-//	    {
-//	      "id": "1972385232742141",
-//	      "display_phone_number": "+1 631-555-1111",
-//	      "verified_name": "John’s Cake Shop",
-//	      "quality_rating": "UNKNOWN",
-//	    }
-//	  ],
-//	  "paging": {
-//		"cursors": {
-//			"before": "abcdefghij",
-//			"after": "klmnopqr"
-//		}
-//	   }
-//	}
-func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterParams) (*PhoneNumbersList, error) {
-	cctx := client.Context()
-	reqCtx := &whttp.RequestContext{
-		Name:       "list phone numbers",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
-		SenderID:   cctx.BusinessAccountID,
-		Endpoints:  []string{"phone_numbers"},
-	}
-
-	params := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodGet,
-		Query:   map[string]string{"access_token": cctx.AccessToken},
-	}
-	if filters != nil {
-		p := filters
-		jsonParams, err := json.Marshal(p)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal filter params: %w", err)
-		}
-		params.Query["filtering"] = string(jsonParams)
-	}
-	var phoneNumbersList PhoneNumbersList
-	err := client.http.Do(ctx, params, &phoneNumbersList)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-
-	return &phoneNumbersList, nil
-}
-
-// PhoneNumberByID returns the phone number associated with the given ID.
-func (client *Client) PhoneNumberByID(ctx context.Context) (*PhoneNumber, error) {
-	cctx := client.Context()
-	reqCtx := &whttp.RequestContext{
-		Name:       "get phone number by id",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
-		SenderID:   cctx.PhoneNumberID,
-	}
-	request := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodGet,
-		Headers: map[string]string{
-			"Authorization": "Bearer " + cctx.AccessToken,
-		},
-	}
-	var phoneNumber PhoneNumber
-	if err := client.http.Do(ctx, request, &phoneNumber); err != nil {
-		return nil, fmt.Errorf("get phone muber by id: %w", err)
-	}
-
-	return &phoneNumber, nil
+	return client.SendMessage(ctx, "send interactive message", template)
 }

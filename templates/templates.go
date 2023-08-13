@@ -21,24 +21,25 @@ This package supports the following template types:
 - Authentication templates with one-time password buttons
 - Multi-Product Message templates
 
-All API calls made using this package must be authenticated with an access token. Developers can authenticate their API calls with the access token generated in the App Dashboard > WhatsApp > API Setup panel. Business Solution Providers (BSPs) need to authenticate themselves with an access token that has the 'whatsapp_business_messaging' permission.
-
+All API calls made using this package must be authenticated with an access token.Developers can authenticate
+their API calls with the access token generated in the App Dashboard > WhatsApp > API Setup panel.
+Business Solution Providers (BSPs) need to authenticate themselves with an access token that has the
+'whatsapp_business_messaging' permission.
 */
 package templates
 
-
 type Message struct {
-	MessagingProduct string   `json:"messaging_product"`
-	RecipientType    string   `json:"recipient_type"`
-	To               string   `json:"to"`
-	Type             string   `json:"type"`
+	MessagingProduct string    `json:"messaging_product"`
+	RecipientType    string    `json:"recipient_type"`
+	To               string    `json:"to"`
+	Type             string    `json:"type"`
 	Template         *Template `json:"template"`
 }
 
 type Template struct {
-	Name        string      `json:"name"`
-	Language    Language    `json:"language"`
-	Components  []Component `json:"components"`
+	Name       string      `json:"name"`
+	Language   Language    `json:"language"`
+	Components []Component `json:"components"`
 }
 
 type Language struct {
