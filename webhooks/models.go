@@ -212,6 +212,7 @@ type (
 	// InteractiveType represent an item sent to user. It can be a reply button
 	// (ButtonReply) or a list reply containing a list of items (ListReply).
 	InteractiveType struct {
+		Type        string       `json:"type,omitempty"`
 		ButtonReply *ButtonReply `json:"button_reply,omitempty"`
 		ListReply   *ListReply   `json:"list_reply,omitempty"`
 	}
