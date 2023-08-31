@@ -118,7 +118,7 @@ type (
 		ID           string           `json:"id,omitempty"`
 		RecipientID  string           `json:"recipient_id,omitempty"`
 		StatusValue  string           `json:"status,omitempty"`
-		Timestamp    int              `json:"timestamp,omitempty"`
+		Timestamp    string           `json:"timestamp,omitempty"`
 		Conversation *Conversation    `json:"conversation,omitempty"`
 		Pricing      *Pricing         `json:"pricing,omitempty"`
 		Errors       []*werrors.Error `json:"werrors,omitempty"`
