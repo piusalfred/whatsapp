@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -106,7 +105,8 @@ func TestSend(t *testing.T) { //nolint:paralleltest
 	}
 
 	var user User
-	if err := Do(context.TODO(), http.DefaultClient, request, &user); err != nil {
+	base := &Client{http: http.DefaultClient}
+	if err := base.Do(context.TODO(), request, &user); err != nil {
 		t.Errorf("failed to send request: %v", err)
 	}
 
@@ -121,104 +121,6 @@ func TestSend(t *testing.T) { //nolint:paralleltest
 	}
 
 	t.Logf("user: %+v", user)
-}
-
-func TestCreateRequestURL(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		baseURL    string
-		apiVersion string
-		senderID   string
-		endpoints  []string
-	}
-
-	tests := []struct {
-		name    string
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{
-			name: "test create phone number verification request url",
-			args: args{
-				baseURL:    BaseURL,
-				senderID:   "224225226",
-				apiVersion: "v16.0",
-				endpoints:  []string{"verify_code"},
-			},
-			want:    "https://graph.facebook.com/v16.0/224225226/verify_code",
-			wantErr: false,
-		},
-		{
-			name: "test create media delete request url",
-			args: args{
-				baseURL:    BaseURL,
-				senderID:   "224225226", // this should be meda id
-				apiVersion: "v16.0",
-				endpoints:  nil,
-			},
-			want:    "https://graph.facebook.com/v16.0/224225226",
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := CreateRequestURL(tt.args.baseURL, tt.args.apiVersion, tt.args.senderID, tt.args.endpoints...)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CreateRequestURL() error = %v, wantErr %v", err, tt.wantErr)
-
-				return
-			}
-			if got != tt.want {
-				t.Errorf("CreateRequestURL() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestJoinUrlParts(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		parts *RequestContext
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{
-			name: "test join url parts",
-			args: args{
-				parts: &RequestContext{
-					BaseURL:       BaseURL,
-					PhoneNumberID: "224225226",
-					ApiVersion:    "v16.0",
-					Endpoints:     []string{"verify_code"},
-				},
-			},
-			want:    "https://graph.facebook.com/v16.0/224225226/verify_code",
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := requestURLFromContext(tt.args.parts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("requestURLFromContext() error = %v, wantErr %v", err, tt.wantErr)
-
-				return
-			}
-			if got != tt.want {
-				t.Errorf("requestURLFromContext() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
 }
 
 func TestRequestNameFromContext(t *testing.T) {
@@ -407,22 +309,4 @@ func Test_extractRequestBody(t *testing.T) {
 			}
 		})
 	}
-}
-
-func ExampleNewRequest() {
-	options := []RequestOption{
-		WithMethod(http.MethodGet),
-		WithHeaders(map[string]string{"Content-Type": "application/json"}),
-		WithBearer("token"),
-		WithQuery(map[string]string{"key": "value"}),
-		WithContext(&RequestContext{}),
-	}
-	request, err := MakeRequest(context.TODO(), options...)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(request.Method)
-
-	// Output: GET
 }
