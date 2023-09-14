@@ -124,12 +124,11 @@ type MediaMessage struct {
 func (client *Client) SendMedia(ctx context.Context, recipient string, req *MediaMessage,
 	cacheOptions *CacheOptions,
 ) (*ResponseMessage, error) {
-	cctx := client.Context()
 	request := &SendMediaRequest{
-		BaseURL:       cctx.BaseURL,
-		AccessToken:   cctx.AccessToken,
-		PhoneNumberID: cctx.PhoneNumberID,
-		ApiVersion:    cctx.ApiVersion,
+		BaseURL:       client.Config.BaseURL,
+		AccessToken:   client.Config.AccessToken,
+		PhoneNumberID: client.Config.PhoneNumberID,
+		ApiVersion:    client.Config.Version,
 		Recipient:     recipient,
 		Type:          req.Type,
 		MediaID:       req.MediaID,
@@ -177,7 +176,7 @@ func (client *Client) SendMedia(ctx context.Context, recipient string, req *Medi
 
 	var message ResponseMessage
 
-	err = client.http.Do(ctx, params, &message)
+	err = client.Base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send media: %w", err)
 	}
@@ -214,7 +213,6 @@ type InteractiveTemplateRequest struct {
 func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient string, req *InteractiveTemplateRequest) (
 	*ResponseMessage, error,
 ) {
-	cctx := client.Context()
 	tmpLanguage := &models.TemplateLanguage{
 		Policy: req.LanguagePolicy,
 		Code:   req.LanguageCode,
@@ -229,9 +227,9 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 	}
 	reqCtx := &whttp.RequestContext{
 		Name:          "send template",
-		BaseURL:       cctx.BaseURL,
-		ApiVersion:    cctx.ApiVersion,
-		PhoneNumberID: cctx.PhoneNumberID,
+		BaseURL:       client.Config.BaseURL,
+		ApiVersion:    client.Config.Version,
+		PhoneNumberID: client.Config.PhoneNumberID,
 		Endpoints:     []string{"messages"},
 	}
 	params := &whttp.Request{
@@ -241,10 +239,10 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: cctx.AccessToken,
+		Bearer: client.Config.AccessToken,
 	}
 	var message ResponseMessage
-	err := client.http.Do(ctx, params, &message)
+	err := client.Base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send template: %w", err)
 	}
@@ -265,7 +263,6 @@ type MediaTemplateRequest struct {
 func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, req *MediaTemplateRequest) (
 	*ResponseMessage, error,
 ) {
-	cctx := client.Context()
 	tmpLanguage := &models.TemplateLanguage{
 		Policy: req.LanguagePolicy,
 		Code:   req.LanguageCode,
@@ -281,9 +278,9 @@ func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, r
 
 	reqCtx := &whttp.RequestContext{
 		Name:          "send media template",
-		BaseURL:       cctx.BaseURL,
-		ApiVersion:    cctx.ApiVersion,
-		PhoneNumberID: cctx.PhoneNumberID,
+		BaseURL:       client.Config.BaseURL,
+		ApiVersion:    client.Config.Version,
+		PhoneNumberID: client.Config.PhoneNumberID,
 		Endpoints:     []string{"messages"},
 	}
 
@@ -294,11 +291,11 @@ func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, r
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: cctx.AccessToken,
+		Bearer: client.Config.AccessToken,
 	}
 
 	var message ResponseMessage
-	err := client.http.Do(ctx, params, &message)
+	err := client.Base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("client: send media template: %w", err)
 	}
@@ -318,7 +315,6 @@ type TextTemplateRequest struct {
 func (client *Client) SendTextTemplate(ctx context.Context, recipient string, req *TextTemplateRequest) (
 	*ResponseMessage, error,
 ) {
-	cctx := client.Context()
 	tmpLanguage := &models.TemplateLanguage{
 		Policy: req.LanguagePolicy,
 		Code:   req.LanguageCode,
@@ -327,9 +323,9 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 	payload := models.NewMessage(recipient, models.WithTemplate(template))
 	reqCtx := &whttp.RequestContext{
 		Name:          "send text template",
-		BaseURL:       cctx.BaseURL,
-		ApiVersion:    cctx.ApiVersion,
-		PhoneNumberID: cctx.PhoneNumberID,
+		BaseURL:       client.Config.BaseURL,
+		ApiVersion:    client.Config.Version,
+		PhoneNumberID: client.Config.PhoneNumberID,
 		Endpoints:     []string{"messages"},
 	}
 
@@ -340,11 +336,11 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: cctx.AccessToken,
+		Bearer: client.Config.AccessToken,
 	}
 
 	var message ResponseMessage
-	err := client.http.Do(ctx, params, &message)
+	err := client.Base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("client: send text template: %w", err)
 	}
@@ -358,23 +354,32 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 // can have any of the above as a Header and also have a list of buttons that the user can interact with.
 // You can use models.NewTextTemplate, models.NewMediaTemplate and models.NewInteractiveTemplate to create a Template.
 // These are helper functions that will make your life easier.
-func (client *Client) SendTemplate(ctx context.Context, recipient string, req *Template) (*ResponseMessage, error) {
-	template := &models.Message{
+func (client *Client) SendTemplate(ctx context.Context, recipient string, template *Template) (*ResponseMessage, error) {
+	message := &models.Message{
 		Product:       messagingProduct,
 		To:            recipient,
 		RecipientType: individualRecipientType,
 		Type:          templateMessageType,
 		Template: &models.Template{
 			Language: &models.TemplateLanguage{
-				Code:   req.LanguageCode,
-				Policy: req.LanguagePolicy,
+				Code:   template.LanguageCode,
+				Policy: template.LanguagePolicy,
 			},
-			Name:       req.Name,
-			Components: req.Components,
+			Name:       template.Name,
+			Components: template.Components,
 		},
 	}
 
-	return client.SendMessage(ctx, "send template message", template)
+	req := &whttp.RequestContext{
+		Name:          "send message",
+		BaseURL:       client.Config.BaseURL,
+		ApiVersion:    client.Config.Version,
+		PhoneNumberID: client.Config.PhoneNumberID,
+		Bearer:        client.Config.AccessToken,
+		Endpoints:     []string{"messages"},
+	}
+
+	return client.Base.SendMessage(ctx, req, message)
 }
 
 // SendInteractiveMessage sends an interactive message to the recipient.
@@ -389,5 +394,14 @@ func (client *Client) SendInteractiveMessage(ctx context.Context, recipient stri
 		Interactive:   req,
 	}
 
-	return client.SendMessage(ctx, "send interactive message", template)
+	reqc := &whttp.RequestContext{
+		Name:          "send interactive message",
+		BaseURL:       client.Config.BaseURL,
+		ApiVersion:    client.Config.Version,
+		PhoneNumberID: client.Config.PhoneNumberID,
+		Bearer:        client.Config.AccessToken,
+		Endpoints:     []string{"messages"},
+	}
+
+	return client.Base.SendMessage(ctx, reqc, template)
 }

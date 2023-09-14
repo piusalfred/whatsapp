@@ -1,4 +1,5 @@
 /*
+|
  * Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
@@ -15,7 +16,7 @@
  * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
  * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
+*/
 
 package whatsapp
 
@@ -88,8 +89,7 @@ type SendTemplateRequest struct {
 	TemplateComponents     []*models.TemplateComponent
 }
 
-func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateRequest,
-	hooks ...whttp.Hook,
+func (base *BaseClient) SendTemplate(ctx context.Context, req *SendTemplateRequest,
 ) (*ResponseMessage, error) {
 	template := &models.Message{
 		Product:       messagingProduct,
@@ -122,7 +122,7 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 		Bearer: req.AccessToken,
 	}
 	var message ResponseMessage
-	err := whttp.Do(ctx, client, params, &message, hooks...)
+	err := base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send template: %w", err)
 	}
@@ -261,8 +261,7 @@ downloaded successfully.
 	    }]
 	}
 */
-func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest,
-	hooks ...whttp.Hook,
+func (base *BaseClient) SendMedia(ctx context.Context, req *SendMediaRequest,
 ) (*ResponseMessage, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil: %w", ErrBadRequestFormat)
@@ -305,7 +304,7 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest,
 
 	var message ResponseMessage
 
-	err = whttp.Do(ctx, client, params, &message, hooks...)
+	err = base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send media: %w", err)
 	}

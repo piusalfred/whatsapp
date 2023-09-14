@@ -22,7 +22,6 @@ package whatsapp
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -74,24 +73,23 @@ type (
 
 // GetMediaInformation retrieve the media object by using its corresponding media ID.
 func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (*MediaInformation, error) {
-	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
 		Name:       "get media",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
+		BaseURL:    client.Config.BaseURL,
+		ApiVersion: client.Config.Version,
 		Endpoints:  []string{mediaID},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Bearer:  cctx.AccessToken,
+		Bearer:  client.Config.AccessToken,
 		Payload: nil,
 	}
 
 	var media MediaInformation
 
-	err := client.http.Do(ctx, params, &media)
+	err := client.Base.Do(ctx, params, &media)
 	if err != nil {
 		return nil, fmt.Errorf("get media: %w", err)
 	}
@@ -103,8 +101,8 @@ func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (
 func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteMediaResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "delete media",
-		BaseURL:    client.baseURL,
-		ApiVersion: client.apiVersion,
+		BaseURL:    client.Config.BaseURL,
+		ApiVersion: client.Config.Version,
 		Endpoints:  []string{mediaID},
 	}
 
@@ -112,12 +110,12 @@ func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteM
 		Context: reqCtx,
 		Method:  http.MethodDelete,
 		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  client.accessToken,
+		Bearer:  client.Config.AccessToken,
 		Payload: nil,
 	}
 
 	resp := new(DeleteMediaResponse)
-	err := whttp.Do(ctx, client.http, params, &resp, client.hooks...)
+	err := client.Base.Do(ctx, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("delete media: %w", err)
 	}
@@ -135,21 +133,21 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 
 	reqCtx := &whttp.RequestContext{
 		Name:       "upload media",
-		BaseURL:    client.baseURL,
-		ApiVersion: client.apiVersion,
-		Endpoints:  []string{client.phoneNumberID, "media"},
+		BaseURL:    client.Config.BaseURL,
+		ApiVersion: client.Config.Version,
+		Endpoints:  []string{client.Config.PhoneNumberID, "media"},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": contentType},
-		Bearer:  client.accessToken,
+		Bearer:  client.Config.AccessToken,
 		Payload: payload,
 	}
 
 	resp := new(UploadMediaResponse)
-	err = whttp.Do(ctx, client.http, params, &resp, client.hooks...)
+	err = client.Base.Do(ctx, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("upload media: %w", err)
 	}
@@ -159,75 +157,75 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 
 var ErrMediaDownload = fmt.Errorf("failed to download media")
 
-type DownloadMediaResponse struct {
-	Headers http.Header
-	Body    io.Reader
-}
-
-// DownloadMedia download the media by using its corresponding media ID. It uses the media ID to retrieve
-// the media URL. All media URLs expire after 5 minutes —you need to retrieve the media URL again if it
-// expires.
-// If successful, *DownloadMediaResponse will be returned. It contains headers and io.Reader. From the headers
-// you  can check a content-type header to indicate the mime type of returned data.
+//type DownloadMediaResponse struct {
+//	Headers http.Header
+//	Body    io.Reader
+//}
 //
-// If media fails to download, Facebook returns a 404 http status code. It is recommended to try to retrieve
-// a new media URL and download it again. This will go on for an n retries. If doing so doesn't resolve the issue,
-// please try to renew the access token, then retry downloading the media.
-func (client *Client) DownloadMedia(ctx context.Context, mediaID string, retries int) (*DownloadMediaResponse, error) {
-	// create a for loop to retry the download if it fails with a 404 http status code.
-	for i := 0; i <= retries; i++ {
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("media download: %w", ctx.Err())
-		default:
-		}
-		media, err := client.GetMediaInformation(ctx, mediaID)
-		if err != nil {
-			return nil, err
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, media.URL, nil)
-		if err != nil {
-			return nil, fmt.Errorf("media download: create a request: %w", err)
-		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
-
-		resp, err := client.http.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("media download: %w", err)
-		}
-
-		// retry ...
-		if resp.StatusCode == http.StatusNotFound {
-			_ = resp.Body.Close()
-
-			continue
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			_ = resp.Body.Close()
-
-			return nil, fmt.Errorf("%w: status %d", ErrMediaDownload, resp.StatusCode)
-		}
-
-		var buf bytes.Buffer
-		_, err = io.CopyN(&buf, resp.Body, MaxDocSize)
-		if err != nil && !errors.Is(err, io.EOF) {
-			_ = resp.Body.Close()
-
-			return nil, fmt.Errorf("media download: %w", err)
-		}
-
-		_ = resp.Body.Close()
-
-		return &DownloadMediaResponse{
-			Headers: resp.Header,
-			Body:    &buf,
-		}, nil
-	}
-
-	return nil, fmt.Errorf("%w: retries exceeded", ErrMediaDownload)
-}
+//// DownloadMedia download the media by using its corresponding media ID. It uses the media ID to retrieve
+//// the media URL. All media URLs expire after 5 minutes —you need to retrieve the media URL again if it
+//// expires.
+//// If successful, *DownloadMediaResponse will be returned. It contains headers and io.Reader. From the headers
+//// you  can check a content-type header to indicate the mime type of returned data.
+////
+//// If media fails to download, Facebook returns a 404 http status code. It is recommended to try to retrieve
+//// a new media URL and download it again. This will go on for an n retries. If doing so doesn't resolve the issue,
+//// please try to renew the access token, then retry downloading the media.
+//func (client *Client) DownloadMedia(ctx context.Context, mediaID string, retries int) (*DownloadMediaResponse, error) {
+//	// create a for loop to retry the download if it fails with a 404 http status code.
+//	for i := 0; i <= retries; i++ {
+//		select {
+//		case <-ctx.Done():
+//			return nil, fmt.Errorf("media download: %w", ctx.Err())
+//		default:
+//		}
+//		media, err := client.GetMediaInformation(ctx, mediaID)
+//		if err != nil {
+//			return nil, err
+//		}
+//
+//		req, err := http.NewRequestWithContext(ctx, http.MethodGet, media.URL, nil)
+//		if err != nil {
+//			return nil, fmt.Errorf("media download: create a request: %w", err)
+//		}
+//		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
+//
+//		resp, err := client.Base.Client..Do(req)
+//		if err != nil {
+//			return nil, fmt.Errorf("media download: %w", err)
+//		}
+//
+//		// retry ...
+//		if resp.StatusCode == http.StatusNotFound {
+//			_ = resp.Body.Close()
+//
+//			continue
+//		}
+//
+//		if resp.StatusCode != http.StatusOK {
+//			_ = resp.Body.Close()
+//
+//			return nil, fmt.Errorf("%w: status %d", ErrMediaDownload, resp.StatusCode)
+//		}
+//
+//		var buf bytes.Buffer
+//		_, err = io.CopyN(&buf, resp.Body, MaxDocSize)
+//		if err != nil && !errors.Is(err, io.EOF) {
+//			_ = resp.Body.Close()
+//
+//			return nil, fmt.Errorf("media download: %w", err)
+//		}
+//
+//		_ = resp.Body.Close()
+//
+//		return &DownloadMediaResponse{
+//			Headers: resp.Header,
+//			Body:    &buf,
+//		}, nil
+//	}
+//
+//	return nil, fmt.Errorf("%w: retries exceeded", ErrMediaDownload)
+//}
 
 // uploadMediaPayload creates upload media request payload.
 // If nor error, payload content and request content type is returned.

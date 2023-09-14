@@ -93,8 +93,6 @@ func (request *Request) LogValue() slog.Value {
 	return value
 }
 
-// MakeRequest takes a context.Context and a slice of RequestOption and returns a new *http.Request.
-// Internally, it calls the NewRequestWithContext function.
 func MakeRequest(options ...RequestOption) *Request {
 	request := &Request{
 		Context: &RequestContext{

@@ -28,7 +28,7 @@ import (
 	"strings"
 )
 
-func LogRequestHook(logger slog.Logger) RequestHook {
+func LogRequestHook(logger *slog.Logger) RequestHook {
 	return func(ctx context.Context, request *http.Request) error {
 		name := RequestNameFromContext(ctx)
 		reader, err := request.GetBody()
@@ -54,7 +54,7 @@ func LogRequestHook(logger slog.Logger) RequestHook {
 	}
 }
 
-func LogResponseHook(logger slog.Logger) ResponseHook {
+func LogResponseHook(logger *slog.Logger) ResponseHook {
 	return func(ctx context.Context, response *http.Response) error {
 		name := RequestNameFromContext(ctx)
 		reader := response.Body
