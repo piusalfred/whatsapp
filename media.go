@@ -74,27 +74,29 @@ type (
 
 // GetMediaInformation retrieve the media object by using its corresponding media ID.
 func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (*MediaInformation, error) {
+	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
 		Name:       "get media",
-		BaseURL:    client.baseURL,
-		ApiVersion: client.apiVersion,
+		BaseURL:    cctx.BaseURL,
+		ApiVersion: cctx.ApiVersion,
 		Endpoints:  []string{mediaID},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Bearer:  client.accessToken,
+		Bearer:  cctx.AccessToken,
 		Payload: nil,
 	}
 
-	media := new(MediaInformation)
-	err := whttp.Do(ctx, client.http, params, &media, client.hooks...)
+	var media MediaInformation
+
+	err := client.http.Do(ctx, params, &media)
 	if err != nil {
 		return nil, fmt.Errorf("get media: %w", err)
 	}
 
-	return media, nil
+	return &media, nil
 }
 
 // DeleteMedia delete the media by using its corresponding media ID.

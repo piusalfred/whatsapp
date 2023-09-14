@@ -20,43 +20,38 @@
 package whatsapp
 
 import (
-	"testing"
+	"context"
+	"fmt"
+	"net/http"
+
+	whttp "github.com/piusalfred/whatsapp/http"
 )
 
-func TestMediaMaxAllowedSize(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		mediaType MediaType
-	}
-	tests := []struct {
-		name string
-		args args
-		want int
-	}{
-		{
-			name: "video",
-			args: args{
-				MediaTypeVideo,
-			},
-			want: MaxVideoSize,
-		},
+func ExampleNewClient() {
+	reader := ConfigReaderFunc(func(ctx context.Context) (*Config, error) {
+		return &Config{
+			BaseURL:           BaseURL,
+			Version:           LowestSupportedVersion,
+			AccessToken:       "[redacted]",
+			PhoneNumberID:     "[redacted]",
+			BusinessAccountID: "[redacted]",
+		}, nil
+	})
 
-		{
-			name: "unknown",
-			args: args{
-				MediaType("unknown"),
-			},
-			want: -1,
-		},
+	base := &BaseClient{whttp.NewClient(
+		whttp.WithHTTPClient(http.DefaultClient),
+		whttp.WithRequestHooks(),
+		whttp.WithResponseHooks(),
+	)}
+
+	client, err := NewClient(reader, WithBaseClient(base))
+	if err != nil {
+		panic(err)
 	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			args := tt.args
-			if got := MediaMaxAllowedSize(args.mediaType); got != tt.want {
-				t.Errorf("MediaMaxAllowedSize() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+
+	fmt.Printf("BaseURL: %s\nVersion: %s", client.Config.BaseURL, client.Config.Version)
+
+	// Output:
+	// BaseURL: https://graph.facebook.com/
+	// Version: v16.0
 }

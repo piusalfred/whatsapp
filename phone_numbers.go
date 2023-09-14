@@ -23,8 +23,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	whttp "github.com/piusalfred/whatsapp/http"
 	"net/http"
+
+	whttp "github.com/piusalfred/whatsapp/http"
 )
 
 ////// PHONE NUMBERS
@@ -92,11 +93,11 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 ) error {
 	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
-		Name:       "request code",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
-		SenderID:   cctx.PhoneNumberID,
-		Endpoints:  []string{"request_code"},
+		Name:          "request code",
+		BaseURL:       cctx.BaseURL,
+		ApiVersion:    cctx.ApiVersion,
+		PhoneNumberID: cctx.PhoneNumberID,
+		Endpoints:     []string{"request_code"},
 	}
 
 	params := &whttp.Request{
@@ -120,11 +121,11 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusResponse, error) {
 	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
-		Name:       "verify code",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
-		SenderID:   cctx.PhoneNumberID,
-		Endpoints:  []string{"verify_code"},
+		Name:          "verify code",
+		BaseURL:       cctx.BaseURL,
+		ApiVersion:    cctx.ApiVersion,
+		PhoneNumberID: cctx.PhoneNumberID,
+		Endpoints:     []string{"verify_code"},
 	}
 	params := &whttp.Request{
 		Context: reqCtx,
@@ -212,11 +213,11 @@ func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusRespo
 func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterParams) (*PhoneNumbersList, error) {
 	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
-		Name:       "list phone numbers",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
-		SenderID:   cctx.BusinessAccountID,
-		Endpoints:  []string{"phone_numbers"},
+		Name:          "list phone numbers",
+		BaseURL:       cctx.BaseURL,
+		ApiVersion:    cctx.ApiVersion,
+		PhoneNumberID: cctx.BusinessAccountID,
+		Endpoints:     []string{"phone_numbers"},
 	}
 
 	params := &whttp.Request{
@@ -245,10 +246,10 @@ func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterPar
 func (client *Client) PhoneNumberByID(ctx context.Context) (*PhoneNumber, error) {
 	cctx := client.Context()
 	reqCtx := &whttp.RequestContext{
-		Name:       "get phone number by id",
-		BaseURL:    cctx.BaseURL,
-		ApiVersion: cctx.ApiVersion,
-		SenderID:   cctx.PhoneNumberID,
+		Name:          "get phone number by id",
+		BaseURL:       cctx.BaseURL,
+		ApiVersion:    cctx.ApiVersion,
+		PhoneNumberID: cctx.PhoneNumberID,
 	}
 	request := &whttp.Request{
 		Context: reqCtx,

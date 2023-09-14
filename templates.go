@@ -106,11 +106,11 @@ func SendTemplate(ctx context.Context, client *http.Client, req *SendTemplateReq
 		},
 	}
 	reqCtx := &whttp.RequestContext{
-		Name:       "send template",
-		BaseURL:    req.BaseURL,
-		ApiVersion: req.ApiVersion,
-		SenderID:   req.PhoneNumberID,
-		Endpoints:  []string{"messages"},
+		Name:          "send template",
+		BaseURL:       req.BaseURL,
+		ApiVersion:    req.ApiVersion,
+		PhoneNumberID: req.PhoneNumberID,
+		Endpoints:     []string{"messages"},
 	}
 	params := &whttp.Request{
 		Method:  http.MethodPost,
@@ -274,11 +274,11 @@ func SendMedia(ctx context.Context, client *http.Client, req *SendMediaRequest,
 	}
 
 	reqCtx := &whttp.RequestContext{
-		Name:       "send media",
-		BaseURL:    req.BaseURL,
-		ApiVersion: req.ApiVersion,
-		SenderID:   req.PhoneNumberID,
-		Endpoints:  []string{"messages"},
+		Name:          "send media",
+		BaseURL:       req.BaseURL,
+		ApiVersion:    req.ApiVersion,
+		PhoneNumberID: req.PhoneNumberID,
+		Endpoints:     []string{"messages"},
 	}
 
 	params := &whttp.Request{

@@ -127,57 +127,79 @@ func (client *Client) PrependResponseHooks(hooks ...ResponseHook) {
 	client.ResponseHooks = append(hooks, client.ResponseHooks...)
 }
 
+// Do send a http request to the server and returns the response, It accepts a context,
+// a request and a pointer to a variable to decode the response into.
 func (client *Client) Do(ctx context.Context, r *Request, v any) error {
 	request, err := prepareRequest(ctx, r, client.RequestHooks...)
 	if err != nil {
-		return fmt.Errorf("http send: %w", err)
+		return fmt.Errorf("prepare request: %w", err)
 	}
 	response, err := client.http.Do(request)
 	if err != nil {
 		return fmt.Errorf("http send: %w", err)
 	}
 
-	buff := new(bytes.Buffer)
-	_, err = io.Copy(buff, response.Body)
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+		}
+	}(response.Body)
+
+	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil && !errors.Is(err, io.EOF) {
-		return fmt.Errorf("http send: %w", err)
+		return fmt.Errorf("reading response body: %w", err)
 	}
-	bodyBytes := buff.Bytes()
+	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	if err = runResponseHooks(ctx, response, bodyBytes, client.ResponseHooks...); err != nil {
-		return fmt.Errorf("http send: %w", err)
+	if err = runResponseHooks(ctx, response, client.ResponseHooks...); err != nil {
+		return fmt.Errorf("response hooks: %w", err)
 	}
+	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	return decodeResponse(response.StatusCode, bodyBytes, v)
+	return DecodeResponseJSON(response, v)
 }
 
-func decodeResponse(statusCode int, bodyBytes []byte, v any) error {
-	isResponseOk := statusCode >= http.StatusOK && statusCode <= http.StatusIMUsed
-	bodyIsEmpty := len(bodyBytes) == 0
-	if !isResponseOk && !bodyIsEmpty {
-		var errResponse ResponseError
-		if err := json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&errResponse); err != nil {
-			return fmt.Errorf("http send: status (%d): body (%s): %w", statusCode, string(bodyBytes), err)
-		}
-		errResponse.Code = statusCode
+var ErrRequestFailed = errors.New("request failed")
 
-		return &errResponse
+func DecodeResponseJSON(response *http.Response, v interface{}) error {
+	if v == nil || response == nil {
+		return nil
 	}
 
-	// Response is OK and the body is available
-	if isResponseOk && !bodyIsEmpty && v != nil {
-		if err := json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(v); err != nil {
-			return fmt.Errorf("http send: status (%d): body (%s): %w", statusCode, string(bodyBytes), err)
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("error reading response body: %w", err)
+	}
+
+	defer func() {
+		response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+	}()
+
+	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode <= http.StatusIMUsed
+
+	if !isResponseOk {
+		if len(responseBody) == 0 {
+			return fmt.Errorf("%w: status code: %d", ErrRequestFailed, response.StatusCode)
+		}
+
+		var errorResponse ResponseError
+		if err := json.Unmarshal(responseBody, &errorResponse); err != nil {
+			return fmt.Errorf("error decoding response error body: %w", err)
+		}
+
+		return &errorResponse
+	}
+
+	if len(responseBody) != 0 {
+		if err := json.Unmarshal(responseBody, v); err != nil {
+			return fmt.Errorf("error decoding response body: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func runResponseHooks(ctx context.Context, response *http.Response, body []byte, hooks ...ResponseHook) error {
-	// restore the response body
-	response.Body = io.NopCloser(bytes.NewBuffer(body))
-
+func runResponseHooks(ctx context.Context, response *http.Response, hooks ...ResponseHook) error {
 	for _, hook := range hooks {
 		if hook != nil {
 			if err := hook(ctx, response); err != nil {

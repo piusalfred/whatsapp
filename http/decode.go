@@ -17,46 +17,23 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package whatsapp
+package http
 
 import (
-	"testing"
+	"net/http"
 )
 
-func TestMediaMaxAllowedSize(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		mediaType MediaType
-	}
-	tests := []struct {
-		name string
-		args args
-		want int
-	}{
-		{
-			name: "video",
-			args: args{
-				MediaTypeVideo,
-			},
-			want: MaxVideoSize,
-		},
+// ResponseDecoder decodes the response body into the given interface.
+type ResponseDecoder interface {
+	DecodeResponse(response *http.Response, v interface{}) error
+}
 
-		{
-			name: "unknown",
-			args: args{
-				MediaType("unknown"),
-			},
-			want: -1,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			args := tt.args
-			if got := MediaMaxAllowedSize(args.mediaType); got != tt.want {
-				t.Errorf("MediaMaxAllowedSize() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+// ResponseDecoderFunc is an adapter to allow the use of ordinary functions as
+// response decoders. If f is a function with the appropriate signature,
+// ResponseDecoderFunc(f) is a ResponseDecoder that calls f.
+type ResponseDecoderFunc func(response *http.Response, v interface{}) error
+
+// DecodeResponse calls f(ctx, response, v).
+func (f ResponseDecoderFunc) DecodeResponse(response *http.Response, v interface{}) error {
+	return f(response, v)
 }

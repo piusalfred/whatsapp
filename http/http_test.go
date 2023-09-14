@@ -88,11 +88,11 @@ func TestSend(t *testing.T) { //nolint:paralleltest
 	defer server.Close()
 
 	reqCtx := &RequestContext{
-		Name:       "test",
-		BaseURL:    server.URL,
-		ApiVersion: "",
-		SenderID:   "",
-		Endpoints:  nil,
+		Name:          "test",
+		BaseURL:       server.URL,
+		ApiVersion:    "",
+		PhoneNumberID: "",
+		Endpoints:     nil,
 	}
 
 	request := &Request{
@@ -194,10 +194,10 @@ func TestJoinUrlParts(t *testing.T) {
 			name: "test join url parts",
 			args: args{
 				parts: &RequestContext{
-					BaseURL:    BaseURL,
-					SenderID:   "224225226",
-					ApiVersion: "v16.0",
-					Endpoints:  []string{"verify_code"},
+					BaseURL:       BaseURL,
+					PhoneNumberID: "224225226",
+					ApiVersion:    "v16.0",
+					Endpoints:     []string{"verify_code"},
 				},
 			},
 			want:    "https://graph.facebook.com/v16.0/224225226/verify_code",
@@ -417,7 +417,7 @@ func ExampleNewRequest() {
 		WithQuery(map[string]string{"key": "value"}),
 		WithContext(&RequestContext{}),
 	}
-	request, err := NewRequest(context.TODO(), options...)
+	request, err := MakeRequest(context.TODO(), options...)
 	if err != nil {
 		panic(err)
 	}

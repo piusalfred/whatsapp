@@ -17,46 +17,26 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package whatsapp
+package http
 
 import (
-	"testing"
+	"fmt"
+	"strings"
+
+	werrors "github.com/piusalfred/whatsapp/errors"
 )
 
-func TestMediaMaxAllowedSize(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		mediaType MediaType
-	}
-	tests := []struct {
-		name string
-		args args
-		want int
-	}{
-		{
-			name: "video",
-			args: args{
-				MediaTypeVideo,
-			},
-			want: MaxVideoSize,
-		},
+type ResponseError struct {
+	Code int            `json:"code,omitempty"`
+	Err  *werrors.Error `json:"error,omitempty"`
+}
 
-		{
-			name: "unknown",
-			args: args{
-				MediaType("unknown"),
-			},
-			want: -1,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			args := tt.args
-			if got := MediaMaxAllowedSize(args.mediaType); got != tt.want {
-				t.Errorf("MediaMaxAllowedSize() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+// Error returns the error message for ResponseError.
+func (e *ResponseError) Error() string {
+	return fmt.Sprintf("whatsapp error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
+}
+
+// Unwrap returns the underlying error for ResponseError.
+func (e *ResponseError) Unwrap() error {
+	return e.Err
 }
