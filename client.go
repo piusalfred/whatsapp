@@ -295,7 +295,8 @@ type BaseClient struct {
 	*whttp.Client
 }
 
-func (base *BaseClient) SendMessage(ctx context.Context, req *whttp.RequestContext, msg *models.Message) (*ResponseMessage, error) {
+func (base *BaseClient) SendMessage(ctx context.Context, req *whttp.RequestContext,
+	msg *models.Message) (*ResponseMessage, error) {
 	request := &whttp.Request{
 		Context: req,
 		Method:  http.MethodPost,
@@ -308,10 +309,12 @@ func (base *BaseClient) SendMessage(ctx context.Context, req *whttp.RequestConte
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", req.Name, err)
 	}
+
 	return &resp, nil
 }
 
-func (base *BaseClient) MarkMessageRead(ctx context.Context, req *whttp.RequestContext, messageID string) (*StatusResponse, error) {
+func (base *BaseClient) MarkMessageRead(ctx context.Context, req *whttp.RequestContext,
+	messageID string) (*StatusResponse, error) {
 	reqBody := &MessageStatusUpdateRequest{
 		MessagingProduct: messagingProduct,
 		Status:           MessageStatusRead,

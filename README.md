@@ -1,5 +1,15 @@
 # whatsapp
 
+## implemented
+- [x] send text message
+- [x] send image message
+- [x] send location message
+- [x] send contact message
+- [x] send template message
+- [x] react to message
+- [x] mark message as read
+- [x] webhooksg
+
 # SETUP
 
 ## pre requisites
