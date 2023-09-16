@@ -137,7 +137,7 @@ ID or the link of the media. Also, it allows you to specify caching options.
 The Cloud API supports media http caching. If you are using a link (link) to a media asset on your
 server (as opposed to the ID (id) of an asset you have uploaded to our servers),you can instruct us
 to cache your asset for reuse with future messages by including the headers below
-in your server response when we request the asset. If none of these headers are included, we will
+in your server Resp when we request the asset. If none of these headers are included, we will
 not cache your asset.
 
 	Cache-Control: <CACHE_CONTROL>
@@ -153,7 +153,7 @@ The Cache-Control header tells us how to handle asset caching. We support the fo
 	Example: Cache-Control: max-age=604800.
 
 	no-cache: Indicates the asset can be cached but should be updated if the Last-Modified header value
-	is different from a previous response.Requires the Last-Modified header.
+	is different from a previous Resp.Requires the Last-Modified header.
 	Example: Cache-Control: no-cache.
 
 	no-store: Indicates that the asset should not be cached. Example: Cache-Control: no-store.
@@ -163,15 +163,15 @@ The Cache-Control header tells us how to handle asset caching. We support the fo
 # LastModified
 
 Last-Modified Indicates when the asset was last modified. Used with Cache-Control: no-cache. If the Last-Modified value
-is different from a previous response and Cache-Control: no-cache is included in the response,
-we will update our cached ApiVersion of the asset with the asset in the response.
+is different from a previous Resp and Cache-Control: no-cache is included in the Resp,
+we will update our cached ApiVersion of the asset with the asset in the Resp.
 Example: Date: Tue, 22 Feb 2022 22:22:22 GMT.
 
 # ETag
 
 The ETag header is a unique string that identifies a specific ApiVersion of an asset.
 Example: ETag: "33a64df5". This header is ignored unless both Cache-Control and Last-Modified headers
-are not included in the response. In this case, we will cache the asset according to our own, internal
+are not included in the Resp. In this case, we will cache the asset according to our own, internal
 logic (which we do not disclose).
 */
 type CacheOptions struct {
@@ -246,7 +246,7 @@ Sample request using media ID:
 	  }
 	}'
 
-A successful response includes an object with an identifier prefixed with wamid. If you are using a link to
+A successful Resp includes an object with an identifier prefixed with wamid. If you are using a link to
 send the media, please check the callback events delivered to your Webhook server whether the media has been
 downloaded successfully.
 

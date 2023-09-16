@@ -145,6 +145,7 @@ func (client *Client) Do(ctx context.Context, r *Request, v any) error {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
+			// TODO: return the close error
 		}
 	}(response.Body)
 
@@ -159,12 +160,52 @@ func (client *Client) Do(ctx context.Context, r *Request, v any) error {
 	}
 	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	return decodeResponseJson(response, v)
+	return decodeResponseJSON(response, v)
+}
+
+// DoWithDecoder sends a http request to the server and returns the response, It accepts a context,
+// a request, a pointer to a variable to decode the response into and a response decoder.
+func (client *Client) DoWithDecoder(ctx context.Context, r *Request, decoder ResponseDecoder, v any) error {
+	request, err := prepareRequest(ctx, r, client.RequestHooks...)
+	if err != nil {
+		return fmt.Errorf("prepare request: %w", err)
+	}
+	response, err := client.http.Do(request)
+	if err != nil {
+		return fmt.Errorf("http send: %w", err)
+	}
+
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+
+		}
+	}(response.Body)
+
+	bodyBytes, err := io.ReadAll(response.Body)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("reading response body: %w", err)
+	}
+
+	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	if err = runResponseHooks(ctx, response, client.ResponseHooks...); err != nil {
+		return fmt.Errorf("response hooks: %w", err)
+	}
+
+	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	noctx, ok := decoder.(NoContextResponseDecoder)
+	if ok {
+		return noctx(response)
+	}
+
+	return decoder.DecodeResponse(response, v)
 }
 
 var ErrRequestFailed = errors.New("request failed")
 
-func decodeResponseJson(response *http.Response, v interface{}) error {
+func decodeResponseJSON(response *http.Response, v interface{}) error {
 	if v == nil || response == nil {
 		return nil
 	}
@@ -322,6 +363,12 @@ func WithBasicAuth(username, password string) RequestOption {
 			Username: username,
 			Password: password,
 		}
+	}
+}
+
+func WithRequestContext(ctx *RequestContext) RequestOption {
+	return func(request *Request) {
+		request.Context = ctx
 	}
 }
 
@@ -537,6 +584,14 @@ type ResponseDecoder interface {
 // response decoders. If f is a function with the appropriate signature,
 // ResponseDecoderFunc(f) is a ResponseDecoder that calls f.
 type ResponseDecoderFunc func(response *http.Response, v interface{}) error
+
+// NoContextResponseDecoder ...
+type NoContextResponseDecoder func(response *http.Response) error
+
+// DecodeResponse calls f(response, v).
+func (f NoContextResponseDecoder) DecodeResponse(response *http.Response, v interface{}) error {
+	return f(response)
+}
 
 // DecodeResponse calls f(ctx, response, v).
 func (f ResponseDecoderFunc) DecodeResponse(response *http.Response, v interface{}) error {

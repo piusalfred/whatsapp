@@ -197,10 +197,10 @@ type ReactMessage struct {
 // in the conversation, has been deleted, or is itself a reaction message, the reaction message will
 // not be delivered, and you will receive a webhooks with the code 131009.
 //
-// A successful response includes an object with an identifier prefixed with wamid. Use the ID listed
+// A successful Resp includes an object with an identifier prefixed with wamid. Use the ID listed
 // after wamid to track your message status.
 //
-// Example response:
+// Example Resp:
 //
 //	{
 //	  "messaging_product": "whatsapp",
