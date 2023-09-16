@@ -190,7 +190,7 @@ func (base *BaseClient) UpdateQR(ctx context.Context, rtx *RequestContext, qrCod
 	return &resp, nil
 }
 
-func (base *BaseClient) DeleteQR(ctx context.Context, client *http.Client, rtx *RequestContext, qrCodeID string,
+func (base *BaseClient) DeleteQR(ctx context.Context, rtx *RequestContext, qrCodeID string,
 ) (*SuccessResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:          "delete qr code",

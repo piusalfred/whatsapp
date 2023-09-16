@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -108,6 +109,30 @@ type (
 	// For more go to https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages
 	MessageType string
 )
+
+func (r *ResponseMessage) LogValue() slog.Value {
+	if r == nil {
+		return slog.StringValue("nil")
+	}
+
+	attr := []slog.Attr{
+		slog.String("product", r.Product),
+	}
+
+	for i, message := range r.Messages {
+		attr = append(attr, slog.String("message", fmt.Sprintf("%d.%s", i+1, message.ID)))
+	}
+
+	for i, contact := range r.Contacts {
+		input := slog.String(fmt.Sprintf("contact.input.%d", i+1), contact.Input)
+		waID := slog.String(fmt.Sprintf("contact.wa_id.%d", i+1), contact.WhatsappID)
+		attr = append(attr, input, waID)
+	}
+
+	return slog.GroupValue(attr...)
+}
+
+var _ slog.LogValuer = (*ResponseMessage)(nil)
 
 type MediaMessage struct {
 	Type      MediaType
@@ -354,7 +379,9 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 // can have any of the above as a Header and also have a list of buttons that the user can interact with.
 // You can use models.NewTextTemplate, models.NewMediaTemplate and models.NewInteractiveTemplate to create a Template.
 // These are helper functions that will make your life easier.
-func (client *Client) SendTemplate(ctx context.Context, recipient string, template *Template) (*ResponseMessage, error) {
+func (client *Client) SendTemplate(ctx context.Context, recipient string, template *Template) (
+	*ResponseMessage, error,
+) {
 	message := &models.Message{
 		Product:       messagingProduct,
 		To:            recipient,

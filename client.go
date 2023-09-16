@@ -90,6 +90,30 @@ func NewClient(reader ConfigReader, options ...ClientOption) (*Client, error) {
 	return client, nil
 }
 
+func NewClientWithConfig(config *Config, options ...ClientOption) (*Client, error) {
+	client := &Client{
+		Base:   &BaseClient{whttp.NewClient()},
+		Config: config,
+	}
+
+	if client.Config.BaseURL == "" {
+		client.Config.BaseURL = BaseURL
+	}
+
+	if client.Config.Version == "" {
+		client.Config.Version = LowestSupportedVersion
+	}
+
+	for i, option := range options {
+		if option == nil {
+			return nil, fmt.Errorf("option at index %d is nil", i)
+		}
+		option(client)
+	}
+
+	return client, nil
+}
+
 func WithBaseClient(base *BaseClient) ClientOption {
 	return func(client *Client) {
 		client.Base = base

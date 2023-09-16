@@ -43,12 +43,12 @@ type (
 	//        }
 	TemplateDateTime struct {
 		FallbackValue string `json:"fallback_value,omitempty"`
-		DayOfWeek     int    `json:"day_of_week,omitempty"`
-		Year          int    `json:"year,omitempty"`
-		Month         int    `json:"month,omitempty"`
-		DayOfMonth    int    `json:"day_of_month,omitempty"`
-		Hour          int    `json:"hour,omitempty"`
-		Minute        int    `json:"minute,omitempty"`
+		DayOfWeek     int    `json:"day_of_week"`
+		Year          int    `json:"year"`
+		Month         int    `json:"month"`
+		DayOfMonth    int    `json:"day_of_month"`
+		Hour          int    `json:"hour"`
+		Minute        int    `json:"minute"`
 		Calendar      string `json:"calendar,omitempty"`
 	}
 
@@ -131,7 +131,7 @@ type (
 		Type       string               `json:"type,omitempty"`
 		SubType    string               `json:"sub_type,omitempty"`
 		Parameters []*TemplateParameter `json:"parameters,omitempty"`
-		Index      int                  `json:"index,omitempty"`
+		Index      int                  `json:"index"`
 	}
 
 	// Template is a template for a message. It contains the parameters of the message as listed below.
@@ -184,7 +184,7 @@ type (
 	TemplateCurrency struct {
 		FallbackValue string `json:"fallback_value,omitempty"`
 		Code          string `json:"code,omitempty"`
-		Amount1000    int    `json:"amount_1000,omitempty"`
+		Amount1000    int    `json:"amount_1000"`
 	}
 )
 
