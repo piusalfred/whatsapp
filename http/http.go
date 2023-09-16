@@ -195,7 +195,7 @@ func (client *Client) DoWithDecoder(ctx context.Context, r *Request, decoder Res
 
 	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	noctx, ok := decoder.(NoContextResponseDecoder)
+	noctx, ok := decoder.(RawResponseDecoder)
 	if ok {
 		return noctx(response)
 	}
@@ -573,87 +573,6 @@ func RequestURLFromContext(ctx *RequestContext) (string, error) {
 	}
 
 	return path, nil
-}
-
-// ResponseDecoder decodes the response body into the given interface.
-type ResponseDecoder interface {
-	DecodeResponse(response *http.Response, v interface{}) error
-}
-
-// ResponseDecoderFunc is an adapter to allow the use of ordinary functions as
-// response decoders. If f is a function with the appropriate signature,
-// ResponseDecoderFunc(f) is a ResponseDecoder that calls f.
-type ResponseDecoderFunc func(response *http.Response, v interface{}) error
-
-// NoContextResponseDecoder ...
-type NoContextResponseDecoder func(response *http.Response) error
-
-// DecodeResponse calls f(response, v).
-func (f NoContextResponseDecoder) DecodeResponse(response *http.Response, v interface{}) error {
-	return f(response)
-}
-
-// DecodeResponse calls f(ctx, response, v).
-func (f ResponseDecoderFunc) DecodeResponse(response *http.Response, v interface{}) error {
-	return f(response, v)
-}
-
-type (
-	RequestHook  func(ctx context.Context, request *http.Request) error
-	ResponseHook func(ctx context.Context, response *http.Response) error
-)
-
-func LogRequestHook(logger *slog.Logger) RequestHook {
-	return func(ctx context.Context, request *http.Request) error {
-		name := RequestNameFromContext(ctx)
-		reader, err := request.GetBody()
-		if err != nil {
-			return fmt.Errorf("log request hook: %w", err)
-		}
-		buf := new(bytes.Buffer)
-		if _, err = buf.ReadFrom(reader); err != nil {
-			return fmt.Errorf("log request hook: %w", err)
-		}
-
-		hb := &strings.Builder{}
-		hb.WriteString("[")
-		for k, v := range request.Header {
-			hb.WriteString(fmt.Sprintf("%s: %s, ", k, v))
-		}
-		hb.WriteString("]")
-
-		logger.LogAttrs(ctx, slog.LevelDebug, "request", slog.String("name", name),
-			slog.String("body", buf.String()), slog.String("headers", hb.String()))
-
-		return nil
-	}
-}
-
-func LogResponseHook(logger *slog.Logger) ResponseHook {
-	return func(ctx context.Context, response *http.Response) error {
-		name := RequestNameFromContext(ctx)
-		reader := response.Body
-		buf := new(bytes.Buffer)
-		if _, err := buf.ReadFrom(reader); err != nil {
-			return fmt.Errorf("log response hook: %w", err)
-		}
-
-		hb := &strings.Builder{}
-		hb.WriteString("[")
-		for k, v := range response.Header {
-			hb.WriteString(fmt.Sprintf("%s: %s, ", k, v))
-		}
-		hb.WriteString("]")
-
-		logger.LogAttrs(ctx, slog.LevelDebug, "response", slog.String("name", name),
-			slog.Int("status", response.StatusCode),
-			slog.String("status_text", response.Status),
-			slog.String("headers", hb.String()),
-			slog.String("body", buf.String()),
-		)
-
-		return nil
-	}
 }
 
 type ResponseError struct {

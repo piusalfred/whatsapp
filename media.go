@@ -215,7 +215,7 @@ func (client *Client) DownloadMedia(ctx context.Context, mediaID string, retries
 		if err := client.Base.DoWithDecoder(
 			ctx,
 			request,
-			whttp.NoContextResponseDecoder(decoder.Decode),
+			whttp.RawResponseDecoder(decoder.Decode),
 			nil); err != nil {
 			return nil, fmt.Errorf("media download: %w", err)
 		}
