@@ -34,17 +34,35 @@ import (
 	werrors "github.com/piusalfred/whatsapp/errors"
 )
 
-const BaseURL = "https://graph.facebook.com"
+const (
+	BaseURL           = "https://graph.facebook.com"
+	DefaultApiVersion = "v16.0" // This is the lowest version of the API that is supported
+)
 
 type (
 	Client struct {
 		http          *http.Client
-		RequestHooks  []RequestHook
-		ResponseHooks []ResponseHook
+		requestHooks  []RequestHook
+		responseHooks []ResponseHook
+		errorChannel  chan error
 	}
 
 	ClientOption func(*Client)
 )
+
+// ListenErrors takes a func(error) and returns nothing.
+// Every error sent to the client's errorChannel will be passed to the function.
+func (client *Client) ListenErrors(errorHandler func(error)) {
+	for err := range client.errorChannel {
+		errorHandler(err)
+	}
+}
+
+// Close closes the client.
+func (client *Client) Close() error {
+	close(client.errorChannel)
+	return nil
+}
 
 // NewClient creates a new client with the given options, The client is used
 // to create a new http request and send it to the server.
@@ -61,7 +79,8 @@ type (
 //	)
 func NewClient(options ...ClientOption) *Client {
 	client := &Client{
-		http: http.DefaultClient,
+		http:         http.DefaultClient,
+		errorChannel: make(chan error),
 	}
 	for _, option := range options {
 		option(client)
@@ -78,26 +97,26 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 
 func WithRequestHooks(hooks ...RequestHook) ClientOption {
 	return func(client *Client) {
-		client.RequestHooks = hooks
+		client.requestHooks = hooks
 	}
 }
 
 func WithResponseHooks(hooks ...ResponseHook) ClientOption {
 	return func(client *Client) {
-		client.ResponseHooks = hooks
+		client.responseHooks = hooks
 	}
 }
 
 // SetRequestHooks sets the request hooks for the client, This removes any previously set request hooks.
 // and replaces it with the new ones.
 func (client *Client) SetRequestHooks(hooks ...RequestHook) {
-	client.RequestHooks = hooks
+	client.requestHooks = hooks
 }
 
 // AppendRequestHooks appends the request hooks to the client, This adds the new request hooks to the
 // existing ones.
 func (client *Client) AppendRequestHooks(hooks ...RequestHook) {
-	client.RequestHooks = append(client.RequestHooks, hooks...)
+	client.requestHooks = append(client.requestHooks, hooks...)
 }
 
 // PrependRequestHooks prepends the request hooks to the client, This adds the new request hooks to the
@@ -106,19 +125,19 @@ func (client *Client) PrependRequestHooks(hooks ...RequestHook) {
 	if hooks == nil {
 		return
 	}
-	client.RequestHooks = append(hooks, client.RequestHooks...)
+	client.requestHooks = append(hooks, client.requestHooks...)
 }
 
 // SetResponseHooks sets the response hooks for the client, This removes any previously set response hooks.
 // and replaces it with the new ones.
 func (client *Client) SetResponseHooks(hooks ...ResponseHook) {
-	client.ResponseHooks = hooks
+	client.responseHooks = hooks
 }
 
 // AppendResponseHooks appends the response hooks to the client, This adds the new response hooks to the
 // existing ones.
 func (client *Client) AppendResponseHooks(hooks ...ResponseHook) {
-	client.ResponseHooks = append(client.ResponseHooks, hooks...)
+	client.responseHooks = append(client.responseHooks, hooks...)
 }
 
 // PrependResponseHooks prepends the response hooks to the client, This adds the new response hooks to the
@@ -127,13 +146,13 @@ func (client *Client) PrependResponseHooks(hooks ...ResponseHook) {
 	if hooks == nil {
 		return
 	}
-	client.ResponseHooks = append(hooks, client.ResponseHooks...)
+	client.responseHooks = append(hooks, client.responseHooks...)
 }
 
 // Do send a http request to the server and returns the response, It accepts a context,
 // a request and a pointer to a variable to decode the response into.
 func (client *Client) Do(ctx context.Context, r *Request, v any) error {
-	request, err := prepareRequest(ctx, r, client.RequestHooks...)
+	request, err := prepareRequest(ctx, r, client.requestHooks...)
 	if err != nil {
 		return fmt.Errorf("prepare request: %w", err)
 	}
@@ -145,7 +164,8 @@ func (client *Client) Do(ctx context.Context, r *Request, v any) error {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			// TODO: return the close error
+			// send error to error channel
+			client.errorChannel <- fmt.Errorf("closing response body: %w", err)
 		}
 	}(response.Body)
 
@@ -155,7 +175,7 @@ func (client *Client) Do(ctx context.Context, r *Request, v any) error {
 	}
 	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	if err = runResponseHooks(ctx, response, client.ResponseHooks...); err != nil {
+	if err = runResponseHooks(ctx, response, client.responseHooks...); err != nil {
 		return fmt.Errorf("response hooks: %w", err)
 	}
 	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
@@ -166,7 +186,7 @@ func (client *Client) Do(ctx context.Context, r *Request, v any) error {
 // DoWithDecoder sends a http request to the server and returns the response, It accepts a context,
 // a request, a pointer to a variable to decode the response into and a response decoder.
 func (client *Client) DoWithDecoder(ctx context.Context, r *Request, decoder ResponseDecoder, v any) error {
-	request, err := prepareRequest(ctx, r, client.RequestHooks...)
+	request, err := prepareRequest(ctx, r, client.requestHooks...)
 	if err != nil {
 		return fmt.Errorf("prepare request: %w", err)
 	}
@@ -178,7 +198,8 @@ func (client *Client) DoWithDecoder(ctx context.Context, r *Request, decoder Res
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-
+			// send error to error channel
+			client.errorChannel <- fmt.Errorf("closing response body: %w", err)
 		}
 	}(response.Body)
 
@@ -189,7 +210,7 @@ func (client *Client) DoWithDecoder(ctx context.Context, r *Request, decoder Res
 
 	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	if err = runResponseHooks(ctx, response, client.ResponseHooks...); err != nil {
+	if err = runResponseHooks(ctx, response, client.responseHooks...); err != nil {
 		return fmt.Errorf("response hooks: %w", err)
 	}
 
@@ -345,7 +366,7 @@ func MakeRequest(options ...RequestOption) *Request {
 	request := &Request{
 		Context: &RequestContext{
 			BaseURL:    BaseURL,
-			ApiVersion: "v16.0",
+			ApiVersion: DefaultApiVersion,
 		},
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/json"},

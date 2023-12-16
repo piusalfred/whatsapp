@@ -38,7 +38,7 @@ const (
 	individualRecipientType   = "individual"
 	BaseURL                   = "https://graph.facebook.com/"
 	LowestSupportedVersion    = "v16.0"
-	ContactBirthDayDateFormat = "2006-01-02" // YYYY-MM-DD
+	ContactBirthDayDateFormat = time.DateOnly // YYYY-MM-DD
 )
 
 const (
@@ -406,7 +406,7 @@ func (client *Client) SendTemplate(ctx context.Context, recipient string, templa
 		Endpoints:     []string{"messages"},
 	}
 
-	return client.Base.SendMessage(ctx, req, message)
+	return client.Base.Send(ctx, req, message)
 }
 
 // SendInteractiveMessage sends an interactive message to the recipient.
@@ -430,5 +430,60 @@ func (client *Client) SendInteractiveMessage(ctx context.Context, recipient stri
 		Endpoints:     []string{"messages"},
 	}
 
-	return client.Base.SendMessage(ctx, reqc, template)
+	return client.Base.Send(ctx, reqc, template)
+}
+
+var _ Sender = (*BaseClient)(nil)
+
+// Sender is an interface that represents a sender of a message.
+type Sender interface {
+	Send(ctx context.Context, req *whttp.RequestContext, message *models.Message) (*ResponseMessage, error)
+}
+
+// SenderFunc is a function that implements the Sender interface.
+type SenderFunc func(ctx context.Context, req *whttp.RequestContext, message *models.Message) (*ResponseMessage, error)
+
+// Send calls the function that implements the Sender interface.
+func (f SenderFunc) Send(ctx context.Context, req *whttp.RequestContext, message *models.Message) (*ResponseMessage,
+	error) {
+	return f(ctx, req, message)
+}
+
+// SendMiddleware that takes a Sender and returns a new Sender that will wrap the original Sender and execute the
+// middleware function before sending the message.
+type SendMiddleware func(Sender) Sender
+
+// WrapSender wraps a Sender with a SendMiddleware.
+func WrapSender(sender Sender, middleware ...SendMiddleware) Sender {
+	// iterate backwards so that the middleware is executed in the right order
+	for i := len(middleware) - 1; i >= 0; i-- {
+		sender = middleware[i](sender)
+	}
+
+	return sender
+}
+
+// TransparentClient is a client that can send messages to a recipient without knowing the configuration of the client.
+// It uses Sender instead of already configured clients. It is ideal for having a client for different environments.
+type TransparentClient struct {
+	Middlewares []SendMiddleware
+}
+
+// Send sends a message to the recipient.
+func (client *TransparentClient) Send(ctx context.Context, sender Sender,
+	req *whttp.RequestContext, message *models.Message, mw ...SendMiddleware) (*ResponseMessage, error) {
+
+	s := WrapSender(sender, client.Middlewares...)
+
+	return s.Send(ctx, req, message)
+}
+
+// Whatsapp is an interface that represents a whatsapp client.
+type Whatsapp interface {
+	SendText(ctx context.Context, recipient string, message *models.Text) (*ResponseMessage, error)
+	React(ctx context.Context, recipient string, msg *ReactMessage) (*ResponseMessage, error)
+	SendContacts(ctx context.Context, recipient string, contacts []*models.Contact) (*ResponseMessage, error)
+	SendLocation(ctx context.Context, recipient string, location *models.Location) (*ResponseMessage, error)
+	SendInteractiveMessage(ctx context.Context, recipient string, req *models.Interactive) (*ResponseMessage, error)
+	SendMedia(ctx context.Context, recipient string, media *models.Media) (*ResponseMessage, error)
 }

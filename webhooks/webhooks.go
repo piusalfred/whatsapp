@@ -670,6 +670,26 @@ func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
 	})
 }
 
+// HandlerFunc handles the verification request.
+func (verifier SubscriptionVerifier) HandlerFunc(writer http.ResponseWriter, request *http.Request) {
+	q := request.URL.Query()
+	mode := q.Get("hub.mode")
+	challenge := q.Get("hub.challenge")
+	token := q.Get("hub.verify_token")
+	if err := verifier(request.Context(), &VerificationRequest{
+		Mode:      mode,
+		Challenge: challenge,
+		Token:     token,
+	}); err != nil {
+		writer.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write([]byte(challenge))
+}
+
 // ValidateSignature validates the signature of the payload. All Event Notification payloads are signed
 // with a SHA256 signature and include the signature in the request's X-Hub-Signature-256 header, preceded
 // with sha256=. You don't have to validate the payload, but you should.

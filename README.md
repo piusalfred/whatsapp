@@ -8,7 +8,7 @@
 - [x] send template message
 - [x] react to message
 - [x] mark message as read
-- [x] webhooksg
+- [x] webhooks
 
 # SETUP
 

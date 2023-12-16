@@ -151,7 +151,7 @@ func (client *Client) SendTextMessage(ctx context.Context, recipient string,
 		Endpoints:     []string{MessageEndpoint},
 	}
 
-	return client.Base.SendMessage(ctx, req, text)
+	return client.Base.Send(ctx, req, text)
 }
 
 // MarkMessageRead sends a read receipt for a message.
@@ -231,7 +231,7 @@ func (client *Client) React(ctx context.Context, recipient string, msg *ReactMes
 		Endpoints:     []string{MessageEndpoint},
 	}
 
-	return client.Base.SendMessage(ctx, req, reaction)
+	return client.Base.Send(ctx, req, reaction)
 }
 
 // SendContacts sends a contact message. Contacts can be easily built using the models.NewContact() function.
@@ -255,7 +255,7 @@ func (client *Client) SendContacts(ctx context.Context, recipient string, contac
 		Endpoints:     []string{MessageEndpoint},
 	}
 
-	return client.Base.SendMessage(ctx, req, contact)
+	return client.Base.Send(ctx, req, contact)
 }
 
 // SendLocationMessage sends a location message to a WhatsApp Business Account.
@@ -284,7 +284,7 @@ func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
 		Endpoints:     []string{MessageEndpoint},
 	}
 
-	return client.Base.SendMessage(ctx, req, location)
+	return client.Base.Send(ctx, req, location)
 }
 
 // BaseClient wraps the http client only and is used to make requests to the whatsapp api,
@@ -295,8 +295,9 @@ type BaseClient struct {
 	*whttp.Client
 }
 
-func (base *BaseClient) SendMessage(ctx context.Context, req *whttp.RequestContext,
-	msg *models.Message) (*ResponseMessage, error) {
+func (base *BaseClient) Send(ctx context.Context, req *whttp.RequestContext,
+	msg *models.Message,
+) (*ResponseMessage, error) {
 	request := &whttp.Request{
 		Context: req,
 		Method:  http.MethodPost,
@@ -314,7 +315,8 @@ func (base *BaseClient) SendMessage(ctx context.Context, req *whttp.RequestConte
 }
 
 func (base *BaseClient) MarkMessageRead(ctx context.Context, req *whttp.RequestContext,
-	messageID string) (*StatusResponse, error) {
+	messageID string,
+) (*StatusResponse, error) {
 	reqBody := &MessageStatusUpdateRequest{
 		MessagingProduct: messagingProduct,
 		Status:           MessageStatusRead,
