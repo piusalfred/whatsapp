@@ -76,21 +76,21 @@ type (
 func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (*MediaInformation, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "get media",
-		BaseURL:    client.Config.BaseURL,
-		ApiVersion: client.Config.Version,
+		BaseURL:    client.config.BaseURL,
+		ApiVersion: client.config.Version,
 		Endpoints:  []string{mediaID},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Bearer:  client.Config.AccessToken,
+		Bearer:  client.config.AccessToken,
 		Payload: nil,
 	}
 
 	var media MediaInformation
 
-	err := client.Base.Do(ctx, params, &media)
+	err := client.bc.base.Do(ctx, params, &media)
 	if err != nil {
 		return nil, fmt.Errorf("get media: %w", err)
 	}
@@ -102,8 +102,8 @@ func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (
 func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteMediaResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "delete media",
-		BaseURL:    client.Config.BaseURL,
-		ApiVersion: client.Config.Version,
+		BaseURL:    client.config.BaseURL,
+		ApiVersion: client.config.Version,
 		Endpoints:  []string{mediaID},
 	}
 
@@ -111,12 +111,12 @@ func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteM
 		Context: reqCtx,
 		Method:  http.MethodDelete,
 		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  client.Config.AccessToken,
+		Bearer:  client.config.AccessToken,
 		Payload: nil,
 	}
 
 	resp := new(DeleteMediaResponse)
-	err := client.Base.Do(ctx, params, &resp)
+	err := client.bc.base.Do(ctx, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("delete media: %w", err)
 	}
@@ -134,21 +134,21 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 
 	reqCtx := &whttp.RequestContext{
 		Name:       "upload media",
-		BaseURL:    client.Config.BaseURL,
-		ApiVersion: client.Config.Version,
-		Endpoints:  []string{client.Config.PhoneNumberID, "media"},
+		BaseURL:    client.config.BaseURL,
+		ApiVersion: client.config.Version,
+		Endpoints:  []string{client.config.PhoneNumberID, "media"},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": contentType},
-		Bearer:  client.Config.AccessToken,
+		Bearer:  client.config.AccessToken,
 		Payload: payload,
 	}
 
 	resp := new(UploadMediaResponse)
-	err = client.Base.Do(ctx, params, &resp)
+	err = client.bc.base.Do(ctx, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("upload media: %w", err)
 	}
@@ -202,17 +202,17 @@ func (client *Client) DownloadMedia(ctx context.Context, mediaID string, retries
 			whttp.WithRequestContext(&whttp.RequestContext{
 				Name:              "download media",
 				BaseURL:           media.URL,
-				ApiVersion:        client.Config.Version,
-				PhoneNumberID:     client.Config.PhoneNumberID,
-				Bearer:            client.Config.AccessToken,
+				ApiVersion:        client.config.Version,
+				PhoneNumberID:     client.config.PhoneNumberID,
+				Bearer:            client.config.AccessToken,
 				BusinessAccountID: "",
 				Endpoints:         nil,
 			}),
 			whttp.WithRequestName("download media"),
 			whttp.WithMethod(http.MethodGet),
-			whttp.WithBearer(client.Config.AccessToken))
+			whttp.WithBearer(client.config.AccessToken))
 		decoder := &DownloadResponseDecoder{}
-		if err := client.Base.DoWithDecoder(
+		if err := client.bc.base.DoWithDecoder(
 			ctx,
 			request,
 			whttp.RawResponseDecoder(decoder.Decode),

@@ -89,12 +89,12 @@ type SendTemplateRequest struct {
 	TemplateComponents     []*models.TemplateComponent
 }
 
-func (base *BaseClient) SendTemplate(ctx context.Context, req *SendTemplateRequest,
+func (c *BaseClient) SendTemplate(ctx context.Context, req *SendTemplateRequest,
 ) (*ResponseMessage, error) {
 	template := &models.Message{
-		Product:       messagingProduct,
+		Product:       MessagingProduct,
 		To:            req.Recipient,
-		RecipientType: individualRecipientType,
+		RecipientType: RecipientTypeIndividual,
 		Type:          templateMessageType,
 		Template: &models.Template{
 			Language: &models.TemplateLanguage{
@@ -122,7 +122,7 @@ func (base *BaseClient) SendTemplate(ctx context.Context, req *SendTemplateReque
 		Bearer: req.AccessToken,
 	}
 	var message ResponseMessage
-	err := base.Do(ctx, params, &message)
+	err := c.base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send template: %w", err)
 	}
@@ -261,7 +261,7 @@ downloaded successfully.
 	    }]
 	}
 */
-func (base *BaseClient) SendMedia(ctx context.Context, req *SendMediaRequest,
+func (c *BaseClient) SendMedia(ctx context.Context, req *SendMediaRequest,
 ) (*ResponseMessage, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil: %w", ErrBadRequestFormat)
@@ -304,7 +304,7 @@ func (base *BaseClient) SendMedia(ctx context.Context, req *SendMediaRequest,
 
 	var message ResponseMessage
 
-	err = base.Do(ctx, params, &message)
+	err = c.base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send media: %w", err)
 	}

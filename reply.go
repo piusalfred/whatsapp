@@ -71,9 +71,9 @@ func (client *Client) Reply(ctx context.Context, request *ReplyRequest,
 	}
 	reqCtx := &whttp.RequestContext{
 		Name:          "reply to message",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
 		Endpoints:     []string{MessageEndpoint},
 	}
 
@@ -82,13 +82,13 @@ func (client *Client) Reply(ctx context.Context, request *ReplyRequest,
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/json"},
 		Query:   nil,
-		Bearer:  client.Config.AccessToken,
+		Bearer:  client.config.AccessToken,
 		Form:    nil,
 		Payload: payload,
 	}
 
 	var message ResponseMessage
-	err = client.Base.Do(ctx, req, &message)
+	err = client.bc.base.Do(ctx, req, &message)
 	if err != nil {
 		return nil, fmt.Errorf("reply: %w", err)
 	}

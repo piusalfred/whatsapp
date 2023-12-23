@@ -62,7 +62,7 @@ type (
 	}
 )
 
-func (base *BaseClient) Create(ctx context.Context, rtx *RequestContext,
+func (c *BaseClient) Create(ctx context.Context, rtx *RequestContext,
 	req *CreateRequest,
 ) (*CreateResponse, error) {
 	queryParams := map[string]string{
@@ -85,7 +85,7 @@ func (base *BaseClient) Create(ctx context.Context, rtx *RequestContext,
 
 	var response CreateResponse
 
-	err := base.Do(ctx, params, &response)
+	err := c.base.Do(ctx, params, &response)
 	if err != nil {
 		return nil, fmt.Errorf("qr code create: %w", err)
 	}
@@ -93,23 +93,23 @@ func (base *BaseClient) Create(ctx context.Context, rtx *RequestContext,
 	return &response, nil
 }
 
-func (base *BaseClient) List(ctx context.Context, rctx *RequestContext) (*ListResponse, error) {
+func (c *BaseClient) List(ctx context.Context, request *RequestContext) (*ListResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:          "list qr codes",
-		BaseURL:       rctx.BaseURL,
-		ApiVersion:    rctx.ApiVersion,
-		PhoneNumberID: rctx.PhoneID,
+		BaseURL:       request.BaseURL,
+		ApiVersion:    request.ApiVersion,
+		PhoneNumberID: request.PhoneID,
 		Endpoints:     []string{"message_qrdls"},
 	}
 
 	req := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Query:   map[string]string{"access_token": rctx.AccessToken},
+		Query:   map[string]string{"access_token": request.AccessToken},
 	}
 
 	var response ListResponse
-	err := base.Do(ctx, req, &response)
+	err := c.base.Do(ctx, req, &response)
 	if err != nil {
 		return nil, fmt.Errorf("qr code list: %w", err)
 	}
@@ -126,7 +126,7 @@ type RequestContext struct {
 
 var ErrNoDataFound = fmt.Errorf("no data found")
 
-func (base *BaseClient) Get(ctx context.Context, rctx *RequestContext, qrCodeID string,
+func (c *BaseClient) Get(ctx context.Context, request *RequestContext, qrCodeID string,
 ) (*Information, error) {
 	var (
 		list ListResponse
@@ -134,19 +134,19 @@ func (base *BaseClient) Get(ctx context.Context, rctx *RequestContext, qrCodeID 
 	)
 	reqCtx := &whttp.RequestContext{
 		Name:          "get qr code",
-		BaseURL:       rctx.BaseURL,
-		ApiVersion:    rctx.ApiVersion,
-		PhoneNumberID: rctx.PhoneID,
+		BaseURL:       request.BaseURL,
+		ApiVersion:    request.ApiVersion,
+		PhoneNumberID: request.PhoneID,
 		Endpoints:     []string{"message_qrdls", qrCodeID},
 	}
 
 	req := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Query:   map[string]string{"access_token": rctx.AccessToken},
+		Query:   map[string]string{"access_token": request.AccessToken},
 	}
 
-	err := base.Do(ctx, req, &list)
+	err := c.base.Do(ctx, req, &list)
 	if err != nil {
 		return nil, fmt.Errorf("qr code get: %w", err)
 	}
@@ -160,7 +160,7 @@ func (base *BaseClient) Get(ctx context.Context, rctx *RequestContext, qrCodeID 
 	return &resp, nil
 }
 
-func (base *BaseClient) UpdateQR(ctx context.Context, rtx *RequestContext, qrCodeID string,
+func (c *BaseClient) UpdateQR(ctx context.Context, rtx *RequestContext, qrCodeID string,
 	req *CreateRequest) (*SuccessResponse, error,
 ) {
 	reqCtx := &whttp.RequestContext{
@@ -182,7 +182,7 @@ func (base *BaseClient) UpdateQR(ctx context.Context, rtx *RequestContext, qrCod
 	}
 
 	var resp SuccessResponse
-	err := base.Do(ctx, request, &resp)
+	err := c.base.Do(ctx, request, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("qr code update (%s): %w", qrCodeID, err)
 	}
@@ -190,7 +190,7 @@ func (base *BaseClient) UpdateQR(ctx context.Context, rtx *RequestContext, qrCod
 	return &resp, nil
 }
 
-func (base *BaseClient) DeleteQR(ctx context.Context, rtx *RequestContext, qrCodeID string,
+func (c *BaseClient) DeleteQR(ctx context.Context, rtx *RequestContext, qrCodeID string,
 ) (*SuccessResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:          "delete qr code",
@@ -206,7 +206,7 @@ func (base *BaseClient) DeleteQR(ctx context.Context, rtx *RequestContext, qrCod
 		Query:   map[string]string{"access_token": rtx.AccessToken},
 	}
 	var resp SuccessResponse
-	err := base.Do(ctx, req, &resp)
+	err := c.base.Do(ctx, req, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("qr code delete: %w", err)
 	}

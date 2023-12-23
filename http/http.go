@@ -61,6 +61,7 @@ func (client *Client) ListenErrors(errorHandler func(error)) {
 // Close closes the client.
 func (client *Client) Close() error {
 	close(client.errorChannel)
+
 	return nil
 }
 
@@ -156,6 +157,7 @@ func (client *Client) Do(ctx context.Context, r *Request, v any) error {
 	if err != nil {
 		return fmt.Errorf("prepare request: %w", err)
 	}
+
 	response, err := client.http.Do(request)
 	if err != nil {
 		return fmt.Errorf("http send: %w", err)
@@ -173,6 +175,7 @@ func (client *Client) Do(ctx context.Context, r *Request, v any) error {
 	if err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("reading response body: %w", err)
 	}
+
 	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	if err = runResponseHooks(ctx, response, client.responseHooks...); err != nil {
@@ -190,6 +193,7 @@ func (client *Client) DoWithDecoder(ctx context.Context, r *Request, decoder Res
 	if err != nil {
 		return fmt.Errorf("prepare request: %w", err)
 	}
+
 	response, err := client.http.Do(request)
 	if err != nil {
 		return fmt.Errorf("http send: %w", err)
@@ -279,10 +283,12 @@ func runResponseHooks(ctx context.Context, response *http.Response, hooks ...Res
 func prepareRequest(ctx context.Context, r *Request, hooks ...RequestHook) (*http.Request, error) {
 	// create a new request, run hooks and return the request after restoring the body
 	ctx = withRequestName(ctx, r.Context.Name)
+
 	request, err := NewRequestWithContext(ctx, r)
 	if err != nil {
 		return nil, fmt.Errorf("prepare request: %w", err)
 	}
+
 	// run request hooks
 	for _, hook := range hooks {
 		if hook != nil {
@@ -291,11 +297,13 @@ func prepareRequest(ctx context.Context, r *Request, hooks ...RequestHook) (*htt
 			}
 		}
 	}
+
 	// restore the request body
 	body, err := r.BodyBytes()
 	if err != nil {
 		return nil, fmt.Errorf("prepare request: %w", err)
 	}
+
 	request.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	return request, nil
@@ -330,6 +338,7 @@ type (
 		Bearer    string
 		Form      map[string]string
 		Payload   any
+		Metadata  map[string]string // This is used to pass metadata for other uses cases like logging, instrumentation etc.
 	}
 
 	RequestOption func(*Request)
@@ -353,10 +362,32 @@ func (request *Request) LogValue() slog.Value {
 	if request.Context != nil {
 		reqURL, _ = url.JoinPath(request.Context.BaseURL, request.Context.Endpoints...)
 	}
+
+	var metadataAttr []any
+
+	for key, value := range request.Metadata {
+		metadataAttr = append(metadataAttr, slog.String(key, value))
+	}
+
+	var headersAttr []any
+
+	for key, value := range request.Headers {
+		headersAttr = append(headersAttr, slog.String(key, value))
+	}
+
+	var queryAttr []any
+
+	for key, value := range request.Query {
+		queryAttr = append(queryAttr, slog.String(key, value))
+	}
+
 	value := slog.GroupValue(
 		slog.String("name", request.Context.Name),
 		slog.String("method", request.Method),
 		slog.String("url", reqURL),
+		slog.Group("metadata", metadataAttr...),
+		slog.Group("headers", headersAttr...),
+		slog.Group("query", queryAttr...),
 	)
 
 	return value
@@ -454,11 +485,14 @@ func (request *Request) BodyBytes() ([]byte, error) {
 	if request.Payload == nil {
 		return nil, nil
 	}
+
 	body, err := request.ReaderFunc()()
 	if err != nil {
 		return nil, fmt.Errorf("reader func: %w", err)
 	}
+
 	buf := new(bytes.Buffer)
+
 	_, err = buf.ReadFrom(body)
 	if err != nil {
 		return nil, fmt.Errorf("read from: %w", err)
@@ -505,6 +539,7 @@ func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new request: %w", err)
 	}
+
 	if request.BasicAuth != nil {
 		req.SetBasicAuth(request.BasicAuth.Username, request.BasicAuth.Password)
 	}

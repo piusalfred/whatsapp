@@ -133,5 +133,5 @@ func (e *Error) String() string {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("whatsapp: %s", strings.ToLower(e.String()))
+	return fmt.Sprintf("whatsapp error: %s", strings.ToLower(e.String()))
 }

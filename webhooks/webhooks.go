@@ -113,7 +113,7 @@ type (
 	}
 
 	OnOrderMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, order *Order) error
+		context.Context, *NotificationContext, *MessageContext, *Order) error
 	OnButtonMessageHook func(
 		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, button *Button) error
 	OnLocationMessageHook func(

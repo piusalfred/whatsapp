@@ -21,37 +21,39 @@ package whatsapp
 
 import (
 	"context"
-	"fmt"
-	"net/http"
-
-	whttp "github.com/piusalfred/whatsapp/http"
+	"time"
 )
 
-func ExampleNewClient() {
-	reader := ConfigReaderFunc(func(ctx context.Context) (*Config, error) {
-		return &Config{
-			BaseURL:           BaseURL,
-			Version:           LowestSupportedVersion,
-			AccessToken:       "[redacted]",
-			PhoneNumberID:     "[redacted]",
-			BusinessAccountID: "[redacted]",
-		}, nil
-	})
+const (
+	MessagingProduct          = "whatsapp"
+	RecipientTypeIndividual   = "individual"
+	BaseURL                   = "https://graph.facebook.com/"
+	LowestSupportedVersion    = "v16.0"
+	DateFormatContactBirthday = time.DateOnly // YYYY-MM-DD
+)
 
-	wc := whttp.NewClient(whttp.WithHTTPClient(http.DefaultClient),
-		whttp.WithRequestHooks(),
-		whttp.WithResponseHooks())
-
-	base := NewBaseClient(WithBaseHTTPClient(wc))
-
-	client, err := NewClient(reader, WithBaseClient(base))
-	if err != nil {
-		panic(err)
+type (
+	// Config is a struct that holds the configuration for the whatsapp client.
+	// It is used to create a new whatsapp client
+	Config struct {
+		BaseURL           string
+		Version           string
+		AccessToken       string
+		PhoneNumberID     string
+		BusinessAccountID string
 	}
 
-	fmt.Printf("BaseURL: %s\nVersion: %s", client.config.BaseURL, client.config.Version)
+	// ConfigReader is an interface that can be used to read the configuration
+	// from a file or any other source.
+	ConfigReader interface {
+		Read(ctx context.Context) (*Config, error)
+	}
 
-	// Output:
-	// BaseURL: https://graph.facebook.com/
-	// Version: v16.0
+	// ConfigReaderFunc is a function that implements the ConfigReader interface.
+	ConfigReaderFunc func(ctx context.Context) (*Config, error)
+)
+
+// Read implements the ConfigReader interface.
+func (fn ConfigReaderFunc) Read(ctx context.Context) (*Config, error) {
+	return fn(ctx)
 }

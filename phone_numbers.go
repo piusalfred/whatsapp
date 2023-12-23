@@ -93,9 +93,9 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 ) error {
 	reqCtx := &whttp.RequestContext{
 		Name:          "request code",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
 		Endpoints:     []string{"request_code"},
 	}
 
@@ -104,11 +104,11 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 		Query:   nil,
-		Bearer:  client.Config.AccessToken,
+		Bearer:  client.config.AccessToken,
 		Form:    map[string]string{"code_method": string(codeMethod), "language": language},
 		Payload: nil,
 	}
-	err := client.Base.Do(ctx, params, nil)
+	err := client.bc.base.Do(ctx, params, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -120,9 +120,9 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:          "verify code",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
 		Endpoints:     []string{"verify_code"},
 	}
 	params := &whttp.Request{
@@ -130,12 +130,12 @@ func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusRespo
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
 		Query:   nil,
-		Bearer:  client.Config.AccessToken,
+		Bearer:  client.config.AccessToken,
 		Form:    map[string]string{"code": code},
 	}
 
 	var resp StatusResponse
-	err := client.Base.Do(ctx, params, &resp)
+	err := client.bc.base.Do(ctx, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -211,16 +211,16 @@ func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusRespo
 func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterParams) (*PhoneNumbersList, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:          "list phone numbers",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.BusinessAccountID,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.BusinessAccountID,
 		Endpoints:     []string{"phone_numbers"},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Query:   map[string]string{"access_token": client.Config.AccessToken},
+		Query:   map[string]string{"access_token": client.config.AccessToken},
 	}
 	if filters != nil {
 		p := filters
@@ -231,7 +231,7 @@ func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterPar
 		params.Query["filtering"] = string(jsonParams)
 	}
 	var phoneNumbersList PhoneNumbersList
-	err := client.Base.Do(ctx, params, &phoneNumbersList)
+	err := client.bc.base.Do(ctx, params, &phoneNumbersList)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -243,19 +243,19 @@ func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterPar
 func (client *Client) PhoneNumberByID(ctx context.Context) (*PhoneNumber, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:          "get phone number by id",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
 	}
 	request := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
 		Headers: map[string]string{
-			"Authorization": "Bearer " + client.Config.AccessToken,
+			"Authorization": "Bearer " + client.config.AccessToken,
 		},
 	}
 	var phoneNumber PhoneNumber
-	if err := client.Base.Do(ctx, request, &phoneNumber); err != nil {
+	if err := client.bc.base.Do(ctx, request, &phoneNumber); err != nil {
 		return nil, fmt.Errorf("get phone muber by id: %w", err)
 	}
 

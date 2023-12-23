@@ -38,11 +38,15 @@ type (
 )
 
 // DecodeResponse calls f(response, v).
-func (f RawResponseDecoder) DecodeResponse(response *http.Response, v interface{}) error {
+func (f RawResponseDecoder) DecodeResponse(response *http.Response,
+	v interface{},
+) error {
 	return f(response)
 }
 
 // DecodeResponse calls f(ctx, response, v).
-func (f ResponseDecoderFunc) DecodeResponse(response *http.Response, v interface{}) error {
+func (f ResponseDecoderFunc) DecodeResponse(response *http.Response,
+	v interface{},
+) error {
 	return f(response, v)
 }

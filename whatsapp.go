@@ -34,14 +34,6 @@ import (
 var ErrBadRequestFormat = errors.New("bad request")
 
 const (
-	messagingProduct          = "whatsapp"
-	individualRecipientType   = "individual"
-	BaseURL                   = "https://graph.facebook.com/"
-	LowestSupportedVersion    = "v16.0"
-	ContactBirthDayDateFormat = time.DateOnly // YYYY-MM-DD
-)
-
-const (
 	templateMessageType = "template"
 	textMessageType     = "text"
 	reactionMessageType = "reaction"
@@ -88,19 +80,6 @@ func MediaMaxAllowedSize(mediaType MediaType) int {
 }
 
 type (
-	ResponseMessage struct {
-		Product  string             `json:"messaging_product,omitempty"`
-		Contacts []*ResponseContact `json:"contacts,omitempty"`
-		Messages []*MessageID       `json:"messages,omitempty"`
-	}
-	MessageID struct {
-		ID string `json:"id,omitempty"`
-	}
-
-	ResponseContact struct {
-		Input      string `json:"input"`
-		WhatsappID string `json:"wa_id"`
-	}
 
 	// MessageType represents the type of message currently supported.
 	// Which are Text messages,Reaction messages,MediaInformation messages,Location messages,Contact messages,
@@ -134,15 +113,6 @@ func (r *ResponseMessage) LogValue() slog.Value {
 
 var _ slog.LogValuer = (*ResponseMessage)(nil)
 
-type MediaMessage struct {
-	Type      MediaType
-	MediaID   string
-	MediaLink string
-	Caption   string
-	Filename  string
-	Provider  string
-}
-
 // SendMedia sends a media message to the recipient. Media can be sent using ID or Link. If using id, you must
 // first upload your media asset to our servers and capture the returned media ID. If using link, your asset must
 // be on a publicly accessible server or the message will fail to send.
@@ -150,10 +120,10 @@ func (client *Client) SendMedia(ctx context.Context, recipient string, req *Medi
 	cacheOptions *CacheOptions,
 ) (*ResponseMessage, error) {
 	request := &SendMediaRequest{
-		BaseURL:       client.Config.BaseURL,
-		AccessToken:   client.Config.AccessToken,
-		PhoneNumberID: client.Config.PhoneNumberID,
-		ApiVersion:    client.Config.Version,
+		BaseURL:       client.config.BaseURL,
+		AccessToken:   client.config.AccessToken,
+		PhoneNumberID: client.config.PhoneNumberID,
+		ApiVersion:    client.config.Version,
 		Recipient:     recipient,
 		Type:          req.Type,
 		MediaID:       req.MediaID,
@@ -201,28 +171,12 @@ func (client *Client) SendMedia(ctx context.Context, recipient string, req *Medi
 
 	var message ResponseMessage
 
-	err = client.Base.Do(ctx, params, &message)
+	err = client.bc.base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send media: %w", err)
 	}
 
 	return &message, nil
-}
-
-type Template struct {
-	LanguageCode   string
-	LanguagePolicy string
-	Name           string
-	Components     []*models.TemplateComponent
-}
-
-type InteractiveTemplateRequest struct {
-	Name           string
-	LanguageCode   string
-	LanguagePolicy string
-	Headers        []*models.TemplateParameter
-	Body           []*models.TemplateParameter
-	Buttons        []*models.InteractiveButtonTemplate
 }
 
 // SendInteractiveTemplate send an interactive template message which contains some buttons for user intraction.
@@ -244,17 +198,17 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 	}
 	template := models.NewInteractiveTemplate(req.Name, tmpLanguage, req.Headers, req.Body, req.Buttons)
 	payload := &models.Message{
-		Product:       messagingProduct,
+		Product:       MessagingProduct,
 		To:            recipient,
-		RecipientType: individualRecipientType,
+		RecipientType: RecipientTypeIndividual,
 		Type:          templateMessageType,
 		Template:      template,
 	}
 	reqCtx := &whttp.RequestContext{
 		Name:          "send template",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
 		Endpoints:     []string{"messages"},
 	}
 	params := &whttp.Request{
@@ -264,10 +218,10 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: client.Config.AccessToken,
+		Bearer: client.config.AccessToken,
 	}
 	var message ResponseMessage
-	err := client.Base.Do(ctx, params, &message)
+	err := client.bc.base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send template: %w", err)
 	}
@@ -294,18 +248,18 @@ func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, r
 	}
 	template := models.NewMediaTemplate(req.Name, tmpLanguage, req.Header, req.Body)
 	payload := &models.Message{
-		Product:       messagingProduct,
+		Product:       MessagingProduct,
 		To:            recipient,
-		RecipientType: individualRecipientType,
+		RecipientType: RecipientTypeIndividual,
 		Type:          templateMessageType,
 		Template:      template,
 	}
 
 	reqCtx := &whttp.RequestContext{
 		Name:          "send media template",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
 		Endpoints:     []string{"messages"},
 	}
 
@@ -316,23 +270,16 @@ func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, r
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: client.Config.AccessToken,
+		Bearer: client.config.AccessToken,
 	}
 
 	var message ResponseMessage
-	err := client.Base.Do(ctx, params, &message)
+	err := client.bc.base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("client: send media template: %w", err)
 	}
 
 	return &message, nil
-}
-
-type TextTemplateRequest struct {
-	Name           string
-	LanguageCode   string
-	LanguagePolicy string
-	Body           []*models.TemplateParameter
 }
 
 // SendTextTemplate sends a text template message to the recipient. This kind of template message has a text
@@ -348,9 +295,9 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 	payload := models.NewMessage(recipient, models.WithTemplate(template))
 	reqCtx := &whttp.RequestContext{
 		Name:          "send text template",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
 		Endpoints:     []string{"messages"},
 	}
 
@@ -361,11 +308,11 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Bearer: client.Config.AccessToken,
+		Bearer: client.config.AccessToken,
 	}
 
 	var message ResponseMessage
-	err := client.Base.Do(ctx, params, &message)
+	err := client.bc.base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("client: send text template: %w", err)
 	}
@@ -383,9 +330,9 @@ func (client *Client) SendTemplate(ctx context.Context, recipient string, templa
 	*ResponseMessage, error,
 ) {
 	message := &models.Message{
-		Product:       messagingProduct,
+		Product:       MessagingProduct,
 		To:            recipient,
-		RecipientType: individualRecipientType,
+		RecipientType: RecipientTypeIndividual,
 		Type:          templateMessageType,
 		Template: &models.Template{
 			Language: &models.TemplateLanguage{
@@ -399,14 +346,14 @@ func (client *Client) SendTemplate(ctx context.Context, recipient string, templa
 
 	req := &whttp.RequestContext{
 		Name:          "send message",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
-		Bearer:        client.Config.AccessToken,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
+		Bearer:        client.config.AccessToken,
 		Endpoints:     []string{"messages"},
 	}
 
-	return client.Base.Send(ctx, req, message)
+	return client.bc.Send(ctx, req, message)
 }
 
 // SendInteractiveMessage sends an interactive message to the recipient.
@@ -414,76 +361,21 @@ func (client *Client) SendInteractiveMessage(ctx context.Context, recipient stri
 	*ResponseMessage, error,
 ) {
 	template := &models.Message{
-		Product:       messagingProduct,
+		Product:       MessagingProduct,
 		To:            recipient,
-		RecipientType: individualRecipientType,
+		RecipientType: RecipientTypeIndividual,
 		Type:          "interactive",
 		Interactive:   req,
 	}
 
 	reqc := &whttp.RequestContext{
 		Name:          "send interactive message",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
-		Bearer:        client.Config.AccessToken,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
+		Bearer:        client.config.AccessToken,
 		Endpoints:     []string{"messages"},
 	}
 
-	return client.Base.Send(ctx, reqc, template)
-}
-
-var _ Sender = (*BaseClient)(nil)
-
-// Sender is an interface that represents a sender of a message.
-type Sender interface {
-	Send(ctx context.Context, req *whttp.RequestContext, message *models.Message) (*ResponseMessage, error)
-}
-
-// SenderFunc is a function that implements the Sender interface.
-type SenderFunc func(ctx context.Context, req *whttp.RequestContext, message *models.Message) (*ResponseMessage, error)
-
-// Send calls the function that implements the Sender interface.
-func (f SenderFunc) Send(ctx context.Context, req *whttp.RequestContext, message *models.Message) (*ResponseMessage,
-	error) {
-	return f(ctx, req, message)
-}
-
-// SendMiddleware that takes a Sender and returns a new Sender that will wrap the original Sender and execute the
-// middleware function before sending the message.
-type SendMiddleware func(Sender) Sender
-
-// WrapSender wraps a Sender with a SendMiddleware.
-func WrapSender(sender Sender, middleware ...SendMiddleware) Sender {
-	// iterate backwards so that the middleware is executed in the right order
-	for i := len(middleware) - 1; i >= 0; i-- {
-		sender = middleware[i](sender)
-	}
-
-	return sender
-}
-
-// TransparentClient is a client that can send messages to a recipient without knowing the configuration of the client.
-// It uses Sender instead of already configured clients. It is ideal for having a client for different environments.
-type TransparentClient struct {
-	Middlewares []SendMiddleware
-}
-
-// Send sends a message to the recipient.
-func (client *TransparentClient) Send(ctx context.Context, sender Sender,
-	req *whttp.RequestContext, message *models.Message, mw ...SendMiddleware) (*ResponseMessage, error) {
-
-	s := WrapSender(sender, client.Middlewares...)
-
-	return s.Send(ctx, req, message)
-}
-
-// Whatsapp is an interface that represents a whatsapp client.
-type Whatsapp interface {
-	SendText(ctx context.Context, recipient string, message *models.Text) (*ResponseMessage, error)
-	React(ctx context.Context, recipient string, msg *ReactMessage) (*ResponseMessage, error)
-	SendContacts(ctx context.Context, recipient string, contacts []*models.Contact) (*ResponseMessage, error)
-	SendLocation(ctx context.Context, recipient string, location *models.Location) (*ResponseMessage, error)
-	SendInteractiveMessage(ctx context.Context, recipient string, req *models.Interactive) (*ResponseMessage, error)
-	SendMedia(ctx context.Context, recipient string, media *models.Media) (*ResponseMessage, error)
+	return client.bc.Send(ctx, reqc, template)
 }

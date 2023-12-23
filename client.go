@@ -22,119 +22,137 @@ package whatsapp
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	whttp "github.com/piusalfred/whatsapp/http"
 	"github.com/piusalfred/whatsapp/models"
 )
 
-// Config is a struct that holds the configuration for the whatsapp client.
-// It is used to create a new whatsapp client.
-type Config struct {
-	BaseURL           string
-	Version           string
-	AccessToken       string
-	PhoneNumberID     string
-	BusinessAccountID string
-}
+const (
+	MessageEndpoint = "messages"
+)
 
-// ConfigReader is an interface that can be used to read the configuration
-// from a file or any other source.
-type ConfigReader interface {
-	Read(ctx context.Context) (*Config, error)
-}
+var ErrConfigNil = fmt.Errorf("config is nil")
 
-// ConfigReaderFunc is a function that implements the ConfigReader interface.
-type ConfigReaderFunc func(ctx context.Context) (*Config, error)
-
-// Read implements the ConfigReader interface.
-func (fn ConfigReaderFunc) Read(ctx context.Context) (*Config, error) {
-	return fn(ctx)
-}
-
-type Client struct {
-	Base   *BaseClient
-	Config *Config
-}
-
-type ClientOption func(*Client)
-
-// NewClient creates a new whatsapp client with the given options.
-func NewClient(reader ConfigReader, options ...ClientOption) (*Client, error) {
-	client := &Client{
-		Base: &BaseClient{whttp.NewClient()},
+type (
+	// Client is a struct that holds the configuration for the whatsapp client.
+	// It is used to create a new whatsapp client for a single user. Uses the BaseClient
+	// to make requests to the whatsapp api. If you want a client that's flexible and can
+	// make requests to the whatsapp api for different users, use the TransparentClient.
+	Client struct {
+		bc     *BaseClient
+		config *Config
 	}
 
-	config, err := reader.Read(context.Background())
-	if err != nil || config == nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
+	ClientOption func(*Client)
+
+	ResponseMessage struct {
+		Product  string             `json:"messaging_product,omitempty"`
+		Contacts []*ResponseContact `json:"contacts,omitempty"`
+		Messages []*MessageID       `json:"messages,omitempty"`
+	}
+	MessageID struct {
+		ID string `json:"id,omitempty"`
 	}
 
-	client.Config = config
-
-	if client.Config.BaseURL == "" {
-		client.Config.BaseURL = BaseURL
+	ResponseContact struct {
+		Input      string `json:"input"`
+		WhatsappID string `json:"wa_id"`
 	}
 
-	if client.Config.Version == "" {
-		client.Config.Version = LowestSupportedVersion
+	TextMessage struct {
+		Message    string
+		PreviewURL bool
 	}
 
-	for i, option := range options {
-		if option == nil {
-			return nil, fmt.Errorf("option at index %d is nil", i)
-		}
-		option(client)
+	ReactMessage struct {
+		MessageID string
+		Emoji     string
 	}
 
-	return client, nil
-}
-
-func NewClientWithConfig(config *Config, options ...ClientOption) (*Client, error) {
-	client := &Client{
-		Base:   &BaseClient{whttp.NewClient()},
-		Config: config,
+	TextTemplateRequest struct {
+		Name           string
+		LanguageCode   string
+		LanguagePolicy string
+		Body           []*models.TemplateParameter
 	}
 
-	if client.Config.BaseURL == "" {
-		client.Config.BaseURL = BaseURL
+	Template struct {
+		LanguageCode   string
+		LanguagePolicy string
+		Name           string
+		Components     []*models.TemplateComponent
 	}
 
-	if client.Config.Version == "" {
-		client.Config.Version = LowestSupportedVersion
+	InteractiveTemplateRequest struct {
+		Name           string
+		LanguageCode   string
+		LanguagePolicy string
+		Headers        []*models.TemplateParameter
+		Body           []*models.TemplateParameter
+		Buttons        []*models.InteractiveButtonTemplate
 	}
 
-	for i, option := range options {
-		if option == nil {
-			return nil, fmt.Errorf("option at index %d is nil", i)
-		}
-		option(client)
+	MediaMessage struct {
+		Type      MediaType
+		MediaID   string
+		MediaLink string
+		Caption   string
+		Filename  string
+		Provider  string
 	}
-
-	return client, nil
-}
+)
 
 func WithBaseClient(base *BaseClient) ClientOption {
 	return func(client *Client) {
-		client.Base = base
+		client.bc = base
 	}
 }
 
-const MessageEndpoint = "messages"
+func NewClient(reader ConfigReader, options ...ClientOption) (*Client, error) {
+	config, err := reader.Read(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config: %w", err)
+	}
 
-type TextMessage struct {
-	Message    string
-	PreviewURL bool
+	return NewClientWithConfig(config, options...)
 }
 
-// SendTextMessage sends a text message to a WhatsApp Business Account.
-func (client *Client) SendTextMessage(ctx context.Context, recipient string,
+func NewClientWithConfig(config *Config, options ...ClientOption) (*Client, error) {
+	if config == nil {
+		return nil, ErrConfigNil
+	}
+	client := &Client{
+		bc:     NewBaseClient(),
+		config: config,
+	}
+
+	if client.config.BaseURL == "" {
+		client.config.BaseURL = BaseURL
+	}
+
+	if client.config.Version == "" {
+		client.config.Version = LowestSupportedVersion
+	}
+
+	for _, option := range options {
+		if option == nil {
+			// skip nil options
+			continue
+		}
+		option(client)
+	}
+
+	return client, nil
+}
+
+// SendText sends a text message to a WhatsApp Business Account.
+func (client *Client) SendText(ctx context.Context, recipient string,
 	message *TextMessage,
 ) (*ResponseMessage, error) {
 	text := &models.Message{
-		Product:       messagingProduct,
+		Product:       MessagingProduct,
 		To:            recipient,
-		RecipientType: individualRecipientType,
+		RecipientType: RecipientTypeIndividual,
 		Type:          textMessageType,
 		Text: &models.Text{
 			PreviewURL: message.PreviewURL,
@@ -142,34 +160,12 @@ func (client *Client) SendTextMessage(ctx context.Context, recipient string,
 		},
 	}
 
-	req := &whttp.RequestContext{
-		Name:          "send text message",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
-		Bearer:        client.Config.AccessToken,
-		Endpoints:     []string{MessageEndpoint},
+	res, err := client.SendMessage(ctx, "send text", text)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send text message: %w", err)
 	}
 
-	return client.Base.Send(ctx, req, text)
-}
-
-// MarkMessageRead sends a read receipt for a message.
-func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*StatusResponse, error) {
-	req := &whttp.RequestContext{
-		Name:          "mark message read",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
-		Endpoints:     []string{MessageEndpoint},
-	}
-
-	return client.Base.MarkMessageRead(ctx, req, messageID)
-}
-
-type ReactMessage struct {
-	MessageID string
-	Emoji     string
+	return res, nil
 }
 
 // React sends a reaction to a message.
@@ -214,7 +210,7 @@ type ReactMessage struct {
 //	}
 func (client *Client) React(ctx context.Context, recipient string, msg *ReactMessage) (*ResponseMessage, error) {
 	reaction := &models.Message{
-		Product: messagingProduct,
+		Product: MessagingProduct,
 		To:      recipient,
 		Type:    reactionMessageType,
 		Reaction: &models.Reaction{
@@ -223,15 +219,12 @@ func (client *Client) React(ctx context.Context, recipient string, msg *ReactMes
 		},
 	}
 
-	req := &whttp.RequestContext{
-		Name:          "react to message",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
-		Endpoints:     []string{MessageEndpoint},
+	res, err := client.SendMessage(ctx, "react", reaction)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send reaction message: %w", err)
 	}
 
-	return client.Base.Send(ctx, req, reaction)
+	return res, nil
 }
 
 // SendContacts sends a contact message. Contacts can be easily built using the models.NewContact() function.
@@ -239,33 +232,33 @@ func (client *Client) SendContacts(ctx context.Context, recipient string, contac
 	*ResponseMessage, error,
 ) {
 	contact := &models.Message{
-		Product:       messagingProduct,
+		Product:       MessagingProduct,
 		To:            recipient,
-		RecipientType: individualRecipientType,
+		RecipientType: RecipientTypeIndividual,
 		Type:          contactsMessageType,
 		Contacts:      contacts,
 	}
 
 	req := &whttp.RequestContext{
 		Name:          "send contacts",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
-		Bearer:        client.Config.AccessToken,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
+		Bearer:        client.config.AccessToken,
 		Endpoints:     []string{MessageEndpoint},
 	}
 
-	return client.Base.Send(ctx, req, contact)
+	return client.bc.Send(ctx, req, contact)
 }
 
-// SendLocationMessage sends a location message to a WhatsApp Business Account.
-func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
+// SendLocation sends a location message to a WhatsApp Business Account.
+func (client *Client) SendLocation(ctx context.Context, recipient string,
 	message *models.Location,
 ) (*ResponseMessage, error) {
 	location := &models.Message{
-		Product:       messagingProduct,
+		Product:       MessagingProduct,
 		To:            recipient,
-		RecipientType: individualRecipientType,
+		RecipientType: RecipientTypeIndividual,
 		Type:          locationMessageType,
 		Location: &models.Location{
 			Name:      message.Name,
@@ -277,65 +270,54 @@ func (client *Client) SendLocationMessage(ctx context.Context, recipient string,
 
 	req := &whttp.RequestContext{
 		Name:          "send location",
-		BaseURL:       client.Config.BaseURL,
-		ApiVersion:    client.Config.Version,
-		PhoneNumberID: client.Config.PhoneNumberID,
-		Bearer:        client.Config.AccessToken,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
+		Bearer:        client.config.AccessToken,
 		Endpoints:     []string{MessageEndpoint},
 	}
 
-	return client.Base.Send(ctx, req, location)
+	return client.bc.Send(ctx, req, location)
 }
 
-// BaseClient wraps the http client only and is used to make requests to the whatsapp api,
-// It does not have the context. This is idealy for making requests to the whatsapp api for
-// different users. The Client struct is used to make requests to the whatsapp api for a
-// single user.
-type BaseClient struct {
-	*whttp.Client
+// SendMessage sends a message.
+func (client *Client) SendMessage(ctx context.Context, name string, message *models.Message) (
+	*ResponseMessage, error,
+) {
+	req := &whttp.RequestContext{
+		Name:          name,
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
+		Bearer:        client.config.AccessToken,
+		Endpoints:     []string{MessageEndpoint},
+	}
+
+	return client.bc.Send(ctx, req, message)
 }
 
-func (base *BaseClient) Send(ctx context.Context, req *whttp.RequestContext,
-	msg *models.Message,
-) (*ResponseMessage, error) {
-	request := &whttp.Request{
-		Context: req,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  req.Bearer,
-		Payload: msg,
-	}
-	var resp ResponseMessage
-	err := base.Do(ctx, request, &resp)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", req.Name, err)
-	}
-
-	return &resp, nil
+// Whatsapp is an interface that represents a whatsapp client.
+type Whatsapp interface {
+	SendText(ctx context.Context, recipient string, message *TextMessage) (*ResponseMessage, error)
+	React(ctx context.Context, recipient string, msg *ReactMessage) (*ResponseMessage, error)
+	SendContacts(ctx context.Context, recipient string, contacts []*models.Contact) (*ResponseMessage, error)
+	SendLocation(ctx context.Context, recipient string, location *models.Location) (*ResponseMessage, error)
+	SendInteractiveMessage(ctx context.Context, recipient string, req *models.Interactive) (*ResponseMessage, error)
+	SendTemplate(ctx context.Context, recipient string, template *Template) (*ResponseMessage, error)
+	SendMedia(ctx context.Context, recipient string, media *MediaMessage, options *CacheOptions) (*ResponseMessage, error)
 }
 
-func (base *BaseClient) MarkMessageRead(ctx context.Context, req *whttp.RequestContext,
-	messageID string,
-) (*StatusResponse, error) {
-	reqBody := &MessageStatusUpdateRequest{
-		MessagingProduct: messagingProduct,
-		Status:           MessageStatusRead,
-		MessageID:        messageID,
+var _ Whatsapp = (*Client)(nil)
+
+// MarkMessageRead sends a read receipt for a message.
+func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*StatusResponse, error) {
+	req := &whttp.RequestContext{
+		Name:          "mark message read",
+		BaseURL:       client.config.BaseURL,
+		ApiVersion:    client.config.Version,
+		PhoneNumberID: client.config.PhoneNumberID,
+		Endpoints:     []string{MessageEndpoint},
 	}
 
-	params := &whttp.Request{
-		Context: req,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  req.Bearer,
-		Payload: reqBody,
-	}
-
-	var success StatusResponse
-	err := base.Do(ctx, params, &success)
-	if err != nil {
-		return nil, fmt.Errorf("mark message read: %w", err)
-	}
-
-	return &success, nil
+	return client.bc.MarkMessageRead(ctx, req, messageID)
 }
