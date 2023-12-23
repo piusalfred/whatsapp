@@ -34,7 +34,7 @@ const (
 
 type (
 	// Config is a struct that holds the configuration for the whatsapp client.
-	// It is used to create a new whatsapp client
+	// It is used to create a new whatsapp client.
 	Config struct {
 		BaseURL           string
 		Version           string

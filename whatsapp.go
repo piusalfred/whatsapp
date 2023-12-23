@@ -31,7 +31,14 @@ import (
 	"github.com/piusalfred/whatsapp/models"
 )
 
-var ErrBadRequestFormat = errors.New("bad request")
+var (
+	ErrConfigNil        = errors.New("config is nil")
+	ErrBadRequestFormat = errors.New("bad request")
+)
+
+const (
+	MessageEndpoint = "messages"
+)
 
 const (
 	templateMessageType = "template"
@@ -227,155 +234,4 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 	}
 
 	return &message, nil
-}
-
-type MediaTemplateRequest struct {
-	Name           string
-	LanguageCode   string
-	LanguagePolicy string
-	Header         *models.TemplateParameter
-	Body           []*models.TemplateParameter
-}
-
-// SendMediaTemplate sends a media template message to the recipient. This kind of template message has a media
-// message as a header. This is its main distinguishing feature from the text based template message.
-func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, req *MediaTemplateRequest) (
-	*ResponseMessage, error,
-) {
-	tmpLanguage := &models.TemplateLanguage{
-		Policy: req.LanguagePolicy,
-		Code:   req.LanguageCode,
-	}
-	template := models.NewMediaTemplate(req.Name, tmpLanguage, req.Header, req.Body)
-	payload := &models.Message{
-		Product:       MessagingProduct,
-		To:            recipient,
-		RecipientType: RecipientTypeIndividual,
-		Type:          templateMessageType,
-		Template:      template,
-	}
-
-	reqCtx := &whttp.RequestContext{
-		Name:          "send media template",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Endpoints:     []string{"messages"},
-	}
-
-	params := &whttp.Request{
-		Method:  http.MethodPost,
-		Payload: payload,
-		Context: reqCtx,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: client.config.AccessToken,
-	}
-
-	var message ResponseMessage
-	err := client.bc.base.Do(ctx, params, &message)
-	if err != nil {
-		return nil, fmt.Errorf("client: send media template: %w", err)
-	}
-
-	return &message, nil
-}
-
-// SendTextTemplate sends a text template message to the recipient. This kind of template message has a text
-// message as a header. This is its main distinguishing feature from the media based template message.
-func (client *Client) SendTextTemplate(ctx context.Context, recipient string, req *TextTemplateRequest) (
-	*ResponseMessage, error,
-) {
-	tmpLanguage := &models.TemplateLanguage{
-		Policy: req.LanguagePolicy,
-		Code:   req.LanguageCode,
-	}
-	template := models.NewTextTemplate(req.Name, tmpLanguage, req.Body)
-	payload := models.NewMessage(recipient, models.WithTemplate(template))
-	reqCtx := &whttp.RequestContext{
-		Name:          "send text template",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Endpoints:     []string{"messages"},
-	}
-
-	params := &whttp.Request{
-		Method:  http.MethodPost,
-		Payload: payload,
-		Context: reqCtx,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: client.config.AccessToken,
-	}
-
-	var message ResponseMessage
-	err := client.bc.base.Do(ctx, params, &message)
-	if err != nil {
-		return nil, fmt.Errorf("client: send text template: %w", err)
-	}
-
-	return &message, nil
-}
-
-// SendTemplate sends a template message to the recipient. There are at the moment three types of templates messages
-// you can send to the user, Text Based Templates, Media Based Templates and Interactive Templates. Text Based templates
-// have a text message for a Header and Media Based templates have a Media message for a Header. Interactive Templates
-// can have any of the above as a Header and also have a list of buttons that the user can interact with.
-// You can use models.NewTextTemplate, models.NewMediaTemplate and models.NewInteractiveTemplate to create a Template.
-// These are helper functions that will make your life easier.
-func (client *Client) SendTemplate(ctx context.Context, recipient string, template *Template) (
-	*ResponseMessage, error,
-) {
-	message := &models.Message{
-		Product:       MessagingProduct,
-		To:            recipient,
-		RecipientType: RecipientTypeIndividual,
-		Type:          templateMessageType,
-		Template: &models.Template{
-			Language: &models.TemplateLanguage{
-				Code:   template.LanguageCode,
-				Policy: template.LanguagePolicy,
-			},
-			Name:       template.Name,
-			Components: template.Components,
-		},
-	}
-
-	req := &whttp.RequestContext{
-		Name:          "send message",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Bearer:        client.config.AccessToken,
-		Endpoints:     []string{"messages"},
-	}
-
-	return client.bc.Send(ctx, req, message)
-}
-
-// SendInteractiveMessage sends an interactive message to the recipient.
-func (client *Client) SendInteractiveMessage(ctx context.Context, recipient string, req *models.Interactive) (
-	*ResponseMessage, error,
-) {
-	template := &models.Message{
-		Product:       MessagingProduct,
-		To:            recipient,
-		RecipientType: RecipientTypeIndividual,
-		Type:          "interactive",
-		Interactive:   req,
-	}
-
-	reqc := &whttp.RequestContext{
-		Name:          "send interactive message",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Bearer:        client.config.AccessToken,
-		Endpoints:     []string{"messages"},
-	}
-
-	return client.bc.Send(ctx, reqc, template)
 }
