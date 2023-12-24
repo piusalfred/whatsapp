@@ -26,6 +26,3 @@ From Whatsapp Developer Dashboard you can try and send a test message to your ph
 to be sure that everything is working fine before you start using this api.
 
 When all the above is done you can start using this api.
-
-
-Head over to [HOWTO](/HOWTO.md) file

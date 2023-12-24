@@ -7,11 +7,6 @@ or customer care messages to people that have opted in to notifications. These n
 a variety of messages such as appointment reminders, shipping information, issue resolution, or payment
 updates.
 
-Before using this package to send a template message, you must first create a template. For more information
-on creating templates, refer to the guide titled "Create Message Templates for Your WhatsApp Business Account"
-(https://developers.facebook.com/micro_site/url/?click_from_context_menu=true&country=TZ&destination=https%3A%2F%2Fwww.facebook.com%2Fbusiness%2Fhelp%2F2055875911147364&event_type=click&last_nav_impression_id=0jjgfFiSZMkMJ8TP8&max_percent_page_viewed=10&max_viewport_height_px=999&max_viewport_width_px=1414&orig_http_referrer=https%3A%2F%2Fdevelopers.facebook.com%2Fdocs%2Fwhatsapp%2Fcloud-api%2Fguides%2Fsend-message-templates&orig_request_uri=https%3A%2F%2Fdevelopers.facebook.com%2Fajax%2Fdocs%2Fnav%2F%3Fpath1%3Dwhatsapp%26path2%3Dcloud-api%26path3%3Dguides%26path4%3Dsend-message-templates&region=emea&scrolled=false&session_id=1Qi3IoIHE5nPFSkug&site=developers)
-If your account is not yet verified, you can use one of the pre-approved templates provided.
-
 This package supports the following template types:
 
 - Text-based message templates

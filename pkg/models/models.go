@@ -162,7 +162,7 @@ type (
 	//
 	// Template A template (object). Required when type=template. A template object.
 	//
-	// Text text (object). Required for text messages. A text objects.
+	// Text (object). Required for text messages. A text objects.
 	//
 	// To string. Required. WhatsApp ID or phone number for the person you want to send a message to.
 	// See Phone Numbers, Formatting for more information. If needed, On-Premises API users can get this number by

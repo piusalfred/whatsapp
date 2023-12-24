@@ -317,13 +317,6 @@ type (
 		Password string
 	}
 
-	// requestNameKey is a type that holds the name of a request. This is usually passed
-	// extracted from Request.Context.Name and passed down to the Do function.
-	// then passed down with to the request hooks. In request hooks, the name can be
-	// used to identify the request and other multiple use cases like instrumentation,
-	// logging etc.
-	requestNameKey string
-
 	// Request is a struct that holds the details that can be used to make a http request.
 	// It is used by the Do function to make a request.
 	// It contains Payload which is an interface that can be used to pass any data type
@@ -604,15 +597,24 @@ func extractRequestBody(payload interface{}) (io.Reader, error) {
 	}
 }
 
+// requestNameKey is a type that holds the name of a request. This is usually passed
+// extracted from Request.Context.Name and passed down to the Do function.
+// then passed down with to the request hooks. In request hooks, the name can be
+// used to identify the request and other multiple use cases like instrumentation,
+// logging etc.
+type requestNameKey string
+
+const requestNameValue = "request-name"
+
 // withRequestName takes a string and a context and returns a new context with the string
 // as the request name.
 func withRequestName(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, requestNameKey("request-name"), name)
+	return context.WithValue(ctx, requestNameKey(requestNameValue), name)
 }
 
 // RequestNameFromContext returns the request name from the context.
 func RequestNameFromContext(ctx context.Context) string {
-	name, ok := ctx.Value(requestNameKey("request-name")).(string)
+	name, ok := ctx.Value(requestNameKey(requestNameValue)).(string)
 	if !ok {
 		return "unknown request name"
 	}
@@ -644,4 +646,34 @@ func (e *ResponseError) Error() string {
 // Unwrap returns the underlying error for ResponseError.
 func (e *ResponseError) Unwrap() error {
 	return e.Err
+}
+
+type (
+
+	// ResponseDecoder decodes the response body into the given interface.
+	ResponseDecoder interface {
+		DecodeResponse(response *http.Response, v interface{}) error
+	}
+
+	// ResponseDecoderFunc is an adapter to allow the use of ordinary functions as
+	// response decoders. If f is a function with the appropriate signature,
+	// ResponseDecoderFunc(f) is a ResponseDecoder that calls f.
+	ResponseDecoderFunc func(response *http.Response, v interface{}) error
+
+	// RawResponseDecoder ...
+	RawResponseDecoder func(response *http.Response) error
+)
+
+// DecodeResponse calls f(response, v).
+func (f RawResponseDecoder) DecodeResponse(response *http.Response,
+	_ interface{},
+) error {
+	return f(response)
+}
+
+// DecodeResponse calls f(ctx, response, v).
+func (f ResponseDecoderFunc) DecodeResponse(response *http.Response,
+	v interface{},
+) error {
+	return f(response, v)
 }
