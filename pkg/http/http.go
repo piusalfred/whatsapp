@@ -36,7 +36,7 @@ import (
 
 const (
 	BaseURL           = "https://graph.facebook.com"
-	DefaultApiVersion = "v16.0" // This is the lowest version of the API that is supported
+	DefaultAPIVersion = "v16.0" // This is the lowest version of the API that is supported
 )
 
 type (
@@ -390,7 +390,7 @@ func MakeRequest(options ...RequestOption) *Request {
 	request := &Request{
 		Context: &RequestContext{
 			BaseURL:    BaseURL,
-			ApiVersion: DefaultApiVersion,
+			ApiVersion: DefaultAPIVersion,
 		},
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/json"},
