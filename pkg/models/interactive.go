@@ -22,7 +22,7 @@ package models
 type (
 	// InteractiveMessage is the type of interactive message you want to send. Supported values are:
 	// 	- button: Use it for Reply Buttons.
-	// 	- list: Use it for List Messages.
+	// 	- list: Use it for ListQR Messages.
 	// 	- product: Use for Single Product Messages.
 	// 	- product_list: Use for Multi-Product Messages.
 	InteractiveMessage string
@@ -69,7 +69,7 @@ type (
 	//             and the shop you want to use. Then, click Catalog > Items, and find the item you want to mention.
 	//             The ID for that item is displayed under the item's name.
 	//
-	//    - Rows array of objects, Required for List Messages. Contains a list of rows. You can have a total of
+	//    - Rows array of objects, Required for ListQR Messages. Contains a list of rows. You can have a total of
 	//      10 rows across all sections. Each row must have a title (Maximum length: 24 characters) and an ID
 	//      (Maximum length: 200 characters). You can add a description (Maximum length: 72 characters), but it
 	//      is optional.
@@ -95,7 +95,7 @@ type (
 	// InteractiveAction contains information about an interactive action.
 	// An interactive action object can contain the following parameters:
 	//
-	//	- Button, button (string) Required for List Messages. Button content. It cannot be an empty
+	//	- Button, button (string) Required for ListQR Messages. Button content. It cannot be an empty
 	//	  string and must be unique within the message. Emojis are supported, markdown is not.
 	//	  Maximum length: 20 characters.
 	//
@@ -118,7 +118,7 @@ type (
 	//	  you want to use. On the left-side panel,click Catalog > Items, and find the item you want to mention.
 	//	  The ID for that item is displayed under the item's name.
 	//
-	//	- Sections, sections (array of objects) Required for List Messages and Multi-Product Messages. Array of
+	//	- Sections, sections (array of objects) Required for ListQR Messages and Multi-Product Messages. Array of
 	//	  section objects. Minimum of 1, maximum of 10. See InteractiveSection object.
 	InteractiveAction struct {
 		Button            string                `json:"button,omitempty"`
@@ -138,7 +138,7 @@ type (
 	//      but not markdown. Maximum length: 60 characters.
 	//
 	//	- Type, type (string) Required. The header type you would like to use. Supported values:
-	//		- text: Used for List Messages, Reply Buttons, and Multi-Product Messages.
+	//		- text: Used for ListQR Messages, Reply Buttons, and Multi-Product Messages.
 	//		- video: Used for Reply Buttons.
 	//		- image: Used for Reply Buttons.
 	//		- document: Used for Reply Buttons.
@@ -182,7 +182,7 @@ type (
 	//      for more information.
 	//
 	//	- Type, type (string) Required. The type of interactive message you want to send. Supported values:
-	//		- button: Used for List Messages and Reply Buttons.
+	//		- button: Used for ListQR Messages and Reply Buttons.
 	//		- product: Used for Single Product Messages.
 	//		- product_list: Used for Multi-Product Messages.
 	Interactive struct {

@@ -193,7 +193,7 @@ type (
 
 	// InteractiveHeaderType represent required value of InteractiveHeader.Type
 	// The header type you would like to use. Supported values:
-	// text: Used for List Messages, Reply Buttons, and Multi-Product Messages.
+	// text: Used for ListQR Messages, Reply Buttons, and Multi-Product Messages.
 	// video: Used for Reply Buttons.
 	// image: Used for Reply Buttons.
 	// document: Used for Reply Buttons.
@@ -201,7 +201,7 @@ type (
 )
 
 const (
-	// InteractiveHeaderTypeText is used for List Messages, Reply Buttons, and Multi-Product Messages.
+	// InteractiveHeaderTypeText is used for ListQR Messages, Reply Buttons, and Multi-Product Messages.
 	InteractiveHeaderTypeText  InteractiveHeaderType = "text"
 	InteractiveHeaderTypeVideo InteractiveHeaderType = "video"
 	InteractiveHeaderTypeImage InteractiveHeaderType = "image"

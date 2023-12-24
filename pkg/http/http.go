@@ -527,7 +527,7 @@ func NewRequestWithContext(ctx context.Context, request *Request) (*http.Request
 		return nil, fmt.Errorf("failed to create request url: %w", err)
 	}
 
-	// Create the http request
+	// CreateQR the http request
 	req, err = http.NewRequestWithContext(ctx, request.Method, requestURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new request: %w", err)

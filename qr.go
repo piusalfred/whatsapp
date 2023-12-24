@@ -62,7 +62,7 @@ type (
 	}
 )
 
-func (c *BaseClient) Create(ctx context.Context, rtx *RequestContext,
+func (c *BaseClient) CreateQR(ctx context.Context, rtx *RequestContext,
 	req *CreateRequest,
 ) (*CreateResponse, error) {
 	queryParams := map[string]string{
@@ -93,7 +93,7 @@ func (c *BaseClient) Create(ctx context.Context, rtx *RequestContext,
 	return &response, nil
 }
 
-func (c *BaseClient) List(ctx context.Context, request *RequestContext) (*ListResponse, error) {
+func (c *BaseClient) ListQR(ctx context.Context, request *RequestContext) (*ListResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:          "list qr codes",
 		BaseURL:       request.BaseURL,
