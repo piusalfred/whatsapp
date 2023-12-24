@@ -21,15 +21,6 @@ package whatsapp
 
 import (
 	"context"
-	"time"
-)
-
-const (
-	MessagingProduct          = "whatsapp"
-	RecipientTypeIndividual   = "individual"
-	BaseURL                   = "https://graph.facebook.com/"
-	LowestSupportedVersion    = "v16.0"
-	DateFormatContactBirthday = time.DateOnly // YYYY-MM-DD
 )
 
 type (
