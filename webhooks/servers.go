@@ -17,46 +17,34 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package whatsapp
+package webhooks
 
 import (
-	"testing"
+	"fmt"
+	"os/exec"
+	"strings"
 )
 
-func TestMediaMaxAllowedSize(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		mediaType MediaType
-	}
-	tests := []struct {
-		name string
-		args args
-		want int
-	}{
-		{
-			name: "video",
-			args: args{
-				MediaTypeVideo,
-			},
-			want: MaxVideoSize,
-		},
+const listIPAddressesCmd = `whois -h whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort`
 
-		{
-			name: "unknown",
-			args: args{
-				MediaType("unknown"),
-			},
-			want: -1,
-		},
+// ListIPAddresses returns a list of IP addresses that you can use to allow-list our webhook
+// servers in your firewall or network configuration.
+//
+// You can get the IP addresses of our webhook servers by running the following command in
+// your terminal:
+//
+//	whois -h whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort
+//
+// We periodically change these IP addresses so if you are allow-listing our servers you may
+// want to occasionally regenerate this list and update your allow-list accordingly.
+func ListIPAddresses() ([]string, error) {
+	cmd := exec.Command("bash", "-c", listIPAddressesCmd)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list IP addresses: %w", err)
 	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			args := tt.args
-			if got := MediaMaxAllowedSize(args.mediaType); got != tt.want {
-				t.Errorf("MediaMaxAllowedSize() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+
+	routes := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	return routes, nil
 }

@@ -31,7 +31,7 @@ import (
 	"net/textproto"
 	"path/filepath"
 
-	whttp "github.com/piusalfred/whatsapp/http"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
 type (
@@ -76,33 +76,34 @@ type (
 func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (*MediaInformation, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "get media",
-		BaseURL:    client.baseURL,
-		ApiVersion: client.apiVersion,
+		BaseURL:    client.config.BaseURL,
+		ApiVersion: client.config.Version,
 		Endpoints:  []string{mediaID},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Bearer:  client.accessToken,
+		Bearer:  client.config.AccessToken,
 		Payload: nil,
 	}
 
-	media := new(MediaInformation)
-	err := whttp.Do(ctx, client.http, params, &media, client.hooks...)
+	var media MediaInformation
+
+	err := client.bc.base.Do(ctx, params, &media)
 	if err != nil {
 		return nil, fmt.Errorf("get media: %w", err)
 	}
 
-	return media, nil
+	return &media, nil
 }
 
 // DeleteMedia delete the media by using its corresponding media ID.
 func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteMediaResponse, error) {
 	reqCtx := &whttp.RequestContext{
 		Name:       "delete media",
-		BaseURL:    client.baseURL,
-		ApiVersion: client.apiVersion,
+		BaseURL:    client.config.BaseURL,
+		ApiVersion: client.config.Version,
 		Endpoints:  []string{mediaID},
 	}
 
@@ -110,12 +111,12 @@ func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteM
 		Context: reqCtx,
 		Method:  http.MethodDelete,
 		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  client.accessToken,
+		Bearer:  client.config.AccessToken,
 		Payload: nil,
 	}
 
 	resp := new(DeleteMediaResponse)
-	err := whttp.Do(ctx, client.http, params, &resp, client.hooks...)
+	err := client.bc.base.Do(ctx, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("delete media: %w", err)
 	}
@@ -133,21 +134,21 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 
 	reqCtx := &whttp.RequestContext{
 		Name:       "upload media",
-		BaseURL:    client.baseURL,
-		ApiVersion: client.apiVersion,
-		Endpoints:  []string{client.phoneNumberID, "media"},
+		BaseURL:    client.config.BaseURL,
+		ApiVersion: client.config.Version,
+		Endpoints:  []string{client.config.PhoneNumberID, "media"},
 	}
 
 	params := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": contentType},
-		Bearer:  client.accessToken,
+		Bearer:  client.config.AccessToken,
 		Payload: payload,
 	}
 
 	resp := new(UploadMediaResponse)
-	err = whttp.Do(ctx, client.http, params, &resp, client.hooks...)
+	err = client.bc.base.Do(ctx, params, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("upload media: %w", err)
 	}
@@ -158,8 +159,21 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 var ErrMediaDownload = fmt.Errorf("failed to download media")
 
 type DownloadMediaResponse struct {
-	Headers http.Header
-	Body    io.Reader
+	Headers    http.Header
+	Body       io.Reader
+	StatusCode int
+}
+
+type DownloadResponseDecoder struct {
+	Resp     *DownloadMediaResponse
+	response *http.Response
+}
+
+func (d *DownloadResponseDecoder) Decode(response *http.Response) error {
+	d.Resp.Headers = response.Header
+	d.Resp.Body = response.Body
+
+	return nil
 }
 
 // DownloadMedia download the media by using its corresponding media ID. It uses the media ID to retrieve
@@ -184,18 +198,30 @@ func (client *Client) DownloadMedia(ctx context.Context, mediaID string, retries
 			return nil, err
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, media.URL, nil)
-		if err != nil {
-			return nil, fmt.Errorf("media download: create a request: %w", err)
-		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.accessToken))
-
-		resp, err := client.http.Do(req)
-		if err != nil {
+		request := whttp.MakeRequest(
+			whttp.WithRequestContext(&whttp.RequestContext{
+				Name:              "download media",
+				BaseURL:           media.URL,
+				ApiVersion:        client.config.Version,
+				PhoneNumberID:     client.config.PhoneNumberID,
+				Bearer:            client.config.AccessToken,
+				BusinessAccountID: "",
+				Endpoints:         nil,
+			}),
+			whttp.WithRequestName("download media"),
+			whttp.WithMethod(http.MethodGet),
+			whttp.WithBearer(client.config.AccessToken))
+		decoder := &DownloadResponseDecoder{}
+		if err := client.bc.base.DoWithDecoder(
+			ctx,
+			request,
+			whttp.RawResponseDecoder(decoder.Decode),
+			nil); err != nil {
 			return nil, fmt.Errorf("media download: %w", err)
 		}
 
-		// retry ...
+		// retry
+		resp := decoder.response
 		if resp.StatusCode == http.StatusNotFound {
 			_ = resp.Body.Close()
 

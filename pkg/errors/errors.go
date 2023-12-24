@@ -26,6 +26,8 @@ import (
 	"strings"
 )
 
+const DeveloperErrorDescLink = "https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes"
+
 type (
 
 	// Error represents a WhatsApp error returned by the API when a request fails.
@@ -131,5 +133,5 @@ func (e *Error) String() string {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("whatsapp: %s", strings.ToLower(e.String()))
+	return fmt.Sprintf("whatsapp error: %s", strings.ToLower(e.String()))
 }

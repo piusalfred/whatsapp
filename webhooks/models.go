@@ -20,8 +20,8 @@
 package webhooks
 
 import (
-	werrors "github.com/piusalfred/whatsapp/errors"
-	"github.com/piusalfred/whatsapp/models"
+	werrors "github.com/piusalfred/whatsapp/pkg/errors"
+	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 type (
@@ -351,13 +351,13 @@ type (
 	//- MessagingProduct messaging_product (string) Product used to send the message.
 	//  Value is always whatsapp.
 	//
-	//- Messages messages (array of objects) Information about a message received by
+	//- Messages (array of objects) Information about a message received by
 	//  the business that is subscribed to the webhook. See Message Object.
 	//
 	//- Metadata (object) A metadata object describing the business subscribed to
 	//  the webhook. See Metadata Object.
 	//
-	//- Statuses statuses (array of objects) Status object for a message that was sent by
+	//- Statuses (array of objects) Status object for a message that was sent by
 	//  the business that is subscribed to the webhook. See Status Object.
 	Value struct {
 		MessagingProduct string           `json:"messaging_product,omitempty"`

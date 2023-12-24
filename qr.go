@@ -17,17 +17,15 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package qrcodes
+package whatsapp
 
 import (
 	"context"
 	"fmt"
 	"net/http"
 
-	whttp "github.com/piusalfred/whatsapp/http"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
-
-var ErrUnexpectedResponseCode = fmt.Errorf("unexpected response code")
 
 const (
 	ImageFormatPNG ImageFormat = "PNG"
@@ -64,20 +62,20 @@ type (
 	}
 )
 
-func Create(ctx context.Context, client *http.Client, rtx *RequestContext,
-	req *CreateRequest, hooks ...whttp.Hook,
+func (c *BaseClient) CreateQR(ctx context.Context, rtx *whttp.RequestContext,
+	req *CreateRequest,
 ) (*CreateResponse, error) {
 	queryParams := map[string]string{
 		"prefilled_message": req.PrefilledMessage,
 		"generate_qr_image": string(req.ImageFormat),
-		"access_token":      rtx.AccessToken,
+		"access_token":      rtx.Bearer,
 	}
 	reqCtx := &whttp.RequestContext{
-		Name:       "create qr code",
-		BaseURL:    rtx.BaseURL,
-		ApiVersion: rtx.ApiVersion,
-		SenderID:   rtx.PhoneID,
-		Endpoints:  []string{"message_qrdls"},
+		Name:          "create qr code",
+		BaseURL:       rtx.BaseURL,
+		ApiVersion:    rtx.ApiVersion,
+		PhoneNumberID: rtx.PhoneNumberID,
+		Endpoints:     []string{"message_qrdls"},
 	}
 	params := &whttp.Request{
 		Context: reqCtx,
@@ -87,7 +85,7 @@ func Create(ctx context.Context, client *http.Client, rtx *RequestContext,
 
 	var response CreateResponse
 
-	err := whttp.Do(ctx, client, params, &response, hooks...)
+	err := c.base.Do(ctx, params, &response)
 	if err != nil {
 		return nil, fmt.Errorf("qr code create: %w", err)
 	}
@@ -95,23 +93,23 @@ func Create(ctx context.Context, client *http.Client, rtx *RequestContext,
 	return &response, nil
 }
 
-func List(ctx context.Context, client *http.Client, rctx *RequestContext, hooks ...whttp.Hook) (*ListResponse, error) {
+func (c *BaseClient) ListQR(ctx context.Context, request *RequestContext) (*ListResponse, error) {
 	reqCtx := &whttp.RequestContext{
-		Name:       "list qr codes",
-		BaseURL:    rctx.BaseURL,
-		ApiVersion: rctx.ApiVersion,
-		SenderID:   rctx.PhoneID,
-		Endpoints:  []string{"message_qrdls"},
+		Name:          "list qr codes",
+		BaseURL:       request.BaseURL,
+		ApiVersion:    request.ApiVersion,
+		PhoneNumberID: request.PhoneID,
+		Endpoints:     []string{"message_qrdls"},
 	}
 
 	req := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Query:   map[string]string{"access_token": rctx.AccessToken},
+		Query:   map[string]string{"access_token": request.AccessToken},
 	}
 
 	var response ListResponse
-	err := whttp.Do(ctx, client, req, &response, hooks...)
+	err := c.base.Do(ctx, req, &response)
 	if err != nil {
 		return nil, fmt.Errorf("qr code list: %w", err)
 	}
@@ -128,28 +126,27 @@ type RequestContext struct {
 
 var ErrNoDataFound = fmt.Errorf("no data found")
 
-func Get(ctx context.Context, client *http.Client, rctx *RequestContext, qrCodeID string,
-	hooks ...whttp.Hook,
+func (c *BaseClient) Get(ctx context.Context, request *whttp.RequestContext, qrCodeID string,
 ) (*Information, error) {
 	var (
 		list ListResponse
 		resp Information
 	)
 	reqCtx := &whttp.RequestContext{
-		Name:       "get qr code",
-		BaseURL:    rctx.BaseURL,
-		ApiVersion: rctx.ApiVersion,
-		SenderID:   rctx.PhoneID,
-		Endpoints:  []string{"message_qrdls", qrCodeID},
+		Name:          "get qr code",
+		BaseURL:       request.BaseURL,
+		ApiVersion:    request.ApiVersion,
+		PhoneNumberID: request.PhoneNumberID,
+		Endpoints:     []string{"message_qrdls", qrCodeID},
 	}
 
 	req := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodGet,
-		Query:   map[string]string{"access_token": rctx.AccessToken},
+		Query:   map[string]string{"access_token": request.Bearer},
 	}
 
-	err := whttp.Do(ctx, client, req, &list, hooks...)
+	err := c.base.Do(ctx, req, &list)
 	if err != nil {
 		return nil, fmt.Errorf("qr code get: %w", err)
 	}
@@ -163,15 +160,15 @@ func Get(ctx context.Context, client *http.Client, rctx *RequestContext, qrCodeI
 	return &resp, nil
 }
 
-func Update(ctx context.Context, client *http.Client, rtx *RequestContext, qrCodeID string,
-	req *CreateRequest, hooks ...whttp.Hook) (*SuccessResponse, error,
+func (c *BaseClient) UpdateQR(ctx context.Context, rtx *whttp.RequestContext, qrCodeID string,
+	req *CreateRequest) (*SuccessResponse, error,
 ) {
 	reqCtx := &whttp.RequestContext{
-		Name:       "update qr code",
-		BaseURL:    rtx.BaseURL,
-		ApiVersion: rtx.ApiVersion,
-		SenderID:   rtx.PhoneID,
-		Endpoints:  []string{"message_qrdls", qrCodeID},
+		Name:          "update qr code",
+		BaseURL:       rtx.BaseURL,
+		ApiVersion:    rtx.ApiVersion,
+		PhoneNumberID: rtx.PhoneNumberID,
+		Endpoints:     []string{"message_qrdls", qrCodeID},
 	}
 
 	request := &whttp.Request{
@@ -180,12 +177,12 @@ func Update(ctx context.Context, client *http.Client, rtx *RequestContext, qrCod
 		Query: map[string]string{
 			"prefilled_message": req.PrefilledMessage,
 			"generate_qr_image": string(req.ImageFormat),
-			"access_token":      rtx.AccessToken,
+			"access_token":      rtx.Bearer,
 		},
 	}
 
 	var resp SuccessResponse
-	err := whttp.Do(ctx, client, request, &resp, hooks...)
+	err := c.base.Do(ctx, request, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("qr code update (%s): %w", qrCodeID, err)
 	}
@@ -193,24 +190,23 @@ func Update(ctx context.Context, client *http.Client, rtx *RequestContext, qrCod
 	return &resp, nil
 }
 
-func Delete(ctx context.Context, client *http.Client, rtx *RequestContext, qrCodeID string,
-	hooks ...whttp.Hook,
+func (c *BaseClient) DeleteQR(ctx context.Context, rtx *whttp.RequestContext, qrCodeID string,
 ) (*SuccessResponse, error) {
 	reqCtx := &whttp.RequestContext{
-		Name:       "delete qr code",
-		BaseURL:    rtx.BaseURL,
-		ApiVersion: rtx.ApiVersion,
-		SenderID:   rtx.PhoneID,
-		Endpoints:  []string{"message_qrdls", qrCodeID},
+		Name:          "delete qr code",
+		BaseURL:       rtx.BaseURL,
+		ApiVersion:    rtx.ApiVersion,
+		PhoneNumberID: rtx.PhoneNumberID,
+		Endpoints:     []string{"message_qrdls", qrCodeID},
 	}
 
 	req := &whttp.Request{
 		Context: reqCtx,
 		Method:  http.MethodDelete,
-		Query:   map[string]string{"access_token": rtx.AccessToken},
+		Query:   map[string]string{"access_token": rtx.Bearer},
 	}
 	var resp SuccessResponse
-	err := whttp.Do(ctx, client, req, &resp, hooks...)
+	err := c.base.Do(ctx, req, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("qr code delete: %w", err)
 	}

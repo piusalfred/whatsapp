@@ -32,8 +32,8 @@ import (
 	"net/http"
 	"strings"
 
-	werrors "github.com/piusalfred/whatsapp/errors"
-	"github.com/piusalfred/whatsapp/models"
+	werrors "github.com/piusalfred/whatsapp/pkg/errors"
+	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 // PayloadMaxSize is the maximum size of the payload that can be sent to the webhook.
@@ -113,7 +113,7 @@ type (
 	}
 
 	OnOrderMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, order *Order) error
+		context.Context, *NotificationContext, *MessageContext, *Order) error
 	OnButtonMessageHook func(
 		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, button *Button) error
 	OnLocationMessageHook func(
@@ -318,7 +318,7 @@ func NoOpHooksErrorHandler(err error) error {
 
 // NoOpNotificationErrorHandler is a no-op notification error handler. It ignores the error and
 // returns a response with status code 200.
-func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, err error) *NotificationErrHandlerResponse {
+func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, _ error) *NotificationErrHandlerResponse {
 	return &NotificationErrHandlerResponse{
 		StatusCode: http.StatusOK,
 		Skip:       false,
@@ -452,21 +452,7 @@ func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hoo
 		}
 	}
 
-	return getEncounteredError(nonFatalErrors)
-}
-
-func getEncounteredError(errs []error) error {
-	var finalErr error
-	for i := 0; i < len(errs); i++ {
-		if finalErr == nil {
-			finalErr = errs[i]
-
-			continue
-		}
-		finalErr = fmt.Errorf("%w, %w", finalErr, errs[i])
-	}
-
-	return finalErr
+	return errors.Join(nonFatalErrors...)
 }
 
 var ErrFailedToAttachHookToMessage = errors.New("could not attach hooks to message")
@@ -682,6 +668,26 @@ func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte(challenge))
 	})
+}
+
+// HandlerFunc handles the verification request.
+func (verifier SubscriptionVerifier) HandlerFunc(writer http.ResponseWriter, request *http.Request) {
+	q := request.URL.Query()
+	mode := q.Get("hub.mode")
+	challenge := q.Get("hub.challenge")
+	token := q.Get("hub.verify_token")
+	if err := verifier(request.Context(), &VerificationRequest{
+		Mode:      mode,
+		Challenge: challenge,
+		Token:     token,
+	}); err != nil {
+		writer.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write([]byte(challenge))
 }
 
 // ValidateSignature validates the signature of the payload. All Event Notification payloads are signed

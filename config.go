@@ -17,49 +17,34 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package http
+package whatsapp
 
 import (
 	"context"
-	"io"
-	"net/http"
-	"net/http/httputil"
-	"os"
-	"strings"
 )
 
-type DebugFunc func(io.Writer) Hook
-
-// DebugHook is a hook that prints the request and response to the writer, Internally it uses
-// httputil.DumpRequestOut and httputil.DumpResponse to dump the request and response. It also
-// retrieves the request name from the context using RequestNameFromContext and print it with
-// the request and response.
-func DebugHook(writer io.Writer) Hook {
-	return func(ctx context.Context, req *http.Request, resp *http.Response) {
-		var buff strings.Builder
-		name := strings.ToUpper(RequestNameFromContext(ctx))
-		buff.WriteString(name)
-		buff.WriteString("\n")
-		if req != nil {
-			b, err := httputil.DumpRequestOut(req, true)
-			if err == nil {
-				buff.Write(b)
-				buff.WriteString("\n")
-			}
-		}
-
-		if resp != nil {
-			b, err := httputil.DumpResponse(resp, true)
-			if err == nil {
-				buff.Write(b)
-				buff.WriteString("\n")
-			}
-		}
-
-		if writer == nil {
-			_, _ = os.Stdout.Write([]byte(buff.String()))
-		}
-
-		_, _ = writer.Write([]byte(buff.String()))
+type (
+	// Config is a struct that holds the configuration for the whatsapp client.
+	// It is used to create a new whatsapp client.
+	Config struct {
+		BaseURL           string
+		Version           string
+		AccessToken       string
+		PhoneNumberID     string
+		BusinessAccountID string
 	}
+
+	// ConfigReader is an interface that can be used to read the configuration
+	// from a file or any other source.
+	ConfigReader interface {
+		Read(ctx context.Context) (*Config, error)
+	}
+
+	// ConfigReaderFunc is a function that implements the ConfigReader interface.
+	ConfigReaderFunc func(ctx context.Context) (*Config, error)
+)
+
+// Read implements the ConfigReader interface.
+func (fn ConfigReaderFunc) Read(ctx context.Context) (*Config, error) {
+	return fn(ctx)
 }
