@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"net/http"
 
-	whttp "github.com/piusalfred/whatsapp/http"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
 ////// PHONE NUMBERS

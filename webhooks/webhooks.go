@@ -32,8 +32,8 @@ import (
 	"net/http"
 	"strings"
 
-	werrors "github.com/piusalfred/whatsapp/errors"
-	"github.com/piusalfred/whatsapp/models"
+	werrors "github.com/piusalfred/whatsapp/pkg/errors"
+	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 // PayloadMaxSize is the maximum size of the payload that can be sent to the webhook.

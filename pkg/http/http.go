@@ -31,7 +31,7 @@ import (
 	"net/url"
 	"strings"
 
-	werrors "github.com/piusalfred/whatsapp/errors"
+	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
 
 const (

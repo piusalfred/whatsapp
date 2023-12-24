@@ -20,8 +20,8 @@
 package webhooks
 
 import (
-	werrors "github.com/piusalfred/whatsapp/errors"
-	"github.com/piusalfred/whatsapp/models"
+	werrors "github.com/piusalfred/whatsapp/pkg/errors"
+	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 type (

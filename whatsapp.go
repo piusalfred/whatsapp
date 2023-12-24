@@ -29,8 +29,8 @@ import (
 	"strings"
 	"time"
 
-	whttp "github.com/piusalfred/whatsapp/http"
-	"github.com/piusalfred/whatsapp/models"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
+	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
 var (

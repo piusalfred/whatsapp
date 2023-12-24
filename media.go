@@ -31,7 +31,7 @@ import (
 	"net/textproto"
 	"path/filepath"
 
-	whttp "github.com/piusalfred/whatsapp/http"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
 type (
