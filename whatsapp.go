@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 	"time"
 
@@ -238,10 +237,6 @@ type (
 	}
 
 	SendTemplateRequest struct {
-		BaseURL                string
-		AccessToken            string
-		PhoneNumberID          string
-		ApiVersion             string //nolint: revive,stylecheck
 		Recipient              string
 		TemplateLanguageCode   string
 		TemplateLanguagePolicy string
@@ -302,18 +297,14 @@ type (
 	}
 
 	SendMediaRequest struct {
-		BaseURL       string
-		AccessToken   string
-		PhoneNumberID string
-		ApiVersion    string //nolint: revive,stylecheck
-		Recipient     string
-		Type          MediaType
-		MediaID       string
-		MediaLink     string
-		Caption       string
-		Filename      string
-		Provider      string
-		CacheOptions  *CacheOptions
+		Recipient    string
+		Type         MediaType
+		MediaID      string
+		MediaLink    string
+		Caption      string
+		Filename     string
+		Provider     string
+		CacheOptions *CacheOptions
 	}
 )
 
@@ -526,18 +517,12 @@ func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, r
 
 	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeMediaTemplate, MessageEndpoint)
 
-	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
-		whttp.WithPayload(payload),
-		whttp.WithBearer(client.config.AccessToken),
-	)
-
-	var message ResponseMessage
-	err := client.bc.base.Do(ctx, params, &message)
+	response, err := client.bc.Send(ctx, reqCtx, payload)
 	if err != nil {
-		return nil, fmt.Errorf("client: send media template: %w", err)
+		return nil, err
 	}
 
-	return &message, nil
+	return response, nil
 }
 
 // SendTextTemplate sends a text template message to the recipient. This kind of template message has a text
@@ -618,53 +603,22 @@ func (client *Client) SendMedia(ctx context.Context, recipient string, req *Medi
 	cacheOptions *CacheOptions,
 ) (*ResponseMessage, error) {
 	request := &SendMediaRequest{
-		BaseURL:       client.config.BaseURL,
-		AccessToken:   client.config.AccessToken,
-		PhoneNumberID: client.config.PhoneNumberID,
-		ApiVersion:    client.config.Version,
-		Recipient:     recipient,
-		Type:          req.Type,
-		MediaID:       req.MediaID,
-		MediaLink:     req.MediaLink,
-		Caption:       req.Caption,
-		Filename:      req.Filename,
-		Provider:      req.Provider,
-		CacheOptions:  cacheOptions,
+		Recipient:    recipient,
+		Type:         req.Type,
+		MediaID:      req.MediaID,
+		MediaLink:    req.MediaLink,
+		Caption:      req.Caption,
+		Filename:     req.Filename,
+		Provider:     req.Provider,
+		CacheOptions: cacheOptions,
 	}
 
-	payload, err := formatMediaPayload(request)
+	response, err := client.bc.SendMedia(ctx, client.config, request)
 	if err != nil {
 		return nil, err
 	}
 
-	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeMedia, MessageEndpoint)
-
-	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
-		whttp.WithBearer(request.AccessToken),
-		whttp.WithPayload(payload))
-
-	if request.CacheOptions != nil {
-		if request.CacheOptions.CacheControl != "" {
-			params.Headers["Cache-Control"] = request.CacheOptions.CacheControl
-		} else if request.CacheOptions.Expires > 0 {
-			params.Headers["Cache-Control"] = fmt.Sprintf("max-age=%d", request.CacheOptions.Expires)
-		}
-		if request.CacheOptions.LastModified != "" {
-			params.Headers["Last-Modified"] = request.CacheOptions.LastModified
-		}
-		if request.CacheOptions.ETag != "" {
-			params.Headers["ETag"] = request.CacheOptions.ETag
-		}
-	}
-
-	var message ResponseMessage
-
-	err = client.bc.base.Do(ctx, params, &message)
-	if err != nil {
-		return nil, fmt.Errorf("send media: %w", err)
-	}
-
-	return &message, nil
+	return response, nil
 }
 
 // SendInteractiveTemplate send an interactive template message which contains some buttons for user interaction.
@@ -685,7 +639,7 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 		Code:   req.LanguageCode,
 	}
 	template := models.NewInteractiveTemplate(req.Name, tmpLanguage, req.Headers, req.Body, req.Buttons)
-	payload := &models.Message{
+	message := &models.Message{
 		Product:       MessagingProduct,
 		To:            recipient,
 		RecipientType: RecipientTypeIndividual,
@@ -693,18 +647,13 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 		Template:      template,
 	}
 	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeInteractiveTemplate, MessageEndpoint)
-	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
-		whttp.WithBearer(client.config.AccessToken),
-		whttp.WithPayload(payload))
 
-	var message ResponseMessage
-
-	err := client.bc.base.Do(ctx, params, &message)
+	response, err := client.bc.Send(ctx, reqCtx, message)
 	if err != nil {
-		return nil, fmt.Errorf("send template: %w", err)
+		return nil, err
 	}
 
-	return &message, nil
+	return response, nil
 }
 
 // Whatsapp is an interface that represents a whatsapp client.
@@ -719,331 +668,3 @@ type Whatsapp interface {
 }
 
 var _ Whatsapp = (*Client)(nil)
-
-type (
-	// BaseClient wraps the http client only and is used to make requests to the whatsapp api,
-	// It does not have the context. This is idealy for making requests to the whatsapp api for
-	// different users. The Client struct is used to make requests to the whatsapp api for a
-	// single user.
-	BaseClient struct {
-		base *whttp.Client
-		mw   []SendMiddleware
-	}
-
-	// BaseClientOption is a function that implements the BaseClientOption interface.
-	BaseClientOption func(*BaseClient)
-)
-
-// WithBaseClientMiddleware adds a middleware to the base client.
-func WithBaseClientMiddleware(mw ...SendMiddleware) BaseClientOption {
-	return func(client *BaseClient) {
-		client.mw = append(client.mw, mw...)
-	}
-}
-
-// WithBaseHTTPClient sets the http client for the base client.
-func WithBaseHTTPClient(httpClient *whttp.Client) BaseClientOption {
-	return func(client *BaseClient) {
-		client.base = httpClient
-	}
-}
-
-// NewBaseClient creates a new base client.
-func NewBaseClient(options ...BaseClientOption) *BaseClient {
-	b := &BaseClient{base: whttp.NewClient()}
-
-	for _, option := range options {
-		option(b)
-	}
-
-	return b
-}
-
-func (c *BaseClient) SendTemplate(ctx context.Context, req *SendTemplateRequest,
-) (*ResponseMessage, error) {
-	template := &models.Message{
-		Product:       MessagingProduct,
-		To:            req.Recipient,
-		RecipientType: RecipientTypeIndividual,
-		Type:          models.MessageTypeTemplate,
-		Template: &models.Template{
-			Language: &models.TemplateLanguage{
-				Code:   req.TemplateLanguageCode,
-				Policy: req.TemplateLanguagePolicy,
-			},
-			Name:       req.TemplateName,
-			Components: req.TemplateComponents,
-		},
-	}
-	reqCtx := &whttp.RequestContext{
-		RequestType:   whttp.RequestTypeTemplate,
-		BaseURL:       req.BaseURL,
-		ApiVersion:    req.ApiVersion,
-		PhoneNumberID: req.PhoneNumberID,
-		Endpoints:     []string{"messages"},
-	}
-	params := &whttp.Request{
-		Method:  http.MethodPost,
-		Payload: template,
-		Context: reqCtx,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: req.AccessToken,
-	}
-	var message ResponseMessage
-	err := c.base.Do(ctx, params, &message)
-	if err != nil {
-		return nil, fmt.Errorf("send template: %w", err)
-	}
-
-	return &message, nil
-}
-
-/*
-SendMedia sends a media message to the recipient. To send a media message, make a POST call to the
-/PHONE_NUMBER_ID/messages endpoint with type parameter set to audio, document, image, sticker, or
-video, and the corresponding information for the media type such as its ID or
-link (see MediaInformation http Caching).
-
-Be sure to keep the following in mind:
-  - Uploaded media only lasts thirty days
-  - Generated download URLs only last five minutes
-  - Always save the media ID when you upload a file
-
-Here’s a list of the currently supported media types. Check out Supported Media Types for more information.
-  - Audio (<16 MB) – ACC, MP4, MPEG, AMR, and OGG formats
-  - Documents (<100 MB) – text, PDF, Office, and OpenOffice formats
-  - Images (<5 MB) – JPEG and PNG formats
-  - Video (<16 MB) – MP4 and 3GP formats
-  - Stickers (<100 KB) – WebP format
-
-Sample request using image with link:
-
-	curl -X  POST \
-	 'https://graph.facebook.com/v15.0/FROM-PHONE-NUMBER-ID/messages' \
-	 -H 'Authorization: Bearer ACCESS_TOKEN' \
-	 -H 'Content-Type: application/json' \
-	 -d '{
-	  "messaging_product": "whatsapp",
-	  "recipient_type": "individual",
-	  "to": "PHONE-NUMBER",
-	  "type": "image",
-	  "image": {
-	    "link" : "https://IMAGE_URL"
-	  }
-	}'
-
-Sample request using media ID:
-
-	curl -X  POST \
-	 'https://graph.facebook.com/v15.0/FROM-PHONE-NUMBER-ID/messages' \
-	 -H 'Authorization: Bearer ACCESS_TOKEN' \
-	 -H 'Content-Type: application/json' \
-	 -d '{
-	  "messaging_product": "whatsapp",
-	  "recipient_type": "individual",
-	  "to": "PHONE-NUMBER",
-	  "type": "image",
-	  "image": {
-	    "id" : "MEDIA-OBJECT-ID"
-	  }
-	}'
-
-A successful Resp includes an object with an identifier prefixed with wamid. If you are using a link to
-send the media, please check the callback events delivered to your Webhook server whether the media has been
-downloaded successfully.
-
-	{
-	  "messaging_product": "whatsapp",
-	  "contacts": [{
-	      "input": "PHONE_NUMBER",
-	      "wa_id": "WHATSAPP_ID",
-	    }]
-	  "messages": [{
-	      "id": "wamid.ID",
-	    }]
-	}
-*/
-func (c *BaseClient) SendMedia(ctx context.Context, req *SendMediaRequest,
-) (*ResponseMessage, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request is nil: %w", ErrBadRequestFormat)
-	}
-
-	payload, err := formatMediaPayload(req)
-	if err != nil {
-		return nil, err
-	}
-
-	reqCtx := whttp.MakeRequestContext(&config.Values{
-		BaseURL:       req.BaseURL,
-		Version:       req.ApiVersion,
-		AccessToken:   req.AccessToken,
-		PhoneNumberID: req.PhoneNumberID,
-	}, whttp.RequestTypeMedia, MessageEndpoint)
-
-	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
-		whttp.WithBearer(req.AccessToken), whttp.WithPayload(payload))
-
-	if req.CacheOptions != nil {
-		if req.CacheOptions.CacheControl != "" {
-			params.Headers["Cache-Control"] = req.CacheOptions.CacheControl
-		} else if req.CacheOptions.Expires > 0 {
-			params.Headers["Cache-Control"] = fmt.Sprintf("max-age=%d", req.CacheOptions.Expires)
-		}
-		if req.CacheOptions.LastModified != "" {
-			params.Headers["Last-Modified"] = req.CacheOptions.LastModified
-		}
-		if req.CacheOptions.ETag != "" {
-			params.Headers["ETag"] = req.CacheOptions.ETag
-		}
-	}
-
-	var message ResponseMessage
-
-	err = c.base.Do(ctx, params, &message)
-	if err != nil {
-		return nil, fmt.Errorf("send media: %w", err)
-	}
-
-	return &message, nil
-}
-
-// formatMediaPayload builds the payload for a media message. It accepts SendMediaOptions
-// and returns a byte array and an error. This function is used internally by SendMedia.
-// if neither ID nor Link is specified, it returns an error.
-func formatMediaPayload(options *SendMediaRequest) ([]byte, error) {
-	media := &models.Media{
-		ID:       options.MediaID,
-		Link:     options.MediaLink,
-		Caption:  options.Caption,
-		Filename: options.Filename,
-		Provider: options.Provider,
-	}
-	mediaJSON, err := json.Marshal(media)
-	if err != nil {
-		return nil, fmt.Errorf("format media payload: %w", err)
-	}
-	recipient := options.Recipient
-	mediaType := string(options.Type)
-	payloadBuilder := strings.Builder{}
-	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","recipient_type":"individual","to":"`)
-	payloadBuilder.WriteString(recipient)
-	payloadBuilder.WriteString(`","type": "`)
-	payloadBuilder.WriteString(mediaType)
-	payloadBuilder.WriteString(`","`)
-	payloadBuilder.WriteString(mediaType)
-	payloadBuilder.WriteString(`":`)
-	payloadBuilder.Write(mediaJSON)
-	payloadBuilder.WriteString(`}`)
-
-	return []byte(payloadBuilder.String()), nil
-}
-
-func (c *BaseClient) Send(ctx context.Context, req *whttp.RequestContext,
-	message *models.Message,
-) (*ResponseMessage, error) {
-	fs := WrapSender(SenderFunc(c.send), c.mw...)
-
-	resp, err := fs.Send(ctx, req, message)
-	if err != nil {
-		return nil, fmt.Errorf("base client: %s: %w", req.RequestType, err)
-	}
-
-	return resp, nil
-}
-
-func (c *BaseClient) send(ctx context.Context, req *whttp.RequestContext,
-	msg *models.Message,
-) (*ResponseMessage, error) {
-	request := whttp.MakeRequest(
-		whttp.WithRequestContext(req),
-		whttp.WithBearer(req.Bearer),
-		whttp.WithPayload(msg))
-
-	var resp ResponseMessage
-	err := c.base.Do(ctx, request, &resp)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", req.RequestType, err)
-	}
-
-	return &resp, nil
-}
-
-func (c *BaseClient) MarkMessageRead(ctx context.Context, req *whttp.RequestContext,
-	messageID string,
-) (*StatusResponse, error) {
-	reqBody := &MessageStatusUpdateRequest{
-		MessagingProduct: MessagingProduct,
-		Status:           MessageStatusRead,
-		MessageID:        messageID,
-	}
-
-	params := whttp.MakeRequest(
-		whttp.WithRequestContext(req),
-		whttp.WithBearer(req.Bearer),
-		whttp.WithPayload(reqBody),
-	)
-
-	var success StatusResponse
-	err := c.base.Do(ctx, params, &success)
-	if err != nil {
-		return nil, fmt.Errorf("mark message read: %w", err)
-	}
-
-	return &success, nil
-}
-
-var _ Sender = (*BaseClient)(nil)
-
-// Sender is an interface that represents a sender of a message.
-type Sender interface {
-	Send(ctx context.Context, req *whttp.RequestContext, message *models.Message) (*ResponseMessage, error)
-}
-
-// SenderFunc is a function that implements the Sender interface.
-type SenderFunc func(ctx context.Context, req *whttp.RequestContext,
-	message *models.Message) (*ResponseMessage, error)
-
-// Send calls the function that implements the Sender interface.
-func (f SenderFunc) Send(ctx context.Context, req *whttp.RequestContext,
-	message *models.Message) (*ResponseMessage,
-	error,
-) {
-	return f(ctx, req, message)
-}
-
-// SendMiddleware that takes a Sender and returns a new Sender that will wrap the original
-// Sender and execute the middleware function before sending the message.
-type SendMiddleware func(Sender) Sender
-
-// WrapSender wraps a Sender with a SendMiddleware.
-func WrapSender(sender Sender, middleware ...SendMiddleware) Sender {
-	// iterate backwards so that the middleware is executed in the right order
-	for i := len(middleware) - 1; i >= 0; i-- {
-		sender = middleware[i](sender)
-	}
-
-	return sender
-}
-
-// TransparentClient is a client that can send messages to a recipient without knowing the configuration of the client.
-// It uses Sender instead of already configured clients. It is ideal for having a client for different environments.
-type TransparentClient struct {
-	Middlewares []SendMiddleware
-}
-
-// Send sends a message to the recipient.
-func (client *TransparentClient) Send(ctx context.Context, sender Sender,
-	req *whttp.RequestContext, message *models.Message, mw ...SendMiddleware,
-) (*ResponseMessage, error) {
-	s := WrapSender(WrapSender(sender, client.Middlewares...), mw...)
-
-	response, err := s.Send(ctx, req, message)
-	if err != nil {
-		return nil, fmt.Errorf("transparent client: %w", err)
-	}
-
-	return response, nil
-}

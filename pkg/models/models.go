@@ -19,13 +19,6 @@
 
 package models
 
-const (
-	InteractiveMessageButton      = "button"
-	InteractiveMessageList        = "list"
-	InteractiveMessageProduct     = "product"
-	InteractiveMessageProductList = "product_list"
-)
-
 type (
 	Reaction struct {
 		MessageID string `json:"message_id"`

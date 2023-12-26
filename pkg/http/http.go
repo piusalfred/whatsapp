@@ -663,7 +663,7 @@ func attachRequestType(ctx context.Context, name RequestType) context.Context {
 func RequestTypeFromContext(ctx context.Context) string {
 	rt, ok := ctx.Value(requestTypeKey(requestTypeValue)).(RequestType)
 	if !ok {
-		return "unknown request name"
+		return ""
 	}
 
 	return rt.String()

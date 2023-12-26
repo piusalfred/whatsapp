@@ -19,12 +19,16 @@
 
 package models
 
+const (
+	InteractiveMessageReplyButton = "button"
+	InteractiveMessageList        = "list"
+	InteractiveMessageProduct     = "product"
+	InteractiveMessageProductList = "product_list"
+	InteractiveMessageCTAButton   = "cta_url"
+)
+
 type (
-	// InteractiveMessage is the type of interactive message you want to send. Supported values are:
-	// 	- button: Use it for Reply Buttons.
-	// 	- list: Use it for ListQR Messages.
-	// 	- product: Use for Single Product Messages.
-	// 	- product_list: Use for Multi-Product Messages.
+	// InteractiveMessage is the type of interactive message you want to send.
 	InteractiveMessage string
 
 	// InteractiveButton contains information about a button in an interactive message.
@@ -121,11 +125,13 @@ type (
 	//	- Sections, sections (array of objects) Required for ListQR Messages and Multi-Product Messages. Array of
 	//	  section objects. Minimum of 1, maximum of 10. See InteractiveSection object.
 	InteractiveAction struct {
-		Button            string                `json:"button,omitempty"`
-		Buttons           []*InteractiveButton  `json:"buttons,omitempty"`
-		CatalogID         string                `json:"catalog_id,omitempty"`
-		ProductRetailerID string                `json:"product_retailer_id,omitempty"`
-		Sections          []*InteractiveSection `json:"sections,omitempty"`
+		Name              string                       `json:"name,omitempty"`
+		Parameters        *InteractiveActionParameters `json:"parameters,omitempty"`
+		Button            string                       `json:"button,omitempty"`
+		Buttons           []*InteractiveButton         `json:"buttons,omitempty"`
+		CatalogID         string                       `json:"catalog_id,omitempty"`
+		ProductRetailerID string                       `json:"product_retailer_id,omitempty"`
+		Sections          []*InteractiveSection        `json:"sections,omitempty"`
 	}
 
 	// InteractiveHeader contains information about an interactive header.
@@ -191,6 +197,16 @@ type (
 		Body   *InteractiveBody   `json:"body,omitempty"`
 		Footer *InteractiveFooter `json:"footer,omitempty"`
 		Header *InteractiveHeader `json:"header,omitempty"`
+	}
+
+	// "parameters": {
+	//        "display_text": "<BUTTON_TEXT>",
+	//        "url": "<BUTTON_URL>"
+	//      }
+
+	InteractiveActionParameters struct {
+		URL         string `json:"url,omitempty"`
+		DisplayText string `json:"display_text,omitempty"`
 	}
 
 	InteractiveOption func(*Interactive)
@@ -274,5 +290,29 @@ func InteractiveHeaderDocument(document *Media) *InteractiveHeader {
 	return &InteractiveHeader{
 		Type:     "document",
 		Document: document,
+	}
+}
+
+type CTAButtonURLParameters struct {
+	DisplayText string
+	URL         string
+	Body        string
+	Footer      string
+	Header      string
+}
+
+func NewInteractiveCTAURLButton(parameters *CTAButtonURLParameters) *Interactive {
+	return &Interactive{
+		Type: InteractiveMessageCTAButton,
+		Action: &InteractiveAction{
+			Name: InteractiveMessageCTAButton,
+			Parameters: &InteractiveActionParameters{
+				URL:         parameters.URL,
+				DisplayText: parameters.DisplayText,
+			},
+		},
+		Body:   &InteractiveBody{Text: parameters.Body},
+		Footer: &InteractiveFooter{Text: parameters.Footer},
+		Header: InteractiveHeaderText(parameters.Header),
 	}
 }
