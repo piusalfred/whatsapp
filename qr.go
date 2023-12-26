@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/piusalfred/whatsapp/pkg/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
@@ -71,7 +72,7 @@ func (c *BaseClient) CreateQR(ctx context.Context, rtx *whttp.RequestContext,
 		"access_token":      rtx.Bearer,
 	}
 	reqCtx := &whttp.RequestContext{
-		Name:          "create qr code",
+		RequestType:   "create qr code",
 		BaseURL:       rtx.BaseURL,
 		ApiVersion:    rtx.ApiVersion,
 		PhoneNumberID: rtx.PhoneNumberID,
@@ -95,7 +96,7 @@ func (c *BaseClient) CreateQR(ctx context.Context, rtx *whttp.RequestContext,
 
 func (c *BaseClient) ListQR(ctx context.Context, request *RequestContext) (*ListResponse, error) {
 	reqCtx := &whttp.RequestContext{
-		Name:          "list qr codes",
+		RequestType:   "list qr codes",
 		BaseURL:       request.BaseURL,
 		ApiVersion:    request.ApiVersion,
 		PhoneNumberID: request.PhoneID,
@@ -132,19 +133,17 @@ func (c *BaseClient) Get(ctx context.Context, request *whttp.RequestContext, qrC
 		list ListResponse
 		resp Information
 	)
-	reqCtx := &whttp.RequestContext{
-		Name:          "get qr code",
-		BaseURL:       request.BaseURL,
-		ApiVersion:    request.ApiVersion,
-		PhoneNumberID: request.PhoneNumberID,
-		Endpoints:     []string{"message_qrdls", qrCodeID},
-	}
 
-	req := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodGet,
-		Query:   map[string]string{"access_token": request.Bearer},
-	}
+	reqCtx := whttp.MakeRequestContext(&config.Values{
+		BaseURL:       request.BaseURL,
+		Version:       request.ApiVersion,
+		PhoneNumberID: request.PhoneNumberID,
+	}, whttp.RequestTypeGetQRCode, "message_qrdls", qrCodeID)
+
+	req := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithMethod(http.MethodGet),
+		whttp.WithQuery(map[string]string{"access_token": request.Bearer}),
+	)
 
 	err := c.base.Do(ctx, req, &list)
 	if err != nil {
@@ -163,13 +162,11 @@ func (c *BaseClient) Get(ctx context.Context, request *whttp.RequestContext, qrC
 func (c *BaseClient) UpdateQR(ctx context.Context, rtx *whttp.RequestContext, qrCodeID string,
 	req *CreateRequest) (*SuccessResponse, error,
 ) {
-	reqCtx := &whttp.RequestContext{
-		Name:          "update qr code",
+	reqCtx := whttp.MakeRequestContext(&config.Values{
 		BaseURL:       rtx.BaseURL,
-		ApiVersion:    rtx.ApiVersion,
+		Version:       rtx.ApiVersion,
 		PhoneNumberID: rtx.PhoneNumberID,
-		Endpoints:     []string{"message_qrdls", qrCodeID},
-	}
+	}, whttp.RequestTypeUpdateQRCode, "message_qrdls", qrCodeID)
 
 	request := &whttp.Request{
 		Context: reqCtx,
@@ -193,7 +190,7 @@ func (c *BaseClient) UpdateQR(ctx context.Context, rtx *whttp.RequestContext, qr
 func (c *BaseClient) DeleteQR(ctx context.Context, rtx *whttp.RequestContext, qrCodeID string,
 ) (*SuccessResponse, error) {
 	reqCtx := &whttp.RequestContext{
-		Name:          "delete qr code",
+		RequestType:   "delete qr code",
 		BaseURL:       rtx.BaseURL,
 		ApiVersion:    rtx.ApiVersion,
 		PhoneNumberID: rtx.PhoneNumberID,

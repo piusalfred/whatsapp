@@ -75,10 +75,10 @@ type (
 // GetMediaInformation retrieve the media object by using its corresponding media ID.
 func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (*MediaInformation, error) {
 	reqCtx := &whttp.RequestContext{
-		Name:       "get media",
-		BaseURL:    client.config.BaseURL,
-		ApiVersion: client.config.Version,
-		Endpoints:  []string{mediaID},
+		RequestType: "get media",
+		BaseURL:     client.config.BaseURL,
+		ApiVersion:  client.config.Version,
+		Endpoints:   []string{mediaID},
 	}
 
 	params := &whttp.Request{
@@ -101,10 +101,10 @@ func (client *Client) GetMediaInformation(ctx context.Context, mediaID string) (
 // DeleteMedia delete the media by using its corresponding media ID.
 func (client *Client) DeleteMedia(ctx context.Context, mediaID string) (*DeleteMediaResponse, error) {
 	reqCtx := &whttp.RequestContext{
-		Name:       "delete media",
-		BaseURL:    client.config.BaseURL,
-		ApiVersion: client.config.Version,
-		Endpoints:  []string{mediaID},
+		RequestType: "delete media",
+		BaseURL:     client.config.BaseURL,
+		ApiVersion:  client.config.Version,
+		Endpoints:   []string{mediaID},
 	}
 
 	params := &whttp.Request{
@@ -133,10 +133,10 @@ func (client *Client) UploadMedia(ctx context.Context, mediaType MediaType, file
 	}
 
 	reqCtx := &whttp.RequestContext{
-		Name:       "upload media",
-		BaseURL:    client.config.BaseURL,
-		ApiVersion: client.config.Version,
-		Endpoints:  []string{client.config.PhoneNumberID, "media"},
+		RequestType: "upload media",
+		BaseURL:     client.config.BaseURL,
+		ApiVersion:  client.config.Version,
+		Endpoints:   []string{client.config.PhoneNumberID, "media"},
 	}
 
 	params := &whttp.Request{
@@ -200,7 +200,7 @@ func (client *Client) DownloadMedia(ctx context.Context, mediaID string, retries
 
 		request := whttp.MakeRequest(
 			whttp.WithRequestContext(&whttp.RequestContext{
-				Name:              "download media",
+				RequestType:       "download media",
 				BaseURL:           media.URL,
 				ApiVersion:        client.config.Version,
 				PhoneNumberID:     client.config.PhoneNumberID,
@@ -208,7 +208,7 @@ func (client *Client) DownloadMedia(ctx context.Context, mediaID string, retries
 				BusinessAccountID: "",
 				Endpoints:         nil,
 			}),
-			whttp.WithRequestName("download media"),
+			whttp.WithRequestType("download media"),
 			whttp.WithMethod(http.MethodGet),
 			whttp.WithBearer(client.config.AccessToken))
 		decoder := &DownloadResponseDecoder{}

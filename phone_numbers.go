@@ -91,23 +91,14 @@ type (
 func (client *Client) RequestVerificationCode(ctx context.Context,
 	codeMethod VerificationMethod, language string,
 ) error {
-	reqCtx := &whttp.RequestContext{
-		Name:          "request code",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Endpoints:     []string{"request_code"},
-	}
+	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeRequestCode, "request_code")
 
-	params := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
-		Query:   nil,
-		Bearer:  client.config.AccessToken,
-		Form:    map[string]string{"code_method": string(codeMethod), "language": language},
-		Payload: nil,
-	}
+	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithBearer(client.config.AccessToken),
+		whttp.WithHeaders(map[string]string{"Content-Type": "application/x-www-form-urlencoded"}),
+		whttp.WithForm(map[string]string{"code_method": string(codeMethod), "language": language}),
+	)
+
 	err := client.bc.base.Do(ctx, params, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
@@ -118,21 +109,13 @@ func (client *Client) RequestVerificationCode(ctx context.Context,
 
 // VerifyCode should be run to verify the code retrieved by RequestVerificationCode.
 func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusResponse, error) {
-	reqCtx := &whttp.RequestContext{
-		Name:          "verify code",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Endpoints:     []string{"verify_code"},
-	}
-	params := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
-		Query:   nil,
-		Bearer:  client.config.AccessToken,
-		Form:    map[string]string{"code": code},
-	}
+	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeVerifyCode, "verify_code")
+
+	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithBearer(client.config.AccessToken),
+		whttp.WithHeaders(map[string]string{"Content-Type": "application/x-www-form-urlencoded"}),
+		whttp.WithForm(map[string]string{"code": code}),
+	)
 
 	var resp StatusResponse
 	err := client.bc.base.Do(ctx, params, &resp)
@@ -209,28 +192,25 @@ func (client *Client) VerifyCode(ctx context.Context, code string) (*StatusRespo
 //	   }
 //	}
 func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterParams) (*PhoneNumbersList, error) {
-	reqCtx := &whttp.RequestContext{
-		Name:          "list phone numbers",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.BusinessAccountID,
-		Endpoints:     []string{"phone_numbers"},
-	}
+	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeListPhoneNumbers, "phone_numbers")
 
-	params := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodGet,
-		Query:   map[string]string{"access_token": client.config.AccessToken},
-	}
+	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithMethod(http.MethodGet),
+		whttp.WithQuery(map[string]string{"access_token": client.config.AccessToken}),
+	)
+
 	if filters != nil {
 		p := filters
 		jsonParams, err := json.Marshal(p)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal filter params: %w", err)
 		}
+
 		params.Query["filtering"] = string(jsonParams)
 	}
+
 	var phoneNumbersList PhoneNumbersList
+
 	err := client.bc.base.Do(ctx, params, &phoneNumbersList)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
@@ -242,19 +222,21 @@ func (client *Client) ListPhoneNumbers(ctx context.Context, filters []*FilterPar
 // PhoneNumberByID returns the phone number associated with the given ID.
 func (client *Client) PhoneNumberByID(ctx context.Context) (*PhoneNumber, error) {
 	reqCtx := &whttp.RequestContext{
-		Name:          "get phone number by id",
+		RequestType:   "get phone number by id",
 		BaseURL:       client.config.BaseURL,
 		ApiVersion:    client.config.Version,
 		PhoneNumberID: client.config.PhoneNumberID,
 	}
-	request := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodGet,
-		Headers: map[string]string{
+
+	request := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithMethod(http.MethodGet),
+		whttp.WithHeaders(map[string]string{
 			"Authorization": "Bearer " + client.config.AccessToken,
-		},
-	}
+		}),
+	)
+
 	var phoneNumber PhoneNumber
+
 	if err := client.bc.base.Do(ctx, request, &phoneNumber); err != nil {
 		return nil, fmt.Errorf("get phone muber by id: %w", err)
 	}

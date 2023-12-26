@@ -35,7 +35,7 @@ type (
 
 func LogRequestHook(logger *slog.Logger) RequestHook {
 	return func(ctx context.Context, request *http.Request) error {
-		name := RequestNameFromContext(ctx)
+		name := RequestTypeFromContext(ctx)
 		reader, err := request.GetBody()
 		if err != nil {
 			return fmt.Errorf("log request hook: %w", err)
@@ -61,7 +61,7 @@ func LogRequestHook(logger *slog.Logger) RequestHook {
 
 func LogResponseHook(logger *slog.Logger) ResponseHook {
 	return func(ctx context.Context, response *http.Response) error {
-		name := RequestNameFromContext(ctx)
+		name := RequestTypeFromContext(ctx)
 		reader := response.Body
 		buf := new(bytes.Buffer)
 		if _, err := buf.ReadFrom(reader); err != nil {

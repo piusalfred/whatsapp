@@ -87,7 +87,7 @@ func TestSend(t *testing.T) { //nolint:paralleltest
 	defer server.Close()
 
 	reqCtx := &RequestContext{
-		Name:          "test",
+		RequestType:   "test",
 		BaseURL:       server.URL,
 		ApiVersion:    "",
 		PhoneNumberID: "",
@@ -121,44 +121,6 @@ func TestSend(t *testing.T) { //nolint:paralleltest
 	}
 
 	t.Logf("user: %+v", user)
-}
-
-func TestRequestNameFromContext(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		name string
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{
-			name: "test request name from context",
-			args: args{
-				name: "test",
-			},
-			want: "test",
-		},
-		{
-			name: "test request name from context",
-			args: args{
-				name: "",
-			},
-			want: "",
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		args := tt.args
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := withRequestName(context.TODO(), args.name)
-			if got := RequestNameFromContext(ctx); got != tt.want {
-				t.Errorf("RequestNameFromContext() = %v, want %v", got, tt.want)
-			}
-		})
-	}
 }
 
 func Test_extractRequestBody(t *testing.T) {
@@ -309,4 +271,32 @@ func Test_extractRequestBody(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRequestTypeFromContext(t *testing.T) {
+	t.Parallel()
+	inputs := []RequestType{
+		RequestTypeTextMessage,
+		RequestTypeLocation,
+		RequestTypeMedia,
+		RequestTypeReply,
+		RequestTypeTemplate,
+		RequestTypeReact,
+		RequestTypeContacts,
+		RequestTypeInteractiveTemplate,
+		RequestTypeTextTemplate,
+		RequestTypeMediaTemplate,
+		RequestTypeMarkMessageRead,
+		RequestTypeInteractiveMessage,
+	}
+
+	t.Run("test assigning and retrieving request type", func(t *testing.T) {
+		t.Parallel()
+		for _, input := range inputs {
+			ctx := attachRequestType(context.TODO(), input)
+			if got := RequestTypeFromContext(ctx); ParseRequestType(got) != input {
+				t.Errorf("RequestTypeFromContext(\"%s\") = %v, want %v", input, got, input)
+			}
+		}
+	})
 }

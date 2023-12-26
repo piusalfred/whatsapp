@@ -17,34 +17,48 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package whatsapp
+package http
 
 import (
-	"context"
+	"log/slog"
+	"net/url"
 )
 
-type (
-	// Config is a struct that holds the configuration for the whatsapp client.
-	// It is used to create a new whatsapp client.
-	Config struct {
-		BaseURL           string
-		Version           string
-		AccessToken       string
-		PhoneNumberID     string
-		BusinessAccountID string
+func (request *Request) LogValue() slog.Value {
+	if request == nil {
+		return slog.StringValue("nil")
+	}
+	var reqURL string
+	if request.Context != nil {
+		reqURL, _ = url.JoinPath(request.Context.BaseURL, request.Context.Endpoints...)
 	}
 
-	// ConfigReader is an interface that can be used to read the configuration
-	// from a file or any other source.
-	ConfigReader interface {
-		Read(ctx context.Context) (*Config, error)
+	var metadataAttr []any
+
+	for key, value := range request.Metadata {
+		metadataAttr = append(metadataAttr, slog.String(key, value))
 	}
 
-	// ConfigReaderFunc is a function that implements the ConfigReader interface.
-	ConfigReaderFunc func(ctx context.Context) (*Config, error)
-)
+	var headersAttr []any
 
-// Read implements the ConfigReader interface.
-func (fn ConfigReaderFunc) Read(ctx context.Context) (*Config, error) {
-	return fn(ctx)
+	for key, value := range request.Headers {
+		headersAttr = append(headersAttr, slog.String(key, value))
+	}
+
+	var queryAttr []any
+
+	for key, value := range request.Query {
+		queryAttr = append(queryAttr, slog.String(key, value))
+	}
+
+	value := slog.GroupValue(
+		slog.String("type", request.Context.RequestType.String()),
+		slog.String("method", request.Method),
+		slog.String("url", reqURL),
+		slog.Group("metadata", metadataAttr...),
+		slog.Group("headers", headersAttr...),
+		slog.Group("query", queryAttr...),
+	)
+
+	return value
 }

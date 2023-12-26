@@ -29,8 +29,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
+	"github.com/piusalfred/whatsapp/pkg/config"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
 
@@ -69,15 +71,15 @@ func (client *Client) Close() error {
 // to create a new http request and send it to the server.
 // Example:
 //
-//	client := NewClient(
-//		WithHTTPClient(http.DefaultClient),
-//		WithRequestHooks(
-//			// Add your request hooks here
-//		),
-//		WithResponseHooks(
-//			// Add your response hooks here
-//		),
-//	)
+//		client := NewClient(
+//			WithHTTPClient(http.DefaultClient),
+//			WithRequestHooks(
+//				// Add your request hooks here
+//			),
+//			WithResponseHooks(
+//				// Add your response hooks here
+//			),
+//	 )
 func NewClient(options ...ClientOption) *Client {
 	client := &Client{
 		http:         http.DefaultClient,
@@ -194,7 +196,7 @@ func (client *Client) DoWithDecoder(ctx context.Context, r *Request, decoder Res
 		return fmt.Errorf("prepare request: %w", err)
 	}
 
-	response, err := client.http.Do(request)
+	response, err := client.http.Do(request) //nolint:bodyclose
 	if err != nil {
 		return fmt.Errorf("http send: %w", err)
 	}
@@ -220,12 +222,20 @@ func (client *Client) DoWithDecoder(ctx context.Context, r *Request, decoder Res
 
 	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	noctx, ok := decoder.(RawResponseDecoder)
+	rawResponseDecoder, ok := decoder.(RawResponseDecoder)
 	if ok {
-		return noctx(response)
+		if err := rawResponseDecoder(response); err != nil {
+			return fmt.Errorf("raw response decoder: %w", err)
+		}
+
+		return nil
 	}
 
-	return decoder.DecodeResponse(response, v)
+	if err := decoder.DecodeResponse(response, v); err != nil {
+		return fmt.Errorf("response decoder: %w", err)
+	}
+
+	return nil
 }
 
 var ErrRequestFailed = errors.New("request failed")
@@ -282,7 +292,7 @@ func runResponseHooks(ctx context.Context, response *http.Response, hooks ...Res
 
 func prepareRequest(ctx context.Context, r *Request, hooks ...RequestHook) (*http.Request, error) {
 	// create a new request, run hooks and return the request after restoring the body
-	ctx = withRequestName(ctx, r.Context.Name)
+	ctx = attachRequestType(ctx, r.Context.RequestType)
 
 	request, err := NewRequestWithContext(ctx, r)
 	if err != nil {
@@ -336,8 +346,10 @@ type (
 
 	RequestOption func(*Request)
 
+	RequestType string
+
 	RequestContext struct {
-		Name              string
+		RequestType       RequestType
 		BaseURL           string
 		ApiVersion        string //nolint: revive,stylecheck
 		PhoneNumberID     string
@@ -347,43 +359,78 @@ type (
 	}
 )
 
-func (request *Request) LogValue() slog.Value {
-	if request == nil {
-		return slog.StringValue("nil")
+// MakeRequestContext creates a new request context.
+func MakeRequestContext(config *config.Values, name RequestType, endpoints ...string) *RequestContext {
+	return &RequestContext{
+		RequestType:       name,
+		BaseURL:           config.BaseURL,
+		ApiVersion:        config.Version,
+		PhoneNumberID:     config.PhoneNumberID,
+		Bearer:            config.AccessToken,
+		BusinessAccountID: config.BusinessAccountID,
+		Endpoints:         endpoints,
 	}
-	var reqURL string
-	if request.Context != nil {
-		reqURL, _ = url.JoinPath(request.Context.BaseURL, request.Context.Endpoints...)
+}
+
+const (
+	RequestTypeTextMessage         RequestType = "text message"
+	RequestTypeLocation            RequestType = "location message"
+	RequestTypeMedia               RequestType = "media message"
+	RequestTypeReply               RequestType = "reply message"
+	RequestTypeTemplate            RequestType = "template message"
+	RequestTypeReact               RequestType = "react message"
+	RequestTypeContacts            RequestType = "contact message"
+	RequestTypeInteractiveTemplate RequestType = "interactive template message"
+	RequestTypeTextTemplate        RequestType = "text template message"
+	RequestTypeMediaTemplate       RequestType = "media template message"
+	RequestTypeMarkMessageRead     RequestType = "mark message read"
+	RequestTypeInteractiveMessage  RequestType = "interactive message"
+	RequestTypeRequestCode         RequestType = "request verification code"
+	RequestTypeVerifyCode          RequestType = "verify verification code"
+	RequestTypeListPhoneNumbers    RequestType = "list phone numbers"
+	RequestTypeCreateQRCode        RequestType = "create qr code"
+	RequestTypeDeleteQRCode        RequestType = "delete qr code"
+	RequestTypeListQRCodes         RequestType = "list qr codes"
+	RequestTypeUpdateQRCode        RequestType = "update qr code"
+	RequestTypeGetQRCode           RequestType = "get qr code"
+)
+
+// ParseRequestType parses the string representation of the request type into a RequestType.
+func ParseRequestType(name string) RequestType {
+	all := []string{
+		RequestTypeTextMessage.String(),
+		RequestTypeLocation.String(),
+		RequestTypeMedia.String(),
+		RequestTypeReply.String(),
+		RequestTypeTemplate.String(),
+		RequestTypeReact.String(),
+		RequestTypeContacts.String(),
+		RequestTypeInteractiveTemplate.String(),
+		RequestTypeTextTemplate.String(),
+		RequestTypeMediaTemplate.String(),
+		RequestTypeMarkMessageRead.String(),
+		RequestTypeInteractiveMessage.String(),
+		RequestTypeRequestCode.String(),
+		RequestTypeVerifyCode.String(),
+		RequestTypeListPhoneNumbers.String(),
+		RequestTypeCreateQRCode.String(),
+		RequestTypeDeleteQRCode.String(),
+		RequestTypeListQRCodes.String(),
+		RequestTypeUpdateQRCode.String(),
+		RequestTypeGetQRCode.String(),
 	}
 
-	var metadataAttr []any
-
-	for key, value := range request.Metadata {
-		metadataAttr = append(metadataAttr, slog.String(key, value))
+	index := slices.Index[[]string](all, name)
+	if index == -1 {
+		return ""
 	}
 
-	var headersAttr []any
+	return RequestType(all[index])
+}
 
-	for key, value := range request.Headers {
-		headersAttr = append(headersAttr, slog.String(key, value))
-	}
-
-	var queryAttr []any
-
-	for key, value := range request.Query {
-		queryAttr = append(queryAttr, slog.String(key, value))
-	}
-
-	value := slog.GroupValue(
-		slog.String("name", request.Context.Name),
-		slog.String("method", request.Method),
-		slog.String("url", reqURL),
-		slog.Group("metadata", metadataAttr...),
-		slog.Group("headers", headersAttr...),
-		slog.Group("query", queryAttr...),
-	)
-
-	return value
+// String returns the string representation of the request type.
+func (r RequestType) String() string {
+	return string(r)
 }
 
 func MakeRequest(options ...RequestOption) *Request {
@@ -417,9 +464,9 @@ func WithRequestContext(ctx *RequestContext) RequestOption {
 	}
 }
 
-func WithRequestName(name string) RequestOption {
+func WithRequestType(name RequestType) RequestOption {
 	return func(request *Request) {
-		request.Context.Name = name
+		request.Context.RequestType = name
 	}
 }
 
@@ -597,29 +644,29 @@ func extractRequestBody(payload interface{}) (io.Reader, error) {
 	}
 }
 
-// requestNameKey is a type that holds the name of a request. This is usually passed
-// extracted from Request.Context.Name and passed down to the Do function.
+// requestTypeKey is a type that holds the name of a request. This is usually passed
+// extracted from Request.Context.RequestType and passed down to the Do function.
 // then passed down with to the request hooks. In request hooks, the name can be
 // used to identify the request and other multiple use cases like instrumentation,
 // logging etc.
-type requestNameKey string
+type requestTypeKey string
 
-const requestNameValue = "request-name"
+const requestTypeValue = "request-name"
 
-// withRequestName takes a string and a context and returns a new context with the string
+// attachRequestType takes a string and a context and returns a new context with the string
 // as the request name.
-func withRequestName(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, requestNameKey(requestNameValue), name)
+func attachRequestType(ctx context.Context, name RequestType) context.Context {
+	return context.WithValue(ctx, requestTypeKey(requestTypeValue), name)
 }
 
-// RequestNameFromContext returns the request name from the context.
-func RequestNameFromContext(ctx context.Context) string {
-	name, ok := ctx.Value(requestNameKey(requestNameValue)).(string)
+// RequestTypeFromContext returns the request name from the context.
+func RequestTypeFromContext(ctx context.Context) string {
+	rt, ok := ctx.Value(requestTypeKey(requestTypeValue)).(RequestType)
 	if !ok {
 		return "unknown request name"
 	}
 
-	return name
+	return rt.String()
 }
 
 // RequestURLFromContext returns the request url from the context.

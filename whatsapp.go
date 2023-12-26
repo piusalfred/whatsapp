@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/piusalfred/whatsapp/pkg/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/pkg/models"
 )
@@ -46,14 +47,6 @@ const (
 	BaseURL                   = "https://graph.facebook.com/"
 	LowestSupportedVersion    = "v16.0"
 	DateFormatContactBirthday = time.DateOnly // YYYY-MM-DD
-)
-
-const (
-	templateMessageType = "template"
-	textMessageType     = "text"
-	reactionMessageType = "reaction"
-	locationMessageType = "location"
-	contactsMessageType = "contacts"
 )
 
 const (
@@ -119,20 +112,13 @@ func (r *ResponseMessage) LogValue() slog.Value {
 var _ slog.LogValuer = (*ResponseMessage)(nil)
 
 type (
-	// MessageType represents the type of message currently supported.
-	// Which are Text messages,Reaction messages,MediaInformation messages,Location messages,Contact messages,
-	// and Interactive messages.
-	// You may also send any of these message types as a reply, except reaction messages.
-	// For more go to https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages
-	MessageType string
-
 	// Client is a struct that holds the configuration for the whatsapp client.
 	// It is used to create a new whatsapp client for a single user. Uses the BaseClient
 	// to make requests to the whatsapp api. If you want a client that's flexible and can
 	// make requests to the whatsapp api for different users, use the TransparentClient.
 	Client struct {
 		bc     *BaseClient
-		config *Config
+		config *config.Values
 	}
 
 	ClientOption func(*Client)
@@ -205,7 +191,7 @@ type (
 	ReplyRequest struct {
 		Recipient   string
 		Context     string // this is ID of the message to reply to
-		MessageType MessageType
+		MessageType models.MessageType
 		Content     any // this is a Text if MessageType is Text
 	}
 
@@ -337,16 +323,16 @@ func WithBaseClient(base *BaseClient) ClientOption {
 	}
 }
 
-func NewClient(reader ConfigReader, options ...ClientOption) (*Client, error) {
-	config, err := reader.Read(context.Background())
+func NewClient(reader config.Reader, options ...ClientOption) (*Client, error) {
+	values, err := reader.Read(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
+		return nil, fmt.Errorf("failed to read values: %w", err)
 	}
 
-	return NewClientWithConfig(config, options...)
+	return NewClientWithConfig(values, options...)
 }
 
-func NewClientWithConfig(config *Config, options ...ClientOption) (*Client, error) {
+func NewClientWithConfig(config *config.Values, options ...ClientOption) (*Client, error) {
 	if config == nil {
 		return nil, ErrConfigNil
 	}
@@ -387,23 +373,13 @@ func (client *Client) Reply(ctx context.Context, request *ReplyRequest,
 	if err != nil {
 		return nil, fmt.Errorf("reply: %w", err)
 	}
-	reqCtx := &whttp.RequestContext{
-		Name:          "reply to message",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Endpoints:     []string{MessageEndpoint},
-	}
 
-	req := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Query:   nil,
-		Bearer:  client.config.AccessToken,
-		Form:    nil,
-		Payload: payload,
-	}
+	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeReply, MessageEndpoint)
+
+	req := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithBearer(client.config.AccessToken),
+		whttp.WithPayload(payload),
+	)
 
 	var message ResponseMessage
 	err = client.bc.base.Do(ctx, req, &message)
@@ -445,14 +421,14 @@ func (client *Client) SendText(ctx context.Context, recipient string,
 		Product:       MessagingProduct,
 		To:            recipient,
 		RecipientType: RecipientTypeIndividual,
-		Type:          textMessageType,
+		Type:          models.MessageTypeText,
 		Text: &models.Text{
 			PreviewURL: message.PreviewURL,
 			Body:       message.Message,
 		},
 	}
 
-	res, err := client.SendMessage(ctx, "send text", text)
+	res, err := client.SendMessage(ctx, whttp.RequestTypeTextMessage, text)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send text message: %w", err)
 	}
@@ -460,58 +436,18 @@ func (client *Client) SendText(ctx context.Context, recipient string,
 	return res, nil
 }
 
-// React sends a reaction to a message.
-// To send reaction messages, make a POST call to /PHONE_NUMBER_ID/messages and attach a message object
-// with type=reaction. Then, add a reaction object.
-//
-// Sample request:
-//
-//	curl -X  POST \
-//	 'https://graph.facebook.com/v15.0/FROM_PHONE_NUMBER_ID/messages' \
-//	 -H 'Authorization: Bearer ACCESS_TOKEN' \
-//	 -H 'Content-Type: application/json' \
-//	 -d '{
-//	  "messaging_product": "whatsapp",
-//	  "recipient_type": "individual",
-//	  "to": "PHONE_NUMBER",
-//	  "type": "reaction",
-//	  "reaction": {
-//	    "message_id": "wamid.HBgLM...",
-//	    "emoji": "\uD83D\uDE00"
-//	  }
-//	}'
-//
-// If the message you are reacting to is more than 30 days old, doesn't correspond to any message
-// in the conversation, has been deleted, or is itself a reaction message, the reaction message will
-// not be delivered, and you will receive a webhooks with the code 131009.
-//
-// A successful Resp includes an object with an identifier prefixed with wamid. Use the ID listed
-// after wamid to track your message status.
-//
-// Example Resp:
-//
-//	{
-//	  "messaging_product": "whatsapp",
-//	  "contacts": [{
-//	      "input": "PHONE_NUMBER",
-//	      "wa_id": "WHATSAPP_ID",
-//	    }]
-//	  "messages": [{
-//	      "id": "wamid.ID",
-//	    }]
-//	}
 func (client *Client) React(ctx context.Context, recipient string, msg *ReactMessage) (*ResponseMessage, error) {
 	reaction := &models.Message{
 		Product: MessagingProduct,
 		To:      recipient,
-		Type:    reactionMessageType,
+		Type:    models.MessageTypeReaction,
 		Reaction: &models.Reaction{
 			MessageID: msg.MessageID,
 			Emoji:     msg.Emoji,
 		},
 	}
 
-	res, err := client.SendMessage(ctx, "react", reaction)
+	res, err := client.SendMessage(ctx, whttp.RequestTypeReact, reaction)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send reaction message: %w", err)
 	}
@@ -527,20 +463,11 @@ func (client *Client) SendContacts(ctx context.Context, recipient string, contac
 		Product:       MessagingProduct,
 		To:            recipient,
 		RecipientType: RecipientTypeIndividual,
-		Type:          contactsMessageType,
+		Type:          models.MessageTypeContacts,
 		Contacts:      contacts,
 	}
 
-	req := &whttp.RequestContext{
-		Name:          "send contacts",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Bearer:        client.config.AccessToken,
-		Endpoints:     []string{MessageEndpoint},
-	}
-
-	return client.bc.Send(ctx, req, contact)
+	return client.SendMessage(ctx, whttp.RequestTypeContacts, contact)
 }
 
 // SendLocation sends a location message to a WhatsApp Business Account.
@@ -551,7 +478,7 @@ func (client *Client) SendLocation(ctx context.Context, recipient string,
 		Product:       MessagingProduct,
 		To:            recipient,
 		RecipientType: RecipientTypeIndividual,
-		Type:          locationMessageType,
+		Type:          models.MessageTypeLocation,
 		Location: &models.Location{
 			Name:      message.Name,
 			Address:   message.Address,
@@ -560,43 +487,21 @@ func (client *Client) SendLocation(ctx context.Context, recipient string,
 		},
 	}
 
-	req := &whttp.RequestContext{
-		Name:          "send location",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Bearer:        client.config.AccessToken,
-		Endpoints:     []string{MessageEndpoint},
-	}
-
-	return client.bc.Send(ctx, req, location)
+	return client.SendMessage(ctx, whttp.RequestTypeLocation, location)
 }
 
 // SendMessage sends a message.
-func (client *Client) SendMessage(ctx context.Context, name string, message *models.Message) (
+func (client *Client) SendMessage(ctx context.Context, name whttp.RequestType, message *models.Message) (
 	*ResponseMessage, error,
 ) {
-	req := &whttp.RequestContext{
-		Name:          name,
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Bearer:        client.config.AccessToken,
-		Endpoints:     []string{MessageEndpoint},
-	}
+	req := whttp.MakeRequestContext(client.config, name, MessageEndpoint)
 
 	return client.bc.Send(ctx, req, message)
 }
 
 // MarkMessageRead sends a read receipt for a message.
 func (client *Client) MarkMessageRead(ctx context.Context, messageID string) (*StatusResponse, error) {
-	req := &whttp.RequestContext{
-		Name:          "mark message read",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Endpoints:     []string{MessageEndpoint},
-	}
+	req := whttp.MakeRequestContext(client.config, whttp.RequestTypeMarkMessageRead, MessageEndpoint)
 
 	return client.bc.MarkMessageRead(ctx, req, messageID)
 }
@@ -615,27 +520,16 @@ func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, r
 		Product:       MessagingProduct,
 		To:            recipient,
 		RecipientType: RecipientTypeIndividual,
-		Type:          templateMessageType,
+		Type:          models.MessageTypeTemplate,
 		Template:      template,
 	}
 
-	reqCtx := &whttp.RequestContext{
-		Name:          "send media template",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Endpoints:     []string{"messages"},
-	}
+	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeMediaTemplate, MessageEndpoint)
 
-	params := &whttp.Request{
-		Method:  http.MethodPost,
-		Payload: payload,
-		Context: reqCtx,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: client.config.AccessToken,
-	}
+	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithPayload(payload),
+		whttp.WithBearer(client.config.AccessToken),
+	)
 
 	var message ResponseMessage
 	err := client.bc.base.Do(ctx, params, &message)
@@ -657,23 +551,10 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 	}
 	template := models.NewTextTemplate(req.Name, tmpLanguage, req.Body)
 	payload := models.NewMessage(recipient, models.WithTemplate(template))
-	reqCtx := &whttp.RequestContext{
-		Name:          "send text template",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Endpoints:     []string{"messages"},
-	}
-
-	params := &whttp.Request{
-		Method:  http.MethodPost,
-		Payload: payload,
-		Context: reqCtx,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: client.config.AccessToken,
-	}
+	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeTextTemplate, MessageEndpoint)
+	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithPayload(payload),
+		whttp.WithBearer(client.config.AccessToken))
 
 	var message ResponseMessage
 	err := client.bc.base.Do(ctx, params, &message)
@@ -697,7 +578,7 @@ func (client *Client) SendTemplate(ctx context.Context, recipient string, templa
 		Product:       MessagingProduct,
 		To:            recipient,
 		RecipientType: RecipientTypeIndividual,
-		Type:          templateMessageType,
+		Type:          models.MessageTypeTemplate,
 		Template: &models.Template{
 			Language: &models.TemplateLanguage{
 				Code:   template.LanguageCode,
@@ -708,14 +589,7 @@ func (client *Client) SendTemplate(ctx context.Context, recipient string, templa
 		},
 	}
 
-	req := &whttp.RequestContext{
-		Name:          "send message",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Bearer:        client.config.AccessToken,
-		Endpoints:     []string{"messages"},
-	}
+	req := whttp.MakeRequestContext(client.config, whttp.RequestTypeTemplate, MessageEndpoint)
 
 	return client.bc.Send(ctx, req, message)
 }
@@ -728,18 +602,11 @@ func (client *Client) SendInteractiveMessage(ctx context.Context, recipient stri
 		Product:       MessagingProduct,
 		To:            recipient,
 		RecipientType: RecipientTypeIndividual,
-		Type:          "interactive",
+		Type:          models.MessageTypeInteractive,
 		Interactive:   req,
 	}
 
-	reqc := &whttp.RequestContext{
-		Name:          "send interactive message",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Bearer:        client.config.AccessToken,
-		Endpoints:     []string{"messages"},
-	}
+	reqc := whttp.MakeRequestContext(client.config, whttp.RequestTypeInteractiveMessage, MessageEndpoint)
 
 	return client.bc.Send(ctx, reqc, template)
 }
@@ -770,21 +637,11 @@ func (client *Client) SendMedia(ctx context.Context, recipient string, req *Medi
 		return nil, err
 	}
 
-	reqCtx := &whttp.RequestContext{
-		Name:          "send media",
-		BaseURL:       request.BaseURL,
-		ApiVersion:    request.ApiVersion,
-		PhoneNumberID: request.PhoneNumberID,
-		Endpoints:     []string{"messages"},
-	}
+	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeMedia, MessageEndpoint)
 
-	params := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodPost,
-		Bearer:  request.AccessToken,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Payload: payload,
-	}
+	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithBearer(request.AccessToken),
+		whttp.WithPayload(payload))
 
 	if request.CacheOptions != nil {
 		if request.CacheOptions.CacheControl != "" {
@@ -810,7 +667,7 @@ func (client *Client) SendMedia(ctx context.Context, recipient string, req *Medi
 	return &message, nil
 }
 
-// SendInteractiveTemplate send an interactive template message which contains some buttons for user intraction.
+// SendInteractiveTemplate send an interactive template message which contains some buttons for user interaction.
 // Interactive message templates expand the content you can send recipients beyond the standard message template
 // and media messages template types to include interactive buttons using the components object. There are two types
 // of predefined buttons:
@@ -832,26 +689,16 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 		Product:       MessagingProduct,
 		To:            recipient,
 		RecipientType: RecipientTypeIndividual,
-		Type:          templateMessageType,
+		Type:          models.MessageTypeTemplate,
 		Template:      template,
 	}
-	reqCtx := &whttp.RequestContext{
-		Name:          "send template",
-		BaseURL:       client.config.BaseURL,
-		ApiVersion:    client.config.Version,
-		PhoneNumberID: client.config.PhoneNumberID,
-		Endpoints:     []string{"messages"},
-	}
-	params := &whttp.Request{
-		Method:  http.MethodPost,
-		Payload: payload,
-		Context: reqCtx,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Bearer: client.config.AccessToken,
-	}
+	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeInteractiveTemplate, MessageEndpoint)
+	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithBearer(client.config.AccessToken),
+		whttp.WithPayload(payload))
+
 	var message ResponseMessage
+
 	err := client.bc.base.Do(ctx, params, &message)
 	if err != nil {
 		return nil, fmt.Errorf("send template: %w", err)
@@ -918,7 +765,7 @@ func (c *BaseClient) SendTemplate(ctx context.Context, req *SendTemplateRequest,
 		Product:       MessagingProduct,
 		To:            req.Recipient,
 		RecipientType: RecipientTypeIndividual,
-		Type:          templateMessageType,
+		Type:          models.MessageTypeTemplate,
 		Template: &models.Template{
 			Language: &models.TemplateLanguage{
 				Code:   req.TemplateLanguageCode,
@@ -929,7 +776,7 @@ func (c *BaseClient) SendTemplate(ctx context.Context, req *SendTemplateRequest,
 		},
 	}
 	reqCtx := &whttp.RequestContext{
-		Name:          "send template",
+		RequestType:   whttp.RequestTypeTemplate,
 		BaseURL:       req.BaseURL,
 		ApiVersion:    req.ApiVersion,
 		PhoneNumberID: req.PhoneNumberID,
@@ -964,7 +811,7 @@ Be sure to keep the following in mind:
   - Generated download URLs only last five minutes
   - Always save the media ID when you upload a file
 
-Here’s a list of the currently supported media types. Check out Supported MediaInformation Types for more information.
+Here’s a list of the currently supported media types. Check out Supported Media Types for more information.
   - Audio (<16 MB) – ACC, MP4, MPEG, AMR, and OGG formats
   - Documents (<100 MB) – text, PDF, Office, and OpenOffice formats
   - Images (<5 MB) – JPEG and PNG formats
@@ -1029,21 +876,15 @@ func (c *BaseClient) SendMedia(ctx context.Context, req *SendMediaRequest,
 		return nil, err
 	}
 
-	reqCtx := &whttp.RequestContext{
-		Name:          "send media",
+	reqCtx := whttp.MakeRequestContext(&config.Values{
 		BaseURL:       req.BaseURL,
-		ApiVersion:    req.ApiVersion,
+		Version:       req.ApiVersion,
+		AccessToken:   req.AccessToken,
 		PhoneNumberID: req.PhoneNumberID,
-		Endpoints:     []string{"messages"},
-	}
+	}, whttp.RequestTypeMedia, MessageEndpoint)
 
-	params := &whttp.Request{
-		Context: reqCtx,
-		Method:  http.MethodPost,
-		Bearer:  req.AccessToken,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Payload: payload,
-	}
+	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
+		whttp.WithBearer(req.AccessToken), whttp.WithPayload(payload))
 
 	if req.CacheOptions != nil {
 		if req.CacheOptions.CacheControl != "" {
@@ -1107,7 +948,7 @@ func (c *BaseClient) Send(ctx context.Context, req *whttp.RequestContext,
 
 	resp, err := fs.Send(ctx, req, message)
 	if err != nil {
-		return nil, fmt.Errorf("base client: %s: %w", req.Name, err)
+		return nil, fmt.Errorf("base client: %s: %w", req.RequestType, err)
 	}
 
 	return resp, nil
@@ -1116,18 +957,15 @@ func (c *BaseClient) Send(ctx context.Context, req *whttp.RequestContext,
 func (c *BaseClient) send(ctx context.Context, req *whttp.RequestContext,
 	msg *models.Message,
 ) (*ResponseMessage, error) {
-	request := &whttp.Request{
-		Context: req,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  req.Bearer,
-		Payload: msg,
-	}
+	request := whttp.MakeRequest(
+		whttp.WithRequestContext(req),
+		whttp.WithBearer(req.Bearer),
+		whttp.WithPayload(msg))
 
 	var resp ResponseMessage
 	err := c.base.Do(ctx, request, &resp)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", req.Name, err)
+		return nil, fmt.Errorf("%s: %w", req.RequestType, err)
 	}
 
 	return &resp, nil
@@ -1142,13 +980,11 @@ func (c *BaseClient) MarkMessageRead(ctx context.Context, req *whttp.RequestCont
 		MessageID:        messageID,
 	}
 
-	params := &whttp.Request{
-		Context: req,
-		Method:  http.MethodPost,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Bearer:  req.Bearer,
-		Payload: reqBody,
-	}
+	params := whttp.MakeRequest(
+		whttp.WithRequestContext(req),
+		whttp.WithBearer(req.Bearer),
+		whttp.WithPayload(reqBody),
+	)
 
 	var success StatusResponse
 	err := c.base.Do(ctx, params, &success)

@@ -173,7 +173,7 @@ type (
 		Product       string       `json:"messaging_product"`
 		To            string       `json:"to"`
 		RecipientType string       `json:"recipient_type"`
-		Type          string       `json:"type"`
+		Type          MessageType  `json:"type"`
 		PreviewURL    bool         `json:"preview_url,omitempty"`
 		Context       *Context     `json:"context,omitempty"`
 		Template      *Template    `json:"template,omitempty"`
@@ -239,3 +239,14 @@ func (m *Message) SetTemplate(template *Template) {
 	m.Type = "template"
 	m.Template = template
 }
+
+type MessageType string
+
+const (
+	MessageTypeTemplate    MessageType = "template"
+	MessageTypeText        MessageType = "text"
+	MessageTypeReaction    MessageType = "reaction"
+	MessageTypeLocation    MessageType = "location"
+	MessageTypeContacts    MessageType = "contacts"
+	MessageTypeInteractive MessageType = "interactive"
+)
