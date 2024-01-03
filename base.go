@@ -28,6 +28,7 @@ import (
 	"github.com/piusalfred/whatsapp/pkg/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/pkg/models"
+	"github.com/piusalfred/whatsapp/pkg/models/factories"
 )
 
 type (
@@ -45,7 +46,7 @@ type (
 
 	InteractiveCTAButtonURLRequest struct {
 		Recipient string
-		Params    *models.CTAButtonURLParameters
+		Params    *factories.CTAButtonURLParameters
 	}
 )
 
@@ -109,7 +110,7 @@ func (c *BaseClient) SendInteractiveCTAURLButton(ctx context.Context, config *co
 		To:            req.Recipient,
 		RecipientType: RecipientTypeIndividual,
 		Type:          models.MessageTypeInteractive,
-		Interactive:   models.NewInteractiveCTAURLButton(req.Params),
+		Interactive:   factories.NewInteractiveCTAURLButton(req.Params),
 	}
 
 	reqCtx := whttp.MakeRequestContext(config, whttp.RequestTypeInteractiveMessage, MessageEndpoint)

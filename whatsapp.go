@@ -31,6 +31,7 @@ import (
 	"github.com/piusalfred/whatsapp/pkg/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/pkg/models"
+	"github.com/piusalfred/whatsapp/pkg/models/factories"
 )
 
 var (
@@ -506,7 +507,7 @@ func (client *Client) SendMediaTemplate(ctx context.Context, recipient string, r
 		Policy: req.LanguagePolicy,
 		Code:   req.LanguageCode,
 	}
-	template := models.NewMediaTemplate(req.Name, tmpLanguage, req.Header, req.Body)
+	template := factories.NewMediaTemplate(req.Name, tmpLanguage, req.Header, req.Body)
 	payload := &models.Message{
 		Product:       MessagingProduct,
 		To:            recipient,
@@ -534,8 +535,8 @@ func (client *Client) SendTextTemplate(ctx context.Context, recipient string, re
 		Policy: req.LanguagePolicy,
 		Code:   req.LanguageCode,
 	}
-	template := models.NewTextTemplate(req.Name, tmpLanguage, req.Body)
-	payload := models.NewMessage(recipient, models.WithTemplate(template))
+	template := factories.NewTextTemplate(req.Name, tmpLanguage, req.Body)
+	payload := factories.NewMessage(recipient, factories.WithMessageTemplate(template))
 	reqCtx := whttp.MakeRequestContext(client.config, whttp.RequestTypeTextTemplate, MessageEndpoint)
 	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
 		whttp.WithPayload(payload),
@@ -638,7 +639,7 @@ func (client *Client) SendInteractiveTemplate(ctx context.Context, recipient str
 		Policy: req.LanguagePolicy,
 		Code:   req.LanguageCode,
 	}
-	template := models.NewInteractiveTemplate(req.Name, tmpLanguage, req.Headers, req.Body, req.Buttons)
+	template := factories.NewInteractiveTemplate(req.Name, tmpLanguage, req.Headers, req.Body, req.Buttons)
 	message := &models.Message{
 		Product:       MessagingProduct,
 		To:            recipient,

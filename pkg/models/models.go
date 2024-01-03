@@ -182,8 +182,6 @@ type (
 		Interactive   *Interactive `json:"interactive,omitempty"`
 	}
 
-	MessageOption func(*Message)
-
 	// InteractiveHeaderType represent required value of InteractiveHeader.Type
 	// The header type you would like to use. Supported values:
 	// text: Used for ListQR Messages, Reply Buttons, and Multi-Product Messages.
@@ -205,33 +203,6 @@ const (
 	BodyMaxLength   = 1024
 	FooterMaxLength = 60
 )
-
-// NewMessage creates a new message.
-func NewMessage(recipient string, options ...MessageOption) *Message {
-	message := &Message{
-		Product:       "whatsapp",
-		RecipientType: "individual",
-		To:            recipient,
-	}
-	for _, option := range options {
-		option(message)
-	}
-
-	return message
-}
-
-func WithTemplate(template *Template) MessageOption {
-	return func(m *Message) {
-		m.Type = "template"
-		m.Template = template
-	}
-}
-
-// SetTemplate sets the template of the message.
-func (m *Message) SetTemplate(template *Template) {
-	m.Type = "template"
-	m.Template = template
-}
 
 type MessageType string
 

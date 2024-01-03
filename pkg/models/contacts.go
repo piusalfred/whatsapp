@@ -19,8 +19,6 @@
 
 package models
 
-import "time"
-
 type (
 	Address struct {
 		Street      string `json:"street"`
@@ -82,63 +80,4 @@ type (
 	}
 
 	Contacts []*Contact
-
-	ContactOption func(*Contact)
 )
-
-func NewContact(name string, options ...ContactOption) *Contact {
-	contact := &Contact{
-		Name: &Name{
-			FormattedName: name,
-		},
-	}
-	for _, option := range options {
-		option(contact)
-	}
-
-	return contact
-}
-
-func WithContactName(name *Name) ContactOption {
-	return func(c *Contact) {
-		c.Name = name
-	}
-}
-
-func WithContactAddresses(addresses ...*Address) ContactOption {
-	return func(c *Contact) {
-		c.Addresses = addresses
-	}
-}
-
-func WithContactOrganization(organization *Org) ContactOption {
-	return func(c *Contact) {
-		c.Org = organization
-	}
-}
-
-func WithContactURLs(urls ...*Url) ContactOption {
-	return func(c *Contact) {
-		c.Urls = urls
-	}
-}
-
-func WithContactPhones(phones ...*Phone) ContactOption {
-	return func(c *Contact) {
-		c.Phones = phones
-	}
-}
-
-func WithContactBirthdays(birthday time.Time) ContactOption {
-	return func(c *Contact) {
-		// should be formatted as YYYY-MM-DD
-		bd := birthday.Format("2006-01-02")
-		c.Birthday = bd
-	}
-}
-
-func WithContactEmails(emails ...*Email) ContactOption {
-	return func(c *Contact) {
-		c.Emails = emails
-	}
-}
