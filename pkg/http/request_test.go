@@ -17,45 +17,51 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package whatsapp
+package http
 
 import (
+	"context"
+	"reflect"
 	"testing"
 )
 
-func TestMediaMaxAllowedSize(t *testing.T) {
+func TestRetrieveRequestContext(t *testing.T) {
 	t.Parallel()
-	type args struct {
-		mediaType MediaType
-	}
 	tests := []struct {
-		name string
-		args args
-		want int
+		name  string
+		input *RequestContext
 	}{
 		{
-			name: "video",
-			args: args{
-				MediaTypeVideo,
+			name: "should return the request context",
+			input: &RequestContext{
+				ID:       "BF87030B-3A3B-449E-97F3-08BEA461E2BB",
+				Action:   RequestActionSend,
+				Category: RequestCategoryMessage,
+				Name:     RequestNameTextMessage,
+				Metadata: map[string]string{
+					"platform": "whatsapp",
+					"client":   "go",
+					"version":  "v1.0.0",
+					"plan":     "free",
+				},
 			},
-			want: MaxVideoSize,
 		},
-
 		{
-			name: "unknown",
-			args: args{
-				MediaType("unknown"),
-			},
-			want: -1,
+			name:  "put nil in the context",
+			input: nil,
+		},
+		{
+			name:  "put empty in the context",
+			input: &RequestContext{},
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			args := tt.args
-			if got := MediaMaxAllowedSize(args.mediaType); got != tt.want {
-				t.Errorf("MediaMaxAllowedSize() = %v, want %v", got, tt.want)
+			ctx := attachRequestContext(context.Background(), tt.input)
+			if got := RetrieveRequestContext(ctx); !reflect.DeepEqual(got, tt.input) {
+				t.Errorf("RetrieveRequestContext() = %v, want %v", got, tt.input)
 			}
 		})
 	}

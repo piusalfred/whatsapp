@@ -19,18 +19,7 @@
 
 package models
 
-const (
-	InteractiveMessageReplyButton = "button"
-	InteractiveMessageList        = "list"
-	InteractiveMessageProduct     = "product"
-	InteractiveMessageProductList = "product_list"
-	InteractiveMessageCTAButton   = "cta_url"
-)
-
 type (
-	// InteractiveMessage is the type of interactive message you want to send.
-	InteractiveMessage string
-
 	// InteractiveButton contains information about a button in an interactive message.
 	// A button object can contain the following parameters:
 	// 	- Type: only supported type is reply (for Reply Button)
@@ -105,7 +94,7 @@ type (
 	//
 	//	- Buttons, buttons (array of objects) Required for Reply Buttons. A button object can contain
 	//	  the following parameters:
-	//		- Type: only supported type is reply (for Reply Button)
+	//		- MessageType: only supported type is reply (for Reply Button)
 	//		- Title: Button title. It cannot be an empty string and must be unique within the message.
 	//		  Emojis are supported,markdown is not. Maximum length: 20 characters.
 	//		- ID: Unique identifier for your button. This ID is returned in the webhook when the button

@@ -40,7 +40,7 @@ type (
 	//		                        These conversations are always customer-initiated.
 	//		- customer_initiated – The business replied to a customer message within 24 hours of the last customer message
 	//
-	//	PricingModel, string – Type of pricing model used by the business. Current supported value is CBP
+	//	PricingModel, string – MessageType of pricing model used by the business. Current supported value is CBP
 	Pricing struct {
 		Billable     bool   `json:"billable,omitempty"` // Deprecated
 		Category     string `json:"category,omitempty"`
@@ -159,7 +159,7 @@ type (
 		Button      *Button           `json:"button,omitempty"`
 		Context     *Context          `json:"context,omitempty"`
 		Document    *models.MediaInfo `json:"document,omitempty"`
-		Errors      []*werrors.Error  `json:"werrors,omitempty"`
+		Errors      []*werrors.Error  `json:"errors,omitempty"`
 		From        string            `json:"from,omitempty"`
 		ID          string            `json:"id,omitempty"`
 		Identity    *Identity         `json:"identity,omitempty"`

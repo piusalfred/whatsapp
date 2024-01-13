@@ -26,7 +26,7 @@ type (
 	}
 
 	Text struct {
-		PreviewURL bool   `json:"preview_url,omitempty"`
+		PreviewURL bool   `json:"preview_url"`
 		Body       string `json:"body,omitempty"`
 	}
 
@@ -77,7 +77,8 @@ type (
 	//		- See Media http Caching if you would like us to cache the media asset for future messages.
 	//
 	//		- When we request the media asset from your server you must indicate the media's MIME type by including
-	//        the Content-Type http header. For example: Content-Type: video/mp4. See Supported Media Types for a
+	//        the Content-MessageType http header. For example: Content-MessageType:
+	//        video/mp4. See Supported Media Types for a
 	//        list of supported media and their MIME types.
 	//
 	//	- Caption, caption (string). For On-Premises API users on v2.41.2 or newer, this field is required when type
@@ -166,51 +167,24 @@ type (
 		Product       string       `json:"messaging_product"`
 		To            string       `json:"to"`
 		RecipientType string       `json:"recipient_type"`
-		Type          MessageType  `json:"type"`
-		PreviewURL    bool         `json:"preview_url,omitempty"`
+		Type          string       `json:"type"`
 		Context       *Context     `json:"context,omitempty"`
 		Template      *Template    `json:"template,omitempty"`
 		Text          *Text        `json:"text,omitempty"`
-		Image         *Media       `json:"image,omitempty"`
-		Audio         *Media       `json:"audio,omitempty"`
-		Video         *Media       `json:"video,omitempty"`
-		Document      *Media       `json:"document,omitempty"`
-		Sticker       *Media       `json:"sticker,omitempty"`
+		Image         *Image       `json:"image,omitempty"`
+		Audio         *Audio       `json:"audio,omitempty"`
+		Video         *Video       `json:"video,omitempty"`
+		Document      *Document    `json:"document,omitempty"`
+		Sticker       *Sticker     `json:"sticker,omitempty"`
 		Reaction      *Reaction    `json:"reaction,omitempty"`
 		Location      *Location    `json:"location,omitempty"`
 		Contacts      Contacts     `json:"contacts,omitempty"`
 		Interactive   *Interactive `json:"interactive,omitempty"`
 	}
 
-	// InteractiveHeaderType represent required value of InteractiveHeader.Type
-	// The header type you would like to use. Supported values:
-	// text: Used for ListQR Messages, Reply Buttons, and Multi-Product Messages.
-	// video: Used for Reply Buttons.
-	// image: Used for Reply Buttons.
-	// document: Used for Reply Buttons.
-	InteractiveHeaderType string
-)
-
-const (
-	// InteractiveHeaderTypeText is used for ListQR Messages, Reply Buttons, and Multi-Product Messages.
-	InteractiveHeaderTypeText  InteractiveHeaderType = "text"
-	InteractiveHeaderTypeVideo InteractiveHeaderType = "video"
-	InteractiveHeaderTypeImage InteractiveHeaderType = "image"
-	InteractiveHeaderTypeDoc   InteractiveHeaderType = "document"
-)
-
-const (
-	BodyMaxLength   = 1024
-	FooterMaxLength = 60
-)
-
-type MessageType string
-
-const (
-	MessageTypeTemplate    MessageType = "template"
-	MessageTypeText        MessageType = "text"
-	MessageTypeReaction    MessageType = "reaction"
-	MessageTypeLocation    MessageType = "location"
-	MessageTypeContacts    MessageType = "contacts"
-	MessageTypeInteractive MessageType = "interactive"
+	Image    Media
+	Audio    Media
+	Video    Media
+	Document Media
+	Sticker  Media
 )

@@ -21,6 +21,11 @@ package config
 
 import "context"
 
+const (
+	BaseURL           = "https://graph.facebook.com"
+	DefaultAPIVersion = "v16.0" // This is the lowest version of the API that is supported
+)
+
 type (
 	// Values is a struct that holds the configuration for the whatsapp client.
 	// It is used to create a new whatsapp client.
@@ -38,6 +43,7 @@ type (
 		Read(ctx context.Context) (*Values, error)
 	}
 
+	// ReaderFunc is a function that implements the Reader interface.
 	ReaderFunc func(ctx context.Context) (*Values, error)
 )
 

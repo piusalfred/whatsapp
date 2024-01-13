@@ -27,20 +27,20 @@ import (
 )
 
 // Sender implementors.
-var _ Sender = (*BaseClient)(nil)
+var _ Sender = (*Client)(nil)
 
 // Sender is an interface that represents a sender of a message.
 type Sender interface {
-	Send(ctx context.Context, req *whttp.RequestContext, message *models.Message) (*ResponseMessage, error)
+	Send(ctx context.Context, req *whttp.RequestContext, message *models.Message) (*whttp.ResponseMessage, error)
 }
 
 // SenderFunc is a function that implements the Sender interface.
 type SenderFunc func(ctx context.Context, req *whttp.RequestContext,
-	message *models.Message) (*ResponseMessage, error)
+	message *models.Message) (*whttp.ResponseMessage, error)
 
 // Send calls the function that implements the Sender interface.
 func (f SenderFunc) Send(ctx context.Context, req *whttp.RequestContext,
-	message *models.Message) (*ResponseMessage,
+	message *models.Message) (*whttp.ResponseMessage,
 	error,
 ) {
 	return f(ctx, req, message)

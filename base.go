@@ -21,9 +21,8 @@ package whatsapp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
+	"net/http"
 
 	"github.com/piusalfred/whatsapp/pkg/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
@@ -32,17 +31,12 @@ import (
 )
 
 type (
-	// BaseClient wraps the http client only and is used to make requests to the whatsapp api,
-	// It does not have the context. This is ideally for making requests to the whatsapp api for
-	// different users. The Client struct is used to make requests to the whatsapp api for a
-	// single user.
-	BaseClient struct {
-		base *whttp.Client
+	Client struct {
+		base *whttp.BaseClient
 		mw   []SendMiddleware
 	}
 
-	// BaseClientOption is a function that implements the BaseClientOption interface.
-	BaseClientOption func(*BaseClient)
+	ClientOption func(*Client)
 
 	InteractiveCTAButtonURLRequest struct {
 		Recipient string
@@ -50,166 +44,187 @@ type (
 	}
 )
 
+func (c *Client) Image(ctx context.Context, params *RequestParams, image *models.Image,
+	options *whttp.CacheOptions,
+) (*whttp.ResponseMessage, error) {
+	message, err := factories.ImageMessage(params.Recipient, image,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("image message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, options), message)
+}
+
+func (c *Client) Audio(ctx context.Context, params *RequestParams, audio *models.Audio,
+	options *whttp.CacheOptions,
+) (*whttp.ResponseMessage, error) {
+	message, err := factories.AudioMessage(params.Recipient, audio,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("audio message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, options), message)
+}
+
+func (c *Client) Video(ctx context.Context, params *RequestParams, video *models.Video,
+	options *whttp.CacheOptions,
+) (*whttp.ResponseMessage, error) {
+	message, err := factories.VideoMessage(params.Recipient, video,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("video message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, options), message)
+}
+
+func (c *Client) Document(ctx context.Context, params *RequestParams, document *models.Document,
+	options *whttp.CacheOptions,
+) (*whttp.ResponseMessage, error) {
+	message, err := factories.DocumentMessage(params.Recipient, document,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("document message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, options), message)
+}
+
+func (c *Client) Sticker(ctx context.Context, params *RequestParams, sticker *models.Sticker,
+	options *whttp.CacheOptions,
+) (*whttp.ResponseMessage, error) {
+	message, err := factories.StickerMessage(params.Recipient, sticker,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("sticker message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, options), message)
+}
+
+func (c *Client) InteractiveMessage(ctx context.Context, params *RequestParams,
+	interactive *models.Interactive,
+) (*whttp.ResponseMessage, error) {
+	message, err := factories.InteractiveMessage(params.Recipient, interactive,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("interactive message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, nil), message)
+}
+
+func (c *Client) Template(ctx context.Context, params *RequestParams,
+	template *models.Template,
+) (*whttp.ResponseMessage, error) {
+	message, err := factories.TemplateMessage(params.Recipient, template,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("template message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, nil), message)
+}
+
+func (c *Client) Contacts(ctx context.Context, params *RequestParams, contacts []*models.Contact) (
+	*whttp.ResponseMessage, error,
+) {
+	message, err := factories.ContactsMessage(params.Recipient, contacts,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("contacts message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, nil), message)
+}
+
+func (c *Client) Location(ctx context.Context, params *RequestParams,
+	request *models.Location,
+) (*whttp.ResponseMessage, error) {
+	message, err := factories.LocationMessage(params.Recipient, request,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("location message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, nil), message)
+}
+
+func (c *Client) React(ctx context.Context, params *RequestParams,
+	msg *models.Reaction,
+) (*whttp.ResponseMessage, error) {
+	message, err := factories.ReactionMessage(params.Recipient, msg)
+	if err != nil {
+		return nil, fmt.Errorf("reaction message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, nil), message)
+}
+
+func (c *Client) Text(ctx context.Context, params *RequestParams, text *models.Text) (*whttp.ResponseMessage, error) {
+	message, err := factories.TextMessage(params.Recipient, text,
+		factories.WithReplyToMessageID(params.ReplyID))
+	if err != nil {
+		return nil, fmt.Errorf("text message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, nil), message)
+}
+
 // WithBaseClientMiddleware adds a middleware to the base client.
-func WithBaseClientMiddleware(mw ...SendMiddleware) BaseClientOption {
-	return func(client *BaseClient) {
+func WithBaseClientMiddleware(mw ...SendMiddleware) ClientOption {
+	return func(client *Client) {
 		client.mw = append(client.mw, mw...)
 	}
 }
 
 // WithBaseHTTPClient sets the http client for the base client.
-func WithBaseHTTPClient(httpClient *whttp.Client) BaseClientOption {
-	return func(client *BaseClient) {
+func WithBaseHTTPClient(httpClient *whttp.BaseClient) ClientOption {
+	return func(client *Client) {
 		client.base = httpClient
 	}
 }
 
+// WithBaseClientOptions sets the options for the base client.
+func WithBaseClientOptions(options []whttp.BaseClientOption) ClientOption {
+	return func(client *Client) {
+		client.base.ApplyOptions(options...)
+	}
+}
+
 // NewBaseClient creates a new base client.
-func NewBaseClient(options ...BaseClientOption) *BaseClient {
-	b := &BaseClient{base: whttp.NewClient()}
+func NewBaseClient(ctx context.Context, configure config.Reader, options ...ClientOption) (*Client, error) {
+	inner, err := whttp.InitBaseClient(ctx, configure)
+	if err != nil {
+		return nil, fmt.Errorf("init base client: %w", err)
+	}
+
+	b := &Client{base: inner}
 
 	for _, option := range options {
 		option(b)
 	}
 
-	return b
+	return b, nil
 }
 
-func (c *BaseClient) SendTemplate(ctx context.Context, config *config.Values, req *SendTemplateRequest,
-) (*ResponseMessage, error) {
-	message := &models.Message{
-		Product:       MessagingProduct,
-		To:            req.Recipient,
-		RecipientType: RecipientTypeIndividual,
-		Type:          models.MessageTypeTemplate,
-		Template: &models.Template{
-			Language: &models.TemplateLanguage{
-				Code:   req.TemplateLanguageCode,
-				Policy: req.TemplateLanguagePolicy,
-			},
-			Name:       req.TemplateName,
-			Components: req.TemplateComponents,
-		},
-	}
-
-	reqCtx := whttp.MakeRequestContext(config, whttp.RequestTypeTemplate, MessageEndpoint)
-
-	response, err := c.Send(ctx, reqCtx, message)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
-}
-
-func (c *BaseClient) SendInteractiveCTAURLButton(ctx context.Context, config *config.Values,
-	req *InteractiveCTAButtonURLRequest,
-) (*ResponseMessage, error) {
-	message := &models.Message{
-		Product:       MessagingProduct,
-		To:            req.Recipient,
-		RecipientType: RecipientTypeIndividual,
-		Type:          models.MessageTypeInteractive,
-		Interactive:   factories.NewInteractiveCTAURLButton(req.Params),
-	}
-
-	reqCtx := whttp.MakeRequestContext(config, whttp.RequestTypeInteractiveMessage, MessageEndpoint)
-
-	response, err := c.Send(ctx, reqCtx, message)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
-}
-
-func (c *BaseClient) SendMedia(ctx context.Context, config *config.Values, req *SendMediaRequest,
-) (*ResponseMessage, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request is nil: %w", ErrBadRequestFormat)
-	}
-
-	payload, err := formatMediaPayload(req)
-	if err != nil {
-		return nil, err
-	}
-
-	reqCtx := whttp.MakeRequestContext(config, whttp.RequestTypeMedia, MessageEndpoint)
-
-	params := whttp.MakeRequest(whttp.WithRequestContext(reqCtx),
-		whttp.WithBearer(config.AccessToken), whttp.WithPayload(payload))
-
-	if req.CacheOptions != nil {
-		if req.CacheOptions.CacheControl != "" {
-			params.Headers["Cache-Control"] = req.CacheOptions.CacheControl
-		} else if req.CacheOptions.Expires > 0 {
-			params.Headers["Cache-Control"] = fmt.Sprintf("max-age=%d", req.CacheOptions.Expires)
-		}
-		if req.CacheOptions.LastModified != "" {
-			params.Headers["Last-Modified"] = req.CacheOptions.LastModified
-		}
-		if req.CacheOptions.ETag != "" {
-			params.Headers["ETag"] = req.CacheOptions.ETag
-		}
-	}
-
-	var message ResponseMessage
-
-	err = c.base.Do(ctx, params, &message)
-	if err != nil {
-		return nil, fmt.Errorf("send media: %w", err)
-	}
-
-	return &message, nil
-}
-
-// formatMediaPayload builds the payload for a media message. It accepts SendMediaOptions
-// and returns a byte array and an error. This function is used internally by SendMedia.
-// if neither ID nor Link is specified, it returns an error.
-func formatMediaPayload(options *SendMediaRequest) ([]byte, error) {
-	media := &models.Media{
-		ID:       options.MediaID,
-		Link:     options.MediaLink,
-		Caption:  options.Caption,
-		Filename: options.Filename,
-		Provider: options.Provider,
-	}
-	mediaJSON, err := json.Marshal(media)
-	if err != nil {
-		return nil, fmt.Errorf("format media payload: %w", err)
-	}
-	recipient := options.Recipient
-	mediaType := string(options.Type)
-	payloadBuilder := strings.Builder{}
-	payloadBuilder.WriteString(`{"messaging_product":"whatsapp","recipient_type":"individual","to":"`)
-	payloadBuilder.WriteString(recipient)
-	payloadBuilder.WriteString(`","type": "`)
-	payloadBuilder.WriteString(mediaType)
-	payloadBuilder.WriteString(`","`)
-	payloadBuilder.WriteString(mediaType)
-	payloadBuilder.WriteString(`":`)
-	payloadBuilder.Write(mediaJSON)
-	payloadBuilder.WriteString(`}`)
-
-	return []byte(payloadBuilder.String()), nil
-}
-
-func (c *BaseClient) MarkMessageRead(ctx context.Context, req *whttp.RequestContext,
+func (c *Client) MarkMessageRead(ctx context.Context, req *whttp.RequestContext,
 	messageID string,
-) (*StatusResponse, error) {
-	reqBody := &MessageStatusUpdateRequest{
-		MessagingProduct: MessagingProduct,
-		Status:           MessageStatusRead,
+) (*whttp.ResponseStatus, error) {
+	reqBody := &statusUpdateRequest{
+		MessagingProduct: factories.MessagingProductWhatsApp,
+		Status:           "read",
 		MessageID:        messageID,
 	}
 
 	params := whttp.MakeRequest(
 		whttp.WithRequestContext(req),
-		whttp.WithBearer(req.Bearer),
-		whttp.WithPayload(reqBody),
+		whttp.WithRequestPayload(reqBody),
 	)
 
-	var success StatusResponse
+	var success whttp.ResponseStatus
 	err := c.base.Do(ctx, params, &success)
 	if err != nil {
 		return nil, fmt.Errorf("mark message read: %w", err)
@@ -218,32 +233,46 @@ func (c *BaseClient) MarkMessageRead(ctx context.Context, req *whttp.RequestCont
 	return &success, nil
 }
 
-func (c *BaseClient) Send(ctx context.Context, req *whttp.RequestContext,
+func (c *Client) Send(ctx context.Context, req *whttp.RequestContext,
 	message *models.Message,
-) (*ResponseMessage, error) {
+) (*whttp.ResponseMessage, error) {
 	fs := WrapSender(SenderFunc(c.send), c.mw...)
 
 	resp, err := fs.Send(ctx, req, message)
 	if err != nil {
-		return nil, fmt.Errorf("base client: %s: %w", req.RequestType, err)
+		return nil, fmt.Errorf("base client: %w", err)
 	}
 
 	return resp, nil
 }
 
-func (c *BaseClient) send(ctx context.Context, req *whttp.RequestContext,
+func (c *Client) send(ctx context.Context, req *whttp.RequestContext,
 	msg *models.Message,
-) (*ResponseMessage, error) {
+) (*whttp.ResponseMessage, error) {
 	request := whttp.MakeRequest(
 		whttp.WithRequestContext(req),
-		whttp.WithBearer(req.Bearer),
-		whttp.WithPayload(msg))
+		whttp.WithRequestPayload(msg),
+		whttp.WithRequestMethod(http.MethodPost),
+		whttp.WithRequestHeaders(map[string]string{
+			"Content-Type": "application/json",
+		}),
+	)
 
-	var resp ResponseMessage
-	err := c.base.Do(ctx, request, &resp)
+	resp, err := c.base.Send(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", req.RequestType, err)
+		return nil, fmt.Errorf("%s: %w", req.String(), err)
 	}
 
-	return &resp, nil
+	return resp, nil
+}
+
+func fmtParamsToContext(params *RequestParams, cache *whttp.CacheOptions) *whttp.RequestContext {
+	return whttp.MakeRequestContext(
+		whttp.WithRequestContextID(params.ID),
+		whttp.WithRequestContextMetadata(params.Metadata),
+		whttp.WithRequestContextAction(whttp.RequestActionSend),
+		whttp.WithRequestContextCategory(whttp.RequestCategoryMessage),
+		whttp.WithRequestContextName(whttp.RequestNameLocation),
+		whttp.WithRequestContextCacheOptions(cache),
+	)
 }

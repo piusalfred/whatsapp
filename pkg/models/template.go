@@ -19,11 +19,6 @@
 
 package models
 
-const (
-	TemplateComponentTypeHeader TemplateComponentType = "header"
-	TemplateComponentTypeBody   TemplateComponentType = "body"
-)
-
 type (
 	// TemplateDateTime contains information about a date_time parameter.
 	// FallbackValue, fallback_value. Required. Default text if localization fails.
@@ -48,7 +43,7 @@ type (
 	//        }
 	TemplateDateTime struct {
 		FallbackValue string `json:"fallback_value,omitempty"`
-		DayOfWeek     int    `json:"day_of_week"`
+		DayOfWeek     string `json:"day_of_week"`
 		Year          int    `json:"year"`
 		Month         int    `json:"month"`
 		DayOfMonth    int    `json:"day_of_month"`
@@ -194,7 +189,6 @@ type (
 
 	// TemplateComponentType is a type of component of a template message.
 	// It can be a header, body.
-	TemplateComponentType string
 
 	InteractiveButtonTemplate struct {
 		SubType string

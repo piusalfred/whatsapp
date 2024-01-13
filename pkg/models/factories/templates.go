@@ -1,24 +1,46 @@
 /*
-Package templates provides structures and utilities for creating and manipulating WhatsApp message
-templates.
+ * Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the “Software”), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ * LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
-WhatsApp message templates are specific message formats that businesses use to send out notifications
-or customer care messages to people that have opted in to notifications. These notifications can include
-a variety of messages such as appointment reminders, shipping information, issue resolution, or payment
-updates.
-
-This package supports the following template types:
-
-- Text-based message templates
-- Media-based message templates
-- Interactive message templates
-- Location-based message templates
-- Authentication templates with one-time password buttons
-- Multi-Product Message templates
-
-All API calls made using this package must be authenticated with an access token.Developers can authenticate
-their API calls with the access token generated in the App Dashboard > WhatsApp > API Setup panel.
-Business Solution Providers (BSPs) need to authenticate themselves with an access token that has the
-'whatsapp_business_messaging' permission.
-*/
 package factories
+
+import (
+	"strings"
+	"time"
+
+	"github.com/piusalfred/whatsapp/pkg/models"
+)
+
+const (
+	CalendarGregorian  = "GREGORIAN"
+	CalendarSolarHijri = "SOLAR_HIJRI"
+)
+
+// TemplateDateTimeGregorian returns a new date time template component for the given date and time.
+func TemplateDateTimeGregorian(fallback string, dt time.Time) *models.TemplateDateTime {
+	return &models.TemplateDateTime{
+		FallbackValue: fallback,
+		DayOfWeek:     strings.ToUpper(dt.Weekday().String()),
+		Year:          dt.Year(),
+		Month:         int(dt.Month()),
+		DayOfMonth:    dt.Day(),
+		Hour:          dt.Hour(),
+		Minute:        dt.Minute(),
+		Calendar:      CalendarGregorian,
+	}
+}

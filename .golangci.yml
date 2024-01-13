@@ -52,6 +52,7 @@ linters:
   enable-all: true
   # enable some additional linters that are not enabled by default
   disable:
+    - ireturn
     - cyclop
     - testpackage
     - prealloc
@@ -77,6 +78,7 @@ linters:
     - varnamelen
     - depguard
     - forbidigo
+    - bodyclose
 
 
 # specify the output format for linter results
