@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	EndpointMessages = "messages"
+	EndpointMessages  = "messages"
+	EndpointTemplates = "message_templates"
 )
 
 type (
@@ -211,6 +212,10 @@ func RequestURLFmt(values *config.Values, request *RequestContext) (string, erro
 		return fmtRequestURL(values.BaseURL, values.Version, values.PhoneNumberID, EndpointMessages)
 	}
 
+	if request.Category == RequestCategoryTemplates {
+		return fmtRequestURL(values.BaseURL, values.Version, values.BusinessAccountID, EndpointTemplates)
+	}
+
 	elems := append([]string{values.BusinessAccountID}, request.Endpoints...)
 
 	return fmtRequestURL(values.BaseURL, values.Version, elems...)
@@ -236,6 +241,7 @@ const (
 	RequestCategoryMedia        RequestCategory = "media"
 	RequestCategoryWebhooks     RequestCategory = "webhooks"
 	RequestCategoryVerification RequestCategory = "verification"
+	RequestCategoryTemplates    RequestCategory = "templates"
 )
 
 type RequestAction string

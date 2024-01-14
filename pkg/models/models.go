@@ -47,7 +47,7 @@ type (
 	//    - replying with an image, video, PTT, or audio, and the recipient is on KaiOS
 	// These are known bugs which we are addressing.
 	Context struct {
-		MessageID string `json:"message_id"`
+		MessageID string `json:"message_id,omitempty"`
 	}
 
 	// MediaInfo provides information about a media be it an Audio, Video, etc.

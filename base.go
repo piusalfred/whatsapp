@@ -42,7 +42,23 @@ type (
 		Recipient string
 		Params    *factories.CTAButtonURLParameters
 	}
+
+	LocationRequestParams struct {
+		Recipient string
+		ReplyID   string
+		Message   string
+	}
 )
+
+// RequestLocation sends a location request to the recipient.
+// LINK: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages/location-request-messages
+func (c *Client) RequestLocation(ctx context.Context, params *LocationRequestParams) (
+	*whttp.ResponseMessage, error,
+) {
+	message := factories.LocationRequestMessage(params.Recipient, params.ReplyID, params.Message)
+
+	return c.Send(ctx, nil, message)
+}
 
 func (c *Client) Image(ctx context.Context, params *RequestParams, image *models.Image,
 	options *whttp.CacheOptions,

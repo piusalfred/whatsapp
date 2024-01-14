@@ -52,6 +52,7 @@ const (
 	InteractiveMessageProduct     = "product"
 	InteractiveMessageProductList = "product_list"
 	InteractiveMessageCTAButton   = "cta_url"
+	InteractiveLocationRequest    = "location_request_message"
 )
 
 const (

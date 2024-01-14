@@ -29,6 +29,45 @@ type CTAButtonURLParameters struct {
 	Header      string
 }
 
+func LocationRequestMessage(recipient, reply, message string) *models.Message {
+	//{
+	//  "messaging_product": "whatsapp",
+	//  "recipient_type": "individual",
+	//  "type": "interactive",
+	//  "to": "+15551234567",
+	//  "interactive": {
+	//    "type": "location_request_message",
+	//    "body": {
+	//      "text": "Let us start with your pickup. You can either manually *enter an address* or *share your current location*."
+	//    },
+	//    "action": {
+	//      "name": "send_location"
+	//    }
+	//  }
+	//}'
+
+	i := &models.Interactive{
+		Type: InteractiveLocationRequest,
+		Action: &models.InteractiveAction{
+			Name: "send_location",
+		},
+		Body:   &models.InteractiveBody{Text: message},
+		Footer: nil,
+		Header: nil,
+	}
+
+	return &models.Message{
+		Context: &models.Context{
+			MessageID: reply,
+		},
+		Product:       MessagingProductWhatsApp,
+		RecipientType: RecipientTypeIndividual,
+		Type:          "interactive",
+		To:            recipient,
+		Interactive:   i,
+	}
+}
+
 func NewInteractiveCTAURLButton(parameters *CTAButtonURLParameters) *models.Interactive {
 	return &models.Interactive{
 		Type: InteractiveMessageCTAButton,
