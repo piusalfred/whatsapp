@@ -189,8 +189,8 @@ func (c *Client) Text(ctx context.Context, params *RequestParams, text *models.T
 	return c.Send(ctx, fmtParamsToContext(params, nil), message)
 }
 
-// WithBaseClientMiddleware adds a middleware to the base client.
-func WithBaseClientMiddleware(mw ...SendMiddleware) ClientOption {
+// WithSendMiddlewares adds a middleware to the base client.
+func WithSendMiddlewares(mw ...SendMiddleware) ClientOption {
 	return func(client *Client) {
 		client.mw = append(client.mw, mw...)
 	}
@@ -210,8 +210,8 @@ func WithBaseClientOptions(options []whttp.BaseClientOption) ClientOption {
 	}
 }
 
-// NewBaseClient creates a new base client.
-func NewBaseClient(ctx context.Context, configure config.Reader, options ...ClientOption) (*Client, error) {
+// NewClient creates a new base client.
+func NewClient(ctx context.Context, configure config.Reader, options ...ClientOption) (*Client, error) {
 	inner, err := whttp.InitBaseClient(ctx, configure)
 	if err != nil {
 		return nil, fmt.Errorf("init base client: %w", err)

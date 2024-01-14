@@ -55,12 +55,17 @@ func (d *dotEnvReader) Read(ctx context.Context) (*config.Values, error) {
 
 func initBaseClient(ctx context.Context) (*whatsapp.Client, error) {
 	reader := &dotEnvReader{filePath: ".env"}
-	b, err := whatsapp.NewBaseClient(ctx, reader,
+	b, err := whatsapp.NewClient(ctx, reader,
 		whatsapp.WithBaseClientOptions(
 			[]whttp.BaseClientOption{
 				whttp.WithHTTPClient(http.DefaultClient),
+				whttp.WithRequestHooks(),
+				whttp.WithResponseHooks(),
+				whttp.WithSendMiddleware(),
 			},
-		))
+		),
+		whatsapp.WithSendMiddlewares(),
+	)
 	if err != nil {
 		return nil, err
 	}

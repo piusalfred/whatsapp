@@ -21,7 +21,7 @@ reply to that message to be able to send other messages.
 - Run `make run` and wait to receive a message on your phone. Make sure you have sent the template message
 first from the Whatsapp Developer Dashboard.
 
-## Usage
+## usage
 
 1. [Messages](##messages) ✅
    * [1.1 Normal Messages](###11-normal-messages) 🚧
@@ -57,7 +57,24 @@ first from the Whatsapp Developer Dashboard.
 
 
 
-## Messages
+### messages
+Create a `client` instance and use it to send messages.
+```go
+   client, err := whatsapp.NewClient(ctx, reader,
+		whatsapp.WithBaseClientOptions(
+			[]whttp.BaseClientOption{
+				whttp.WithHTTPClient(http.DefaultClient),
+				whttp.WithRequestHooks(), // can access the *http.Request
+				whttp.WithResponseHooks(),// can access the *http.Response
+				whttp.WithSendMiddleware(), 
+			},
+		),
+		whatsapp.WithSendMiddlewares(),
+	)
+	if err != nil {
+		return nil, err
+	}
+```
 ### 1.1 Normal Messages
 ### 1.2 Reply Messages
 ### 1.3 Media Messages
