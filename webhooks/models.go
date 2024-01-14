@@ -115,13 +115,14 @@ type (
 	// back, as it is implied that a message has been delivered if it has been read. The reason for this
 	// behavior is internal optimization.
 	Status struct {
-		ID           string           `json:"id,omitempty"`
-		RecipientID  string           `json:"recipient_id,omitempty"`
-		StatusValue  string           `json:"status,omitempty"`
-		Timestamp    int              `json:"timestamp,omitempty"`
-		Conversation *Conversation    `json:"conversation,omitempty"`
-		Pricing      *Pricing         `json:"pricing,omitempty"`
-		Errors       []*werrors.Error `json:"werrors,omitempty"`
+		ID                    string           `json:"id,omitempty"`
+		BizOpaqueCallbackData string           `json:"biz_opaque_callback_data,omitempty"`
+		RecipientID           string           `json:"recipient_id,omitempty"`
+		StatusValue           string           `json:"status,omitempty"`
+		Timestamp             int              `json:"timestamp,omitempty"`
+		Conversation          *Conversation    `json:"conversation,omitempty"`
+		Pricing               *Pricing         `json:"pricing,omitempty"`
+		Errors                []*werrors.Error `json:"errors,omitempty"`
 	}
 
 	// Event is the type of event that occurred and leads to the notification being sent.

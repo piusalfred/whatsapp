@@ -108,6 +108,16 @@ type (
 
 	// Message is a WhatsApp message. It contains the following fields:
 	//
+	// BizOpaqueCallbackData biz_opaque_callback_data (string) Optional. An arbitrary
+	// 256B string, useful for tracking. For example, you could pass the message template
+	// ID in this field to track your customer's journey starting from the first message you
+	// send. You could then track the ROI of different message template types to determine the
+	// most effective one.
+	// Any app subscribed to the messages webhook field on the WhatsApp Business Account can get
+	// this string, as it is included in statuses object within webhook payloads.
+	// Cloud API does not process this field, it just returns it as part of sent/delivered/read
+	// message webhooks.
+	//
 	// Audio (object) Required when type=audio. A media object containing audio.
 	//
 	// Contacts (object) Required when type=contacts. A contacts object.
@@ -164,22 +174,23 @@ type (
 	//
 	// Type (string). Optional. The type of message you want to send. Default: text.
 	Message struct {
-		Product       string       `json:"messaging_product"`
-		To            string       `json:"to"`
-		RecipientType string       `json:"recipient_type"`
-		Type          string       `json:"type"`
-		Context       *Context     `json:"context,omitempty"`
-		Template      *Template    `json:"template,omitempty"`
-		Text          *Text        `json:"text,omitempty"`
-		Image         *Image       `json:"image,omitempty"`
-		Audio         *Audio       `json:"audio,omitempty"`
-		Video         *Video       `json:"video,omitempty"`
-		Document      *Document    `json:"document,omitempty"`
-		Sticker       *Sticker     `json:"sticker,omitempty"`
-		Reaction      *Reaction    `json:"reaction,omitempty"`
-		Location      *Location    `json:"location,omitempty"`
-		Contacts      Contacts     `json:"contacts,omitempty"`
-		Interactive   *Interactive `json:"interactive,omitempty"`
+		Product               string       `json:"messaging_product"`
+		BizOpaqueCallbackData string       `json:"biz_opaque_callback_data,omitempty"`
+		To                    string       `json:"to"`
+		RecipientType         string       `json:"recipient_type"`
+		Type                  string       `json:"type"`
+		Context               *Context     `json:"context,omitempty"`
+		Template              *Template    `json:"template,omitempty"`
+		Text                  *Text        `json:"text,omitempty"`
+		Image                 *Image       `json:"image,omitempty"`
+		Audio                 *Audio       `json:"audio,omitempty"`
+		Video                 *Video       `json:"video,omitempty"`
+		Document              *Document    `json:"document,omitempty"`
+		Sticker               *Sticker     `json:"sticker,omitempty"`
+		Reaction              *Reaction    `json:"reaction,omitempty"`
+		Location              *Location    `json:"location,omitempty"`
+		Contacts              Contacts     `json:"contacts,omitempty"`
+		Interactive           *Interactive `json:"interactive,omitempty"`
 	}
 
 	Image    Media
