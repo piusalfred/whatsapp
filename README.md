@@ -58,15 +58,58 @@ first from the Whatsapp Developer Dashboard.
 
 
 ### messages
-Create a `client` instance and use it to send messages.
+
+Create a `client` instance and use it to send messages. It uses `config.Reader` to read
+configuration values from a source. You can implement your own `config.Reader`.The `dotEnvReader`
+is an example of a `config.Reader` that reads configuration values from a `.env` file.
+
+
 ```go
-   client, err := whatsapp.NewClient(ctx, reader,
+package main
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/joho/godotenv"
+	"github.com/piusalfred/whatsapp"
+	"github.com/piusalfred/whatsapp/pkg/config"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
+	"github.com/piusalfred/whatsapp/pkg/models"
+)
+
+var _ config.Reader = (*dotEnvReader)(nil)
+
+type dotEnvReader struct {
+	filePath string
+}
+
+func (d *dotEnvReader) Read(ctx context.Context) (*config.Values, error) {
+	vm, err := godotenv.Read(d.filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config.Values{
+		BaseURL:           vm["BASE_URL"],
+		Version:           vm["VERSION"],
+		AccessToken:       vm["ACCESS_TOKEN"],
+		PhoneNumberID:     vm["PHONE_NUMBER_ID"],
+		BusinessAccountID: vm["BUSINESS_ACCOUNT_ID"],
+	}, nil
+}
+
+func initBaseClient(ctx context.Context) (*whatsapp.Client, error) {
+	reader := &dotEnvReader{filePath: ".env"}
+	b, err := whatsapp.NewClient(ctx, reader,
 		whatsapp.WithBaseClientOptions(
 			[]whttp.BaseClientOption{
 				whttp.WithHTTPClient(http.DefaultClient),
-				whttp.WithRequestHooks(), // can access the *http.Request
-				whttp.WithResponseHooks(),// can access the *http.Response
-				whttp.WithSendMiddleware(), 
+				whttp.WithRequestHooks(),
+				whttp.WithResponseHooks(),
+				whttp.WithSendMiddleware(),
 			},
 		),
 		whatsapp.WithSendMiddlewares(),
@@ -74,8 +117,40 @@ Create a `client` instance and use it to send messages.
 	if err != nil {
 		return nil, err
 	}
+
+	return b, nil
+}
+
 ```
 ### 1.1 Normal Messages
+An example to send a text message
+```go
+func send(ctx context.Context)error{
+	client, err := initBaseClient(ctx)
+	response, err := client.Text(ctx, &whatsapp.RequestParams{
+		ID:        "",  // Optional
+		Metadata:  map[string]string{ // Optional -for stuffs like observability
+			"key": "value",
+			"context": "demo",
+		},
+		Recipient: "+2557XXXXXXX",
+		ReplyID:   "",// Put the message ID here if you want to reply to that message.
+	}, &models.Text{
+		Body:       "Hello World From github.com/piusalfred/whatsapp",
+		PreviewURL: true,
+	})
+	if err != nil {
+		return err
+	}
+	
+	fmt.Printf("\n%+v\n", response)
+	
+	return nil
+}
+```
+There are other client methods that you can use to send other types of messages.
+like `client.Location` for sending location messages, `client.Image` for sending image messages
+and so on.
 ### 1.2 Reply Messages
 ### 1.3 Media Messages
 ### 1.4 Interactive Messages
