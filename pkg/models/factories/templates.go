@@ -17,34 +17,30 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package whatsapp
+package factories
 
 import (
-	"context"
+	"strings"
+	"time"
+
+	"github.com/piusalfred/whatsapp/pkg/models"
 )
 
-type (
-	// Config is a struct that holds the configuration for the whatsapp client.
-	// It is used to create a new whatsapp client.
-	Config struct {
-		BaseURL           string
-		Version           string
-		AccessToken       string
-		PhoneNumberID     string
-		BusinessAccountID string
-	}
-
-	// ConfigReader is an interface that can be used to read the configuration
-	// from a file or any other source.
-	ConfigReader interface {
-		Read(ctx context.Context) (*Config, error)
-	}
-
-	// ConfigReaderFunc is a function that implements the ConfigReader interface.
-	ConfigReaderFunc func(ctx context.Context) (*Config, error)
+const (
+	CalendarGregorian  = "GREGORIAN"
+	CalendarSolarHijri = "SOLAR_HIJRI"
 )
 
-// Read implements the ConfigReader interface.
-func (fn ConfigReaderFunc) Read(ctx context.Context) (*Config, error) {
-	return fn(ctx)
+// TemplateDateTimeGregorian returns a new date time template component for the given date and time.
+func TemplateDateTimeGregorian(fallback string, dt time.Time) *models.TemplateDateTime {
+	return &models.TemplateDateTime{
+		FallbackValue: fallback,
+		DayOfWeek:     strings.ToUpper(dt.Weekday().String()),
+		Year:          dt.Year(),
+		Month:         int(dt.Month()),
+		DayOfMonth:    dt.Day(),
+		Hour:          dt.Hour(),
+		Minute:        dt.Minute(),
+		Calendar:      CalendarGregorian,
+	}
 }

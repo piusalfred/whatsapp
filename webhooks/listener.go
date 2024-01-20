@@ -307,6 +307,7 @@ func (ls *EventListener) GlobalHandler() http.Handler {
 		}()
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
+
 			return
 		}
 

@@ -17,46 +17,37 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package whatsapp
+package config
 
-import (
-	"testing"
+import "context"
+
+const (
+	BaseURL           = "https://graph.facebook.com"
+	DefaultAPIVersion = "v16.0" // This is the lowest version of the API that is supported
 )
 
-func TestMediaMaxAllowedSize(t *testing.T) {
-	t.Parallel()
-	type args struct {
-		mediaType MediaType
+type (
+	// Values is a struct that holds the configuration for the whatsapp client.
+	// It is used to create a new whatsapp client.
+	Values struct {
+		BaseURL           string
+		Version           string
+		AccessToken       string
+		PhoneNumberID     string
+		BusinessAccountID string
 	}
-	tests := []struct {
-		name string
-		args args
-		want int
-	}{
-		{
-			name: "video",
-			args: args{
-				MediaTypeVideo,
-			},
-			want: MaxVideoSize,
-		},
 
-		{
-			name: "unknown",
-			args: args{
-				MediaType("unknown"),
-			},
-			want: -1,
-		},
+	// Reader is an interface that can be used to read the configuration
+	// from a file or any other source.
+	Reader interface {
+		Read(ctx context.Context) (*Values, error)
 	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			args := tt.args
-			if got := MediaMaxAllowedSize(args.mediaType); got != tt.want {
-				t.Errorf("MediaMaxAllowedSize() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+
+	// ReaderFunc is a function that implements the Reader interface.
+	ReaderFunc func(ctx context.Context) (*Values, error)
+)
+
+// Read implements the Reader interface.
+func (fn ReaderFunc) Read(ctx context.Context) (*Values, error) {
+	return fn(ctx)
 }

@@ -20,13 +20,6 @@
 package models
 
 type (
-	// InteractiveMessage is the type of interactive message you want to send. Supported values are:
-	// 	- button: Use it for Reply Buttons.
-	// 	- list: Use it for ListQR Messages.
-	// 	- product: Use for Single Product Messages.
-	// 	- product_list: Use for Multi-Product Messages.
-	InteractiveMessage string
-
 	// InteractiveButton contains information about a button in an interactive message.
 	// A button object can contain the following parameters:
 	// 	- Type: only supported type is reply (for Reply Button)
@@ -101,7 +94,7 @@ type (
 	//
 	//	- Buttons, buttons (array of objects) Required for Reply Buttons. A button object can contain
 	//	  the following parameters:
-	//		- Type: only supported type is reply (for Reply Button)
+	//		- MessageType: only supported type is reply (for Reply Button)
 	//		- Title: Button title. It cannot be an empty string and must be unique within the message.
 	//		  Emojis are supported,markdown is not. Maximum length: 20 characters.
 	//		- ID: Unique identifier for your button. This ID is returned in the webhook when the button
@@ -121,11 +114,13 @@ type (
 	//	- Sections, sections (array of objects) Required for ListQR Messages and Multi-Product Messages. Array of
 	//	  section objects. Minimum of 1, maximum of 10. See InteractiveSection object.
 	InteractiveAction struct {
-		Button            string                `json:"button,omitempty"`
-		Buttons           []*InteractiveButton  `json:"buttons,omitempty"`
-		CatalogID         string                `json:"catalog_id,omitempty"`
-		ProductRetailerID string                `json:"product_retailer_id,omitempty"`
-		Sections          []*InteractiveSection `json:"sections,omitempty"`
+		Name              string                       `json:"name,omitempty"`
+		Parameters        *InteractiveActionParameters `json:"parameters,omitempty"`
+		Button            string                       `json:"button,omitempty"`
+		Buttons           []*InteractiveButton         `json:"buttons,omitempty"`
+		CatalogID         string                       `json:"catalog_id,omitempty"`
+		ProductRetailerID string                       `json:"product_retailer_id,omitempty"`
+		Sections          []*InteractiveSection        `json:"sections,omitempty"`
 	}
 
 	// InteractiveHeader contains information about an interactive header.
@@ -193,86 +188,8 @@ type (
 		Header *InteractiveHeader `json:"header,omitempty"`
 	}
 
-	InteractiveOption func(*Interactive)
+	InteractiveActionParameters struct {
+		URL         string `json:"url,omitempty"`
+		DisplayText string `json:"display_text,omitempty"`
+	}
 )
-
-// CreateInteractiveRelyButtonList creates a list of InteractiveButton with type reply, A max of
-// 3 buttons can be added to a message. So do not add more than 3 buttons.
-func CreateInteractiveRelyButtonList(buttons ...*InteractiveReplyButton) []*InteractiveButton {
-	var list []*InteractiveButton
-	for _, button := range buttons {
-		list = append(list, &InteractiveButton{
-			Type:  "reply",
-			Reply: button,
-		})
-	}
-
-	return list
-}
-
-func WithInteractiveFooter(footer string) InteractiveOption {
-	return func(i *Interactive) {
-		i.Footer = &InteractiveFooter{
-			Text: footer,
-		}
-	}
-}
-
-func WithInteractiveBody(body string) InteractiveOption {
-	return func(i *Interactive) {
-		i.Body = &InteractiveBody{
-			Text: body,
-		}
-	}
-}
-
-func WithInteractiveHeader(header *InteractiveHeader) InteractiveOption {
-	return func(i *Interactive) {
-		i.Header = header
-	}
-}
-
-func WithInteractiveAction(action *InteractiveAction) InteractiveOption {
-	return func(i *Interactive) {
-		i.Action = action
-	}
-}
-
-func NewInteractiveMessage(interactiveType string, options ...InteractiveOption) *Interactive {
-	interactive := &Interactive{
-		Type: interactiveType,
-	}
-	for _, option := range options {
-		option(interactive)
-	}
-
-	return interactive
-}
-
-func InteractiveHeaderText(text string) *InteractiveHeader {
-	return &InteractiveHeader{
-		Type: "text",
-		Text: text,
-	}
-}
-
-func InteractiveHeaderImage(image *Media) *InteractiveHeader {
-	return &InteractiveHeader{
-		Type:  "image",
-		Image: image,
-	}
-}
-
-func InteractiveHeaderVideo(video *Media) *InteractiveHeader {
-	return &InteractiveHeader{
-		Type:  "video",
-		Video: video,
-	}
-}
-
-func InteractiveHeaderDocument(document *Media) *InteractiveHeader {
-	return &InteractiveHeader{
-		Type:     "document",
-		Document: document,
-	}
-}

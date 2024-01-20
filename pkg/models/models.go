@@ -19,13 +19,6 @@
 
 package models
 
-const (
-	InteractiveMessageButton      = "button"
-	InteractiveMessageList        = "list"
-	InteractiveMessageProduct     = "product"
-	InteractiveMessageProductList = "product_list"
-)
-
 type (
 	Reaction struct {
 		MessageID string `json:"message_id"`
@@ -33,7 +26,7 @@ type (
 	}
 
 	Text struct {
-		PreviewURL bool   `json:"preview_url,omitempty"`
+		PreviewURL bool   `json:"preview_url"`
 		Body       string `json:"body,omitempty"`
 	}
 
@@ -54,7 +47,7 @@ type (
 	//    - replying with an image, video, PTT, or audio, and the recipient is on KaiOS
 	// These are known bugs which we are addressing.
 	Context struct {
-		MessageID string `json:"message_id"`
+		MessageID string `json:"message_id,omitempty"`
 	}
 
 	// MediaInfo provides information about a media be it an Audio, Video, etc.
@@ -84,7 +77,8 @@ type (
 	//		- See Media http Caching if you would like us to cache the media asset for future messages.
 	//
 	//		- When we request the media asset from your server you must indicate the media's MIME type by including
-	//        the Content-Type http header. For example: Content-Type: video/mp4. See Supported Media Types for a
+	//        the Content-MessageType http header. For example: Content-MessageType:
+	//        video/mp4. See Supported Media Types for a
 	//        list of supported media and their MIME types.
 	//
 	//	- Caption, caption (string). For On-Premises API users on v2.41.2 or newer, this field is required when type
@@ -113,6 +107,16 @@ type (
 	}
 
 	// Message is a WhatsApp message. It contains the following fields:
+	//
+	// BizOpaqueCallbackData biz_opaque_callback_data (string) Optional. An arbitrary
+	// 256B string, useful for tracking. For example, you could pass the message template
+	// ID in this field to track your customer's journey starting from the first message you
+	// send. You could then track the ROI of different message template types to determine the
+	// most effective one.
+	// Any app subscribed to the messages webhook field on the WhatsApp Business Account can get
+	// this string, as it is included in statuses object within webhook payloads.
+	// Cloud API does not process this field, it just returns it as part of sent/delivered/read
+	// message webhooks.
 	//
 	// Audio (object) Required when type=audio. A media object containing audio.
 	//
@@ -170,72 +174,28 @@ type (
 	//
 	// Type (string). Optional. The type of message you want to send. Default: text.
 	Message struct {
-		Product       string       `json:"messaging_product"`
-		To            string       `json:"to"`
-		RecipientType string       `json:"recipient_type"`
-		Type          string       `json:"type"`
-		PreviewURL    bool         `json:"preview_url,omitempty"`
-		Context       *Context     `json:"context,omitempty"`
-		Template      *Template    `json:"template,omitempty"`
-		Text          *Text        `json:"text,omitempty"`
-		Image         *Media       `json:"image,omitempty"`
-		Audio         *Media       `json:"audio,omitempty"`
-		Video         *Media       `json:"video,omitempty"`
-		Document      *Media       `json:"document,omitempty"`
-		Sticker       *Media       `json:"sticker,omitempty"`
-		Reaction      *Reaction    `json:"reaction,omitempty"`
-		Location      *Location    `json:"location,omitempty"`
-		Contacts      Contacts     `json:"contacts,omitempty"`
-		Interactive   *Interactive `json:"interactive,omitempty"`
+		Product               string       `json:"messaging_product"`
+		BizOpaqueCallbackData string       `json:"biz_opaque_callback_data,omitempty"`
+		To                    string       `json:"to"`
+		RecipientType         string       `json:"recipient_type"`
+		Type                  string       `json:"type"`
+		Context               *Context     `json:"context,omitempty"`
+		Template              *Template    `json:"template,omitempty"`
+		Text                  *Text        `json:"text,omitempty"`
+		Image                 *Image       `json:"image,omitempty"`
+		Audio                 *Audio       `json:"audio,omitempty"`
+		Video                 *Video       `json:"video,omitempty"`
+		Document              *Document    `json:"document,omitempty"`
+		Sticker               *Sticker     `json:"sticker,omitempty"`
+		Reaction              *Reaction    `json:"reaction,omitempty"`
+		Location              *Location    `json:"location,omitempty"`
+		Contacts              Contacts     `json:"contacts,omitempty"`
+		Interactive           *Interactive `json:"interactive,omitempty"`
 	}
 
-	MessageOption func(*Message)
-
-	// InteractiveHeaderType represent required value of InteractiveHeader.Type
-	// The header type you would like to use. Supported values:
-	// text: Used for ListQR Messages, Reply Buttons, and Multi-Product Messages.
-	// video: Used for Reply Buttons.
-	// image: Used for Reply Buttons.
-	// document: Used for Reply Buttons.
-	InteractiveHeaderType string
+	Image    Media
+	Audio    Media
+	Video    Media
+	Document Media
+	Sticker  Media
 )
-
-const (
-	// InteractiveHeaderTypeText is used for ListQR Messages, Reply Buttons, and Multi-Product Messages.
-	InteractiveHeaderTypeText  InteractiveHeaderType = "text"
-	InteractiveHeaderTypeVideo InteractiveHeaderType = "video"
-	InteractiveHeaderTypeImage InteractiveHeaderType = "image"
-	InteractiveHeaderTypeDoc   InteractiveHeaderType = "document"
-)
-
-const (
-	BodyMaxLength   = 1024
-	FooterMaxLength = 60
-)
-
-// NewMessage creates a new message.
-func NewMessage(recipient string, options ...MessageOption) *Message {
-	message := &Message{
-		Product:       "whatsapp",
-		RecipientType: "individual",
-		To:            recipient,
-	}
-	for _, option := range options {
-		option(message)
-	}
-
-	return message
-}
-
-func WithTemplate(template *Template) MessageOption {
-	return func(m *Message) {
-		m.Type = "template"
-		m.Template = template
-	}
-}
-
-// SetTemplate sets the template of the message.
-func (m *Message) SetTemplate(template *Template) {
-	m.Type = "template"
-	m.Template = template
-}

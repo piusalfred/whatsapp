@@ -17,4 +17,39 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package whatsapp
+package flows
+
+type (
+	// ListFlowsResponse represents the response from the list flows endpoint.
+	ListFlowsResponse struct {
+		Data   []*Details `json:"data,omitempty"`
+		Paging *Paging    `json:"paging,omitempty"`
+	}
+
+	Details struct {
+		Name             string             `json:"name,omitempty"`
+		Status           string             `json:"status,omitempty"`
+		Categories       []string           `json:"categories,omitempty"`
+		ValidationErrors []*ValidationError `json:"validation_errors,omitempty"`
+		ID               string             `json:"id,omitempty"`
+	}
+
+	ValidationError struct {
+		Error       string `json:"error,omitempty"`
+		ErrorType   string `json:"error_type,omitempty"`
+		Message     string `json:"message,omitempty"`
+		LineStart   int    `json:"line_start,omitempty"`
+		LineEnd     int    `json:"line_end,omitempty"`
+		ColumnStart int    `json:"column_start,omitempty"`
+		ColumnEnd   int    `json:"column_end,omitempty"`
+	}
+
+	Paging struct {
+		Cursors *Cursors `json:"cursors,omitempty"`
+	}
+
+	Cursors struct {
+		Before string `json:"before,omitempty"`
+		After  string `json:"after,omitempty"`
+	}
+)

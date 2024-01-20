@@ -40,7 +40,7 @@ type (
 	//		                        These conversations are always customer-initiated.
 	//		- customer_initiated – The business replied to a customer message within 24 hours of the last customer message
 	//
-	//	PricingModel, string – Type of pricing model used by the business. Current supported value is CBP
+	//	PricingModel, string – MessageType of pricing model used by the business. Current supported value is CBP
 	Pricing struct {
 		Billable     bool   `json:"billable,omitempty"` // Deprecated
 		Category     string `json:"category,omitempty"`
@@ -115,13 +115,14 @@ type (
 	// back, as it is implied that a message has been delivered if it has been read. The reason for this
 	// behavior is internal optimization.
 	Status struct {
-		ID           string           `json:"id,omitempty"`
-		RecipientID  string           `json:"recipient_id,omitempty"`
-		StatusValue  string           `json:"status,omitempty"`
-		Timestamp    int              `json:"timestamp,omitempty"`
-		Conversation *Conversation    `json:"conversation,omitempty"`
-		Pricing      *Pricing         `json:"pricing,omitempty"`
-		Errors       []*werrors.Error `json:"werrors,omitempty"`
+		ID                    string           `json:"id,omitempty"`
+		BizOpaqueCallbackData string           `json:"biz_opaque_callback_data,omitempty"`
+		RecipientID           string           `json:"recipient_id,omitempty"`
+		StatusValue           string           `json:"status,omitempty"`
+		Timestamp             int              `json:"timestamp,omitempty"`
+		Conversation          *Conversation    `json:"conversation,omitempty"`
+		Pricing               *Pricing         `json:"pricing,omitempty"`
+		Errors                []*werrors.Error `json:"errors,omitempty"`
 	}
 
 	// Event is the type of event that occurred and leads to the notification being sent.
@@ -159,7 +160,7 @@ type (
 		Button      *Button           `json:"button,omitempty"`
 		Context     *Context          `json:"context,omitempty"`
 		Document    *models.MediaInfo `json:"document,omitempty"`
-		Errors      []*werrors.Error  `json:"werrors,omitempty"`
+		Errors      []*werrors.Error  `json:"errors,omitempty"`
 		From        string            `json:"from,omitempty"`
 		ID          string            `json:"id,omitempty"`
 		Identity    *Identity         `json:"identity,omitempty"`

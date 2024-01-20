@@ -43,7 +43,7 @@ type (
 	//        }
 	TemplateDateTime struct {
 		FallbackValue string `json:"fallback_value,omitempty"`
-		DayOfWeek     int    `json:"day_of_week"`
+		DayOfWeek     string `json:"day_of_week"`
 		Year          int    `json:"year"`
 		Month         int    `json:"month"`
 		DayOfMonth    int    `json:"day_of_month"`
@@ -186,97 +186,13 @@ type (
 		Code          string `json:"code,omitempty"`
 		Amount1000    int    `json:"amount_1000"`
 	}
+
+	// TemplateComponentType is a type of component of a template message.
+	// It can be a header, body.
+
+	InteractiveButtonTemplate struct {
+		SubType string
+		Index   int
+		Button  *TemplateButton
+	}
 )
-
-// TemplateComponentType is a type of component of a template message.
-// It can be a header, body.
-type TemplateComponentType string
-
-const (
-	TemplateComponentTypeHeader TemplateComponentType = "header"
-	TemplateComponentTypeBody   TemplateComponentType = "body"
-)
-
-func NewTextTemplate(name string, language *TemplateLanguage, parameters []*TemplateParameter) *Template {
-	component := &TemplateComponent{
-		Type:       "body",
-		Parameters: parameters,
-	}
-
-	return &Template{
-		Name:       name,
-		Language:   language,
-		Components: []*TemplateComponent{component},
-	}
-}
-
-// NewMediaTemplate create a media based template.
-func NewMediaTemplate(name string, language *TemplateLanguage, header *TemplateParameter,
-	bodies []*TemplateParameter,
-) *Template {
-	var components []*TemplateComponent
-	headerTemplate := &TemplateComponent{
-		Type:       "header",
-		Parameters: []*TemplateParameter{header},
-	}
-	components = append(components, headerTemplate)
-
-	bodyTemplate := &TemplateComponent{
-		Type:       "body",
-		Parameters: bodies,
-	}
-	components = append(components, bodyTemplate)
-
-	return &Template{
-		Name:       name,
-		Language:   language,
-		Components: components,
-	}
-}
-
-type InteractiveButtonTemplate struct {
-	SubType string
-	Index   int
-	Button  *TemplateButton
-}
-
-// NewInteractiveTemplate creates a new interactive template.
-func NewInteractiveTemplate(name string, language *TemplateLanguage, headers []*TemplateParameter,
-	bodies []*TemplateParameter, buttons []*InteractiveButtonTemplate,
-) *Template {
-	var components []*TemplateComponent
-	headerTemplate := &TemplateComponent{
-		Type:       "header",
-		Parameters: headers,
-	}
-	components = append(components, headerTemplate)
-
-	bodyTemplate := &TemplateComponent{
-		Type:       "body",
-		Parameters: bodies,
-	}
-	components = append(components, bodyTemplate)
-
-	for _, button := range buttons {
-		b := &TemplateComponent{
-			Type:    "button",
-			SubType: button.SubType,
-			Index:   button.Index,
-			Parameters: []*TemplateParameter{
-				{
-					Type:    button.Button.Type,
-					Text:    button.Button.Text,
-					Payload: button.Button.Payload,
-				},
-			},
-		}
-
-		components = append(components, b)
-	}
-
-	return &Template{
-		Name:       name,
-		Language:   language,
-		Components: components,
-	}
-}
