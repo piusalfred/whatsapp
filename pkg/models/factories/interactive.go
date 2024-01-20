@@ -56,16 +56,19 @@ func LocationRequestMessage(recipient, reply, message string) *models.Message {
 		Header: nil,
 	}
 
-	return &models.Message{
-		Context: &models.Context{
-			MessageID: reply,
-		},
+	m := &models.Message{
 		Product:       MessagingProductWhatsApp,
 		RecipientType: RecipientTypeIndividual,
 		Type:          "interactive",
 		To:            recipient,
 		Interactive:   i,
 	}
+
+	if reply != "" {
+		m.Context = &models.Context{MessageID: reply}
+	}
+
+	return m
 }
 
 func NewInteractiveCTAURLButton(parameters *CTAButtonURLParameters) *models.Interactive {

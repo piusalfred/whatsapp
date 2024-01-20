@@ -50,14 +50,27 @@ type (
 	}
 )
 
+// InteractiveCTAButtonURL sends a CTA button url request to the recipient.
+func (c *Client) InteractiveCTAButtonURL(ctx context.Context, params *RequestParams,
+	request *factories.CTAButtonURLParameters,
+) (*whttp.ResponseMessage, error) {
+	i := factories.NewInteractiveCTAURLButton(request)
+	message, err := factories.InteractiveMessage(params.Recipient, i)
+	if err != nil {
+		return nil, fmt.Errorf("interactive message: %w", err)
+	}
+
+	return c.Send(ctx, fmtParamsToContext(params, nil), message)
+}
+
 // RequestLocation sends a location request to the recipient.
 // LINK: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages/location-request-messages
-func (c *Client) RequestLocation(ctx context.Context, params *LocationRequestParams) (
+func (c *Client) RequestLocation(ctx context.Context, params *RequestParams, message string) (
 	*whttp.ResponseMessage, error,
 ) {
-	message := factories.LocationRequestMessage(params.Recipient, params.ReplyID, params.Message)
+	m := factories.LocationRequestMessage(params.Recipient, params.ReplyID, message)
 
-	return c.Send(ctx, nil, message)
+	return c.Send(ctx, fmtParamsToContext(params, nil), m)
 }
 
 func (c *Client) Image(ctx context.Context, params *RequestParams, image *models.Image,

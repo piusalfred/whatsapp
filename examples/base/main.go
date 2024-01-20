@@ -22,6 +22,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/piusalfred/whatsapp/pkg/models/factories"
 	"net/http"
 	"time"
 
@@ -130,6 +131,33 @@ func sendTextMessage(ctx context.Context, request *textRequest) error {
 	}
 
 	fmt.Printf("\n%+v\n", resp)
+
+	params := &whatsapp.RequestParams{
+		ID:        "1234567890",
+		Metadata:  map[string]string{"foo": "bar"},
+		Recipient: "+255767001828",
+		ReplyID:   "",
+	}
+
+	resp, err = b.RequestLocation(ctx, params, "Where are you mate?")
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("\n%+v\n", resp)
+
+	buttonURL, err := b.InteractiveCTAButtonURL(ctx, params, &factories.CTAButtonURLParameters{
+		DisplayText: "link to github repo",
+		URL:         "https://github.com/piusalfred/whatsapp",
+		Body:        "The Golang client for the WhatsApp Business API offers a rich set of features for building interactive WhatsApp experiences.",
+		Footer:      "You can fork,stargaze and contribute to this repo",
+		Header:      "Hey look",
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("\n%+v\n", buttonURL)
 
 	return nil
 }
