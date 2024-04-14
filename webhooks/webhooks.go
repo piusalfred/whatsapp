@@ -612,44 +612,7 @@ type (
 
 	ConfigReaderFunc func() (*Config, error)
 
-	// NotificationListener wraps all the parts needed to listen and respond to incoming events
-	// to registered webhooks.
-	// It contains unexported *Handlers, *HandlerOptions, HooksErrorHandler, NotificationErrorHandler
-	// SubscriptionVerifier and GeneralNotificationHandler.
-	// All these can be set via exported ListenerOption functions like WithBeforeFunc and
-	// Setter methods like GeneralNotificationHandler which sets the GeneralNotificationHandler.
-	//
-	// Example:
-	//
-	//	  listener := NewListener(
-	//			WithNotificationErrorHandler(NoOpNotificationErrorHandler),
-	//			WithAfterFunc(func(ctx context.Context, notification *Notification, err error) {}),
-	//			WithBeforeFunc(func(ctx context.Context, notification *Notification) error {}),
-	//			WithGlobalNotificationHandler(nil),
-	//			WithHooks(&Handlers{
-	//				OrderMessage:        nil,
-	//				ButtonMessage:       nil,
-	//				LocationMessage:     nil,
-	//				OnContactsMessageHook:     nil,
-	//				OnMessageReactionHook:     nil,
-	//				OnUnknownMessageHook:      nil,
-	//				OnProductEnquiryHook:      nil,
-	//				OnInteractiveMessageHook:  nil,
-	//				OnMessageErrorsHook:       nil,
-	//				OnTextMessageHook:         nil,
-	//				OnReferralMessageHook:     nil,
-	//			}),
-	//	  )
-	//
-	//	  example of setting a hook
-	//
-	//	  listener.Handle(func(ctx context.Context, notification *Notification, order *Order) error {
-	//			// do something with the order
-	//			return nil
-	//	  })
-	//
-	//	  using a generic handler
-	//	   := listener.HandleNotificationX()
+	// NotificationListener contains nuts and bolts needed to craft a webhook listener.
 	NotificationListener struct {
 		handlers             *Handlers
 		handlersErrorHandler func(ctx context.Context, notification *Notification, err error) *Response
@@ -710,13 +673,13 @@ func NewListener(config *Config, options ...ListenerOption) *NotificationListene
 }
 
 // ExtractAndValidateSignature extracts the signature from the header and validates it.
-func (ls *NotificationListener) ExtractAndValidateSignature(header http.Header, body []byte) error {
+func (listener *NotificationListener) ExtractAndValidateSignature(header http.Header, body []byte) error {
 	signature, err := ExtractSignatureFromHeader(header)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrSignatureVerification, err)
 	}
 
-	if err := ValidateSignature(body, signature, ls.pv.AppSecret); err != nil {
+	if err := ValidateSignature(body, signature, listener.pv.AppSecret); err != nil {
 		return fmt.Errorf("%w: %w", ErrSignatureVerification, err)
 	}
 
@@ -724,7 +687,7 @@ func (ls *NotificationListener) ExtractAndValidateSignature(header http.Header, 
 }
 
 // HandleNotificationX handles all the notification types.
-func (ls *NotificationListener) HandleNotificationX(writer http.ResponseWriter, request *http.Request) {
+func (listener *NotificationListener) HandleNotificationX(writer http.ResponseWriter, request *http.Request) {
 	buff, err := readNotificationBuffer(request)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
@@ -735,8 +698,8 @@ func (ls *NotificationListener) HandleNotificationX(writer http.ResponseWriter, 
 		ctx          = request.Context()
 	)
 
-	if ls.pv.ShouldValidate {
-		if err := ls.ExtractAndValidateSignature(request.Header, buff.Bytes()); err != nil {
+	if listener.pv.ShouldValidate {
+		if err := listener.ExtractAndValidateSignature(request.Header, buff.Bytes()); err != nil {
 
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 
@@ -750,7 +713,7 @@ func (ls *NotificationListener) HandleNotificationX(writer http.ResponseWriter, 
 		return
 	}
 
-	response := ls.g(ctx, &notification)
+	response := listener.g(ctx, &notification)
 	if response != nil {
 		writer.WriteHeader(response.StatusCode)
 
@@ -761,7 +724,7 @@ func (ls *NotificationListener) HandleNotificationX(writer http.ResponseWriter, 
 }
 
 // HandleNotification handles the notification.
-func (ls *NotificationListener) HandleNotification(writer http.ResponseWriter, request *http.Request) {
+func (listener *NotificationListener) HandleNotification(writer http.ResponseWriter, request *http.Request) {
 	var (
 		notification Notification
 		ctx          = request.Context()
@@ -769,8 +732,8 @@ func (ls *NotificationListener) HandleNotification(writer http.ResponseWriter, r
 	)
 
 	defer func() {
-		if ls.after != nil {
-			ls.after(ctx, &notification, err)
+		if listener.after != nil {
+			listener.after(ctx, &notification, err)
 		}
 	}()
 
@@ -787,24 +750,24 @@ func (ls *NotificationListener) HandleNotification(writer http.ResponseWriter, r
 		return
 	}
 
-	if ls.before != nil {
-		if bfe := ls.before(ctx, &notification); bfe != nil {
+	if listener.before != nil {
+		if bfe := listener.before(ctx, &notification); bfe != nil {
 			err = fmt.Errorf("%w: %w", ErrBeforeFunc, bfe)
 
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 		}
 	}
 
-	if ls.pv.ShouldValidate {
-		if err := ls.ExtractAndValidateSignature(request.Header, buff.Bytes()); err != nil {
+	if listener.pv.ShouldValidate {
+		if err := listener.ExtractAndValidateSignature(request.Header, buff.Bytes()); err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 
 			return
 		}
 	}
 
-	if err := ls.passNotificationToHandlers(ctx, &notification); err != nil {
-		response := ls.handlersErrorHandler(ctx, &notification, err)
+	if err := listener.passNotificationToHandlers(ctx, &notification); err != nil {
+		response := listener.handlersErrorHandler(ctx, &notification, err)
 
 		if response != nil {
 			writer.WriteHeader(response.StatusCode)
@@ -850,13 +813,13 @@ func (ls *NotificationListener) HandleNotification(writer http.ResponseWriter, r
 //     (and thus, triggering a Verification Request), the dashboard will indicate if your endpoint validated the request
 //     correctly. If you are using the Graph APIs /app/subscriptions endpoint to configure the Webhooks product, the API
 //     will indicate success or failure with a response.
-func (ls *NotificationListener) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
+func (listener *NotificationListener) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
 	q := request.URL.Query()
 	mode := q.Get("hub.mode")
 	challenge := q.Get("hub.challenge")
 	token := q.Get("hub.verify_token")
 
-	if token != ls.subVerifyToken || mode != "subscribe" {
+	if token != listener.subVerifyToken || mode != "subscribe" {
 		writer.WriteHeader(http.StatusBadRequest)
 
 		return
@@ -963,13 +926,13 @@ const (
 )
 
 // passNotificationToHandlers passes the notification to the handlers.
-func (ls *NotificationListener) passNotificationToHandlers(ctx context.Context, notification *Notification) error {
-	if notification == nil || ls.handlers == nil {
+func (listener *NotificationListener) passNotificationToHandlers(ctx context.Context, notification *Notification) error {
+	if notification == nil || listener.handlers == nil {
 		return nil
 	}
 
 	for _, entry := range notification.Entry {
-		if err := ls.passEntryToHandlers(ctx, entry); err != nil {
+		if err := listener.passEntryToHandlers(ctx, entry); err != nil {
 			return err
 		}
 	}
@@ -978,7 +941,7 @@ func (ls *NotificationListener) passNotificationToHandlers(ctx context.Context, 
 }
 
 // passEntryToHandlers passes the entry to the handlers.
-func (ls *NotificationListener) passEntryToHandlers(ctx context.Context, entry *Entry) error {
+func (listener *NotificationListener) passEntryToHandlers(ctx context.Context, entry *Entry) error {
 	entryID := entry.ID
 	changes := entry.Changes
 	for _, change := range changes {
@@ -986,7 +949,7 @@ func (ls *NotificationListener) passEntryToHandlers(ctx context.Context, entry *
 		if value == nil {
 			continue
 		}
-		if err := ls.passValueToHandlers(ctx, entryID, value); err != nil {
+		if err := listener.passValueToHandlers(ctx, entryID, value); err != nil {
 			return err
 		}
 	}
@@ -995,8 +958,8 @@ func (ls *NotificationListener) passEntryToHandlers(ctx context.Context, entry *
 }
 
 //nolint:cyclop
-func (ls *NotificationListener) passValueToHandlers(ctx context.Context, id string, value *Value) error {
-	handlers := ls.handlers
+func (listener *NotificationListener) passValueToHandlers(ctx context.Context, id string, value *Value) error {
+	handlers := listener.handlers
 
 	if handlers == nil || value == nil {
 		return nil
@@ -1032,7 +995,7 @@ func (ls *NotificationListener) passValueToHandlers(ctx context.Context, id stri
 			}
 		}
 
-		if err := ls.passMessageToHandlers(ctx, notificationCtx, mv); err != nil {
+		if err := listener.passMessageToHandlers(ctx, notificationCtx, mv); err != nil {
 			return err
 		}
 	}
@@ -1040,9 +1003,7 @@ func (ls *NotificationListener) passValueToHandlers(ctx context.Context, id stri
 	return nil
 }
 
-func (ls *NotificationListener) passMessageToHandlers(ctx context.Context, nctx *NotificationContext,
-	message *Message,
-) error {
+func (listener *NotificationListener) passMessageToHandlers(ctx context.Context, nctx *NotificationContext, message *Message) error {
 	mctx := &MessageContext{
 		From:      message.From,
 		ID:        message.ID,
@@ -1054,42 +1015,42 @@ func (ls *NotificationListener) passMessageToHandlers(ctx context.Context, nctx 
 	messageType := ParseMessageType(message.Type)
 	switch messageType {
 	case MessageTypeOrder:
-		if err := ls.handlers.OrderMessage.Handle(ctx, nctx, mctx, message.Order); err != nil {
+		if err := listener.handlers.OrderMessage.Handle(ctx, nctx, mctx, message.Order); err != nil {
 			return fmt.Errorf("%w: %w", ErrOrderMessageHandler, err)
 		}
 
 		return nil
 
 	case MessageTypeButton:
-		if err := ls.handlers.ButtonMessage.Handle(ctx, nctx, mctx, message.Button); err != nil {
+		if err := listener.handlers.ButtonMessage.Handle(ctx, nctx, mctx, message.Button); err != nil {
 			return fmt.Errorf("%w: %w", ErrButtonMessageHandler, err)
 		}
 
 		return nil
 
 	case MessageTypeAudio, MessageTypeVideo, MessageTypeImage, MessageTypeDocument, MessageTypeSticker:
-		if err := ls.handlers.MediaMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
+		if err := listener.handlers.MediaMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
 			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil
 
 	case MessageTypeInteractive:
-		if err := ls.handlers.InteractiveMessage.Handle(ctx, nctx, mctx, message.Interactive); err != nil {
+		if err := listener.handlers.InteractiveMessage.Handle(ctx, nctx, mctx, message.Interactive); err != nil {
 			return fmt.Errorf("%w: %w", ErrInteractiveHandler, err)
 		}
 
 		return nil
 
 	case MessageTypeSystem:
-		if err := ls.handlers.SystemMessage.Handle(ctx, nctx, mctx, message.System); err != nil {
+		if err := listener.handlers.SystemMessage.Handle(ctx, nctx, mctx, message.System); err != nil {
 			return fmt.Errorf("%w: %w", ErrSystemMessageHandler, err)
 		}
 
 		return nil
 
 	case MessageTypeUnknown:
-		if err := ls.handlers.MessageErrors.Handle(ctx, nctx, mctx, message.Errors); err != nil {
+		if err := listener.handlers.MessageErrors.Handle(ctx, nctx, mctx, message.Errors); err != nil {
 			return fmt.Errorf("%w: %w", ErrUnknownMessageHandler, err)
 		}
 
@@ -1097,7 +1058,7 @@ func (ls *NotificationListener) passMessageToHandlers(ctx context.Context, nctx 
 
 	case MessageTypeText:
 		if message.Referral != nil {
-			if err := ls.handlers.ReferralMessage.Handle(ctx, nctx, mctx, message.Text, message.Referral); err != nil {
+			if err := listener.handlers.ReferralMessage.Handle(ctx, nctx, mctx, message.Text, message.Referral); err != nil {
 				return fmt.Errorf("%w: %w", ErrReferralMessage, err)
 			}
 
@@ -1105,35 +1066,35 @@ func (ls *NotificationListener) passMessageToHandlers(ctx context.Context, nctx 
 		}
 
 		if mctx.Ctx != nil {
-			if err := ls.handlers.ProductEnquiry.Handle(ctx, nctx, mctx, message.Text); err != nil {
+			if err := listener.handlers.ProductEnquiry.Handle(ctx, nctx, mctx, message.Text); err != nil {
 				return fmt.Errorf("%w: %w", ErrProductEnquiry, err)
 			}
 
 			return nil
 		}
 
-		if err := ls.handlers.TextMessage.Handle(ctx, nctx, mctx, message.Text); err != nil {
+		if err := listener.handlers.TextMessage.Handle(ctx, nctx, mctx, message.Text); err != nil {
 			return fmt.Errorf("%w: %w", ErrTextMessageHandler, err)
 		}
 
 		return nil
 
 	case MessageTypeReaction:
-		if err := ls.handlers.MessageReaction.Handle(ctx, nctx, mctx, message.Reaction); err != nil {
+		if err := listener.handlers.MessageReaction.Handle(ctx, nctx, mctx, message.Reaction); err != nil {
 			return fmt.Errorf("%w: %w", ErrMessageReaction, err)
 		}
 
 		return nil
 
 	case MessageTypeLocation:
-		if err := ls.handlers.LocationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
+		if err := listener.handlers.LocationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
 			return fmt.Errorf("%w: %w", ErrLocationMessage, err)
 		}
 
 		return nil
 
 	case MessageTypeContacts:
-		if err := ls.handlers.ContactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
+		if err := listener.handlers.ContactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
 			return fmt.Errorf("%w: %w", ErrContactsMessage, err)
 		}
 
@@ -1141,14 +1102,14 @@ func (ls *NotificationListener) passMessageToHandlers(ctx context.Context, nctx 
 
 	default:
 		if message.Contacts != nil {
-			if err := ls.handlers.ContactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
+			if err := listener.handlers.ContactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
 				return fmt.Errorf("%w: %w", ErrContactsMessageHandler, err)
 			}
 
 			return nil
 		}
 		if message.Location != nil {
-			if err := ls.handlers.LocationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
+			if err := listener.handlers.LocationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
 				return fmt.Errorf("%w: %w", ErrLocationMessage, err)
 			}
 
@@ -1156,7 +1117,7 @@ func (ls *NotificationListener) passMessageToHandlers(ctx context.Context, nctx 
 		}
 
 		if message.Identity != nil {
-			if err := ls.handlers.CustomerIDChange.Handle(ctx, nctx, mctx, message.Identity); err != nil {
+			if err := listener.handlers.CustomerIDChange.Handle(ctx, nctx, mctx, message.Identity); err != nil {
 				return fmt.Errorf("%w: %w", ErrCustomerIDChange, err)
 			}
 
@@ -1513,131 +1474,131 @@ func (h OnMessageReceivedHook) Handle(
 	return h(ctx, nctx, message)
 }
 
-func (ls *NotificationListener) GenericNotificationHandler(handler GeneralNotificationHandler) {
-	ls.g = handler
+func (listener *NotificationListener) GenericNotificationHandler(handler GeneralNotificationHandler) {
+	listener.g = handler
 }
 
-func (ls *NotificationListener) SubscriptionVerifier(verifier SubscriptionVerifier) {
-	ls.v = verifier
+func (listener *NotificationListener) SubscriptionVerifier(verifier SubscriptionVerifier) {
+	listener.v = verifier
 }
 
-func (ls *NotificationListener) OnOrderMessage(hook OnOrderMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnOrderMessage(hook OnOrderMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.OrderMessage = hook
+	listener.handlers.OrderMessage = hook
 }
 
-func (ls *NotificationListener) OnButtonMessage(hook OnButtonMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnButtonMessage(hook OnButtonMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.ButtonMessage = hook
+	listener.handlers.ButtonMessage = hook
 }
 
-func (ls *NotificationListener) OnLocationMessage(hook OnLocationMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnLocationMessage(hook OnLocationMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.LocationMessage = hook
+	listener.handlers.LocationMessage = hook
 }
 
-func (ls *NotificationListener) OnContactsMessage(hook OnContactsMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnContactsMessage(hook OnContactsMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.ContactsMessage = hook
+	listener.handlers.ContactsMessage = hook
 }
 
-func (ls *NotificationListener) OnMessageReaction(hook OnMessageReactionHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnMessageReaction(hook OnMessageReactionHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.MessageReaction = hook
+	listener.handlers.MessageReaction = hook
 }
 
-func (ls *NotificationListener) OnUnknownMessage(hook OnUnknownMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnUnknownMessage(hook OnUnknownMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.UnknownMessage = hook
+	listener.handlers.UnknownMessage = hook
 }
 
-func (ls *NotificationListener) OnProductEnquiry(hook OnProductEnquiryHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnProductEnquiry(hook OnProductEnquiryHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.ProductEnquiry = hook
+	listener.handlers.ProductEnquiry = hook
 }
 
-func (ls *NotificationListener) OnInteractiveMessage(hook OnInteractiveMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnInteractiveMessage(hook OnInteractiveMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.InteractiveMessage = hook
+	listener.handlers.InteractiveMessage = hook
 }
 
-func (ls *NotificationListener) OnMessageErrors(hook OnMessageErrorsHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnMessageErrors(hook OnMessageErrorsHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.MessageErrors = hook
+	listener.handlers.MessageErrors = hook
 }
 
-func (ls *NotificationListener) OnTextMessage(hook OnTextMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnTextMessage(hook OnTextMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.TextMessage = hook
+	listener.handlers.TextMessage = hook
 }
 
-func (ls *NotificationListener) OnReferralMessage(hook OnReferralMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnReferralMessage(hook OnReferralMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.ReferralMessage = hook
+	listener.handlers.ReferralMessage = hook
 }
 
-func (ls *NotificationListener) OnCustomerIDChange(hook OnCustomerIDChangeMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnCustomerIDChange(hook OnCustomerIDChangeMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.CustomerIDChange = hook
+	listener.handlers.CustomerIDChange = hook
 }
 
-func (ls *NotificationListener) OnSystemMessage(hook OnSystemMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnSystemMessage(hook OnSystemMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.SystemMessage = hook
+	listener.handlers.SystemMessage = hook
 }
 
-func (ls *NotificationListener) OnMediaMessage(hook OnMediaMessageHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnMediaMessage(hook OnMediaMessageHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.MediaMessage = hook
+	listener.handlers.MediaMessage = hook
 }
 
-func (ls *NotificationListener) OnNotificationError(hook OnNotificationErrorHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnNotificationError(hook OnNotificationErrorHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.NotificationError = hook
+	listener.handlers.NotificationError = hook
 }
 
-func (ls *NotificationListener) OnMessageStatusChange(hook OnMessageStatusChangeHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnMessageStatusChange(hook OnMessageStatusChangeHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.MessageStatusChange = hook
+	listener.handlers.MessageStatusChange = hook
 }
 
-func (ls *NotificationListener) OnMessageReceived(hook OnMessageReceivedHook) {
-	if ls.handlers == nil {
-		ls.handlers = &Handlers{}
+func (listener *NotificationListener) OnMessageReceived(hook OnMessageReceivedHook) {
+	if listener.handlers == nil {
+		listener.handlers = &Handlers{}
 	}
-	ls.handlers.MessageReceived = hook
+	listener.handlers.MessageReceived = hook
 }
 
 func WithGlobalNotificationHandler(g GeneralNotificationHandler) ListenerOption {
