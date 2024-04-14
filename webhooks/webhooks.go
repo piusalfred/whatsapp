@@ -29,7 +29,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/piusalfred/whatsapp/pkg/models"
@@ -510,43 +512,6 @@ func ParseMessageType(s string) MessageType {
 const SignatureHeaderKey = "X-Hub-Signature-256"
 
 type (
-	// NotificationErrHandlerResponse is the response is returned by the NotificationErrorHandler instructing
-	// how the http.Response sent to the whatsapp server should be.
-	// Note that the NotificationErrorHandler can instruct the caller to ignore the error by setting the Skip
-	// field to true. In this case the caller will just return http.StatusOK to whatsapp server.
-	NotificationErrHandlerResponse struct {
-		StatusCode int
-		Headers    map[string]string
-		Body       []byte
-		Skip       bool
-	}
-
-	HooksErrorHandler func(err error) error
-	// NotificationErrorHandler is a function that handles errors that occur when processing a notification.
-	// The function returns a NotificationErrHandlerResponse that is sent to the whatsapp server.
-	//
-	// Note that retuning nil will make the default use http.StatusOK as the status code.
-	//
-	// Returning a status code that is not 200, will make a whatsapp server retry the notification. In some
-	// cases this can lead to duplicate notifications. If your business logic is affected by this, you should
-	// be careful when returning a non 200 status code.
-	//
-	// This is a snippet from the whatsapp documentation:
-	//
-	//		If we send a webhook request to your endpoint and your server responds with a http status code other
-	//		than 200, or if we are unable to deliver the webhook for another reason, we will keep trying with
-	//		decreasing frequency until the request succeeds, for up to 7 days.
-	//
-	//      Note that retries will be sent to all apps that have subscribed to webhooks (and their appropriate fields)
-	//      for the WhatsApp Business Account. This can result in duplicate webhook notifications.
-	//
-	// NotificationErrorHandler is expected at least to receive errors from HandleNotification these errors are
-	//
-	// -  ErrBeforeFunc when an error is received in the BeforeFunc hook
-	// -  ErrOnAttachNotificationHooks when an error is received in the AttachNotificationHooks hook
-	// -  ErrOnGenericHandlerFunc when an error is received in the GenericHandlerFunc hook.
-	NotificationErrorHandler func(context.Context, *http.Request, error) *NotificationErrHandlerResponse
-
 	// BeforeFunc is a function that is called before a notification is processed. It receives the notification
 	// and can return an error. If an error is returned, the notification is not processed and the error is
 	// passed to the NotificationErrorHandler. A lot of use cases can be implemented using the BeforeFunc.
@@ -574,24 +539,12 @@ type (
 		ShouldValidate bool
 	}
 
-	// VerificationRequest contains details sent by the whatsapp server during the verification process.
-	VerificationRequest struct {
-		Mode      string `json:"hub.mode"`
-		Challenge string `json:"hub.challenge"`
-		Token     string `json:"hub.verify_token"`
-	}
-
-	// SubscriptionVerifier is a function that processes the verification request.
-	// The function must return nil if the verification request is valid.
-	// It mainly checks if hub.mode is set to subscribe and if the hub.verify_token matches
-	// the one set in the App Dashboard.
-	SubscriptionVerifier func(context.Context, *VerificationRequest) error
-
-	// GeneralNotificationHandler is a function that handles all notifications. Use this function if you want to
+	// GenericNotificationHandler is a function that handles all notifications. Use this function if you want to
 	// create your own logic in handling different types of notifications. Because when this is used for receiving
 	// notifications all types of notifications from Templates, Messages, Media, Contacts, etc. will be passed here,
 	// and you can handle them as you wish.
-	GeneralNotificationHandler func(context.Context, *Notification) *Response
+	// This implementation is called when you call NotificationListener.HandleGenericNotification.
+	GenericNotificationHandler func(context.Context, *Notification) *Response
 
 	Response struct {
 		StatusCode int
@@ -612,20 +565,51 @@ type (
 
 	ConfigReaderFunc func() (*Config, error)
 
+	// HandlersErrorHandler is a function that handles errors that occur when processing a notification.
+	// The default implementation, NoOpHandlersErrorHandler returns a 200 status code. Remember if a non
+	// OK status code is returned the whatsapp server will retry the notification.
+	HandlersErrorHandler func(ctx context.Context, notification *Notification, err error) *Response
+
 	// NotificationListener contains nuts and bolts needed to craft a webhook listener.
 	NotificationListener struct {
 		handlers             *Handlers
 		handlersErrorHandler func(ctx context.Context, notification *Notification, err error) *Response
-		v                    SubscriptionVerifier
 		after                AfterFunc
 		before               BeforeFunc
-		g                    GeneralNotificationHandler
+		g                    GenericNotificationHandler
 		pv                   *PayloadValidationOptions
 		subVerifyToken       string
 	}
 
 	ListenerOption func(*NotificationListener)
 )
+
+// NoOpGenericNotificationHandler is a default implementation of the GenericNotificationHandler that returns
+// a 200 status code after printing the notification using slog.Logger.
+func NoOpGenericNotificationHandler(ctx context.Context, notification *Notification) *Response {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+		Level:     slog.LevelInfo,
+	})).WithGroup("webhooks")
+
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+
+	err := encoder.Encode(notification)
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelError, "error marshalling notification",
+			slog.String("error", err.Error()))
+	}
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "notification", slog.Any("notification", buffer.String()))
+
+	return &Response{StatusCode: http.StatusOK}
+}
+
+func NoOpHandlersErrorHandler(_ context.Context, _ *Notification, _ error) *Response {
+	return &Response{StatusCode: http.StatusOK}
+}
 
 // NewWithConfigReader returns a new NotificationListener with the provided config reader.
 func NewWithConfigReader(reader ConfigReaderFunc, options ...ListenerOption) (*NotificationListener, error) {
@@ -637,9 +621,11 @@ func NewWithConfigReader(reader ConfigReaderFunc, options ...ListenerOption) (*N
 	return NewListener(config, options...), nil
 }
 
-// NewGeneralListener returns a new NotificationListener with the provided options.
-func NewGeneralListener(config *Config, g GeneralNotificationHandler) *NotificationListener {
-	return &NotificationListener{
+// NewGenericNotificationListener returns a new NotificationListener with the provided options.
+func NewGenericNotificationListener(config *Config, g GenericNotificationHandler,
+	options ...ListenerOption,
+) *NotificationListener {
+	listener := &NotificationListener{
 		pv: &PayloadValidationOptions{
 			AppSecret:      config.AppSecret,
 			ShouldValidate: config.ShouldValidate,
@@ -647,20 +633,28 @@ func NewGeneralListener(config *Config, g GeneralNotificationHandler) *Notificat
 		g:              g,
 		subVerifyToken: config.VerifyToken,
 	}
+
+	for _, option := range options {
+		if option != nil {
+			option(listener)
+		}
+	}
+
+	return listener
 }
 
 func NewListener(config *Config, options ...ListenerOption) *NotificationListener {
 	listener := &NotificationListener{
 		handlers: nil,
-		v:        nil,
 		after:    nil,
 		before:   nil,
 		pv: &PayloadValidationOptions{
 			AppSecret:      config.AppSecret,
 			ShouldValidate: config.ShouldValidate,
 		},
-		g:              nil,
-		subVerifyToken: config.VerifyToken,
+		handlersErrorHandler: NoOpHandlersErrorHandler,
+		g:                    NoOpGenericNotificationHandler,
+		subVerifyToken:       config.VerifyToken,
 	}
 
 	for _, option := range options {
@@ -686,8 +680,8 @@ func (listener *NotificationListener) ExtractAndValidateSignature(header http.He
 	return nil
 }
 
-// HandleNotificationX handles all the notification types.
-func (listener *NotificationListener) HandleNotificationX(writer http.ResponseWriter, request *http.Request) {
+// HandleGenericNotification handles all the notification types.
+func (listener *NotificationListener) HandleGenericNotification(writer http.ResponseWriter, request *http.Request) {
 	buff, err := readNotificationBuffer(request)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
@@ -766,7 +760,7 @@ func (listener *NotificationListener) HandleNotification(writer http.ResponseWri
 		}
 	}
 
-	if err := listener.passNotificationToHandlers(ctx, &notification); err != nil {
+	if err := listener.handleNotification(ctx, &notification); err != nil {
 		response := listener.handlersErrorHandler(ctx, &notification, err)
 
 		if response != nil {
@@ -813,7 +807,9 @@ func (listener *NotificationListener) HandleNotification(writer http.ResponseWri
 //     (and thus, triggering a Verification Request), the dashboard will indicate if your endpoint validated the request
 //     correctly. If you are using the Graph APIs /app/subscriptions endpoint to configure the Webhooks product, the API
 //     will indicate success or failure with a response.
-func (listener *NotificationListener) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
+func (listener *NotificationListener) HandleSubscriptionVerification(writer http.ResponseWriter,
+	request *http.Request,
+) {
 	q := request.URL.Query()
 	mode := q.Get("hub.mode")
 	challenge := q.Get("hub.challenge")
@@ -925,14 +921,16 @@ const (
 	ErrMessageReceivedNotificationHandler = webhookError("message received notification handler failed")
 )
 
-// passNotificationToHandlers passes the notification to the handlers.
-func (listener *NotificationListener) passNotificationToHandlers(ctx context.Context, notification *Notification) error {
+// handleNotification passes the notification to the handlers.
+func (listener *NotificationListener) handleNotification(ctx context.Context,
+	notification *Notification,
+) error {
 	if notification == nil || listener.handlers == nil {
 		return nil
 	}
 
 	for _, entry := range notification.Entry {
-		if err := listener.passEntryToHandlers(ctx, entry); err != nil {
+		if err := listener.handleNotificationEntry(ctx, entry); err != nil {
 			return err
 		}
 	}
@@ -940,8 +938,8 @@ func (listener *NotificationListener) passNotificationToHandlers(ctx context.Con
 	return nil
 }
 
-// passEntryToHandlers passes the entry to the handlers.
-func (listener *NotificationListener) passEntryToHandlers(ctx context.Context, entry *Entry) error {
+// handleNotificationEntry passes the entry to the handlers.
+func (listener *NotificationListener) handleNotificationEntry(ctx context.Context, entry *Entry) error {
 	entryID := entry.ID
 	changes := entry.Changes
 	for _, change := range changes {
@@ -949,7 +947,7 @@ func (listener *NotificationListener) passEntryToHandlers(ctx context.Context, e
 		if value == nil {
 			continue
 		}
-		if err := listener.passValueToHandlers(ctx, entryID, value); err != nil {
+		if err := listener.handleNotificationChangeValue(ctx, entryID, value); err != nil {
 			return err
 		}
 	}
@@ -957,8 +955,9 @@ func (listener *NotificationListener) passEntryToHandlers(ctx context.Context, e
 	return nil
 }
 
-//nolint:cyclop
-func (listener *NotificationListener) passValueToHandlers(ctx context.Context, id string, value *Value) error {
+func (listener *NotificationListener) handleNotificationChangeValue(ctx context.Context,
+	id string, value *Value,
+) error {
 	handlers := listener.handlers
 
 	if handlers == nil || value == nil {
@@ -971,7 +970,6 @@ func (listener *NotificationListener) passValueToHandlers(ctx context.Context, i
 		Metadata: value.Metadata,
 	}
 
-	// call the Handlers
 	if handlers.NotificationError != nil {
 		for _, ev := range value.Errors {
 			if err := handlers.NotificationError.Handle(ctx, notificationCtx, ev); err != nil {
@@ -995,7 +993,7 @@ func (listener *NotificationListener) passValueToHandlers(ctx context.Context, i
 			}
 		}
 
-		if err := listener.handleMessage(ctx, notificationCtx, mv); err != nil {
+		if err := listener.handleNotificationMessage(ctx, notificationCtx, mv); err != nil {
 			return err
 		}
 	}
@@ -1003,7 +1001,9 @@ func (listener *NotificationListener) passValueToHandlers(ctx context.Context, i
 	return nil
 }
 
-func (listener *NotificationListener) handleMessage(ctx context.Context, nctx *NotificationContext, message *Message) error {
+func (listener *NotificationListener) handleNotificationMessage(ctx context.Context,
+	nctx *NotificationContext, message *Message,
+) error {
 	mctx := &MessageContext{
 		From:      message.From,
 		ID:        message.ID,
@@ -1474,12 +1474,8 @@ func (h OnMessageReceivedHook) Handle(
 	return h(ctx, nctx, message)
 }
 
-func (listener *NotificationListener) GenericNotificationHandler(handler GeneralNotificationHandler) {
+func (listener *NotificationListener) GenericNotificationHandler(handler GenericNotificationHandler) {
 	listener.g = handler
-}
-
-func (listener *NotificationListener) SubscriptionVerifier(verifier SubscriptionVerifier) {
-	listener.v = verifier
 }
 
 func (listener *NotificationListener) OnOrderMessage(hook OnOrderMessageHook) {
@@ -1601,32 +1597,38 @@ func (listener *NotificationListener) OnMessageReceived(hook OnMessageReceivedHo
 	listener.handlers.MessageReceived = hook
 }
 
-func WithGlobalNotificationHandler(g GeneralNotificationHandler) ListenerOption {
-	return func(ls *NotificationListener) {
-		ls.g = g
-	}
-}
-
-func WithHooks(hooks *Handlers) ListenerOption {
-	return func(ls *NotificationListener) {
-		ls.handlers = hooks
-	}
-}
-
-func WithSubscriptionVerifier(verifier SubscriptionVerifier) ListenerOption {
-	return func(ls *NotificationListener) {
-		ls.v = verifier
-	}
-}
-
-func WithBeforeFunc(beforeFunc BeforeFunc) ListenerOption {
+func WithListenerBeforeFunc(beforeFunc BeforeFunc) ListenerOption {
 	return func(ls *NotificationListener) {
 		ls.before = beforeFunc
 	}
 }
 
-func WithAfterFunc(afterFunc AfterFunc) ListenerOption {
+func WithListenerAfterFunc(afterFunc AfterFunc) ListenerOption {
 	return func(ls *NotificationListener) {
 		ls.after = afterFunc
+	}
+}
+
+func WithListenerHandlersErrorHandler(handler HandlersErrorHandler) ListenerOption {
+	return func(ls *NotificationListener) {
+		ls.handlersErrorHandler = handler
+	}
+}
+
+func WithListenerHandlers(handlers *Handlers) ListenerOption {
+	return func(ls *NotificationListener) {
+		ls.handlers = handlers
+	}
+}
+
+func WithListenerPayloadValidationOptions(options *PayloadValidationOptions) ListenerOption {
+	return func(ls *NotificationListener) {
+		ls.pv = options
+	}
+}
+
+func WithListenerSubscriptionVerifyToken(token string) ListenerOption {
+	return func(ls *NotificationListener) {
+		ls.subVerifyToken = token
 	}
 }

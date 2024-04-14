@@ -53,7 +53,7 @@ func ListenAndServe() error {
 	mux := http.NewServeMux()
 	notificationEndpoint := fmt.Sprintf("POST %s", server.Endpoint)
 	verificationEndpoint := fmt.Sprintf("GET %s", server.Endpoint)
-	notificationHandler := wrapMiddleware(server.LoggingMiddleware, server.Listener.HandleNotificationX)
+	notificationHandler := wrapMiddleware(server.LoggingMiddleware, server.Listener.HandleGenericNotification)
 	verificationHandler := wrapMiddleware(server.LoggingMiddleware, server.Listener.HandleSubscriptionVerification)
 
 	mux.HandleFunc(notificationEndpoint, notificationHandler)
@@ -73,11 +73,11 @@ func NewServer(subscriptionToken, endpoint string) *Server {
 		Endpoint:          endpoint,
 	}
 
-	g := webhooks.GeneralNotificationHandler(s.HandleNotification)
-	s.Listener = webhooks.NewGeneralListener(&webhooks.Config{
+	g := webhooks.GenericNotificationHandler(s.HandleNotification)
+	s.Listener = webhooks.NewGenericNotificationListener(&webhooks.Config{
 		AppSecret:      "",
 		ShouldValidate: false,
-		VerifyToken:    "",
+		VerifyToken:    subscriptionToken,
 	}, g)
 
 	return s
