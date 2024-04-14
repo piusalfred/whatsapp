@@ -19,32 +19,26 @@
 
 package webhooks
 
-import (
-	"fmt"
-	"os/exec"
-	"strings"
-)
-
-const listIPAddressesCmd = `whois -handlers whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort`
-
-// ListIPAddresses returns a list of IP addresses that you can use to allow-list our webhook
-// servers in your firewall or network configuration.
+//const listIPAddressesCmd = `whois -handlers whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort`
 //
-// You can get the IP addresses of our webhook servers by running the following command in
-// your terminal:
+//// ListIPAddresses returns a list of IP addresses that you can use to allow-list our webhook
+//// servers in your firewall or network configuration.
+////
+//// You can get the IP addresses of our webhook servers by running the following command in
+//// your terminal:
+////
+////	whois -handlers whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort
+////
+//// We periodically change these IP addresses so if you are allow-listing our servers you may
+//// want to occasionally regenerate this list and update your allow-list accordingly.
+//func ListIPAddresses() ([]string, error) {
+//	cmd := exec.Command("bash", "-c", listIPAddressesCmd)
+//	output, err := cmd.CombinedOutput()
+//	if err != nil {
+//		return nil, fmt.Errorf("failed to list IP addresses: %w", err)
+//	}
 //
-//	whois -handlers whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort
+//	routes := strings.Split(strings.TrimSpace(string(output)), "\n")
 //
-// We periodically change these IP addresses so if you are allow-listing our servers you may
-// want to occasionally regenerate this list and update your allow-list accordingly.
-func ListIPAddresses() ([]string, error) {
-	cmd := exec.Command("bash", "-c", listIPAddressesCmd)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("failed to list IP addresses: %w", err)
-	}
-
-	routes := strings.Split(strings.TrimSpace(string(output)), "\n")
-
-	return routes, nil
-}
+//	return routes, nil
+//}
