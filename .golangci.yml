@@ -52,6 +52,7 @@ linters:
   enable-all: true
   # enable some additional linters that are not enabled by default
   disable:
+    - funlen
     - cyclop
     - testpackage
     - prealloc

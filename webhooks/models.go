@@ -121,7 +121,7 @@ type (
 		Timestamp    int              `json:"timestamp,omitempty"`
 		Conversation *Conversation    `json:"conversation,omitempty"`
 		Pricing      *Pricing         `json:"pricing,omitempty"`
-		Errors       []*werrors.Error `json:"werrors,omitempty"`
+		Errors       []*werrors.Error `json:"errors,omitempty"`
 	}
 
 	// Event is the type of event that occurred and leads to the notification being sent.
@@ -362,7 +362,7 @@ type (
 	Value struct {
 		MessagingProduct string           `json:"messaging_product,omitempty"`
 		Metadata         *Metadata        `json:"metadata,omitempty"`
-		Errors           []*werrors.Error `json:"werrors,omitempty"`
+		Errors           []*werrors.Error `json:"errors,omitempty"`
 		Contacts         []*Contact       `json:"contacts,omitempty"`
 		Messages         []*Message       `json:"messages,omitempty"`
 		Statuses         []*Status        `json:"statuses,omitempty"`

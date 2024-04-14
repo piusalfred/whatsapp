@@ -25,7 +25,7 @@ import (
 	"strings"
 )
 
-const listIPAddressesCmd = `whois -h whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort`
+const listIPAddressesCmd = `whois -handlers whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort`
 
 // ListIPAddresses returns a list of IP addresses that you can use to allow-list our webhook
 // servers in your firewall or network configuration.
@@ -33,7 +33,7 @@ const listIPAddressesCmd = `whois -h whois.radb.net — '-i origin AS32934' | gr
 // You can get the IP addresses of our webhook servers by running the following command in
 // your terminal:
 //
-//	whois -h whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort
+//	whois -handlers whois.radb.net — '-i origin AS32934' | grep ^route | awk '{print $2}' | sort
 //
 // We periodically change these IP addresses so if you are allow-listing our servers you may
 // want to occasionally regenerate this list and update your allow-list accordingly.

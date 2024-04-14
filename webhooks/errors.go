@@ -24,7 +24,13 @@ import (
 	"fmt"
 )
 
-var ErrInvalidSignature = fmt.Errorf("signature validation failed")
+const (
+	ErrBeforeFunc            = webhookError("before func failed")
+	ErrInvalidSignature      = webhookError("signature is invalid")
+	ErrBadRequest            = webhookError("could not retrieve the notification content")
+	ErrSignatureNotFound     = webhookError("signature not found")
+	ErrSignatureVerification = webhookError("signature verification failed")
+)
 
 type (
 	// FatalError wraps an error that that is fatal during the processing of a webhook notification.
@@ -37,7 +43,13 @@ type (
 	fatal interface {
 		Fatal() bool
 	}
+
+	webhookError string
 )
+
+func (e webhookError) Error() string {
+	return string(e)
+}
 
 // NewFatalError returns a new FatalError.
 func NewFatalError(err error, desc string) *FatalError {

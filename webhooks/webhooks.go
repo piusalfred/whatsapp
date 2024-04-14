@@ -32,8 +32,9 @@ import (
 	"net/http"
 	"strings"
 
-	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 	"github.com/piusalfred/whatsapp/pkg/models"
+
+	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
 
 // PayloadMaxSize is the maximum size of the payload that can be sent to the webhook.
@@ -47,25 +48,25 @@ const (
 )
 
 const (
-	AudioMessageType       MessageType = "audio"
-	ButtonMessageType      MessageType = "button"
-	DocumentMessageType    MessageType = "document"
-	TextMessageType        MessageType = "text"
-	ImageMessageType       MessageType = "image"
-	InteractiveMessageType MessageType = "interactive"
-	OrderMessageType       MessageType = "order"
-	StickerMessageType     MessageType = "sticker"
-	SystemMessageType      MessageType = "system"
-	UnknownMessageType     MessageType = "unknown"
-	VideoMessageType       MessageType = "video"
-	LocationMessageType    MessageType = "location"
-	ReactionMessageType    MessageType = "reaction"
-	ContactMessageType     MessageType = "contacts"
+	MessageTypeAudio       MessageType = "audio"
+	MessageTypeButton      MessageType = "button"
+	MessageTypeDocument    MessageType = "document"
+	MessageTypeText        MessageType = "text"
+	MessageTypeImage       MessageType = "image"
+	MessageTypeInteractive MessageType = "interactive"
+	MessageTypeOrder       MessageType = "order"
+	MessageTypeSticker     MessageType = "sticker"
+	MessageTypeSystem      MessageType = "system"
+	MessageTypeUnknown     MessageType = "unknown"
+	MessageTypeVideo       MessageType = "video"
+	MessageTypeLocation    MessageType = "location"
+	MessageTypeReaction    MessageType = "reaction"
+	MessageTypeContacts    MessageType = "contacts"
 )
 
 const (
-	InteractiveListReply   InteractiveReply = "list_reply"
-	InteractiveButtonReply InteractiveReply = "button_reply"
+	InteractiveReplyList   InteractiveReply = "list_reply"
+	InteractiveReplyButton InteractiveReply = "button_reply"
 )
 
 type (
@@ -112,83 +113,6 @@ type (
 		Ctx       *Context
 	}
 
-	OnOrderMessageHook func(
-		context.Context, *NotificationContext, *MessageContext, *Order) error
-	OnButtonMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, button *Button) error
-	OnLocationMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, location *models.Location) error
-	OnContactsMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, contacts *models.Contacts) error
-	OnMessageReactionHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, reaction *models.Reaction) error
-	OnUnknownMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
-	OnProductEnquiryHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
-	OnInteractiveMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, interactive *Interactive) error
-
-	OnMessageErrorsHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
-	OnTextMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
-	OnReferralMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text, referral *Referral) error
-	OnCustomerIDChangeMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, customerID *Identity) error
-	OnSystemMessageHook func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, system *System) error
-
-	// OnMediaMessageHook is a hook that is called when a media message is received. This is when Message.Type is
-	// image, audio, video or document or sticker.
-	OnMediaMessageHook func(ctx context.Context, nctx *NotificationContext, mctx *MessageContext,
-		media *models.MediaInfo) error
-
-	// OnNotificationErrorHook is a hook that is called when an error is received in a notification.
-	// This is called when an error is received in a notification. This is not called when an error
-	// is received in a message, that is handled by NotificationHooks.OnMessageErrors.
-	OnNotificationErrorHook func(ctx context.Context, nctx *NotificationContext, errors *werrors.Error) error
-
-	// OnMessageStatusChangeHook is a hook that is called when a there is a notification about a message status change.
-	// This is called when a message status changes. For example, when a message is delivered or read.
-	OnMessageStatusChangeHook func(ctx context.Context, nctx *NotificationContext, status *Status) error
-
-	// OnMessageReceivedHook is a hook that is called when a message is received. A notification
-	// can contain a lot of things like errors status changes etc. This is called when a
-	// notification contains a message. This work with the
-	// Message in general. The Hooks for specific message types are called after this hook. They are all implemented
-	// in the MessageHooks interface.
-	OnMessageReceivedHook func(ctx context.Context, nctx *NotificationContext, message *Message) error
-
-	// Hooks is a struct that contains all the hooks that can be attached to a notification.
-	// OnNotificationErrorHook is the OnNotificationErrorHook called when an error is received
-	// in a notification.
-	//
-	// OnMessageStatusChangeHook is the OnMessageStatusChangeHook called when a there is a
-	// notification about a message status change.
-	// M is the OnMessageReceivedHook called when a message is received.
-	// H is the MessageHooks called when a message is received.
-	Hooks struct {
-		OnOrderMessageHook        OnOrderMessageHook
-		OnButtonMessageHook       OnButtonMessageHook
-		OnLocationMessageHook     OnLocationMessageHook
-		OnContactsMessageHook     OnContactsMessageHook
-		OnMessageReactionHook     OnMessageReactionHook
-		OnUnknownMessageHook      OnUnknownMessageHook
-		OnProductEnquiryHook      OnProductEnquiryHook
-		OnInteractiveMessageHook  OnInteractiveMessageHook
-		OnMessageErrorsHook       OnMessageErrorsHook
-		OnTextMessageHook         OnTextMessageHook
-		OnReferralMessageHook     OnReferralMessageHook
-		OnCustomerIDChangeHook    OnCustomerIDChangeMessageHook
-		OnSystemMessageHook       OnSystemMessageHook
-		OnMediaMessageHook        OnMediaMessageHook
-		OnNotificationErrorHook   OnNotificationErrorHook
-		OnMessageStatusChangeHook OnMessageStatusChangeHook
-		OnMessageReceivedHook     OnMessageReceivedHook
-	}
-
 	// MessageStatus is the status of a message.
 	// delivered – A webhook is triggered when a message sent by a business has been delivered
 	// read – A webhook is triggered when a message sent by a business has been read
@@ -199,20 +123,20 @@ type (
 // ParseMessageType parses the message type from a string.
 func ParseMessageType(s string) MessageType {
 	msgMap := map[string]MessageType{
-		"audio":       AudioMessageType,
-		"button":      ButtonMessageType,
-		"document":    DocumentMessageType,
-		"text":        TextMessageType,
-		"image":       ImageMessageType,
-		"interactive": InteractiveMessageType,
-		"order":       OrderMessageType,
-		"sticker":     StickerMessageType,
-		"system":      SystemMessageType,
-		"unknown":     UnknownMessageType,
-		"video":       VideoMessageType,
-		"location":    LocationMessageType,
-		"reaction":    ReactionMessageType,
-		"contacts":    ContactMessageType,
+		"audio":       MessageTypeAudio,
+		"button":      MessageTypeButton,
+		"document":    MessageTypeDocument,
+		"text":        MessageTypeText,
+		"image":       MessageTypeImage,
+		"interactive": MessageTypeInteractive,
+		"order":       MessageTypeOrder,
+		"sticker":     MessageTypeSticker,
+		"system":      MessageTypeSystem,
+		"unknown":     MessageTypeUnknown,
+		"video":       MessageTypeVideo,
+		"location":    MessageTypeLocation,
+		"reaction":    MessageTypeReaction,
+		"contacts":    MessageTypeContacts,
 	}
 
 	msgType, ok := msgMap[strings.TrimSpace(strings.ToLower(s))]
@@ -256,9 +180,9 @@ type (
 	//      Note that retries will be sent to all apps that have subscribed to webhooks (and their appropriate fields)
 	//      for the WhatsApp Business Account. This can result in duplicate webhook notifications.
 	//
-	// NotificationErrorHandler is expected at least to receive errors from NotificationHandler these errors are
+	// NotificationErrorHandler is expected at least to receive errors from HandleNotification these errors are
 	//
-	// -  ErrOnBeforeFuncHook when an error is received in the BeforeFunc hook
+	// -  ErrBeforeFunc when an error is received in the BeforeFunc hook
 	// -  ErrOnAttachNotificationHooks when an error is received in the AttachNotificationHooks hook
 	// -  ErrOnGenericHandlerFunc when an error is received in the GenericHandlerFunc hook.
 	NotificationErrorHandler func(context.Context, *http.Request, error) *NotificationErrHandlerResponse
@@ -276,13 +200,18 @@ type (
 	// instrumentation logic put here.
 	AfterFunc func(ctx context.Context, notification *Notification, err error)
 
-	// HandlerOptions is a struct that contains the options that can be passed to the NotificationHandler. Note that
-	// the options are optional. NotificationHandler can be used without any options set.
+	// HandlerOptions is a struct that contains the options that can be passed to the HandleNotification. Note that
+	// the options are optional. HandleNotification can be used without any options set.
 	HandlerOptions struct {
-		BeforeFunc        BeforeFunc
-		AfterFunc         AfterFunc
-		ValidateSignature bool
-		Secret            string
+		BeforeFunc            BeforeFunc
+		AfterFunc             AfterFunc
+		ShouldValidatePayload bool
+		AppSecret             string
+	}
+
+	PayloadValidationOptions struct {
+		AppSecret      string
+		ShouldValidate bool
 	}
 
 	// VerificationRequest contains details sent by the whatsapp server during the verification process.
@@ -298,330 +227,240 @@ type (
 	// the one set in the App Dashboard.
 	SubscriptionVerifier func(context.Context, *VerificationRequest) error
 
-	// GlobalNotificationHandler is a function that handles all notifications. Use this function if you want to
+	// GeneralNotificationHandler is a function that handles all notifications. Use this function if you want to
 	// create your own logic in handling different types of notifications. Because when this is used for receiving
 	// notifications all types of notifications from Templates, Messages, Media, Contacts, etc. will be passed here,
 	// and you can handle them as you wish.
-	GlobalNotificationHandler func(context.Context, http.ResponseWriter, *Notification) error
+	GeneralNotificationHandler func(context.Context, *Notification) *Response
+
+	Response struct {
+		StatusCode int
+	}
+
+	// Config contains the configuration for the webhook listener. It contains
+	//
+	// - AppSecret: the application secret used to validate the incoming requests.
+	//
+	// - ShouldValidate: a flag that determines if the incoming requests should be validated.
+	//
+	// - VerifyToken: the token used to verify the subscription request.
+	Config struct {
+		AppSecret      string
+		ShouldValidate bool
+		VerifyToken    string
+	}
+
+	ConfigReaderFunc func() (*Config, error)
+
+	// NotificationListener wraps all the parts needed to listen and respond to incoming events
+	// to registered webhooks.
+	// It contains unexported *Handlers, *HandlerOptions, HooksErrorHandler, NotificationErrorHandler
+	// SubscriptionVerifier and GeneralNotificationHandler.
+	// All these can be set via exported ListenerOption functions like WithBeforeFunc and
+	// Setter methods like GeneralNotificationHandler which sets the GeneralNotificationHandler.
+	//
+	// Example:
+	//
+	//	  listener := NewListener(
+	//			WithNotificationErrorHandler(NoOpNotificationErrorHandler),
+	//			WithAfterFunc(func(ctx context.Context, notification *Notification, err error) {}),
+	//			WithBeforeFunc(func(ctx context.Context, notification *Notification) error {}),
+	//			WithGlobalNotificationHandler(nil),
+	//			WithHooks(&Handlers{
+	//				OrderMessage:        nil,
+	//				ButtonMessage:       nil,
+	//				LocationMessage:     nil,
+	//				OnContactsMessageHook:     nil,
+	//				OnMessageReactionHook:     nil,
+	//				OnUnknownMessageHook:      nil,
+	//				OnProductEnquiryHook:      nil,
+	//				OnInteractiveMessageHook:  nil,
+	//				OnMessageErrorsHook:       nil,
+	//				OnTextMessageHook:         nil,
+	//				OnReferralMessageHook:     nil,
+	//			}),
+	//	  )
+	//
+	//	  example of setting a hook
+	//
+	//	  listener.Handle(func(ctx context.Context, notification *Notification, order *Order) error {
+	//			// do something with the order
+	//			return nil
+	//	  })
+	//
+	//	  using a generic handler
+	//	   := listener.HandleNotificationX()
+	NotificationListener struct {
+		handlers             *Handlers
+		handlersErrorHandler func(ctx context.Context, notification *Notification, err error) *Response
+		v                    SubscriptionVerifier
+		after                AfterFunc
+		before               BeforeFunc
+		g                    GeneralNotificationHandler
+		pv                   *PayloadValidationOptions
+		subVerifyToken       string
+	}
+
+	ListenerOption func(*NotificationListener)
 )
 
-// SetOnNotificationErrorHook sets the OnNotificationErrorHook.
-func (h *Hooks) SetOnNotificationErrorHook(f OnNotificationErrorHook) {
-	h.OnNotificationErrorHook = f
+// NewWithConfigReader returns a new NotificationListener with the provided config reader.
+func NewWithConfigReader(reader ConfigReaderFunc, options ...ListenerOption) (*NotificationListener, error) {
+	config, err := reader()
+	if err != nil {
+		return nil, fmt.Errorf("error reading config: %w", err)
+	}
+
+	return NewListener(config, options...), nil
 }
 
-// NoOpHooksErrorHandler is a no-op hooks error handler. It just returns the error as is.
-// It is applied by AttachHooksToNotification if no Hooks error handler is provided.
-func NoOpHooksErrorHandler(err error) error {
-	return err
-}
-
-// NoOpNotificationErrorHandler is a no-op notification error handler. It ignores the error and
-// returns a response with status code 200.
-func NoOpNotificationErrorHandler(_ context.Context, _ *http.Request, _ error) *NotificationErrHandlerResponse {
-	return &NotificationErrHandlerResponse{
-		StatusCode: http.StatusOK,
-		Skip:       false,
+// NewGeneralListener returns a new NotificationListener with the provided options.
+func NewGeneralListener(config *Config, g GeneralNotificationHandler) *NotificationListener {
+	return &NotificationListener{
+		pv: &PayloadValidationOptions{
+			AppSecret:      config.AppSecret,
+			ShouldValidate: config.ShouldValidate,
+		},
+		g:              g,
+		subVerifyToken: config.VerifyToken,
 	}
 }
 
-// AttachHooksToNotification applies the hooks to notification received. Sometimes the Hooks can return
-// errors. The errors are collected and returned as a single error. So in your implementation
-// of NotificationHooks, you can return a FatalError if you want to stop the processing of the notification.
-// immediately. If you want to continue processing the notification, you can return a non-fatal
-// error. The errors are collected and returned as a single error.
-// Also since all hooks errors are passed to the HooksErrorHandler, you can decide to either
-// escalate the non-fatal errors to fatal errors or just ignore them also you can decide to
-// ignore the fatal errors.
-//
-// Example:
-//
-//	func ShouldIgnoreFatalErrors(ignore bool) hef{
-//	    return func(err error) error {
-//	        if IsFatalError(err) {
-//	            if ignore {
-//	                return fmt.Errorf("ignoring fatal error: %v", err)
-//	            }
-//	            return err
-//	        }
-//	        return err
-//	    }
-//	}
-func AttachHooksToNotification(ctx context.Context, notification *Notification,
-	hooks *Hooks, heh HooksErrorHandler,
-) error {
-	if notification == nil || hooks == nil {
-		return nil
+func NewListener(config *Config, options ...ListenerOption) *NotificationListener {
+	listener := &NotificationListener{
+		handlers: nil,
+		v:        nil,
+		after:    nil,
+		before:   nil,
+		pv: &PayloadValidationOptions{
+			AppSecret:      config.AppSecret,
+			ShouldValidate: config.ShouldValidate,
+		},
+		g:              nil,
+		subVerifyToken: config.VerifyToken,
 	}
 
-	entries := notification.Entry
-	for _, entry := range entries {
-		entry := entry
-		if err := attachHooksToEntry(ctx, entry, hooks, heh); err != nil {
-			return err
+	for _, option := range options {
+		if option != nil {
+			option(listener)
 		}
+	}
+
+	return listener
+}
+
+// ExtractAndValidateSignature extracts the signature from the header and validates it.
+func (ls *NotificationListener) ExtractAndValidateSignature(header http.Header, body []byte) error {
+	signature, err := ExtractSignatureFromHeader(header)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrSignatureVerification, err)
+	}
+
+	if err := ValidateSignature(body, signature, ls.pv.AppSecret); err != nil {
+		return fmt.Errorf("%w: %w", ErrSignatureVerification, err)
 	}
 
 	return nil
 }
 
-func attachHooksToEntry(ctx context.Context, entry *Entry, hooks *Hooks, heh HooksErrorHandler) error {
-	eid := entry.ID
-	changes := entry.Changes
-	for _, change := range changes {
-		change := change
-		value := change.Value
-		if value == nil {
-			continue
-		}
-
-		if err := attachHooksToValue(ctx, eid, value, hooks, heh); err != nil {
-			return err
-		}
+// HandleNotificationX handles all the notification types.
+func (ls *NotificationListener) HandleNotificationX(writer http.ResponseWriter, request *http.Request) {
+	buff, err := readNotificationBuffer(request)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 
-	return nil
-}
+	var (
+		notification Notification
+		ctx          = request.Context()
+	)
 
-var (
-	ErrOnMessageStatusChangeHook = errors.New("on message status change hook error")
-	ErrOnMessageHooks            = errors.New("on specific message hooks error")
-	ErrOnNotificationErrorHook   = errors.New("on notification error hook error")
-	ErrOnGlobalMessageHook       = errors.New("on global message hook error")
-)
+	if ls.pv.ShouldValidate {
+		if err := ls.ExtractAndValidateSignature(request.Header, buff.Bytes()); err != nil {
 
-//nolint:cyclop
-func attachHooksToValue(ctx context.Context, id string, value *Value, hooks *Hooks,
-	hooksErrorHandler HooksErrorHandler,
-) error {
-	if hooks == nil || value == nil {
-		return nil
-	}
-
-	notificationCtx := &NotificationContext{
-		ID:       id,
-		Contacts: value.Contacts,
-		Metadata: value.Metadata,
-	}
-
-	// nonFatalErrors is a slice of non-fatal errors that are collected from the hooks.
-	// can contain a maximum of 4 errors.
-	nonFatalErrors := make([]error, 0, 4) //nolint:gomnd
-
-	// call the Hooks
-	if hooks.OnNotificationErrorHook != nil {
-		for _, ev := range value.Errors {
-			ev := ev
-			if err := hooks.OnNotificationErrorHook(ctx, notificationCtx, ev); err != nil {
-				if IsFatalError(hooksErrorHandler(err)) {
-					return err
-				}
-				nonFatalErrors = append(nonFatalErrors, ErrOnNotificationErrorHook)
-			}
-		}
-	}
-
-	if hooks.OnMessageStatusChangeHook != nil {
-		for _, sv := range value.Statuses {
-			sv := sv
-			if err := hooks.OnMessageStatusChangeHook(ctx, notificationCtx, sv); err != nil {
-				if IsFatalError(hooksErrorHandler(err)) {
-					return err
-				}
-				nonFatalErrors = append(nonFatalErrors, ErrOnMessageStatusChangeHook)
-			}
-		}
-	}
-
-	for _, mv := range value.Messages {
-		mv := mv
-		if hooks.OnMessageReceivedHook != nil {
-			if err := hooks.OnMessageReceivedHook(ctx, notificationCtx, mv); err != nil {
-				if IsFatalError(hooksErrorHandler(err)) {
-					return err
-				}
-				nonFatalErrors = append(nonFatalErrors, ErrOnGlobalMessageHook)
-			}
-		}
-
-		if err := attachHooksToMessage(ctx, notificationCtx, hooks, mv); err != nil {
-			if IsFatalError(hooksErrorHandler(err)) {
-				return err
-			}
-			nonFatalErrors = append(nonFatalErrors, ErrOnMessageHooks)
-		}
-	}
-
-	return errors.Join(nonFatalErrors...)
-}
-
-var ErrFailedToAttachHookToMessage = errors.New("could not attach hooks to message")
-
-var errHooksOrMessageIsNil = fmt.Errorf("%w: hooks or message is nil", ErrFailedToAttachHookToMessage)
-
-//nolint:cyclop
-func attachHooksToMessage(ctx context.Context, nctx *NotificationContext, hooks *Hooks, message *Message) error {
-	if hooks == nil || message == nil {
-		return errHooksOrMessageIsNil
-	}
-	mctx := &MessageContext{
-		From:      message.From,
-		ID:        message.ID,
-		Timestamp: message.Timestamp,
-		Type:      message.Type,
-		Ctx:       message.Context,
-	}
-	messageType := ParseMessageType(message.Type)
-	switch messageType {
-	case OrderMessageType:
-		return hooks.OnOrderMessageHook(ctx, nctx, mctx, message.Order)
-
-	case ButtonMessageType:
-		return hooks.OnButtonMessageHook(ctx, nctx, mctx, message.Button)
-
-	case AudioMessageType, VideoMessageType, ImageMessageType, DocumentMessageType, StickerMessageType:
-		return hooks.OnMediaMessageHook(ctx, nctx, mctx, message.Audio)
-
-	case InteractiveMessageType:
-		return hooks.OnInteractiveMessageHook(ctx, nctx, mctx, message.Interactive)
-
-	case SystemMessageType:
-		return hooks.OnSystemMessageHook(ctx, nctx, mctx, message.System)
-
-	case UnknownMessageType:
-		return hooks.OnMessageErrorsHook(ctx, nctx, mctx, message.Errors)
-
-	case TextMessageType:
-		if message.Referral != nil {
-			return hooks.OnReferralMessageHook(ctx, nctx, mctx, message.Text, message.Referral)
-		}
-		if mctx.Ctx != nil {
-			return hooks.OnProductEnquiryHook(ctx, nctx, mctx, message.Text)
-		}
-
-		return hooks.OnTextMessageHook(ctx, nctx, mctx, message.Text)
-
-	case ReactionMessageType:
-		return hooks.OnMessageReactionHook(ctx, nctx, mctx, message.Reaction)
-
-	case LocationMessageType:
-		return hooks.OnLocationMessageHook(ctx, nctx, mctx, message.Location)
-
-	case ContactMessageType:
-		return hooks.OnContactsMessageHook(ctx, nctx, mctx, message.Contacts)
-
-	default:
-		if message.Contacts != nil {
-			return hooks.OnContactsMessageHook(ctx, nctx, mctx, message.Contacts)
-		}
-		if message.Location != nil {
-			return hooks.OnLocationMessageHook(ctx, nctx, mctx, message.Location)
-		}
-
-		if message.Identity != nil {
-			return hooks.OnCustomerIDChangeHook(ctx, nctx, mctx, message.Identity)
-		}
-
-		return ErrFailedToAttachHookToMessage
-	}
-}
-
-var (
-	ErrOnBeforeFuncHook          = errors.New("error on before func hook")
-	ErrOnAttachNotificationHooks = errors.New("error during attaching hooks to a notification")
-	ErrOnGenericHandlerFunc      = errors.New("error on generic handler func")
-)
-
-// NotificationHandler takes Hooks, NotificationErrorHandler,HooksErrorHandler and HandlerOptions
-// and returns http.Handler
-//
-// It firstly decodes the request body into Notification struct and then calls BeforeFunc if it is
-// not nil if HandlerOptions.ValidateSignature is true, it will validate the signature.
-//
-// All the errors returned from reading the body, running the BeforeFunc and validating the signature
-// are passed to the NotificationErrorHandler, if neh returns true, the request is aborted and the
-// response status code is set to http.StatusInternalServerError.
-func NotificationHandler(
-	hooks *Hooks, neh NotificationErrorHandler, heh HooksErrorHandler, options *HandlerOptions,
-) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		var (
-			buff         bytes.Buffer
-			err          error
-			notification = &Notification{}
-		)
-		ctx := request.Context()
-
-		defer func() {
-			buff.Reset()
-			if options != nil {
-				if options.AfterFunc != nil {
-					options.AfterFunc(ctx, notification, err)
-				}
-			}
-		}()
-
-		if _, err = io.Copy(&buff, request.Body); err != nil && !errors.Is(err, io.EOF) {
-			writer.WriteHeader(http.StatusInternalServerError)
+			http.Error(writer, err.Error(), http.StatusBadRequest)
 
 			return
 		}
-		request.Body = io.NopCloser(&buff)
+	}
 
-		if err = json.NewDecoder(&buff).Decode(notification); err != nil && !errors.Is(err, io.EOF) {
-			writer.WriteHeader(http.StatusInternalServerError)
+	if err := json.NewDecoder(buff).Decode(&notification); err != nil && !errors.Is(err, io.EOF) {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	response := ls.g(ctx, &notification)
+	if response != nil {
+		writer.WriteHeader(response.StatusCode)
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+// HandleNotification handles the notification.
+func (ls *NotificationListener) HandleNotification(writer http.ResponseWriter, request *http.Request) {
+	var (
+		notification Notification
+		ctx          = request.Context()
+		err          error
+	)
+
+	defer func() {
+		if ls.after != nil {
+			ls.after(ctx, &notification, err)
+		}
+	}()
+
+	buff, err := readNotificationBuffer(request)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	if err := json.NewDecoder(buff).Decode(&notification); err != nil && !errors.Is(err, io.EOF) {
+		writer.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	if ls.before != nil {
+		if bfe := ls.before(ctx, &notification); bfe != nil {
+			err = fmt.Errorf("%w: %w", ErrBeforeFunc, bfe)
+
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+		}
+	}
+
+	if ls.pv.ShouldValidate {
+		if err := ls.ExtractAndValidateSignature(request.Header, buff.Bytes()); err != nil {
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+
+			return
+		}
+	}
+
+	if err := ls.passNotificationToHandlers(ctx, &notification); err != nil {
+		response := ls.handlersErrorHandler(ctx, &notification, err)
+
+		if response != nil {
+			writer.WriteHeader(response.StatusCode)
 
 			return
 		}
 
-		if options != nil && options.BeforeFunc != nil {
-			if bfe := options.BeforeFunc(ctx, notification); bfe != nil {
-				err = fmt.Errorf("%w: %w", ErrOnBeforeFuncHook, bfe)
-				if handleError(ctx, writer, request, neh, err) {
-					return
-				}
-			}
-		}
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
 
-		if options != nil && options.ValidateSignature {
-			signature, _ := ExtractSignatureFromHeader(request.Header)
-			if !ValidateSignature(buff.Bytes(), signature, options.Secret) {
-				if handleError(ctx, writer, request, neh, ErrInvalidSignature) {
-					return
-				}
-			}
-		}
-		// Apply the Hooks
-		if err = AttachHooksToNotification(ctx, notification, hooks, heh); err != nil {
-			err = fmt.Errorf("%w: %w", ErrOnAttachNotificationHooks, err)
-			if handleError(ctx, writer, request, neh, err) {
-				return
-			}
-		}
-
-		writer.WriteHeader(http.StatusOK)
-	})
-}
-
-func handleError(ctx context.Context, writer http.ResponseWriter, request *http.Request,
-	neh NotificationErrorHandler, err error,
-) bool {
-	res := neh(ctx, request, err)
-	if !res.Skip {
-		code, headers, message := res.StatusCode, res.Headers, res.Body
-		for k, v := range headers {
-			writer.Header().Set(k, v)
-		}
-		writer.WriteHeader(code)
-		_, _ = writer.Write(message)
-
-		return true
+		return
 	}
 
-	return false
+	writer.WriteHeader(http.StatusOK)
 }
 
-// VerifySubscriptionHandler verifies the subscription to the webhooks.
+// HandleSubscriptionVerification verifies the subscription to the webhooks.
 // Your endpoint must be able to process two types of HTTPS requests: Verification Requests and Event Notifications.
 // Since both requests use HTTPs, your server must have a valid TLS or SSL certificate correctly configured and
 // installed. Self-signed certificates are not supported.
@@ -651,36 +490,13 @@ func handleError(ctx context.Context, writer http.ResponseWriter, request *http.
 //     (and thus, triggering a Verification Request), the dashboard will indicate if your endpoint validated the request
 //     correctly. If you are using the Graph APIs /app/subscriptions endpoint to configure the Webhooks product, the API
 //     will indicate success or failure with a response.
-func VerifySubscriptionHandler(verifier SubscriptionVerifier) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		// Retrieve the query parameters from the request.
-		q := request.URL.Query()
-		mode := q.Get("hub.mode")
-		challenge := q.Get("hub.challenge")
-		token := q.Get("hub.verify_token")
-		if err := verifier(request.Context(), &VerificationRequest{
-			Mode:      mode,
-			Challenge: challenge,
-			Token:     token,
-		}); err != nil {
-			writer.WriteHeader(http.StatusBadRequest)
-		}
-		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write([]byte(challenge))
-	})
-}
-
-// HandlerFunc handles the verification request.
-func (verifier SubscriptionVerifier) HandlerFunc(writer http.ResponseWriter, request *http.Request) {
+func (ls *NotificationListener) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
 	q := request.URL.Query()
 	mode := q.Get("hub.mode")
 	challenge := q.Get("hub.challenge")
 	token := q.Get("hub.verify_token")
-	if err := verifier(request.Context(), &VerificationRequest{
-		Mode:      mode,
-		Challenge: challenge,
-		Token:     token,
-	}); err != nil {
+
+	if token != ls.subVerifyToken || mode != "subscribe" {
 		writer.WriteHeader(http.StatusBadRequest)
 
 		return
@@ -695,32 +511,34 @@ func (verifier SubscriptionVerifier) HandlerFunc(writer http.ResponseWriter, req
 // with sha256=. You don't have to validate the payload, but you should.
 //
 // To validate the payload:
-//  1. Generate a SHA256 signature using the payload and your app's App Secret.
+//  1. Generate a SHA256 signature using the payload and your app's App AppSecret.
 //  2. Compare your signature to the signature in the X-Hub-Signature-256 header (everything after sha256=).
 //
 // If the signatures match, the payload is genuine. Please note that we generate the signature using an escaped
 // unicode version of the payload, with lowercase hex digits. If you just calculate against the decoded bytes,
 // you will end up with a different signature.
 // For example, the string äöå should be escaped to \u00e4\u00f6\u00e5.
-func ValidateSignature(payload []byte, signature, secret string) bool {
+func ValidateSignature(payload []byte, signature, secret string) error {
 	decodeSig, err := hex.DecodeString(signature)
 	if err != nil {
-		return false
+		return fmt.Errorf("error decoding signature: %w", err)
 	}
 
 	// Calculate the expected signature using the payload and secret
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, err = mac.Write(payload)
 	if err != nil {
-		return false
+		return fmt.Errorf("error hashing payload: %w", err)
 	}
 	expectedSignature := mac.Sum(nil)
 
 	// Compare the expected and actual signatures
-	return hmac.Equal(decodeSig, expectedSignature)
-}
+	if !hmac.Equal(decodeSig, expectedSignature) {
+		return ErrInvalidSignature
+	}
 
-var ErrSignatureNotFound = errors.New("signature not found")
+	return nil
+}
 
 // ExtractSignatureFromHeader extracts the signature from the header. A signature is a SHA256
 // hash of the payload, encoded in hexadecimal and prefixed with sha256=. It is found in the
@@ -735,4 +553,747 @@ func ExtractSignatureFromHeader(header http.Header) (string, error) {
 	}
 
 	return signature[7:], nil
+}
+
+// readNotificationBuffer returns notification content as a bytes buffer.
+func readNotificationBuffer(r *http.Request) (*bytes.Buffer, error) {
+	var buff bytes.Buffer
+	_, err := io.Copy(&buff, r.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err)
+	}
+
+	// restore the request body to its original state
+	r.Body = io.NopCloser(&buff)
+
+	return &buff, nil
+}
+
+const (
+	ErrHandleMessage                      = webhookError("could not handle message")
+	ErrNotificationErrorHandler           = webhookError("notification error handler failed")
+	ErrOrderMessageHandler                = webhookError("order message handler failed")
+	ErrButtonMessageHandler               = webhookError("button message handler failed")
+	ErrMediaMessageHandler                = webhookError("media message handler failed")
+	ErrTextMessageHandler                 = webhookError("text message handler failed")
+	ErrInteractiveHandler                 = webhookError("interactive message handler failed")
+	ErrSystemMessageHandler               = webhookError("system message handler failed")
+	ErrReferralMessage                    = webhookError("referral message handler failed")
+	ErrMessageReaction                    = webhookError("message reaction handler failed")
+	ErrLocationMessage                    = webhookError("location message handler failed")
+	ErrContactsMessage                    = webhookError("contacts message handler failed")
+	ErrCustomerIDChange                   = webhookError("customer id change handler failed")
+	ErrProductEnquiry                     = webhookError("product enquiry handler failed")
+	ErrUnknownMessageHandler              = webhookError("unknown message handler failed")
+	ErrContactsMessageHandler             = webhookError("contacts message handler failed")
+	ErrMessageStatusChangeHandler         = webhookError("message status change handler failed")
+	ErrMessageReceivedNotificationHandler = webhookError("message received notification handler failed")
+)
+
+// passNotificationToHandlers passes the notification to the handlers.
+func (ls *NotificationListener) passNotificationToHandlers(ctx context.Context, notification *Notification) error {
+	if notification == nil || ls.handlers == nil {
+		return nil
+	}
+
+	for _, entry := range notification.Entry {
+		if err := ls.passEntryToHandlers(ctx, entry); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// passEntryToHandlers passes the entry to the handlers.
+func (ls *NotificationListener) passEntryToHandlers(ctx context.Context, entry *Entry) error {
+	entryID := entry.ID
+	changes := entry.Changes
+	for _, change := range changes {
+		value := change.Value
+		if value == nil {
+			continue
+		}
+		if err := ls.passValueToHandlers(ctx, entryID, value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+//nolint:cyclop
+func (ls *NotificationListener) passValueToHandlers(ctx context.Context, id string, value *Value) error {
+	handlers := ls.handlers
+
+	if handlers == nil || value == nil {
+		return nil
+	}
+
+	notificationCtx := &NotificationContext{
+		ID:       id,
+		Contacts: value.Contacts,
+		Metadata: value.Metadata,
+	}
+
+	// call the Handlers
+	if handlers.NotificationError != nil {
+		for _, ev := range value.Errors {
+			if err := handlers.NotificationError.Handle(ctx, notificationCtx, ev); err != nil {
+				return fmt.Errorf("%w: %w", ErrNotificationErrorHandler, err)
+			}
+		}
+	}
+
+	if handlers.MessageStatusChange != nil {
+		for _, sv := range value.Statuses {
+			if err := handlers.MessageStatusChange.Handle(ctx, notificationCtx, sv); err != nil {
+				return fmt.Errorf("%w: %w", ErrMessageStatusChangeHandler, err)
+			}
+		}
+	}
+
+	for _, mv := range value.Messages {
+		if handlers.MessageReceived != nil {
+			if err := handlers.MessageReceived.Handle(ctx, notificationCtx, mv); err != nil {
+				return fmt.Errorf("%w: %w", ErrMessageReceivedNotificationHandler, err)
+			}
+		}
+
+		if err := ls.passMessageToHandlers(ctx, notificationCtx, mv); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (ls *NotificationListener) passMessageToHandlers(ctx context.Context, nctx *NotificationContext,
+	message *Message,
+) error {
+	mctx := &MessageContext{
+		From:      message.From,
+		ID:        message.ID,
+		Timestamp: message.Timestamp,
+		Type:      message.Type,
+		Ctx:       message.Context,
+	}
+
+	messageType := ParseMessageType(message.Type)
+	switch messageType {
+	case MessageTypeOrder:
+		if err := ls.handlers.OrderMessage.Handle(ctx, nctx, mctx, message.Order); err != nil {
+			return fmt.Errorf("%w: %w", ErrOrderMessageHandler, err)
+		}
+
+		return nil
+
+	case MessageTypeButton:
+		if err := ls.handlers.ButtonMessage.Handle(ctx, nctx, mctx, message.Button); err != nil {
+			return fmt.Errorf("%w: %w", ErrButtonMessageHandler, err)
+		}
+
+		return nil
+
+	case MessageTypeAudio, MessageTypeVideo, MessageTypeImage, MessageTypeDocument, MessageTypeSticker:
+		if err := ls.handlers.MediaMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
+		}
+
+		return nil
+
+	case MessageTypeInteractive:
+		if err := ls.handlers.InteractiveMessage.Handle(ctx, nctx, mctx, message.Interactive); err != nil {
+			return fmt.Errorf("%w: %w", ErrInteractiveHandler, err)
+		}
+
+		return nil
+
+	case MessageTypeSystem:
+		if err := ls.handlers.SystemMessage.Handle(ctx, nctx, mctx, message.System); err != nil {
+			return fmt.Errorf("%w: %w", ErrSystemMessageHandler, err)
+		}
+
+		return nil
+
+	case MessageTypeUnknown:
+		if err := ls.handlers.MessageErrors.Handle(ctx, nctx, mctx, message.Errors); err != nil {
+			return fmt.Errorf("%w: %w", ErrUnknownMessageHandler, err)
+		}
+
+		return nil
+
+	case MessageTypeText:
+		if message.Referral != nil {
+			if err := ls.handlers.ReferralMessage.Handle(ctx, nctx, mctx, message.Text, message.Referral); err != nil {
+				return fmt.Errorf("%w: %w", ErrReferralMessage, err)
+			}
+
+			return nil
+		}
+
+		if mctx.Ctx != nil {
+			if err := ls.handlers.ProductEnquiry.Handle(ctx, nctx, mctx, message.Text); err != nil {
+				return fmt.Errorf("%w: %w", ErrProductEnquiry, err)
+			}
+
+			return nil
+		}
+
+		if err := ls.handlers.TextMessage.Handle(ctx, nctx, mctx, message.Text); err != nil {
+			return fmt.Errorf("%w: %w", ErrTextMessageHandler, err)
+		}
+
+		return nil
+
+	case MessageTypeReaction:
+		if err := ls.handlers.MessageReaction.Handle(ctx, nctx, mctx, message.Reaction); err != nil {
+			return fmt.Errorf("%w: %w", ErrMessageReaction, err)
+		}
+
+		return nil
+
+	case MessageTypeLocation:
+		if err := ls.handlers.LocationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
+			return fmt.Errorf("%w: %w", ErrLocationMessage, err)
+		}
+
+		return nil
+
+	case MessageTypeContacts:
+		if err := ls.handlers.ContactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
+			return fmt.Errorf("%w: %w", ErrContactsMessage, err)
+		}
+
+		return nil
+
+	default:
+		if message.Contacts != nil {
+			if err := ls.handlers.ContactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
+				return fmt.Errorf("%w: %w", ErrContactsMessageHandler, err)
+			}
+
+			return nil
+		}
+		if message.Location != nil {
+			if err := ls.handlers.LocationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
+				return fmt.Errorf("%w: %w", ErrLocationMessage, err)
+			}
+
+			return nil
+		}
+
+		if message.Identity != nil {
+			if err := ls.handlers.CustomerIDChange.Handle(ctx, nctx, mctx, message.Identity); err != nil {
+				return fmt.Errorf("%w: %w", ErrCustomerIDChange, err)
+			}
+
+			return nil
+		}
+
+		return fmt.Errorf("%w: unsupported message type", ErrHandleMessage)
+	}
+}
+
+type (
+	// Handlers is a struct that contains all the hooks that can be attached to a notification.
+	// OnNotificationErrorHook is the OnNotificationErrorHook called when an error is received
+	// in a notification.
+	Handlers struct {
+		OrderMessage        OrderMessageHandler
+		ButtonMessage       ButtonMessageHandler
+		LocationMessage     LocationMessageHandler
+		ContactsMessage     ContactsMessageHandler
+		MessageReaction     MessageReactionHandler
+		UnknownMessage      UnknownMessageHandler
+		ProductEnquiry      ProductEnquiryHandler
+		InteractiveMessage  InteractiveMessageHandler
+		MessageErrors       MessageErrorsHandler
+		TextMessage         TextMessageHandler
+		ReferralMessage     ReferralMessageHandler
+		CustomerIDChange    CustomerIDChangeMessageHandler
+		SystemMessage       SystemMessageHandler
+		MediaMessage        MediaMessageHandler
+		NotificationError   MessageErrorHandler
+		MessageStatusChange MessageStatusChangeHandler
+		MessageReceived     MessageReceivedHandler
+	}
+)
+
+type (
+	OnLocationMessageHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, location *models.Location) error
+
+	LocationMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, location *models.Location) error
+	}
+)
+
+func (h OnLocationMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	location *models.Location,
+) error {
+	return h(ctx, nctx, mctx, location)
+}
+
+type (
+	OnTextMessageHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
+
+	TextMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
+	}
+)
+
+func (h OnTextMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	text *Text,
+) error {
+	return h(ctx, nctx, mctx, text)
+}
+
+type (
+	OnOrderMessageHook func(
+		context.Context, *NotificationContext, *MessageContext, *Order) error
+
+	OrderMessageHandler interface {
+		Handle(
+			ctx context.Context,
+			nctx *NotificationContext,
+			mctx *MessageContext,
+			order *Order) error
+	}
+)
+
+func (h OnOrderMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	order *Order,
+) error {
+	return h(ctx, nctx, mctx, order)
+}
+
+type (
+	OnButtonMessageHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, button *Button) error
+
+	ButtonMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, button *Button) error
+	}
+)
+
+func (h OnButtonMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	button *Button,
+) error {
+	return h(ctx, nctx, mctx, button)
+}
+
+type (
+	OnContactsMessageHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, contacts *models.Contacts) error
+
+	ContactsMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, contacts *models.Contacts) error
+	}
+)
+
+func (h OnContactsMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	contacts *models.Contacts,
+) error {
+	return h(ctx, nctx, mctx, contacts)
+}
+
+type (
+	OnMessageReactionHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, reaction *models.Reaction) error
+
+	MessageReactionHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, reaction *models.Reaction) error
+	}
+)
+
+func (h OnMessageReactionHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	reaction *models.Reaction,
+) error {
+	return h(ctx, nctx, mctx, reaction)
+}
+
+type (
+	OnUnknownMessageHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
+
+	UnknownMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
+	}
+)
+
+func (h OnUnknownMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	errors []*werrors.Error,
+) error {
+	return h(ctx, nctx, mctx, errors)
+}
+
+type (
+	OnProductEnquiryHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
+
+	ProductEnquiryHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text) error
+	}
+)
+
+func (h OnProductEnquiryHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	text *Text,
+) error {
+	return h(ctx, nctx, mctx, text)
+}
+
+type (
+	OnInteractiveMessageHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, interactive *Interactive) error
+
+	InteractiveMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, interactive *Interactive) error
+	}
+)
+
+func (h OnInteractiveMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	interactive *Interactive,
+) error {
+	return h(ctx, nctx, mctx, interactive)
+}
+
+type (
+	OnMessageErrorsHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
+
+	MessageErrorsHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
+	}
+)
+
+func (h OnMessageErrorsHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	errors []*werrors.Error,
+) error {
+	return h(ctx, nctx, mctx, errors)
+}
+
+type (
+	OnReferralMessageHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text, referral *Referral) error
+
+	ReferralMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, text *Text, referral *Referral) error
+	}
+)
+
+func (h OnReferralMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	text *Text,
+	referral *Referral,
+) error {
+	return h(ctx, nctx, mctx, text, referral)
+}
+
+type (
+	OnCustomerIDChangeMessageHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, customerID *Identity) error
+
+	CustomerIDChangeMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, customerID *Identity) error
+	}
+)
+
+func (h OnCustomerIDChangeMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	customerID *Identity,
+) error {
+	return h(ctx, nctx, mctx, customerID)
+}
+
+type (
+	OnSystemMessageHook func(
+		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, system *System) error
+
+	SystemMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, system *System) error
+	}
+)
+
+func (h OnSystemMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	system *System,
+) error {
+	return h(ctx, nctx, mctx, system)
+}
+
+type (
+	// OnMediaMessageHook is a hook that is called when a media message is received. This is when Message.Type is
+	// image, audio, video or document or sticker.
+	OnMediaMessageHook func(ctx context.Context, nctx *NotificationContext, mctx *MessageContext,
+		media *models.MediaInfo) error
+
+	MediaMessageHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, media *models.MediaInfo) error
+	}
+)
+
+func (h OnMediaMessageHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	mctx *MessageContext,
+	media *models.MediaInfo,
+) error {
+	return h(ctx, nctx, mctx, media)
+}
+
+type (
+	// OnNotificationErrorHook is a hook that is called when an error is received in a notification.
+	// This is called when an error is received in a notification. This is not called when an error
+	// is received in a message, that is handled by NotificationHooks.Handle.
+	OnNotificationErrorHook func(ctx context.Context, nctx *NotificationContext, errors *werrors.Error) error
+
+	// MessageErrorHandler is an interface that is implemented by a type that wants to handle notification errors.
+	MessageErrorHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, errors *werrors.Error) error
+	}
+)
+
+// Handle implements the MessageErrorHandler interface.
+func (h OnNotificationErrorHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	errors *werrors.Error,
+) error {
+	return h(ctx, nctx, errors)
+}
+
+type (
+
+	// OnMessageStatusChangeHook is a hook that is called when a there is a notification about a message status change.
+	// This is called when a message status changes. For example, when a message is delivered or read.
+	OnMessageStatusChangeHook func(ctx context.Context, nctx *NotificationContext, status *Status) error
+
+	MessageStatusChangeHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, status *Status) error
+	}
+)
+
+// Handle implements the MessageStatusChangeHandler interface.
+func (h OnMessageStatusChangeHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	status *Status,
+) error {
+	return h(ctx, nctx, status)
+}
+
+type (
+	// OnMessageReceivedHook is a hook that is called when a message is received. A notification
+	// can contain a lot of things like errors status changes etc. This is called when a
+	// notification contains a message. This work with the
+	// Message in general. The Handlers for specific message types are called after this hook. They are all implemented
+	// in the MessageHooks interface.
+	OnMessageReceivedHook func(ctx context.Context, nctx *NotificationContext, message *Message) error
+
+	MessageReceivedHandler interface {
+		Handle(ctx context.Context, nctx *NotificationContext, message *Message) error
+	}
+)
+
+func (h OnMessageReceivedHook) Handle(
+	ctx context.Context,
+	nctx *NotificationContext,
+	message *Message,
+) error {
+	return h(ctx, nctx, message)
+}
+
+func (ls *NotificationListener) GenericNotificationHandler(handler GeneralNotificationHandler) {
+	ls.g = handler
+}
+
+func (ls *NotificationListener) SubscriptionVerifier(verifier SubscriptionVerifier) {
+	ls.v = verifier
+}
+
+func (ls *NotificationListener) OnOrderMessage(hook OnOrderMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.OrderMessage = hook
+}
+
+func (ls *NotificationListener) OnButtonMessage(hook OnButtonMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.ButtonMessage = hook
+}
+
+func (ls *NotificationListener) OnLocationMessage(hook OnLocationMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.LocationMessage = hook
+}
+
+func (ls *NotificationListener) OnContactsMessage(hook OnContactsMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.ContactsMessage = hook
+}
+
+func (ls *NotificationListener) OnMessageReaction(hook OnMessageReactionHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.MessageReaction = hook
+}
+
+func (ls *NotificationListener) OnUnknownMessage(hook OnUnknownMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.UnknownMessage = hook
+}
+
+func (ls *NotificationListener) OnProductEnquiry(hook OnProductEnquiryHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.ProductEnquiry = hook
+}
+
+func (ls *NotificationListener) OnInteractiveMessage(hook OnInteractiveMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.InteractiveMessage = hook
+}
+
+func (ls *NotificationListener) OnMessageErrors(hook OnMessageErrorsHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.MessageErrors = hook
+}
+
+func (ls *NotificationListener) OnTextMessage(hook OnTextMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.TextMessage = hook
+}
+
+func (ls *NotificationListener) OnReferralMessage(hook OnReferralMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.ReferralMessage = hook
+}
+
+func (ls *NotificationListener) OnCustomerIDChange(hook OnCustomerIDChangeMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.CustomerIDChange = hook
+}
+
+func (ls *NotificationListener) OnSystemMessage(hook OnSystemMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.SystemMessage = hook
+}
+
+func (ls *NotificationListener) OnMediaMessage(hook OnMediaMessageHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.MediaMessage = hook
+}
+
+func (ls *NotificationListener) OnNotificationError(hook OnNotificationErrorHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.NotificationError = hook
+}
+
+func (ls *NotificationListener) OnMessageStatusChange(hook OnMessageStatusChangeHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.MessageStatusChange = hook
+}
+
+func (ls *NotificationListener) OnMessageReceived(hook OnMessageReceivedHook) {
+	if ls.handlers == nil {
+		ls.handlers = &Handlers{}
+	}
+	ls.handlers.MessageReceived = hook
+}
+
+func WithGlobalNotificationHandler(g GeneralNotificationHandler) ListenerOption {
+	return func(ls *NotificationListener) {
+		ls.g = g
+	}
+}
+
+func WithHooks(hooks *Handlers) ListenerOption {
+	return func(ls *NotificationListener) {
+		ls.handlers = hooks
+	}
+}
+
+func WithSubscriptionVerifier(verifier SubscriptionVerifier) ListenerOption {
+	return func(ls *NotificationListener) {
+		ls.v = verifier
+	}
+}
+
+func WithBeforeFunc(beforeFunc BeforeFunc) ListenerOption {
+	return func(ls *NotificationListener) {
+		ls.before = beforeFunc
+	}
+}
+
+func WithAfterFunc(afterFunc AfterFunc) ListenerOption {
+	return func(ls *NotificationListener) {
+		ls.after = afterFunc
+	}
 }
