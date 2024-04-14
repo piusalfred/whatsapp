@@ -995,7 +995,7 @@ func (listener *NotificationListener) passValueToHandlers(ctx context.Context, i
 			}
 		}
 
-		if err := listener.passMessageToHandlers(ctx, notificationCtx, mv); err != nil {
+		if err := listener.handleMessage(ctx, notificationCtx, mv); err != nil {
 			return err
 		}
 	}
@@ -1003,7 +1003,7 @@ func (listener *NotificationListener) passValueToHandlers(ctx context.Context, i
 	return nil
 }
 
-func (listener *NotificationListener) passMessageToHandlers(ctx context.Context, nctx *NotificationContext, message *Message) error {
+func (listener *NotificationListener) handleMessage(ctx context.Context, nctx *NotificationContext, message *Message) error {
 	mctx := &MessageContext{
 		From:      message.From,
 		ID:        message.ID,
