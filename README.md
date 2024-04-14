@@ -1,5 +1,7 @@
 # whatsapp
 
+NOTE: This is a work in progress. The API is not yet stable and is subject to change.
+
 ## implemented
 - [x] send text message
 - [x] send image message
