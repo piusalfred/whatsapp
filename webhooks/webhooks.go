@@ -174,7 +174,7 @@ type (
 		Button      *Button           `json:"button,omitempty"`
 		Context     *Context          `json:"context,omitempty"`
 		Document    *models.MediaInfo `json:"document,omitempty"`
-		Errors      []*werrors.Error  `json:"werrors,omitempty"`
+		Errors      []*werrors.Error  `json:"errors,omitempty"`
 		From        string            `json:"from,omitempty"`
 		ID          string            `json:"id,omitempty"`
 		Identity    *Identity         `json:"identity,omitempty"`
