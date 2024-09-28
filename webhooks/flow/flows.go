@@ -25,7 +25,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/piusalfred/libwhatsapp/webhooks"
+	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 const (

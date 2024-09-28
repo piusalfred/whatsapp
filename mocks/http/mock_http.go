@@ -14,7 +14,7 @@ import (
 	http0 "net/http"
 	reflect "reflect"
 
-	http "github.com/piusalfred/libwhatsapp/pkg/http"
+	http "github.com/piusalfred/whatsapp/pkg/http"
 	gomock "go.uber.org/mock/gomock"
 )
 

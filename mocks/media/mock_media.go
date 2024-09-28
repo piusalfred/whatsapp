@@ -13,8 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	media "github.com/piusalfred/libwhatsapp/media"
-	http "github.com/piusalfred/libwhatsapp/pkg/http"
+	media "github.com/piusalfred/whatsapp/media"
+	http "github.com/piusalfred/whatsapp/pkg/http"
 	gomock "go.uber.org/mock/gomock"
 )
 

@@ -35,8 +35,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	werrors "github.com/piusalfred/libwhatsapp/pkg/errors"
-	"github.com/piusalfred/libwhatsapp/pkg/types"
+	werrors "github.com/piusalfred/whatsapp/pkg/errors"
+	"github.com/piusalfred/whatsapp/pkg/types"
 )
 
 type (

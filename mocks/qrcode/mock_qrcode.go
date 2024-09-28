@@ -13,8 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	config "github.com/piusalfred/libwhatsapp/config"
-	qrcode "github.com/piusalfred/libwhatsapp/qrcode"
+	config "github.com/piusalfred/whatsapp/config"
+	qrcode "github.com/piusalfred/whatsapp/qrcode"
 	gomock "go.uber.org/mock/gomock"
 )
 

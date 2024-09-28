@@ -26,8 +26,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/piusalfred/libwhatsapp/config"
-	whttp "github.com/piusalfred/libwhatsapp/pkg/http"
+	"github.com/piusalfred/whatsapp/config"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
 const (

@@ -27,8 +27,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/piusalfred/libwhatsapp/config"
-	whttp "github.com/piusalfred/libwhatsapp/pkg/http"
+	"github.com/piusalfred/whatsapp/config"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
 // https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/

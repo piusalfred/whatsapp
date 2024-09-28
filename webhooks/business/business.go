@@ -22,7 +22,7 @@ package business
 import (
 	"context"
 
-	"github.com/piusalfred/libwhatsapp/webhooks"
+	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 type (

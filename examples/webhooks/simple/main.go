@@ -24,11 +24,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/piusalfred/libwhatsapp/webhooks/flow"
+	"github.com/piusalfred/whatsapp/webhooks/flow"
 
-	"github.com/piusalfred/libwhatsapp/webhooks"
 	"github.com/piusalfred/libwhatsapp/webhooks/business"
 	"github.com/piusalfred/libwhatsapp/webhooks/message"
+	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 func HandleBusinessNotification(ctx context.Context, notification *business.Notification) *webhooks.Response {

@@ -26,10 +26,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/piusalfred/libwhatsapp/message"
-	"github.com/piusalfred/libwhatsapp/webhooks"
+	"github.com/piusalfred/whatsapp/message"
+	"github.com/piusalfred/whatsapp/webhooks"
 
-	werrors "github.com/piusalfred/libwhatsapp/pkg/errors"
+	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
 
 type (

@@ -35,9 +35,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/piusalfred/libwhatsapp/config"
+	"github.com/piusalfred/whatsapp/config"
 
-	whttp "github.com/piusalfred/libwhatsapp/pkg/http"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
 const (

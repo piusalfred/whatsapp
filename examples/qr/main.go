@@ -26,9 +26,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/piusalfred/libwhatsapp/config"
-	whttp "github.com/piusalfred/libwhatsapp/pkg/http"
-	"github.com/piusalfred/libwhatsapp/qrcode"
+	"github.com/piusalfred/whatsapp/config"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
+	"github.com/piusalfred/whatsapp/qrcode"
 )
 
 func main() {

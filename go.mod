@@ -1,4 +1,4 @@
-module github.com/piusalfred/libwhatsapp
+module github.com/piusalfred/whatsapp
 
 go 1.23
 

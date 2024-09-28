@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	config "github.com/piusalfred/libwhatsapp/config"
+	config "github.com/piusalfred/whatsapp/config"
 	gomock "go.uber.org/mock/gomock"
 )
 
