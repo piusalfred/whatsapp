@@ -1,5 +1,8 @@
 name: build and release
 
+env:
+  GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+
 on:
   push:
     branches:
@@ -41,5 +44,5 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         uses: phish108/autotag-action@v1.1.55
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ env.GH_ACCESS_TOKEN }}
           with-v: true
