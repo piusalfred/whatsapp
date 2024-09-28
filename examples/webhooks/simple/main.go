@@ -26,9 +26,9 @@ import (
 
 	"github.com/piusalfred/whatsapp/webhooks/flow"
 
-	"github.com/piusalfred/libwhatsapp/webhooks/business"
-	"github.com/piusalfred/libwhatsapp/webhooks/message"
 	"github.com/piusalfred/whatsapp/webhooks"
+	"github.com/piusalfred/whatsapp/webhooks/business"
+	"github.com/piusalfred/whatsapp/webhooks/message"
 )
 
 func HandleBusinessNotification(ctx context.Context, notification *business.Notification) *webhooks.Response {

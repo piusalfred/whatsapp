@@ -200,7 +200,9 @@ func main() {
 		fmt.Printf("Failed to send message: %v\n", err)
 	}
 
-	locationMessage, _ := message.New(recipient, message.WithRequestLocationMessage("where are you?"))
+	msg := "where are you?"
+
+	locationMessage, _ := message.New(recipient, message.WithRequestLocationMessage(&msg))
 
 	if err := bot.SendMessage(ctx, locationMessage); err != nil {
 		fmt.Printf("Failed to send location message: %v\n", err)
