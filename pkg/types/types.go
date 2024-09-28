@@ -17,10 +17,6 @@
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package libwhatsapp
+package types
 
-const (
-	BaseURL                   = "https://graph.facebook.com"
-	LowestSupportedApiVersion = "v16.0" // This is the lowest version of the API that is supported
-	MessageProduct            = "whatsapp"
-)
+type Metadata map[string]any
