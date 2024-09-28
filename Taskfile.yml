@@ -1,0 +1,7 @@
+version: '3'
+
+tasks:
+  clean:
+    cmds:
+      - gofumpt -l -w .
+      - go generate ./...

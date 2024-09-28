@@ -17,10 +17,28 @@
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package libwhatsapp
+package config
 
-const (
-	BaseURL                   = "https://graph.facebook.com"
-	LowestSupportedApiVersion = "v16.0" // This is the lowest version of the API that is supported
-	MessageProduct            = "whatsapp"
+//go:generate mockgen -destination=../mocks/config/config_mock.go -package=config -source=config.go
+
+import "context"
+
+type (
+	Config struct {
+		BaseURL           string
+		APIVersion        string
+		AccessToken       string
+		PhoneNumberID     string
+		BusinessAccountID string
+	}
+
+	Reader interface {
+		Read(ctx context.Context) (*Config, error)
+	}
+
+	ReaderFunc func(ctx context.Context) (*Config, error)
 )
+
+func (fn ReaderFunc) Read(ctx context.Context) (*Config, error) {
+	return fn(ctx)
+}
