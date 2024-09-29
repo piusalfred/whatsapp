@@ -576,6 +576,7 @@ type (
 		Deprecate(ctx context.Context, id string) (*SuccessResponse, error)
 		GeneratePreview(ctx context.Context, request *PreviewRequest) (*PreviewResponse, error)
 		Get(ctx context.Context, request *GetRequest) (*SingleFlowResponse, error)
+		GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*MetricsAPIResponse, error)
 	}
 )
 

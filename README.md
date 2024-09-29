@@ -17,11 +17,11 @@ A highly configurable golang client for [Whatsapp Cloud API](https://www.postman
   - [Templates](./message)
   - [Interactive Messages](./message)
   - [Replies and Reactions](./message)
-- [**QR Code Management**](./qrcode)
+- [QR Code Management](./qrcode)
 - [Phone Number Management](./phonenumber)
   - [Get Phone Number Information](./phonenumber)
   - [Update Phone Number](./phonenumber)
-- [Media Management](./media) - Upload, Download and Delete
+- [Media Management](./media)
 - [Webhooks](./webhooks)
   - [Message Webhooks](./webhooks/message)
   - [Business Management Webhooks](./webhooks/business)
@@ -214,3 +214,5 @@ There is provision of [**mocks**](./mocks) that may come handy in testing.
 - [Whatsapp Flows Guide](https://developers.facebook.com/docs/whatsapp/flows/guides)
 - [Flows Reference](https://developers.facebook.com/docs/whatsapp/flows/reference/)
 - [QR Codes Documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/qr-codes/)
+- [Flows Best Practices](https://developers.facebook.com/docs/whatsapp/flows/guides/bestpractices)
+- 
