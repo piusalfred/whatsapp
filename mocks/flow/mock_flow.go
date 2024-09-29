@@ -154,6 +154,21 @@ func (mr *MockServiceMockRecorder) Get(ctx, request any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockService)(nil).Get), ctx, request)
 }
 
+// GetFlowMetrics mocks base method.
+func (m *MockService) GetFlowMetrics(ctx context.Context, request *flow.MetricsRequest) (*flow.MetricsAPIResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFlowMetrics", ctx, request)
+	ret0, _ := ret[0].(*flow.MetricsAPIResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFlowMetrics indicates an expected call of GetFlowMetrics.
+func (mr *MockServiceMockRecorder) GetFlowMetrics(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlowMetrics", reflect.TypeOf((*MockService)(nil).GetFlowMetrics), ctx, request)
+}
+
 // ListAll mocks base method.
 func (m *MockService) ListAll(ctx context.Context) (*flow.ListResponse, error) {
 	m.ctrl.T.Helper()

@@ -163,20 +163,6 @@ func (b *Bot) ReadConf(ctx context.Context) (*config.Config, error) {
 	}, nil
 }
 
-func (b *Bot) SendMessage(ctx context.Context, m *message.Message) error {
-	resp, err := b.client.SendMessage(ctx, m)
-	if err != nil {
-		b.logger.ErrorContext(ctx, "failed to send a message", slog.String("error", err.Error()))
-		return err
-	}
-
-	b.logger.InfoContext(ctx, "message sent",
-		slog.String("message_recipient", m.To),
-		slog.String("message_product", resp.Product),
-	)
-	return nil
-}
-
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
@@ -188,23 +174,31 @@ func main() {
 	recipient := ""
 
 	ctx := context.Background()
-	interactiveMessage, _ := message.New(recipient, message.WithInteractiveCTAURLButton(&message.InteractiveCTARequest{
+	interactiveMessage := message.NewInteractiveCTAURLButton(&message.InteractiveCTARequest{
 		DisplayText: "",
 		URL:         "",
 		Body:        "",
 		Header:      nil,
 		Footer:      "",
-	}))
+	})
 
-	if err := bot.SendMessage(ctx, interactiveMessage); err != nil {
-		fmt.Printf("Failed to send message: %v\n", err)
+	ir := message.NewRequest(recipient, interactiveMessage, "")
+
+	// use dedicated method
+	response, err := bot.client.SendInteractiveMessage(ctx, ir)
+	if err != nil {
+		return
 	}
+
+	fmt.Printf("%v", response)
 
 	msg := "where are you?"
 
 	locationMessage, _ := message.New(recipient, message.WithRequestLocationMessage(&msg))
 
-	if err := bot.SendMessage(ctx, locationMessage); err != nil {
-		fmt.Printf("Failed to send location message: %v\n", err)
+	// use generic method
+	response, err = bot.client.SendMessage(ctx, locationMessage)
+	if err != nil {
+		return
 	}
 }

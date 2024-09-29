@@ -200,6 +200,7 @@ const (
 	RequestTypeUpdateFlow
 	RequestTypeCreateFlow
 	RequestTypeRetrieveFlowPreview
+	RequestTypeGetFlowMetrics
 )
 
 type (

@@ -116,6 +116,21 @@ func (mr *MockServiceMockRecorder) SendImage(ctx, request any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendImage", reflect.TypeOf((*MockService)(nil).SendImage), ctx, request)
 }
 
+// SendInteractiveMessage mocks base method.
+func (m *MockService) SendInteractiveMessage(ctx context.Context, request *message.Request[message.Interactive]) (*message.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendInteractiveMessage", ctx, request)
+	ret0, _ := ret[0].(*message.Response)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SendInteractiveMessage indicates an expected call of SendInteractiveMessage.
+func (mr *MockServiceMockRecorder) SendInteractiveMessage(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendInteractiveMessage", reflect.TypeOf((*MockService)(nil).SendInteractiveMessage), ctx, request)
+}
+
 // SendLocation mocks base method.
 func (m *MockService) SendLocation(ctx context.Context, request *message.Request[message.Location]) (*message.Response, error) {
 	m.ctrl.T.Helper()
