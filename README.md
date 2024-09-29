@@ -1,37 +1,34 @@
-# WhatsApp Cloud API Go Client
+# whatsapp
 
 [![GoDoc](https://godoc.org/github.com/piusalfred/whatsapp?status.svg)](https://godoc.org/github.com/piusalfred/whatsapp)
 [![Go Report Card](https://goreportcard.com/badge/github.com/piusalfred/whatsapp)](https://goreportcard.com/report/github.com/piusalfred/whatsapp)
 ![Status](https://img.shields.io/badge/status-alpha-red)
 
-**Note:** This library is currently in alpha and not yet stable. Breaking changes may occur.
+A highly configurable golang client for [Whatsapp Cloud API](https://www.postman.com/meta/whatsapp-business-platform/collection/wlk6lh4/whatsapp-cloud-api)
+
+> [!WARNING]
+> The library is usable but not pretty stable yet. There maybe some breaking changes.
 
 ## Supported API
 
 - [**Message**](./message)
-    - Text
-    - Media
-    - Templates
-    - Interactive Messages
-    - Replies and Reactions
-
+  - Text
+  - Media
+  - Templates
+  - Interactive Messages
+  - Replies and Reactions
 - [**QR Code Management**](./qrcode)
-    - Generate QR Code
-    - Retrieve QR Code
-
 - [**Phone Number Management**](./phonenumber)
-    - Get Phone Number Information
-    - Update Phone Number
-
+  - Get Phone Number Information
+  - Update Phone Number
 - [**Media Management**](./media)
-    - Upload Media
-    - Download Media
-    - Delete Media
-
+  - Upload Media
+  - Download Media
+  - Delete Media
 - [**Webhooks**](./webhooks)
-    - Message Webhooks
-    - Business Management Webhooks
-    - Flow Management Webhooks
+  - [Message Webhooks](./webhooks/message)
+  - [Business Management Webhooks](./webhooks/business)
+  - [Flow Management Webhooks](./webhooks/flow)
 
 
 ## examples
@@ -206,3 +203,17 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 ```
+
+## Testing
+There is provision of [**mocks**](./mocks) that may come handy in testing.
+
+## Links
+- [Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started)
+- [Postman Collection](https://www.postman.com/meta/whatsapp-business-platform/collection/wlk6lh4/whatsapp-cloud-api)
+- [Webhooks Get Started](https://developers.facebook.com/docs/graph-api/webhooks/getting-started)
+- [Messages Documentation](https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages)
+- [Phone Numbers Documentation](https://developers.facebook.com/docs/whatsapp/cloud-api/phone-numbers)
+- [Whatsapp Flows](https://developers.facebook.com/docs/whatsapp/flows/)
+- [Whatsapp Flows Guide](https://developers.facebook.com/docs/whatsapp/flows/guides)
+- [Flows Reference](https://developers.facebook.com/docs/whatsapp/flows/reference/)
+- [QR Codes Documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/qr-codes/)
