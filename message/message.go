@@ -46,6 +46,7 @@ type (
 		SendSticker(ctx context.Context, request *Request[Sticker]) (*Response, error)
 		SendContacts(ctx context.Context, request *Request[Contacts]) (*Response, error)
 		RequestLocation(ctx context.Context, request *Request[string]) (*Response, error)
+		SendInteractiveMessage(ctx context.Context, request *Request[Interactive]) (*Response, error)
 	}
 
 	Request[T any] struct {
@@ -513,6 +514,17 @@ func (c *BaseClient) SendSticker(ctx context.Context, request *Request[Sticker])
 
 func (c *BaseClient) SendContacts(ctx context.Context, request *Request[Contacts]) (*Response, error) {
 	options := buildOptions(request.Message, request.ReplyTo, WithContacts)
+
+	message, err := New(request.Recipient, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.SendMessage(ctx, message)
+}
+
+func (c *BaseClient) SendInteractiveMessage(ctx context.Context, request *Request[Interactive]) (*Response, error) {
+	options := buildOptions(request.Message, request.ReplyTo, WithInteractiveMessage)
 
 	message, err := New(request.Recipient, options...)
 	if err != nil {
@@ -1041,6 +1053,22 @@ type InteractiveCTARequest struct {
 	Footer      string
 }
 
+func NewInteractiveCTAURLButton(request *InteractiveCTARequest) *Interactive {
+	return NewInteractiveMessageContent(
+		TypeInteractiveCTAURL,
+		WithInteractiveHeader(request.Header),
+		WithInteractiveBody(request.Body),
+		WithInteractiveFooter(request.Footer),
+		WithInteractiveAction(&InteractiveAction{
+			Name: InteractiveActionCTAURL,
+			Parameters: &InteractiveActionParameters{
+				DisplayText: request.DisplayText,
+				URL:         request.URL,
+			},
+		}),
+	)
+}
+
 func WithInteractiveCTAURLButton(request *InteractiveCTARequest) Option {
 	return func(message *Message) {
 		content := NewInteractiveMessageContent(
@@ -1059,6 +1087,13 @@ func WithInteractiveCTAURLButton(request *InteractiveCTARequest) Option {
 
 		message.Type = TypeInteractive
 		message.Interactive = content
+	}
+}
+
+func WithInteractiveMessage(request *Interactive) Option {
+	return func(message *Message) {
+		message.Type = TypeInteractive
+		message.Interactive = request
 	}
 }
 
