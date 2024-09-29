@@ -11,21 +11,18 @@ A highly configurable golang client for [Whatsapp Cloud API](https://www.postman
 
 ## Supported API
 
-- [**Message**](./message)
-  - Text
-  - Media
-  - Templates
-  - Interactive Messages
-  - Replies and Reactions
+- [Message](./message)
+  - [Text](./message)
+  - [Media](./message)
+  - [Templates](./message)
+  - [Interactive Messages](./message)
+  - [Replies and Reactions](./message)
 - [**QR Code Management**](./qrcode)
-- [**Phone Number Management**](./phonenumber)
-  - Get Phone Number Information
-  - Update Phone Number
-- [**Media Management**](./media)
-  - Upload Media
-  - Download Media
-  - Delete Media
-- [**Webhooks**](./webhooks)
+- [Phone Number Management](./phonenumber)
+  - [Get Phone Number Information](./phonenumber)
+  - [Update Phone Number](./phonenumber)
+- [Media Management](./media) - Upload, Download and Delete
+- [Webhooks](./webhooks)
   - [Message Webhooks](./webhooks/message)
   - [Business Management Webhooks](./webhooks/business)
   - [Flow Management Webhooks](./webhooks/flow)
