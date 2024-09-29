@@ -273,26 +273,26 @@ type (
 var _ webhooks.NotificationHandler[Notification] = (*Handlers)(nil)
 
 type Handlers struct {
-	OrderMessage        Handler[Order]
-	ButtonMessage       Handler[Button]
-	LocationMessage     Handler[message.Location]
-	ContactsMessage     Handler[message.Contacts]
-	MessageReaction     Handler[message.Reaction]
+	OrderMessage        OrderMessageHandler
+	ButtonMessage       ButtonMessageHandler
+	LocationMessage     LocationMessageHandler
+	ContactsMessage     ContactsMessageHandler
+	MessageReaction     ReactionHandler
 	UnknownMessage      ErrorsHandler
-	ProductEnquiry      Handler[Text]
-	InteractiveMessage  Handler[Interactive]
-	ButtonReply         Handler[ButtonReply]
-	ListReply           Handler[ListReply]
-	FlowReply           Handler[NFMReply]
+	ProductEnquiry      ProductEnquiryHandler
+	InteractiveMessage  InteractiveMessageHandler
+	ButtonReply         ButtonReplyMessageHandler
+	ListReply           ListReplyMessageHandler
+	FlowReply           FlowCompletionMessageHandler
 	MessageErrors       ErrorsHandler
-	TextMessage         Handler[Text]
-	ReferralMessage     Handler[ReferralNotification]
-	CustomerIDChange    Handler[Identity]
-	SystemMessage       Handler[System]
-	MediaMessage        Handler[message.MediaInfo]
-	NotificationError   ChangeValueHandler[werrors.Error]
-	MessageStatusChange ChangeValueHandler[Status]
-	MessageReceived     ChangeValueHandler[Message]
+	TextMessage         TextMessageHandler
+	ReferralMessage     ReferralMessageHandler
+	CustomerIDChange    CustomerIDChangeHandler
+	SystemMessage       SystemMessageHandler
+	MediaMessage        MediaMessageHandler
+	NotificationError   ErrorHandler
+	MessageStatusChange StatusChangeHandler
+	MessageReceived     ReceivedHandler
 }
 
 func (handler *Handlers) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
@@ -540,42 +540,42 @@ func (handler *Handlers) handleNotificationMessage(ctx context.Context,
 }
 
 type (
-	ButtonMessageHandler         Handler[Button]
-	TextMessageHandler           Handler[Text]
-	OrderMessageHandler          Handler[Order]
-	LocationMessageHandler       Handler[message.Location]
-	ContactsMessageHandler       Handler[message.Contacts]
-	ReactionHandler              Handler[message.Reaction]
-	ProductEnquiryHandler        Handler[Text]
-	InteractiveMessageHandler    Handler[Interactive]
-	ButtonReplyMessageHandler    Handler[ButtonReply]
-	ListReplyMessageHandler      Handler[ListReply]
-	FlowCompletionMessageHandler Handler[NFMReply]
-	ReferralMessageHandler       Handler[ReferralNotification]
-	CustomerIDChangeHandler      Handler[Identity]
-	SystemMessageHandler         Handler[System]
-	MediaMessageHandler          Handler[message.MediaInfo]
-	ErrorHandler                 ChangeValueHandler[werrors.Error]
-	StatusChangeHandler          ChangeValueHandler[Status]
-	ReceivedHandler              ChangeValueHandler[Message]
-	OnButtonMessageHook          HandlerFunc[Button]
-	OnTextMessageHook            HandlerFunc[Text]
-	OnOrderMessageHook           HandlerFunc[Order]
-	OnLocationMessageHook        HandlerFunc[message.Location]
-	OnContactsMessageHook        HandlerFunc[message.Contacts]
-	OnMessageReactionHook        HandlerFunc[message.Reaction]
-	OnProductEnquiryHook         HandlerFunc[Text]
-	OnInteractiveMessageHook     HandlerFunc[Interactive]
-	OnButtonReplyMessageHook     HandlerFunc[ButtonReply]
-	OnListReplyMessageHook       HandlerFunc[ListReply]
-	OnFlowCompletionMessageHook  HandlerFunc[NFMReply]
-	OnReferralMessageHook        HandlerFunc[ReferralNotification]
-	OnCustomerIDChangeHook       HandlerFunc[Identity]
-	OnSystemMessageHook          HandlerFunc[System]
-	OnMediaMessageHook           HandlerFunc[message.MediaInfo]
-	OnNotificationErrorHook      ChangeValueHandlerFunc[werrors.Error]
-	OnMessageStatusChangeHook    ChangeValueHandlerFunc[Status]
-	OnMessageReceivedHook        ChangeValueHandlerFunc[Message]
+	ButtonMessageHandler         = Handler[Button]
+	TextMessageHandler           = Handler[Text]
+	OrderMessageHandler          = Handler[Order]
+	LocationMessageHandler       = Handler[message.Location]
+	ContactsMessageHandler       = Handler[message.Contacts]
+	ReactionHandler              = Handler[message.Reaction]
+	ProductEnquiryHandler        = Handler[Text]
+	InteractiveMessageHandler    = Handler[Interactive]
+	ButtonReplyMessageHandler    = Handler[ButtonReply]
+	ListReplyMessageHandler      = Handler[ListReply]
+	FlowCompletionMessageHandler = Handler[NFMReply]
+	ReferralMessageHandler       = Handler[ReferralNotification]
+	CustomerIDChangeHandler      = Handler[Identity]
+	SystemMessageHandler         = Handler[System]
+	MediaMessageHandler          = Handler[message.MediaInfo]
+	ErrorHandler                 = ChangeValueHandler[werrors.Error]
+	StatusChangeHandler          = ChangeValueHandler[Status]
+	ReceivedHandler              = ChangeValueHandler[Message]
+	OnButtonMessageHook          = HandlerFunc[Button]
+	OnTextMessageHook            = HandlerFunc[Text]
+	OnOrderMessageHook           = HandlerFunc[Order]
+	OnLocationMessageHook        = HandlerFunc[message.Location]
+	OnContactsMessageHook        = HandlerFunc[message.Contacts]
+	OnMessageReactionHook        = HandlerFunc[message.Reaction]
+	OnProductEnquiryHook         = HandlerFunc[Text]
+	OnInteractiveMessageHook     = HandlerFunc[Interactive]
+	OnButtonReplyMessageHook     = HandlerFunc[ButtonReply]
+	OnListReplyMessageHook       = HandlerFunc[ListReply]
+	OnFlowCompletionMessageHook  = HandlerFunc[NFMReply]
+	OnReferralMessageHook        = HandlerFunc[ReferralNotification]
+	OnCustomerIDChangeHook       = HandlerFunc[Identity]
+	OnSystemMessageHook          = HandlerFunc[System]
+	OnMediaMessageHook           = HandlerFunc[message.MediaInfo]
+	OnNotificationErrorHook      = ChangeValueHandlerFunc[werrors.Error]
+	OnMessageStatusChangeHook    = ChangeValueHandlerFunc[Status]
+	OnMessageReceivedHook        = ChangeValueHandlerFunc[Message]
 )
 
 type (

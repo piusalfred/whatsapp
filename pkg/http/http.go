@@ -333,11 +333,9 @@ func EncodePayload(payload any) (*EncodeResponse, error) {
 
 // encodeFormData encodes form fields and file data into multipart/form-data
 func encodeFormData(formData *RequestForm) (io.Reader, string, error) {
-	// Create a buffer and a multipart writer
 	var payload bytes.Buffer
 	writer := multipart.NewWriter(&payload)
 
-	// Add regular form fields
 	for key, value := range formData.Fields {
 		err := writer.WriteField(key, value)
 		if err != nil {
@@ -345,35 +343,29 @@ func encodeFormData(formData *RequestForm) (io.Reader, string, error) {
 		}
 	}
 
-	// Add the form file if present
 	if formData.FormFile != nil {
-		// Open the file
 		file, err := os.Open(formData.FormFile.Path)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to open file %s: %w", formData.FormFile.Path, err)
 		}
 		defer file.Close()
 
-		// Create the form file part
 		part, err := writer.CreateFormFile(formData.FormFile.Name, filepath.Base(formData.FormFile.Path))
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to create form file part: %w", err)
 		}
 
-		// Copy the file content into the form part
 		_, err = io.Copy(part, file)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to copy file content: %w", err)
 		}
 	}
 
-	// Close the multipart writer to finalize the form
 	err := writer.Close()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to close multipart writer: %w", err)
 	}
 
-	// Return the body and the content type, which includes the multipart boundary
 	return &payload, writer.FormDataContentType(), nil
 }
 
