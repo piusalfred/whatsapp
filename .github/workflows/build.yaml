@@ -44,5 +44,4 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         uses: phish108/autotag-action@v1.1.55
         with:
-          github-token: ${{ env.GH_ACCESS_TOKEN }}
           with-v: true
