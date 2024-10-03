@@ -58,7 +58,7 @@ func main() {
 				return nil
 			},
 		),
-		whttp.WithCoreClientMiddlewares(middlewares),
+		whttp.WithCoreClientMiddlewares(middlewares...),
 	}
 
 	coreClient := whttp.NewSender[any](clientOptions...)

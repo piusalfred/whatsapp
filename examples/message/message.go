@@ -132,7 +132,7 @@ func NewBot(hc *http.Client, logger *slog.Logger) *Bot {
 				return nil
 			},
 		),
-		whttp.WithCoreClientMiddlewares(middlewares),
+		whttp.WithCoreClientMiddlewares(middlewares...),
 	}
 
 	coreClient := whttp.NewSender[message.Message](clientOptions...)
