@@ -17,7 +17,7 @@
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package libwhatsapp
+package whatsapp
 
 const (
 	BaseURL                   = "https://graph.facebook.com"

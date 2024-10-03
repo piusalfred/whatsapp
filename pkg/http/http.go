@@ -45,6 +45,7 @@ type (
 		reqHook     RequestInterceptorFunc
 		resHook     ResponseInterceptorFunc
 		middlewares []Middleware[T]
+		sender      Sender[T]
 	}
 
 	CoreClientOption[T any] func(client *CoreClient[T])
@@ -58,6 +59,10 @@ func (core *CoreClient[T]) SetHTTPClient(httpClient *http.Client) {
 
 func (core *CoreClient[T]) SetRequestInterceptor(hook RequestInterceptorFunc) {
 	core.reqHook = hook
+}
+
+func (core *CoreClient[T]) SetBaseSender(sender Sender[T]) {
+	core.sender = sender
 }
 
 func (core *CoreClient[T]) SetResponseInterceptor(hook ResponseInterceptorFunc) {
@@ -90,7 +95,7 @@ func WithCoreClientResponseInterceptor[T any](hook ResponseInterceptorFunc) Core
 	}
 }
 
-func WithCoreClientMiddlewares[T any](mws []Middleware[T]) CoreClientOption[T] {
+func WithCoreClientMiddlewares[T any](mws ...Middleware[T]) CoreClientOption[T] {
 	return func(client *CoreClient[T]) {
 		client.middlewares = mws
 	}
@@ -100,6 +105,8 @@ func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
 	core := &CoreClient[T]{
 		http: http.DefaultClient,
 	}
+
+	core.sender = SenderFunc[T](core.send)
 
 	for _, option := range options {
 		if option != nil {
@@ -111,42 +118,54 @@ func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
 }
 
 func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
-	req, err := RequestWithContext(ctx, request)
-	if err != nil {
+	if err := SendFuncWithInterceptors[T](core.http, core.reqHook, core.resHook)(ctx, request, decoder); err != nil {
 		return err
-	}
-
-	if errHook := core.reqHook(ctx, req); errHook != nil {
-		return errHook
-	}
-
-	response, err := core.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("send req: %w", err)
-	}
-	defer response.Body.Close()
-
-	if core.resHook != nil {
-		bodyBytes, errRead := io.ReadAll(response.Body)
-		if errRead != nil && !errors.Is(errRead, io.EOF) {
-			return fmt.Errorf("read response body: %w", errRead)
-		}
-		response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		if errHook := core.resHook(ctx, response); errHook != nil {
-			return errHook
-		}
-		response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	}
-
-	if err := decoder.Decode(ctx, response); err != nil {
-		return fmt.Errorf("core send: decode: %w", err)
 	}
 
 	return nil
 }
 
+func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptor, resHook ResponseInterceptor) SenderFunc[T] {
+	fn := SenderFunc[T](func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
+		req, err := RequestWithContext(ctx, request)
+		if err != nil {
+			return err
+		}
+
+		if errHook := reqHook.InterceptRequest(ctx, req); errHook != nil {
+			return errHook
+		}
+
+		response, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("send req: %w", err)
+		}
+		defer response.Body.Close()
+
+		if resHook != nil {
+			bodyBytes, errRead := io.ReadAll(response.Body)
+			if errRead != nil && !errors.Is(errRead, io.EOF) {
+				return fmt.Errorf("read response body: %w", errRead)
+			}
+			response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			if errHook := resHook.InterceptResponse(ctx, response); errHook != nil {
+				return errHook
+			}
+			response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+
+		if err := decoder.Decode(ctx, response); err != nil {
+			return fmt.Errorf("core send: decode: %w", err)
+		}
+
+		return nil
+	})
+
+	return fn
+}
+
 func (core *CoreClient[T]) Send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
-	fn := wrapMiddlewares(core.send, core.middlewares)
+	fn := wrapMiddlewares(core.sender.Send, core.middlewares)
 
 	return fn(ctx, request, decoder)
 }
@@ -377,14 +396,7 @@ type DecodeOptions struct {
 
 func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions) error {
 	if response == nil {
-		return fmt.Errorf("nil response provided")
-	}
-
-	if response.Body == nil {
-		if opts.DisallowEmptyResponse {
-			return fmt.Errorf("unexpected empty response body")
-		}
-		return nil
+		return ErrNilResponse
 	}
 
 	responseBody, err := io.ReadAll(response.Body)
@@ -395,6 +407,10 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 	}()
 
+	if len(responseBody) == 0 && opts.DisallowEmptyResponse {
+		return fmt.Errorf("%w: expected non-empty response body", ErrEmptyResponseBody)
+	}
+
 	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode < 300
 	if !isResponseOk {
 		if opts.InspectResponseError {
@@ -404,22 +420,25 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 
 			var errorResponse ResponseError
 			if err := json.Unmarshal(responseBody, &errorResponse); err != nil {
-				return fmt.Errorf("failed to decode error response: %w, status code: %d, response body: %s", err, response.StatusCode, string(responseBody))
+				return fmt.Errorf("%w: %v, status code: %d", ErrDecodeErrorResponse, err, response.StatusCode)
 			}
-
 			return &errorResponse
 		}
+
+		return fmt.Errorf("%w: status code: %d", ErrRequestFailure, response.StatusCode)
 	}
 
+	//	At this point, we know the response is 2xx
+	//	If the body is empty here, that means empty bodies are allowed, so we return early.
+	//	If the body is not empty but `v` is nil, we return an error as there is no target to decode into.
+	//	Otherwise, we proceed with decoding the body into `v` if the body is not empty and `v` is provided.
+
 	if len(responseBody) == 0 {
-		if opts.DisallowEmptyResponse {
-			return fmt.Errorf("expected non-empty response body, but got empty")
-		}
 		return nil
 	}
 
 	if v == nil {
-		return fmt.Errorf("nil value passed for decoding target")
+		return ErrNilTarget
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(responseBody))
@@ -427,8 +446,8 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		decoder.DisallowUnknownFields()
 	}
 
-	if decodeErr := decoder.Decode(v); decodeErr != nil {
-		return fmt.Errorf("decode response body: %w", decodeErr)
+	if err := decoder.Decode(v); err != nil {
+		return fmt.Errorf("%w: %v", ErrDecodeResponseBody, err)
 	}
 
 	return nil
@@ -439,39 +458,38 @@ func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) e
 		return fmt.Errorf("nil request provided")
 	}
 
-	if request.Body == nil {
-		if opts.DisallowEmptyResponse {
-			return fmt.Errorf("unexpected empty request body")
-		}
-		return nil
-	}
-
-	responseBody, err := io.ReadAll(request.Body)
+	requestBody, err := io.ReadAll(request.Body)
 	if err != nil {
 		return fmt.Errorf("read request: %w", err)
 	}
 	defer func() {
-		request.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 	}()
 
-	if len(responseBody) == 0 {
-		if opts.DisallowEmptyResponse {
-			return fmt.Errorf("expected non-empty request body, but got empty")
-		}
+	if len(requestBody) == 0 && opts.DisallowEmptyResponse {
+		return fmt.Errorf("%w: expected non-empty request body", ErrEmptyResponseBody)
+	}
+
+	//	At this point, we know:
+	//	- If the body is empty, it's allowed based on `DisallowEmptyResponse`.
+	//	- If the body is not empty and `v == nil`, return an error as there’s no target to decode into.
+	//	- Otherwise, proceed with decoding into `v` if the body is not empty and `v` is provided.
+
+	if len(requestBody) == 0 {
 		return nil
 	}
 
 	if v == nil {
-		return fmt.Errorf("nil value passed for decoding target")
+		return ErrNilTarget
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(responseBody))
+	decoder := json.NewDecoder(bytes.NewReader(requestBody))
 	if opts.DisallowUnknownFields {
 		decoder.DisallowUnknownFields()
 	}
 
 	if decodeErr := decoder.Decode(v); decodeErr != nil {
-		return fmt.Errorf("decode request body: %w", decodeErr)
+		return fmt.Errorf("%w: %v", ErrDecodeResponseBody, decodeErr)
 	}
 
 	return nil
@@ -490,11 +508,18 @@ func (e *ResponseError) Unwrap() error {
 	return e.Err
 }
 
-const ErrRequestFailure customErr = "send request failed"
+const (
+	ErrNilResponse         = httpErr("nil response provided")
+	ErrEmptyResponseBody   = httpErr("empty response body")
+	ErrNilTarget           = httpErr("nil value passed for decoding target")
+	ErrRequestFailure      = httpErr("request failed")
+	ErrDecodeResponseBody  = httpErr("failed to decode response body")
+	ErrDecodeErrorResponse = httpErr("failed to decode error response")
+)
 
-type customErr string
+type httpErr string
 
-func (e customErr) Error() string {
+func (e httpErr) Error() string {
 	return string(e)
 }
 
@@ -559,11 +584,13 @@ func BodyReaderResponseDecoder(fn ResponseBodyReaderFunc) ResponseDecoderFunc {
 			return fmt.Errorf("failed to read response body: %w", err)
 		}
 
+		defer func() {
+			response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		}()
+
 		if err := fn(ctx, bytes.NewReader(responseBody)); err != nil {
 			return err
 		}
-
-		response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 
 		return nil
 	}
