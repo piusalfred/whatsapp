@@ -22,9 +22,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         arch: [amd64, arm64]
-        include:
-          - os: windows-latest
-            arch: amd64
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -41,7 +38,8 @@ jobs:
         run: go test -v -race ./... && go build -race ./...
 
       - name: Run Auto Tag
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+        if: github.ref == 'refs/heads/main'
         uses: phish108/autotag-action@v1.1.55
         with:
-          with-v: true
+          github-token: ${{ secrets.GITHUB_TOKEN}}
+          with-v: "true"
