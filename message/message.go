@@ -157,6 +157,7 @@ func (c *BaseClient) SendMessage(ctx context.Context, message *Message) (*Respon
 		WithBaseRequestDecodeOptions(whttp.DecodeOptions{
 			DisallowUnknownFields: true,
 			DisallowEmptyResponse: true,
+			InspectResponseError:  true,
 		}),
 	)
 
@@ -372,7 +373,7 @@ func (c *BaseSender) Send(ctx context.Context, conf *config.Config, request *Bas
 		Method:    request.Method,
 		Bearer:    conf.AccessToken,
 		BaseURL:   conf.BaseURL,
-		Endpoints: []string{conf.APIVersion, conf.BusinessAccountID, Endpoint},
+		Endpoints: []string{conf.APIVersion, conf.PhoneNumberID, Endpoint},
 		Message:   request.Message,
 		Metadata:  request.Metadata,
 	}

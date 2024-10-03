@@ -28,23 +28,36 @@ A highly configurable golang client for [Whatsapp Cloud API](https://www.postman
   - [Flow Management Webhooks](./webhooks/flow)
 
 
-## examples
+## setup
 
-You will find `BaseClient` and `Client`.
+- Go to [apps](https://developers.facebook.com/apps) you have registered click on the one you want to develop API for and go to `API setup` if not create one.
+- Get these details `access token`,`phone number id`,`business account id` and make sure you have authorized one or more whatsapp phone numbers to receive these messages
+- While on the root directory of the project run `task build-examples` to build all the examples that will be in  [examples/bin](./examples/bin) directory
+- Then run `cp examples/api.env examples/bin/api.env`
+- And populate the values you have got to this `api.env` file, The given values here are not valid
+```dotenv
+WHATSAPP_CLOUD_API_BASE_URL=https://graph.facebook.com
+WHATSAPP_CLOUD_API_API_VERSION=v20.0
+WHATSAPP_CLOUD_API_ACCESS_TOKEN=EAALLrT0ok6UBJZB0ZB3gvzk9hJaEjGM8ISZAxPR5e3ZAFn4RmBIThoeK0XOdbKv8y2zB3YQ7uaijShZBjVIcZD
+WHATSAPP_CLOUD_API_PHONE_NUMBER_ID=111112271552333
+WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID=222222508300000
+WHATSAPP_CLOUD_API_TEST_RECIPIENT=+XXXX7374665453
+```
+- now you can navigate to the  [examples/bin](./examples/bin) directory and run the examples. But before that make sure you have sent the hello world
+template message to the recipient and **replied** and this should be within *24 hrs window*
 
-`Client` provides a stateful approach, reusing the same configuration across multiple requests until manually refreshed, making it ideal for long-running services where consistency and thread safety are required.
+> [!NOTE]
+> You will find `BaseClient` and `Client`.
+> `Client` provides a stateful approach, reusing the same configuration across multiple requests until manually refreshed, making it ideal for long-running services where consistency and thread safety are required.
+> `BaseClient` is stateless, reloading the configuration on each request, making it more flexible for dynamic environments like multi-tenancy, where different configurations may be needed for each request.
 
-`BaseClient` is stateless, reloading the configuration on each request, making it more flexible for dynamic environments like multi-tenancy, where different configurations may be needed for each request.
 
-See more in [examples](./examples/)
-
+### usage
 Install the library by running
 
 ```bash
 go get github.com/piusalfred/whatsapp
 ```
-
-### messages
 
 ```go
 package main
@@ -200,6 +213,8 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 ```
+
+See more in [examples](./examples/)
 
 ## Testing
 There is provision of [**mocks**](./mocks) that may come handy in testing.

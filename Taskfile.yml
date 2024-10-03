@@ -6,3 +6,14 @@ tasks:
       - gofumpt -l -w .
       - go generate ./...
       - go test -v -race -coverprofile=coverage.out -coverpkg=./... -parallel=4 ./...
+  update-message-examples-deps:
+    dir: examples/message
+    cmds:
+      - go get -u ./...
+      - go mod tidy
+  build-examples:
+    deps: [clean, update-message-examples-deps]
+    dir: examples
+    cmds:
+      - mkdir -p bin
+      - go build -trimpath -race -o bin/message message/main.go
