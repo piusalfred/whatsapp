@@ -819,12 +819,8 @@ type (
 	ContactOption func(*Contact)
 )
 
-func NewContact(name string, options ...ContactOption) *Contact {
-	contact := &Contact{
-		Name: &Name{
-			FormattedName: name,
-		},
-	}
+func NewContact(options ...ContactOption) *Contact {
+	contact := &Contact{}
 	for _, option := range options {
 		option(contact)
 	}

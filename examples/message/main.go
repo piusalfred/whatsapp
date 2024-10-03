@@ -32,22 +32,22 @@ import (
 )
 
 func LoadConfigFromFile(filepath string) (config.ReaderFunc, string) {
-	fn := func(ctx context.Context) (*config.Config, error) {
-		err := godotenv.Load(filepath) // Load the .env file from the given path
-		if err != nil {
-			return nil, err
-		}
-
-		return &config.Config{
-			BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
-			APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
-			AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
-			PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
-			BusinessAccountID: os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID"),
-		}, nil
+	err := godotenv.Load(filepath) // Load the .env file from the given path
+	if err != nil {
+		panic(err)
 	}
-
 	recipient := os.Getenv("WHATSAPP_CLOUD_API_TEST_RECIPIENT")
+
+	conf := &config.Config{
+		BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
+		APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
+		AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
+		PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
+		BusinessAccountID: os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID"),
+	}
+	fn := func(ctx context.Context) (*config.Config, error) {
+		return conf, nil
+	}
 
 	return fn, recipient
 }
@@ -110,12 +110,28 @@ func main() {
 
 	logger.LogAttrs(ctx, slog.LevelInfo, "response from initial template message", slog.Any("response", response))
 
+	textMessage := &message.Text{
+		PreviewURL: true,
+		Body:       "Visit the repo at https://github.com/piusalfred/whatsapp",
+	}
+
+	response, err = baseClient.SendText(ctx, message.NewRequest(recipient, textMessage, ""))
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelError, "error sending text message", slog.String("error", err.Error()))
+		return
+	}
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "response from sending text message", slog.Any("response", response))
+
 	interactiveMessage := message.NewInteractiveCTAURLButton(&message.InteractiveCTARequest{
-		DisplayText: "",
-		URL:         "",
-		Body:        "",
-		Header:      nil,
-		Footer:      "",
+		DisplayText: "Github Link",
+		URL:         "https://github.com/piusalfred/whatsapp",
+		Body:        "A highly configurable client to build a wide range of whatsapp chatbots",
+		Header: &message.InteractiveHeader{
+			Text: "Whatsapp Cloud API Client",
+			Type: "text",
+		},
+		Footer: "Frequently updated",
 	})
 
 	ir := message.NewRequest(recipient, interactiveMessage, "")
@@ -144,4 +160,71 @@ func main() {
 	}
 
 	logger.LogAttrs(ctx, slog.LevelInfo, "response from location request message", slog.Any("response", response))
+
+	location := &message.Location{
+		Longitude: -3.688344,
+		Latitude:  40.453053,
+		Name:      "Estadio Santiago Bernabéu",
+		Address:   "Av. de Concha Espina, 1, Chamartín, 28036 Madrid, Spain",
+	}
+
+	response, err = baseClient.SendLocation(ctx, message.NewRequest(recipient, location, ""))
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelError, "error sending location message", slog.String("error", err.Error()))
+		return
+	}
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "response from location message", slog.Any("response", response))
+
+	contact := message.NewContact(
+		message.WithContactURLs(
+			[]*message.Url{
+				{
+					Type: "Github",
+					URL:  "https://github.com/piusalfred/whatsapp",
+				},
+			}...,
+		),
+		message.WithContactName(&message.Name{
+			FormattedName: "Dr. John A. Doe Sr.",
+			FirstName:     "John",
+			LastName:      "Doe",
+			MiddleName:    "Anon",
+			Suffix:        "Sr.",
+			Prefix:        "Dr.",
+		}),
+	)
+
+	contacts := &message.Contacts{contact}
+
+	mc, err := message.New(recipient, message.WithContacts(contacts))
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelError, "error creating contacts message", slog.String("error", err.Error()))
+		return
+
+	}
+
+	response, err = baseClient.SendMessage(ctx, mc)
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelError, "error sending contacts message", slog.String("error", err.Error()))
+		return
+	}
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "response from contacts message", slog.Any("response", response))
+
+	messageID := response.Messages[0].ID
+
+	// react to the above message
+	reaction := &message.Reaction{
+		MessageID: messageID,
+		Emoji:     "🤝",
+	}
+
+	response, err = baseClient.SendReaction(ctx, message.NewRequest(recipient, reaction, ""))
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelError, "error reacting to message", slog.String("error", err.Error()))
+		return
+	}
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "response from reaction message", slog.Any("response", response))
 }
