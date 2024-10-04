@@ -249,7 +249,7 @@ func Update(ctx context.Context, sender Sender, conf *config.Config, req *Update
 
 	request := &BaseRequest{
 		Method:      http.MethodPost,
-		Type:        whttp.RequestTypeListQR,
+		Type:        whttp.RequestTypeUpdateQR,
 		QRCodeID:    req.QRCodeID,
 		QueryParams: queryParams,
 	}
