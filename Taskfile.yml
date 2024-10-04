@@ -15,10 +15,15 @@ tasks:
     dir: examples/qr
     cmds:
       - go mod tidy
+  update-auth-examples-deps:
+    dir: examples/auth
+    cmds:
+      - go mod tidy
   build-examples:
-    deps: [clean, update-message-examples-deps,update-qr-examples-deps]
+    deps: [clean, update-message-examples-deps,update-qr-examples-deps,update-auth-examples-deps]
     dir: examples
     cmds:
       - mkdir -p bin
       - go build -trimpath -race -o bin/message message/main.go
       - go build -trimpath -race -o bin/qr qr/main.go
+      - go build -trimpath -race -o bin/auth auth/main.go

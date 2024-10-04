@@ -222,6 +222,10 @@ const (
 	RequestTypeCreateFlow
 	RequestTypeRetrieveFlowPreview
 	RequestTypeGetFlowMetrics
+	RequestTypeInstallApp
+	RequestTypeRefreshToken
+	RequestTypeGenerateToken
+	RequestTypeRevokeToken
 )
 
 type (
