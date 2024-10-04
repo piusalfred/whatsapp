@@ -35,9 +35,7 @@ const (
 	ImageFormatSVG ImageFormat = "SVG"
 )
 
-const (
-	Endpoint = "message_qrdls"
-)
+const Endpoint = "message_qrdls"
 
 type (
 	ImageFormat string
@@ -74,34 +72,11 @@ type (
 		Success bool `json:"success"`
 	}
 
-	Response struct {
-		Data             []*Information `json:"data,omitempty"`
-		Success          bool           `json:"success"`
-		Code             string         `json:"code"`
-		PrefilledMessage string         `json:"prefilled_message"`
-		DeepLinkURL      string         `json:"deep_link_url"`
-		QRImageURL       string         `json:"qr_image_url"`
-		RequestType      whttp.RequestType
-	}
-
 	BaseClient struct {
 		Sender Sender
 		Config config.Reader
 	}
 )
-
-func (response *Response) CreateResponse() *CreateResponse {
-	return &CreateResponse{
-		Code:             response.Code,
-		PrefilledMessage: response.PrefilledMessage,
-		DeepLinkURL:      response.DeepLinkURL,
-		QRImageURL:       response.QRImageURL,
-	}
-}
-
-func (response *Response) ListResponse() *ListResponse {
-	return &ListResponse{Data: response.Data}
-}
 
 func NewBaseClient(s whttp.Sender[any], reader config.Reader, middlewares ...SenderMiddleware) *BaseClient {
 	sender := &BaseSender{Sender: s}
@@ -111,130 +86,49 @@ func NewBaseClient(s whttp.Sender[any], reader config.Reader, middlewares ...Sen
 	}
 }
 
-type BaseRequest struct {
-	Method      string
-	Type        whttp.RequestType
-	QRCodeID    string
-	QueryParams map[string]string
-}
-
 func (c *BaseClient) Create(ctx context.Context, req *CreateRequest) (*CreateResponse, error) {
 	conf, err := c.Config.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	queryParams := map[string]string{
-		"prefilled_message": req.PrefilledMessage,
-		"generate_qr_image": string(req.ImageFormat),
-	}
-
-	request := &BaseRequest{
-		Method:      http.MethodPost,
-		Type:        whttp.RequestTypeCreateQR,
-		QRCodeID:    "",
-		QueryParams: queryParams,
-	}
-
-	response, err := c.Sender.Send(ctx, conf, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return response.CreateResponse(), nil
+	return Create(ctx, c.Sender, conf, req)
 }
 
 func (c *BaseClient) List(ctx context.Context) (*ListResponse, error) {
-	request := &BaseRequest{
-		Method:      http.MethodGet,
-		Type:        whttp.RequestTypeListQR,
-		QRCodeID:    "",
-		QueryParams: map[string]string{},
-	}
-
 	conf, err := c.Config.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	response, err := c.Sender.Send(ctx, conf, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return response.ListResponse(), nil
+	return List(ctx, c.Sender, conf)
 }
 
 func (c *BaseClient) Update(ctx context.Context, req *UpdateRequest) (*SuccessResponse, error) {
-	queryParams := map[string]string{
-		"prefilled_message": req.PrefilledMessage,
-		"generate_qr_image": string(req.ImageFormat),
-	}
-
-	request := &BaseRequest{
-		Method:      http.MethodPost,
-		Type:        whttp.RequestTypeUpdateQR,
-		QRCodeID:    req.QRCodeID,
-		QueryParams: queryParams,
-	}
-
 	conf, err := c.Config.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	response, err := c.Sender.Send(ctx, conf, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return &SuccessResponse{Success: response.Success}, nil
+	return Update(ctx, c.Sender, conf, req)
 }
 
 func (c *BaseClient) Delete(ctx context.Context, qrCodeID string) (*SuccessResponse, error) {
-	request := &BaseRequest{
-		Method:      http.MethodDelete,
-		Type:        whttp.RequestTypeDeleteQR,
-		QRCodeID:    qrCodeID,
-		QueryParams: map[string]string{},
-	}
-
 	conf, err := c.Config.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	response, err := c.Sender.Send(ctx, conf, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return &SuccessResponse{Success: response.Success}, nil
+	return Delete(ctx, c.Sender, conf, qrCodeID)
 }
 
 func (c *BaseClient) Get(ctx context.Context, qrCodeID string) (*Information, error) {
-	request := &BaseRequest{
-		Method:      http.MethodGet,
-		Type:        whttp.RequestTypeGetQR,
-		QRCodeID:    qrCodeID,
-		QueryParams: map[string]string{},
-	}
-
 	conf, err := c.Config.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	response, err := c.Sender.Send(ctx, conf, request)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(response.Data) == 0 {
-		return nil, fmt.Errorf("qr code not found")
-	}
-
-	return response.Data[0], nil
+	return Get(ctx, c.Sender, conf, qrCodeID)
 }
 
 type Client struct {
@@ -257,6 +151,46 @@ func NewClient(ctx context.Context, reader config.Reader, sender Sender, middlew
 }
 
 func (c *Client) Get(ctx context.Context, qrCodeID string) (*Information, error) {
+	return Get(ctx, c.Sender, c.Config, qrCodeID)
+}
+
+func (c *Client) List(ctx context.Context) (*ListResponse, error) {
+	return List(ctx, c.Sender, c.Config)
+}
+
+func (c *Client) Create(ctx context.Context, req *CreateRequest) (*CreateResponse, error) {
+	return Create(ctx, c.Sender, c.Config, req)
+}
+
+func (c *Client) Delete(ctx context.Context, qrCodeID string) (*SuccessResponse, error) {
+	return Delete(ctx, c.Sender, c.Config, qrCodeID)
+}
+
+func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessResponse, error) {
+	return Update(ctx, c.Sender, c.Config, req)
+}
+
+func Create(ctx context.Context, sender Sender, conf *config.Config, req *CreateRequest) (*CreateResponse, error) {
+	queryParams := map[string]string{
+		"prefilled_message": req.PrefilledMessage,
+		"generate_qr_image": string(req.ImageFormat),
+	}
+
+	request := &BaseRequest{
+		Method:      http.MethodPost,
+		Type:        whttp.RequestTypeCreateQR,
+		QueryParams: queryParams,
+	}
+
+	response, err := sender.Send(ctx, conf, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return response.CreateResponse(), nil
+}
+
+func Get(ctx context.Context, sender Sender, conf *config.Config, qrCodeID string) (*Information, error) {
 	request := &BaseRequest{
 		Method:      http.MethodGet,
 		Type:        whttp.RequestTypeGetQR,
@@ -264,7 +198,7 @@ func (c *Client) Get(ctx context.Context, qrCodeID string) (*Information, error)
 		QueryParams: map[string]string{},
 	}
 
-	response, err := c.Sender.Send(ctx, c.Config, request)
+	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
 		return nil, err
 	}
@@ -276,15 +210,14 @@ func (c *Client) Get(ctx context.Context, qrCodeID string) (*Information, error)
 	return response.Data[0], nil
 }
 
-func (c *Client) List(ctx context.Context) (*ListResponse, error) {
+func List(ctx context.Context, sender Sender, conf *config.Config) (*ListResponse, error) {
 	request := &BaseRequest{
 		Method:      http.MethodGet,
 		Type:        whttp.RequestTypeListQR,
-		QRCodeID:    "",
 		QueryParams: map[string]string{},
 	}
 
-	response, err := c.Sender.Send(ctx, c.Config, request)
+	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
 		return nil, err
 	}
@@ -292,28 +225,7 @@ func (c *Client) List(ctx context.Context) (*ListResponse, error) {
 	return response.ListResponse(), nil
 }
 
-func (c *Client) Create(ctx context.Context, req *CreateRequest) (*CreateResponse, error) {
-	queryParams := map[string]string{
-		"prefilled_message": req.PrefilledMessage,
-		"generate_qr_image": string(req.ImageFormat),
-	}
-
-	request := &BaseRequest{
-		Method:      http.MethodPost,
-		Type:        whttp.RequestTypeCreateQR,
-		QRCodeID:    "",
-		QueryParams: queryParams,
-	}
-
-	response, err := c.Sender.Send(ctx, c.Config, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return response.CreateResponse(), nil
-}
-
-func (c *Client) Delete(ctx context.Context, qrCodeID string) (*SuccessResponse, error) {
+func Delete(ctx context.Context, sender Sender, conf *config.Config, qrCodeID string) (*SuccessResponse, error) {
 	request := &BaseRequest{
 		Method:      http.MethodDelete,
 		Type:        whttp.RequestTypeDeleteQR,
@@ -321,7 +233,7 @@ func (c *Client) Delete(ctx context.Context, qrCodeID string) (*SuccessResponse,
 		QueryParams: map[string]string{},
 	}
 
-	response, err := c.Sender.Send(ctx, c.Config, request)
+	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +241,7 @@ func (c *Client) Delete(ctx context.Context, qrCodeID string) (*SuccessResponse,
 	return &SuccessResponse{Success: response.Success}, nil
 }
 
-func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessResponse, error) {
+func Update(ctx context.Context, sender Sender, conf *config.Config, req *UpdateRequest) (*SuccessResponse, error) {
 	queryParams := map[string]string{
 		"prefilled_message": req.PrefilledMessage,
 		"generate_qr_image": string(req.ImageFormat),
@@ -342,7 +254,7 @@ func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessRespon
 		QueryParams: queryParams,
 	}
 
-	response, err := c.Sender.Send(ctx, c.Config, request)
+	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
 		return nil, err
 	}
@@ -350,11 +262,29 @@ func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessRespon
 	return &SuccessResponse{Success: response.Success}, nil
 }
 
-type Sender interface {
-	Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error)
-}
+type (
+	BaseRequest struct {
+		Method      string
+		Type        whttp.RequestType
+		QRCodeID    string
+		QueryParams map[string]string
+	}
 
-type SenderFunc func(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error)
+	Response struct {
+		Data             []*Information `json:"data,omitempty"`
+		Success          bool           `json:"success"`
+		Code             string         `json:"code"`
+		PrefilledMessage string         `json:"prefilled_message"`
+		DeepLinkURL      string         `json:"deep_link_url"`
+		QRImageURL       string         `json:"qr_image_url"`
+	}
+
+	Sender interface {
+		Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error)
+	}
+
+	SenderFunc func(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error)
+)
 
 func (fn SenderFunc) Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error) {
 	return fn(ctx, conf, req)
@@ -367,6 +297,19 @@ func wrapMiddlewares(next SenderFunc, middlewares []SenderMiddleware) SenderFunc
 		next = middlewares[i](next)
 	}
 	return next
+}
+
+func (response *Response) CreateResponse() *CreateResponse {
+	return &CreateResponse{
+		Code:             response.Code,
+		PrefilledMessage: response.PrefilledMessage,
+		DeepLinkURL:      response.DeepLinkURL,
+		QRImageURL:       response.QRImageURL,
+	}
+}
+
+func (response *Response) ListResponse() *ListResponse {
+	return &ListResponse{Data: response.Data}
 }
 
 type BaseSender struct {
@@ -392,13 +335,12 @@ func (sender *BaseSender) Send(ctx context.Context, conf *config.Config, req *Ba
 		QueryParams: req.QueryParams,
 	}
 
-	response := &Response{
-		RequestType: request.Type,
-	}
+	response := &Response{}
 
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
 		DisallowUnknownFields: true,
 		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
 	})
 
 	if err := sender.Sender.Send(ctx, request, decoder); err != nil {
