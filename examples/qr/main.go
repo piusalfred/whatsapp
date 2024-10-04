@@ -26,21 +26,36 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/joho/godotenv"
+
 	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/qrcode"
 )
 
+func LoadConfigFromFile(filepath string) config.ReaderFunc {
+	fn := func(ctx context.Context) (*config.Config, error) {
+		err := godotenv.Load(filepath) // Load the .env file from the given path
+		if err != nil {
+			return nil, err
+		}
+
+		conf := &config.Config{
+			BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
+			APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
+			AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
+			PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
+			BusinessAccountID: os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID"),
+		}
+
+		return conf, nil
+	}
+
+	return fn
+}
+
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	configReader := config.ReaderFunc(func(ctx context.Context) (*config.Config, error) {
-		return &config.Config{
-			BaseURL:       "https://api.example.com",
-			APIVersion:    "v1",
-			PhoneNumberID: "12345",
-			AccessToken:   "your-access-token",
-		}, nil
-	})
 
 	var middlewares []whttp.Middleware[any]
 
@@ -62,18 +77,19 @@ func main() {
 	}
 
 	coreClient := whttp.NewSender[any](clientOptions...)
-	client := qrcode.NewBaseClient(coreClient, configReader)
+	client := qrcode.NewBaseClient(coreClient, LoadConfigFromFile("api.env"))
 	ctx := context.Background()
 
 	createReq := &qrcode.CreateRequest{
-		PrefilledMessage: "Hello, world!",
+		PrefilledMessage: " tsup  https://github.com/piusalfred/whatsapp mate",
 		ImageFormat:      qrcode.ImageFormatPNG,
 	}
 	createResp, err := client.Create(ctx, createReq)
 	if err != nil {
 		fmt.Printf("Failed to create QR: %v\n", err)
+		return
 	} else {
-		fmt.Printf("Created QR Code: %v\n", createResp)
+		fmt.Printf("Created QR Code Link: %v\n", createResp.QRImageURL)
 	}
 
 	qrCodeID := createResp.Code
@@ -86,7 +102,7 @@ func main() {
 
 	updateReq := &qrcode.UpdateRequest{
 		QRCodeID:         qrCodeID,
-		PrefilledMessage: "Updated message",
+		PrefilledMessage: "please visit https://github.com/piusalfred/whatsapp to contribute",
 		ImageFormat:      qrcode.ImageFormatSVG,
 	}
 	updateResp, err := client.Update(ctx, updateReq)
@@ -103,10 +119,19 @@ func main() {
 		fmt.Printf("List of QR Codes: %+v\n", listResp.Data)
 	}
 
-	deleteResp, err := client.Delete(ctx, qrCodeID)
-	if err != nil {
-		fmt.Printf("Failed to delete QR code: %v\n", err)
-	} else {
-		fmt.Printf("Deleted QR Code success: %v\n", deleteResp.Success)
+	//deleteResp, err := client.Delete(ctx, qrCodeID)
+	//if err != nil {
+	//	fmt.Printf("Failed to delete QR code: %v\n", err)
+	//} else {
+	//	fmt.Printf("Deleted QR Code success: %v\n", deleteResp.Success)
+	//}
+
+	for i, datum := range listResp.Data {
+		logger.LogAttrs(ctx, slog.LevelInfo, "qr code",
+			slog.Int("index", i),
+			slog.String("code", datum.Code),
+			slog.String("messsage", datum.PrefilledMessage),
+			slog.String("deep link", datum.DeepLinkURL),
+		)
 	}
 }

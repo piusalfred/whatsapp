@@ -125,15 +125,17 @@ func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decode
 	return nil
 }
 
-func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptor, resHook ResponseInterceptor) SenderFunc[T] {
+func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptorFunc, resHook ResponseInterceptorFunc) SenderFunc[T] {
 	fn := SenderFunc[T](func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
 		req, err := RequestWithContext(ctx, request)
 		if err != nil {
 			return err
 		}
 
-		if errHook := reqHook.InterceptRequest(ctx, req); errHook != nil {
-			return errHook
+		if reqHook != nil {
+			if errHook := reqHook(ctx, req); errHook != nil {
+				return errHook
+			}
 		}
 
 		response, err := client.Do(req)

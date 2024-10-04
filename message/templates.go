@@ -49,10 +49,10 @@ type (
 	}
 
 	Template struct {
-		Name       string               `json:"name"`
-		Language   *TemplateLanguage    `json:"language"`
-		Category   string               `json:"category"`
-		Components []*TemplateComponent `json:"components"`
+		Name       string               `json:"name,omitempty"`
+		Language   *TemplateLanguage    `json:"language,omitempty"`
+		Category   string               `json:"category,omitempty"`
+		Components []*TemplateComponent `json:"components,omitempty"`
 	}
 
 	TemplateLanguage struct {
