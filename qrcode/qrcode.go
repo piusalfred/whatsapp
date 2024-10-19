@@ -136,7 +136,9 @@ type Client struct {
 	Sender Sender
 }
 
-func NewClient(ctx context.Context, reader config.Reader, sender Sender, middlewares ...SenderMiddleware) (*Client, error) {
+func NewClient(ctx context.Context, reader config.Reader,
+	sender Sender, middlewares ...SenderMiddleware,
+) (*Client, error) {
 	conf, err := reader.Read(ctx)
 	if err != nil {
 		return nil, err
@@ -219,7 +221,7 @@ func List(ctx context.Context, sender Sender, conf *config.Config) (*ListRespons
 
 	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list request: %w", err)
 	}
 
 	return response.ListResponse(), nil
