@@ -25,6 +25,7 @@ type TestMessage struct {
 }
 
 func TestDecodeResponseJSON(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		response *http.Response
@@ -131,6 +132,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var got TestMessage
 			err := whttp.DecodeResponseJSON[TestMessage](tt.response, &got, tt.opts)
 
@@ -155,6 +157,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 }
 
 func TestDecodeRequestJSON(t *testing.T) {
+	t.Parallel()
 	type Data struct {
 		Name  string `json:"name"`
 		Value int    `json:"value"`
@@ -225,6 +228,7 @@ func TestDecodeRequestJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var got Data
 			err := whttp.DecodeRequestJSON[Data](tt.request, &got, tt.opts)
 
@@ -242,6 +246,7 @@ func TestDecodeRequestJSON(t *testing.T) {
 }
 
 func TestRequestWithContext(t *testing.T) {
+	t.Parallel()
 	type testCase[T any] struct {
 		name    string
 		req     *whttp.Request[T]
@@ -271,6 +276,7 @@ func TestRequestWithContext(t *testing.T) {
 				},
 				URL: func() *url.URL {
 					u, _ := url.Parse("http://localhost/api/v1/send-message?param1=value1&param2=value2")
+
 					return u
 				}(),
 				Host: "localhost",
@@ -295,6 +301,7 @@ func TestRequestWithContext(t *testing.T) {
 				},
 				URL: func() *url.URL {
 					u, _ := url.Parse("http://localhost/api/v1/phone-number?param=value")
+
 					return u
 				}(),
 				Host: "localhost",
@@ -329,6 +336,7 @@ func TestRequestWithContext(t *testing.T) {
 				},
 				URL: func() *url.URL {
 					u, _ := url.Parse("http://localhost/api/v1/upload")
+
 					return u
 				}(),
 				Host: "localhost",
@@ -339,9 +347,11 @@ func TestRequestWithContext(t *testing.T) {
 
 	for _, tt := range messageTests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := whttp.RequestWithContext(context.TODO(), tt.req)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("RequestWithContext() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 
@@ -353,7 +363,8 @@ func TestRequestWithContext(t *testing.T) {
 			}
 			for key := range tt.want.Header {
 				if got.Header.Get(key) != tt.want.Header.Get(key) {
-					t.Errorf("RequestWithContext() header %v mismatch, want %v, got %v", key, tt.want.Header.Get(key), got.Header.Get(key))
+					t.Errorf("RequestWithContext() header %v mismatch, want %v,"+
+						" got %v", key, tt.want.Header.Get(key), got.Header.Get(key))
 				}
 			}
 
@@ -401,6 +412,7 @@ func TestRequestWithContext(t *testing.T) {
 }
 
 func TestBodyReaderResponseDecoder(t *testing.T) {
+	t.Parallel()
 	filePath := "testfile.txt"
 
 	fileContent, err := os.ReadFile(filePath)
@@ -420,7 +432,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 			response: &http.Response{
 				Body: io.NopCloser(strings.NewReader(`{"name": "John", "age": 30}`)),
 			},
-			fn: func(ctx context.Context, reader io.Reader) error {
+			fn: func(_ context.Context, reader io.Reader) error {
 				var result map[string]interface{}
 				err := json.NewDecoder(reader).Decode(&result)
 				if err != nil {
@@ -430,6 +442,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 				if result["name"] != "John" || result["age"] != float64(30) {
 					t.Errorf("expected name=John and age=30, got name=%v and age=%v", result["name"], result["age"])
 				}
+
 				return nil
 			},
 			expectedBody: `{"name": "John", "age": 30}`,
@@ -440,7 +453,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 			response: &http.Response{
 				Body: io.NopCloser(strings.NewReader("Hello, World!")),
 			},
-			fn: func(ctx context.Context, reader io.Reader) error {
+			fn: func(_ context.Context, reader io.Reader) error {
 				bodyBytes, err := io.ReadAll(reader)
 				if err != nil {
 					return fmt.Errorf("failed to read body: %w", err)
@@ -448,6 +461,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 				if string(bodyBytes) != "Hello, World!" {
 					t.Errorf("expected body 'Hello, World!', got %s", string(bodyBytes))
 				}
+
 				return nil
 			},
 			expectedBody: "Hello, World!",
@@ -458,7 +472,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 			response: &http.Response{
 				Body: io.NopCloser(bytes.NewReader(fileContent)),
 			},
-			fn: func(ctx context.Context, reader io.Reader) error {
+			fn: func(_ context.Context, reader io.Reader) error {
 				bodyBytes, err := io.ReadAll(reader)
 				if err != nil {
 					return fmt.Errorf("failed to read file content: %w", err)
@@ -467,6 +481,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 				if string(bodyBytes) != string(fileContent) {
 					t.Errorf("expected file content %q, got %q", "Hello World", string(bodyBytes))
 				}
+
 				return nil
 			},
 			expectedBody: "Hello World",
@@ -476,11 +491,13 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			decoder := whttp.BodyReaderResponseDecoder(tt.fn)
 			err := decoder(context.TODO(), tt.response)
 
 			if (err != nil) != tt.expectErr {
 				t.Errorf("BodyReaderResponseDecoder() error = %v, expectErr %v", err, tt.expectErr)
+
 				return
 			}
 
@@ -506,6 +523,7 @@ func ExampleNewSender() {
 	loggingMiddleware := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
 		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
 			fmt.Println("request logger init called before core middlewares")
+
 			return next(ctx, req, decoder)
 		}
 	}
@@ -513,6 +531,7 @@ func ExampleNewSender() {
 	methodPrinter := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
 		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
 			fmt.Printf("from core middleware request method is: %s\n", req.Method)
+
 			return next(ctx, req, decoder)
 		}
 	}
@@ -520,6 +539,7 @@ func ExampleNewSender() {
 	loggingMiddleware2 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
 		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
 			fmt.Println("called after core middleware request logger final")
+
 			return next(ctx, req, decoder)
 		}
 	}
@@ -533,22 +553,25 @@ func ExampleNewSender() {
 		}
 	}
 
-	reqInterceptor := func(ctx context.Context, req *http.Request) error {
+	reqInterceptor := func(_ context.Context, req *http.Request) error {
 		fmt.Println("Just intercepted the request and the method is:", req.Method)
+
 		return nil
 	}
 
-	resInterceptor := func(ctx context.Context, res *http.Response) error {
+	resInterceptor := func(_ context.Context, res *http.Response) error {
 		fmt.Println("Just intercepted the response and status code:", res.StatusCode)
+
 		return nil
 	}
 
-	resBodyInterceptor := func(ctx context.Context, res *http.Response) error {
+	resBodyInterceptor := func(_ context.Context, res *http.Response) error {
 		body, _ := io.ReadAll(res.Body)
 		defer func() {
 			res.Body = io.NopCloser(bytes.NewReader(body))
 		}()
 		fmt.Println("from response body interceptor:", string(body))
+
 		return nil
 	}
 
@@ -575,6 +598,7 @@ func ExampleNewSender() {
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "could not read body", http.StatusInternalServerError)
+
 			return
 		}
 		defer r.Body.Close()

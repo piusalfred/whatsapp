@@ -36,7 +36,6 @@ import (
 	"strings"
 
 	"github.com/piusalfred/whatsapp/config"
-
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
@@ -205,8 +204,8 @@ type (
 		Data                    []*BaseResponseData    `json:"data,omitempty"`
 		Paging                  Paging                 `json:"paging,omitempty"`
 		ValidationErrors        []ValidationError      `json:"validation_errors,omitempty"`
-		PreviewURL              string                 `json:"preview_url,omitempty"` // The URL to visualize the Flow.
-		ExpiresAt               string                 `json:"expires_at,omitempty"`  // The expiration time of the preview URL.
+		PreviewURL              string                 `json:"preview_url,omitempty"`
+		ExpiresAt               string                 `json:"expires_at,omitempty"`
 		Name                    string                 `json:"name,omitempty"`
 		Status                  string                 `json:"status,omitempty"`
 		Categories              []string               `json:"categories,omitempty"`
@@ -349,7 +348,7 @@ func NewBaseClient(reader config.Reader, sender whttp.Sender[any]) *BaseClient {
 func (client *BaseClient) Get(ctx context.Context, request *GetRequest) (*SingleFlowResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	response, err := client.Send(ctx, conf, &BaseRequest{
@@ -362,7 +361,7 @@ func (client *BaseClient) Get(ctx context.Context, request *GetRequest) (*Single
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send get request: %w", err)
 	}
 
 	return response.FlowDetails(), nil
@@ -371,7 +370,7 @@ func (client *BaseClient) Get(ctx context.Context, request *GetRequest) (*Single
 func (client *BaseClient) GeneratePreview(ctx context.Context, request *PreviewRequest) (*PreviewResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	response, err := client.Send(ctx, conf, &BaseRequest{
@@ -384,7 +383,7 @@ func (client *BaseClient) GeneratePreview(ctx context.Context, request *PreviewR
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send preview request: %w", err)
 	}
 
 	return &PreviewResponse{
@@ -394,10 +393,12 @@ func (client *BaseClient) GeneratePreview(ctx context.Context, request *PreviewR
 	}, nil
 }
 
-func (client *BaseClient) UpdateFlowJSON(ctx context.Context, request *UpdateFlowJSONRequest) (*UpdateFlowJSONResponse, error) {
+func (client *BaseClient) UpdateFlowJSON(ctx context.Context,
+	request *UpdateFlowJSONRequest,
+) (*UpdateFlowJSONResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	req := &whttp.Request[any]{
@@ -437,7 +438,7 @@ func (client *BaseClient) UpdateFlowJSON(ctx context.Context, request *UpdateFlo
 func (client *BaseClient) Update(ctx context.Context, id string, request UpdateRequest) (*UpdateResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	response, err := client.Send(ctx, conf, &BaseRequest{
@@ -447,7 +448,7 @@ func (client *BaseClient) Update(ctx context.Context, id string, request UpdateR
 		Payload:   request,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send update request: %w", err)
 	}
 
 	return &UpdateResponse{Success: response.Success}, nil
@@ -456,7 +457,7 @@ func (client *BaseClient) Update(ctx context.Context, id string, request UpdateR
 func (client *BaseClient) Create(ctx context.Context, request CreateRequest) (*CreateResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	response, err := client.Send(ctx, conf, &BaseRequest{
@@ -466,7 +467,7 @@ func (client *BaseClient) Create(ctx context.Context, request CreateRequest) (*C
 		Payload:   request,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send create request: %w", err)
 	}
 
 	return &CreateResponse{ID: response.ID}, nil
@@ -475,7 +476,7 @@ func (client *BaseClient) Create(ctx context.Context, request CreateRequest) (*C
 func (client *BaseClient) ListAll(ctx context.Context) (*ListResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	response, err := client.Send(ctx, conf, &BaseRequest{
@@ -484,7 +485,7 @@ func (client *BaseClient) ListAll(ctx context.Context) (*ListResponse, error) {
 		Endpoints: []string{conf.BusinessAccountID, "flows"},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send list request: %w", err)
 	}
 
 	return response.ListResponse(), nil
@@ -493,7 +494,7 @@ func (client *BaseClient) ListAll(ctx context.Context) (*ListResponse, error) {
 func (client *BaseClient) Delete(ctx context.Context, id string) (*SuccessResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	response, err := client.Send(ctx, conf, &BaseRequest{
@@ -502,7 +503,7 @@ func (client *BaseClient) Delete(ctx context.Context, id string) (*SuccessRespon
 		Endpoints: []string{id},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send delete request: %w", err)
 	}
 
 	return &SuccessResponse{Success: response.Success}, nil
@@ -511,7 +512,7 @@ func (client *BaseClient) Delete(ctx context.Context, id string) (*SuccessRespon
 func (client *BaseClient) ListAssets(ctx context.Context, id string) (*RetrieveAssetsResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	response, err := client.Send(ctx, conf, &BaseRequest{
@@ -520,7 +521,7 @@ func (client *BaseClient) ListAssets(ctx context.Context, id string) (*RetrieveA
 		Endpoints: []string{id, "assets"},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send list request: %w", err)
 	}
 
 	return response.ListAssetsResponse(), nil
@@ -529,7 +530,7 @@ func (client *BaseClient) ListAssets(ctx context.Context, id string) (*RetrieveA
 func (client *BaseClient) Publish(ctx context.Context, id string) (*SuccessResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	response, err := client.Send(ctx, conf, &BaseRequest{
@@ -538,7 +539,7 @@ func (client *BaseClient) Publish(ctx context.Context, id string) (*SuccessRespo
 		Endpoints: []string{id, "publish"},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send publish request: %w", err)
 	}
 
 	return &SuccessResponse{Success: response.Success}, nil
@@ -547,7 +548,7 @@ func (client *BaseClient) Publish(ctx context.Context, id string) (*SuccessRespo
 func (client *BaseClient) Deprecate(ctx context.Context, id string) (*SuccessResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	response, err := client.Send(ctx, conf, &BaseRequest{
@@ -556,7 +557,7 @@ func (client *BaseClient) Deprecate(ctx context.Context, id string) (*SuccessRes
 		Endpoints: []string{id, "deprecate"},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send deprecate request: %w", err)
 	}
 
 	return &SuccessResponse{Success: response.Success}, nil
@@ -565,7 +566,7 @@ func (client *BaseClient) Deprecate(ctx context.Context, id string) (*SuccessRes
 var _ Service = (*BaseClient)(nil)
 
 type (
-	Service interface {
+	Service interface { //nolint:interfacebloat
 		Create(ctx context.Context, request CreateRequest) (*CreateResponse, error)
 		Update(ctx context.Context, id string, request UpdateRequest) (*UpdateResponse, error)
 		UpdateFlowJSON(ctx context.Context, request *UpdateFlowJSONRequest) (*UpdateFlowJSONResponse, error)
@@ -761,78 +762,88 @@ func (h *DataExchangeHandlerImpl) Handle(w http.ResponseWriter, request *http.Re
 		InspectResponseError:  false,
 	}); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+
 		return
 	}
 
 	decryptedRequest, err := h.DecryptRequest(ctx, req)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
 	var message *DataExchangeRequest
 	if err := json.Unmarshal(decryptedRequest.FlowData, &message); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
 	response, err := h.Handler.Handle(ctx, message)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
 	resp, err := h.EncryptResponse(response, decryptedRequest)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(resp))
+	_, _ = w.Write([]byte(resp))
 }
 
 func (h *DataExchangeHandlerImpl) EncryptResponse(response *Response, request *DecryptedRequest) (string, error) {
-	flippedIV := flipIV(request.InitialVector)
+	// flip the IV
+	flippedIV := make([]byte, len(request.InitialVector))
+	for i, b := range request.InitialVector {
+		flippedIV[i] = b ^ 0xFF
+	}
 
 	responseData, err := json.Marshal(response)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to marshal response data: %w", err)
 	}
 
 	encryptedResponse, tag, err := aesGCMEncrypt(responseData, request.AesKey, flippedIV)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to encrypt response: %w", err)
 	}
 
-	combined := append(encryptedResponse, tag...)
-	return base64.StdEncoding.EncodeToString(combined), nil
+	encryptedResponse = append(encryptedResponse, tag...)
+
+	return base64.StdEncoding.EncodeToString(encryptedResponse), nil
 }
 
 func (h *DataExchangeHandlerImpl) DecryptRequest(ctx context.Context, request *Request) (*DecryptedRequest, error) {
 	privateKey, err := h.PrivateKeyLoader(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load private key: %w", err)
 	}
 
 	aesKey, err := base64.StdEncoding.DecodeString(request.EncryptedAesKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode aes key: %w", err)
 	}
 
 	decryptedAesKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, aesKey, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt aes key: %w", err)
 	}
 
 	encryptedFlowData, err := base64.StdEncoding.DecodeString(request.EncryptedFlowData)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode encrypted flow data: %w", err)
 	}
 
 	initialVector, err := base64.StdEncoding.DecodeString(request.InitialVector)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode initial vector: %w", err)
 	}
 
 	TagLength := 16
@@ -854,37 +865,35 @@ func (h *DataExchangeHandlerImpl) DecryptRequest(ctx context.Context, request *R
 func aesGCMDecrypt(ciphertext, key, iv, tag []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create new cipher: %w", err)
 	}
 
 	aesgcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create new GCM: %w", err)
 	}
 
-	return aesgcm.Open(nil, iv, append(ciphertext, tag...), nil)
-}
-
-func flipIV(iv []byte) []byte {
-	flippedIV := make([]byte, len(iv))
-	for i, b := range iv {
-		flippedIV[i] = b ^ 0xFF
+	bb, err := aesgcm.Open(nil, iv, append(ciphertext, tag...), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt: %w", err)
 	}
-	return flippedIV
+
+	return bb, nil
 }
 
 func aesGCMEncrypt(plaintext, key, iv []byte) ([]byte, []byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to create new cipher: %w", err)
 	}
 
 	aesgcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to create new GCM: %w", err)
 	}
 
 	ciphertext := aesgcm.Seal(nil, iv, plaintext, nil)
 	tag := ciphertext[len(ciphertext)-aesgcm.Overhead():]
+
 	return ciphertext[:len(ciphertext)-aesgcm.Overhead()], tag, nil
 }

@@ -23,6 +23,7 @@ package media
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -63,6 +64,160 @@ const (
 	StickerAnimatedMaxSize = 500 * 1024
 	VideoMaxSize           = 16 * 1024 * 1024
 )
+
+var (
+	ErrMediaUpload   = errors.New("media upload failed")
+	ErrMediaDownload = errors.New("media download failed")
+	ErrMediaDelete   = errors.New("media delete failed")
+	ErrMediaGetInfo  = errors.New("media get info failed")
+)
+
+type Category string
+
+const (
+	CategoryAudio    Category = "audio"
+	CategoryDocument Category = "document"
+	CategoryImage    Category = "image"
+	CategorySticker  Category = "sticker"
+	CategoryVideo    Category = "video"
+)
+
+type Info struct {
+	MediaType Type
+	MIMEType  string
+	MaxSize   int64
+	Extension string
+	Category  Category
+}
+
+var InfoMap = map[Type]Info{ //nolint:gochecknoglobals
+	TypeAudioAAC: {
+		MediaType: TypeAudioAAC,
+		MIMEType:  string(TypeAudioAAC),
+		MaxSize:   AudioMaxSize,
+		Extension: ".aac",
+		Category:  CategoryAudio,
+	},
+	TypeAudioAMR: {
+		MediaType: TypeAudioAMR,
+		MIMEType:  string(TypeAudioAMR),
+		MaxSize:   AudioMaxSize,
+		Extension: ".amr",
+		Category:  CategoryAudio,
+	},
+	TypeAudioMP3: {
+		MediaType: TypeAudioMP3,
+		MIMEType:  string(TypeAudioMP3),
+		MaxSize:   AudioMaxSize,
+		Extension: ".mp3",
+		Category:  CategoryAudio,
+	},
+	TypeAudioMP4: {
+		MediaType: TypeAudioMP4,
+		MIMEType:  string(TypeAudioMP4),
+		MaxSize:   AudioMaxSize,
+		Extension: ".m4a",
+		Category:  CategoryAudio,
+	},
+	TypeAudioOGG: {
+		MediaType: TypeAudioOGG,
+		MIMEType:  string(TypeAudioOGG),
+		MaxSize:   AudioMaxSize,
+		Extension: ".ogg",
+		Category:  CategoryAudio,
+	},
+	TypeDocText: {
+		MediaType: TypeDocText,
+		MIMEType:  string(TypeDocText),
+		MaxSize:   DocMaxSize,
+		Extension: ".txt",
+		Category:  CategoryDocument,
+	},
+	TypeDocExcelXLS: {
+		MediaType: TypeDocExcelXLS,
+		MIMEType:  string(TypeDocExcelXLS),
+		MaxSize:   DocMaxSize,
+		Extension: ".xls",
+		Category:  CategoryDocument,
+	},
+	TypeDocExcelXLSX: {
+		MediaType: TypeDocExcelXLSX,
+		MIMEType:  string(TypeDocExcelXLSX),
+		MaxSize:   DocMaxSize,
+		Extension: ".xlsx",
+		Category:  CategoryDocument,
+	},
+	TypeDocWordDOC: {
+		MediaType: TypeDocWordDOC,
+		MIMEType:  string(TypeDocWordDOC),
+		MaxSize:   DocMaxSize,
+		Extension: ".doc",
+		Category:  CategoryDocument,
+	},
+	TypeDocWordDOCX: {
+		MediaType: TypeDocWordDOCX,
+		MIMEType:  string(TypeDocWordDOCX),
+		MaxSize:   DocMaxSize,
+		Extension: ".docx",
+		Category:  CategoryDocument,
+	},
+	TypeDocPPT: {
+		MediaType: TypeDocPPT,
+		MIMEType:  string(TypeDocPPT),
+		MaxSize:   DocMaxSize,
+		Extension: ".ppt",
+		Category:  CategoryDocument,
+	},
+	TypeDocPPTX: {
+		MediaType: TypeDocPPTX,
+		MIMEType:  string(TypeDocPPTX),
+		MaxSize:   DocMaxSize,
+		Extension: ".pptx",
+		Category:  CategoryDocument,
+	},
+	TypeDocPDF: {
+		MediaType: TypeDocPDF,
+		MIMEType:  string(TypeDocPDF),
+		MaxSize:   DocMaxSize,
+		Extension: ".pdf",
+		Category:  CategoryDocument,
+	},
+	TypeImageJPEG: {
+		MediaType: TypeImageJPEG,
+		MIMEType:  string(TypeImageJPEG),
+		MaxSize:   ImageMaxSize,
+		Extension: ".jpeg",
+		Category:  CategoryImage,
+	},
+	TypeImagePNG: {
+		MediaType: TypeImagePNG,
+		MIMEType:  string(TypeImagePNG),
+		MaxSize:   ImageMaxSize,
+		Extension: ".png",
+		Category:  CategoryImage,
+	},
+	TypeStickerStatic: {
+		MediaType: TypeStickerStatic,
+		MIMEType:  string(TypeStickerStatic),
+		MaxSize:   StickerStaticMaxSize,
+		Extension: ".webp",
+		Category:  CategorySticker,
+	},
+	TypeVideo3GPP: {
+		MediaType: TypeVideo3GPP,
+		MIMEType:  string(TypeVideo3GPP),
+		MaxSize:   VideoMaxSize,
+		Extension: ".3gp",
+		Category:  CategoryVideo,
+	},
+	TypeVideoMP4: {
+		MediaType: TypeVideoMP4,
+		MIMEType:  string(TypeVideoMP4),
+		MaxSize:   VideoMaxSize,
+		Extension: ".mp4",
+		Category:  CategoryVideo,
+	},
+}
 
 type (
 	Type    string
@@ -121,7 +276,7 @@ type (
 func (s *BaseClient) Download(ctx context.Context, request *DownloadRequest, decoder whttp.ResponseDecoder) error {
 	conf, err := s.ConfReader.Read(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: config read: %w", ErrMediaDownload, err)
 	}
 	req := &whttp.Request[any]{
 		Type:    whttp.RequestTypeDownloadMedia,
@@ -135,19 +290,20 @@ func (s *BaseClient) Download(ctx context.Context, request *DownloadRequest, dec
 			if i < request.Retries {
 				continue
 			}
-			return fmt.Errorf("download media failed after %d attempts: %w", request.Retries+1, err)
+
+			return fmt.Errorf("%w: %d attempts: %w", ErrMediaDownload, request.Retries+1, err)
 		}
 
 		return nil
 	}
 
-	return fmt.Errorf("download retries exceeded")
+	return fmt.Errorf("%w: %d attempts", ErrMediaDownload, request.Retries+1)
 }
 
 func (s *BaseClient) Delete(ctx context.Context, req *BaseRequest) (*DeleteMediaResponse, error) {
 	conf, err := s.ConfReader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: config read: %w", ErrMediaDelete, err)
 	}
 
 	phoneNumberID := req.PhoneNumberID
@@ -176,7 +332,7 @@ func (s *BaseClient) Delete(ctx context.Context, req *BaseRequest) (*DeleteMedia
 	})
 
 	if err := s.Sender.Send(ctx, request, decoder); err != nil {
-		return nil, fmt.Errorf("delete media failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrMediaDelete, err)
 	}
 
 	return &resp, nil
@@ -185,7 +341,7 @@ func (s *BaseClient) Delete(ctx context.Context, req *BaseRequest) (*DeleteMedia
 func (s *BaseClient) GetInfo(ctx context.Context, req *BaseRequest) (*Information, error) {
 	conf, err := s.ConfReader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: config read: %w", ErrMediaGetInfo, err)
 	}
 
 	phoneNumberID := req.PhoneNumberID
@@ -223,7 +379,13 @@ func (s *BaseClient) GetInfo(ctx context.Context, req *BaseRequest) (*Informatio
 func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMediaResponse, error) {
 	conf, err := s.ConfReader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: config read: %w", ErrMediaUpload, err)
+	}
+
+	_, ok := InfoMap[req.MediaType]
+	isAnimated := req.MediaType == TypeStickerAnimated
+	if !ok && !isAnimated {
+		return nil, fmt.Errorf("%w: media type not supported", ErrMediaUpload)
 	}
 
 	request := &whttp.Request[any]{
@@ -254,7 +416,7 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 	})
 
 	if err := s.Sender.Send(ctx, request, decoder); err != nil {
-		return nil, fmt.Errorf("upload media failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrMediaUpload, err)
 	}
 
 	return &resp, nil

@@ -23,6 +23,7 @@ package qrcode
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -80,6 +81,7 @@ type (
 
 func NewBaseClient(s whttp.Sender[any], reader config.Reader, middlewares ...SenderMiddleware) *BaseClient {
 	sender := &BaseSender{Sender: s}
+
 	return &BaseClient{
 		Sender: wrapMiddlewares(sender.Send, middlewares),
 		Config: reader,
@@ -136,10 +138,13 @@ type Client struct {
 	Sender Sender
 }
 
-func NewClient(ctx context.Context, reader config.Reader, sender Sender, middlewares ...SenderMiddleware) (*Client, error) {
+// NewClient ...
+func NewClient(ctx context.Context, reader config.Reader,
+	sender Sender, middlewares ...SenderMiddleware,
+) (*Client, error) {
 	conf, err := reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
 	client := &Client{
@@ -170,6 +175,14 @@ func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessRespon
 	return Update(ctx, c.Sender, c.Config, req)
 }
 
+var (
+	ErrCreateQRCode = errors.New("failed to create qr code")
+	ErrGetQRCode    = errors.New("failed to get qr code")
+	ErrListQRCode   = errors.New("failed to list qr codes")
+	ErrDeleteQRCode = errors.New("failed to delete qr code")
+	ErrUpdateQRCode = errors.New("failed to update qr code")
+)
+
 func Create(ctx context.Context, sender Sender, conf *config.Config, req *CreateRequest) (*CreateResponse, error) {
 	queryParams := map[string]string{
 		"prefilled_message": req.PrefilledMessage,
@@ -184,7 +197,7 @@ func Create(ctx context.Context, sender Sender, conf *config.Config, req *Create
 
 	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrCreateQRCode, err)
 	}
 
 	return response.CreateResponse(), nil
@@ -200,11 +213,11 @@ func Get(ctx context.Context, sender Sender, conf *config.Config, qrCodeID strin
 
 	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrGetQRCode, err)
 	}
 
 	if len(response.Data) == 0 {
-		return nil, fmt.Errorf("qr code not found")
+		return nil, fmt.Errorf("%w: qr code not found", ErrGetQRCode)
 	}
 
 	return response.Data[0], nil
@@ -219,7 +232,7 @@ func List(ctx context.Context, sender Sender, conf *config.Config) (*ListRespons
 
 	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrListQRCode, err)
 	}
 
 	return response.ListResponse(), nil
@@ -235,7 +248,7 @@ func Delete(ctx context.Context, sender Sender, conf *config.Config, qrCodeID st
 
 	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrDeleteQRCode, err)
 	}
 
 	return &SuccessResponse{Success: response.Success}, nil
@@ -256,7 +269,7 @@ func Update(ctx context.Context, sender Sender, conf *config.Config, req *Update
 
 	response, err := sender.Send(ctx, conf, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrUpdateQRCode, err)
 	}
 
 	return &SuccessResponse{Success: response.Success}, nil
@@ -296,6 +309,7 @@ func wrapMiddlewares(next SenderFunc, middlewares []SenderMiddleware) SenderFunc
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		next = middlewares[i](next)
 	}
+
 	return next
 }
 

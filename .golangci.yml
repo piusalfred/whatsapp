@@ -1,41 +1,18 @@
 linters-settings:
-  goerr113:
-    # ignore all test files
-    check-test-files: false
   funlen:
     lines: 70
-  revive:
-    naming:
-      ignore:
-        - "^[A-Z][a-z].*$"
+#  revive:
+#    enable-all-rules: true
+#    rules:
+#      - name: line-length-limit
+#        severity: warning
+#        disabled: false
+#        exclude: [ "" ]
+#        arguments: [ 100 ]
   gocyclo:
-    skip-dirs-use-default: true
     min-complexity: 20
   gocognit:
     min-complexity: 45
-  golint:
-    min-confidence: 0.8
-  govet:
-    min-confidence: 0.8
-  exclude-use-default: true
-  include:
-    - "**/*.go"
-  max-issues-per-linter: 0
-  max-same-issues: 0
-  deadline: 120s
-  go:
-    # specify the Go version to use for linting
-    # for example, "1.16" or "1.17"
-    # if this value is not specified, the latest version of Go is used
-    # if the specified version is not available, the latest version of Go will be used
-    version: "1.20"
-
-  gosimple:
-  # gosimple reports simplification opportunities in Go code
-  # it helps to identify code that can be made simpler and easier to understand
-  # this linter is particularly useful for identifying redundant code
-  # and can help to reduce the size and complexity of your codebase
-  # for more information, see https://github.com/dominikh/go-simple
 issues:
   exclude-rules:
     # Exclude some linters from running on tests files.
@@ -45,8 +22,13 @@ issues:
         - errcheck
         - funlen
         - goerr113
+        - gocognit
         - dupl
         - gosec
+        - lll
+  exclude-dirs:
+    - examples
+    - mocks
 linters:
   # enable all available linters
   enable-all: true
@@ -60,28 +42,29 @@ linters:
     - rowserrcheck
     - sqlclosecheck
     - wsl
-    - golint
+    - gomnd
+    - mnd
     - tagliatelle
     - musttag
-    - exhaustivestruct
     - exhaustruct
-    - varcheck
-    - nosnakecase
-    - deadcode
-    - interfacer
-    - structcheck
-    - ifshort
-    - scopelint
-    - maligned
     - wastedassign
     - dupword
     - varnamelen
     - depguard
     - forbidigo
+    - exportloopref
 
-
-# specify the output format for linter results
-# you can choose from various formats, including plain text, JSON, and HTML
-# here, we are using the default plain text format
-output-format: colored-line-number
-
+output:
+  formats:
+    - format: colored-line-number
+      path: stdout
+  sort-results: true
+  sort-order:
+    - linter
+    - severity
+    - file # filepath, line, and column.
+  show-stats: true
+run:
+  go: '1.23'
+  concurrency: 5
+  timeout: 5m

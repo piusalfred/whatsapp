@@ -19,8 +19,36 @@
 
 package whatsapp
 
+import (
+	"regexp"
+	"strconv"
+)
+
 const (
 	BaseURL                   = "https://graph.facebook.com"
-	LowestSupportedApiVersion = "v16.0" // This is the lowest version of the API that is supported
+	LowestSupportedAPIVersion = "v16.0" // This is the lowest version of the API that is supported
 	MessageProduct            = "whatsapp"
+	lowestMajorVersion        = 16
 )
+
+// IsCorrectAPIVersion checks if the provided API version string is valid and supported.
+// The version string should be in the format "v<major_version>.<minor_version>".
+// It returns true if the major version is 16 or higher, otherwise false.
+func IsCorrectAPIVersion(apiVersion string) bool {
+	reg := regexp.MustCompile(`^v(?P<major_version>\d+)\.(?P<minor_version>\d+)$`)
+	matches := reg.FindStringSubmatch(apiVersion)
+	if len(matches) != 3 {
+		return false
+	}
+
+	majorStr := matches[1]
+	major, _ := strconv.Atoi(majorStr)
+	if major < lowestMajorVersion {
+		return false
+	}
+
+	minorStr := matches[2]
+	minor, _ := strconv.Atoi(minorStr)
+
+	return minor >= 0
+}

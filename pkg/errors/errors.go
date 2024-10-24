@@ -21,7 +21,6 @@ package errors
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -133,7 +132,7 @@ func (e *Error) String() string {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("whatsapp error: %s", strings.ToLower(e.String()))
+	return "whatsapp error: " + strings.ToLower(e.String())
 }
 
 type ValidationError struct {

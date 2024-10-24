@@ -17,9 +17,11 @@ import (
 )
 
 func TestBaseSender_Send(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
+	t.Cleanup(func() {
+		ctrl.Finish()
+	})
 	success := &message.Response{
 		Product: whatsapp.MessageProduct,
 		Contacts: []*message.ResponseContact{
@@ -33,7 +35,7 @@ func TestBaseSender_Send(t *testing.T) {
 
 	conf := &config.Config{
 		BaseURL:           whatsapp.BaseURL,
-		APIVersion:        whatsapp.LowestSupportedApiVersion,
+		APIVersion:        whatsapp.LowestSupportedAPIVersion,
 		AccessToken:       "FAtes263t7sdvjhssw73w8y7w",
 		PhoneNumberID:     "111111111",
 		BusinessAccountID: "222222222",
@@ -67,11 +69,16 @@ func TestBaseSender_Send(t *testing.T) {
 					InspectResponseError:  true,
 				}),
 			},
-			mock: whttp.SenderFunc[message.Message](func(ctx context.Context, request *whttp.Request[message.Message], decoder whttp.ResponseDecoder) error {
+			mock: whttp.SenderFunc[message.Message](func(ctx context.Context,
+				_ *whttp.Request[message.Message],
+				decoder whttp.ResponseDecoder,
+			) error {
 				response := &http.Response{
 					Status:     "OK",
 					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(bytes.NewBufferString(`{"messaging_product": "whatsapp", "contacts": [{"input": "1234567", "wa_id": "16505551234"}], "messages": [{"id": "wamid.HBgLMTY0NjcwNDM1OTUVAgARGBI1RjQyNUE3NEYxMzAzMzQ5MkEA"}], "success": true}`)),
+					Body: io.NopCloser(
+						bytes.NewBufferString(`
+{"messaging_product": "whatsapp", "contacts": [{"input": "1234567", "wa_id": "16505551234"}], "messages": [{"id": "wamid.HBgLMTY0NjcwNDM1OTUVAgARGBI1RjQyNUE3NEYxMzAzMzQ5MkEA"}], "success": true}`)),
 				}
 
 				return decoder.Decode(ctx, response)
@@ -98,10 +105,14 @@ func TestBaseSender_Send(t *testing.T) {
 					InspectResponseError:  true,
 				}),
 			},
-			mock: whttp.SenderFunc[message.Message](func(ctx context.Context, request *whttp.Request[message.Message], decoder whttp.ResponseDecoder) error {
+			mock: whttp.SenderFunc[message.Message](func(ctx context.Context,
+				_ *whttp.Request[message.Message],
+				decoder whttp.ResponseDecoder,
+			) error {
 				response := &http.Response{
 					StatusCode: http.StatusInternalServerError,
-					Body:       io.NopCloser(bytes.NewBufferString(`{"error": {"message": "internal server error", "type": "OAuthException", "code": 500}}`)),
+					Body: io.NopCloser(bytes.NewBufferString(`
+{"error": {"message": "internal server error", "type": "OAuthException", "code": 500}}`)),
 				}
 
 				return decoder.Decode(ctx, response)
@@ -112,6 +123,7 @@ func TestBaseSender_Send(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			m, err := message.New(tt.recipient, tt.options...)
 			if err != nil {
 				t.Fatalf("create message: %v\n", err)
@@ -134,11 +146,13 @@ func TestBaseSender_Send(t *testing.T) {
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("BaseSender.Send() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 
 			if !gcmp.Equal(response, tt.want) {
 				t.Errorf("BaseSender.Send() response = %v, want %v", response, tt.want)
+
 				return
 			}
 		})

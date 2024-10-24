@@ -34,7 +34,7 @@ import (
 )
 
 type (
-	Service interface {
+	Service interface { //nolint:interfacebloat
 		SendText(ctx context.Context, request *Request[Text]) (*Response, error)
 		SendLocation(ctx context.Context, request *Request[Location]) (*Response, error)
 		SendVideo(ctx context.Context, request *Request[Video]) (*Response, error)
@@ -125,7 +125,9 @@ func WithBaseRequestType(reqType whttp.RequestType) BaseRequestOption {
 	}
 }
 
-func NewBaseClient(sender whttp.Sender[Message], reader config.Reader, middlewares ...SenderMiddleware) (*BaseClient, error) {
+func NewBaseClient(sender whttp.Sender[Message], reader config.Reader,
+	middlewares ...SenderMiddleware,
+) (*BaseClient, error) {
 	s := &BaseSender{sender}
 	sf := s.Send
 	if len(middlewares) > 0 {
@@ -149,6 +151,11 @@ func (c *BaseClient) SetConfigReader(fetcher config.Reader) {
 }
 
 func (c *BaseClient) SendMessage(ctx context.Context, message *Message) (*Response, error) {
+	conf, err := c.config.Read(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("base client: send message: read config: %w", err)
+	}
+
 	req := NewBaseRequest(
 		message,
 		WithBaseRequestMethod(http.MethodPost),
@@ -160,11 +167,6 @@ func (c *BaseClient) SendMessage(ctx context.Context, message *Message) (*Respon
 			InspectResponseError:  true,
 		}),
 	)
-
-	conf, err := c.config.Read(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	response, err := c.sender.Send(ctx, conf, req)
 	if err != nil {
@@ -196,7 +198,7 @@ func (c *BaseClient) UpdateStatus(ctx context.Context, request *StatusUpdateRequ
 
 	conf, err := c.config.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("base client: update message status: read config: %w", err)
 	}
 
 	response, err := c.sender.Send(ctx, conf, req)
@@ -228,7 +230,9 @@ func (c *Client) ReloadConfig(ctx context.Context) error {
 	return nil
 }
 
-func NewClient(ctx context.Context, reader config.Reader, sender whttp.Sender[Message], middlewares ...SenderMiddleware) (*Client, error) {
+func NewClient(ctx context.Context, reader config.Reader, sender whttp.Sender[Message],
+	middlewares ...SenderMiddleware,
+) (*Client, error) {
 	conf, err := reader.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
@@ -326,13 +330,17 @@ type (
 	}
 
 	StatusUpdater interface {
-		UpdateStatus(ctx context.Context, request *StatusUpdateRequest) (*StatusUpdateResponse, error)
+		UpdateStatus(ctx context.Context,
+			request *StatusUpdateRequest) (*StatusUpdateResponse, error)
 	}
 
-	UpdateStatusFunc func(ctx context.Context, request *StatusUpdateRequest) (*StatusUpdateResponse, error)
+	UpdateStatusFunc func(ctx context.Context,
+		request *StatusUpdateRequest) (*StatusUpdateResponse, error)
 )
 
-func (fn UpdateStatusFunc) UpdateStatus(ctx context.Context, request *StatusUpdateRequest) (*StatusUpdateResponse, error) {
+func (fn UpdateStatusFunc) UpdateStatus(ctx context.Context,
+	request *StatusUpdateRequest,
+) (*StatusUpdateResponse, error) {
 	return fn(ctx, request)
 }
 
@@ -346,6 +354,7 @@ func RetrieveMessageMetadata(ctx context.Context) types.Metadata {
 	if !ok {
 		return nil
 	}
+
 	return metadata
 }
 
@@ -369,13 +378,15 @@ func (fn SenderFunc) Send(ctx context.Context, conf *config.Config, request *Bas
 
 func (c *BaseSender) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*Response, error) {
 	req := &whttp.Request[Message]{
-		Type:      request.Type,
-		Method:    request.Method,
-		Bearer:    conf.AccessToken,
-		BaseURL:   conf.BaseURL,
-		Endpoints: []string{conf.APIVersion, conf.PhoneNumberID, Endpoint},
-		Message:   request.Message,
-		Metadata:  request.Metadata,
+		Type:           request.Type,
+		Method:         request.Method,
+		Bearer:         conf.AccessToken,
+		BaseURL:        conf.BaseURL,
+		Endpoints:      []string{conf.APIVersion, conf.PhoneNumberID, Endpoint},
+		Message:        request.Message,
+		Metadata:       request.Metadata,
+		AppSecret:      conf.AppSecret,
+		SecureRequests: conf.SecureRequests,
 	}
 
 	response := &Response{}
@@ -594,7 +605,6 @@ type (
 		Status        *string      `json:"status,omitempty"`     // used to update message status
 		MessageID     *string      `json:"message_id,omitempty"` // used to update message status
 		Template      *Template    `json:"template,omitempty"`
-		metadata      types.Metadata
 	}
 
 	Option func(message *Message)
@@ -687,9 +697,9 @@ func WithReaction(reaction *Reaction) Option {
 	}
 }
 
-func WithMessageAsReplyTo(messageId string) Option {
+func WithMessageAsReplyTo(messageID string) Option {
 	return func(message *Message) {
-		message.Context = &Context{MessageID: messageId}
+		message.Context = &Context{MessageID: messageID}
 	}
 }
 
@@ -797,12 +807,12 @@ type (
 
 	Phones []*Phone
 
-	Url struct {
+	URL struct {
 		URL  string `json:"url"`
 		Type string `json:"type"`
 	}
 
-	Urls []*Url
+	Urls []*URL
 
 	Contact struct {
 		Addresses Addresses `json:"addresses,omitempty"`
@@ -846,7 +856,7 @@ func WithContactOrganization(organization *Org) ContactOption {
 	}
 }
 
-func WithContactURLs(urls ...*Url) ContactOption {
+func WithContactURLs(urls ...*URL) ContactOption {
 	return func(c *Contact) {
 		c.Urls = urls
 	}

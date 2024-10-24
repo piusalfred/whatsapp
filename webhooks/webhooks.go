@@ -103,6 +103,7 @@ func OnEventNotification[T any](handler NotificationHandler[T]) http.HandlerFunc
 		if err != nil {
 			msgErr := fmt.Errorf("%w: %w", ErrReadNotification, err)
 			http.Error(writer, msgErr.Error(), http.StatusInternalServerError)
+
 			return
 		}
 
@@ -113,6 +114,7 @@ func OnEventNotification[T any](handler NotificationHandler[T]) http.HandlerFunc
 		if err := json.Unmarshal(body, &payload); err != nil {
 			msgErr := fmt.Errorf("%w: %w", ErrMessageDecode, err)
 			http.Error(writer, msgErr.Error(), http.StatusInternalServerError)
+
 			return
 		}
 
@@ -146,7 +148,7 @@ func ExtractAndValidatePayload[T any](request *http.Request, options *ValidateOp
 
 	var notification T
 	if err := json.NewDecoder(&buff).Decode(&notification); err != nil && !errors.Is(err, io.EOF) {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err)
 	}
 
 	return &notification, nil
@@ -279,7 +281,7 @@ func ValidateRequestPayloadSignature(request *http.Request, secret string) error
 // token provided as an argument (`verifyToken`). If the provided token matches and the `hub.mode` is "subscribe",
 // it responds with the `hub.challenge` value, completing the verification process.
 //
-// Use this function if you do not require dynamic token lookup. For that use VerifyTokenReader.VerifySubscription
+// Use this function if you do not require dynamic token lookup. For that use VerifyTokenReader.VerifySubscription.
 func SubscriptionVerificationHandlerFunc(verifyToken string) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		q := request.URL.Query()
@@ -289,6 +291,7 @@ func SubscriptionVerificationHandlerFunc(verifyToken string) http.HandlerFunc {
 
 		if token != verifyToken || mode != "subscribe" {
 			writer.WriteHeader(http.StatusBadRequest)
+
 			return
 		}
 
@@ -313,6 +316,7 @@ func (reader VerifyTokenReader) VerifySubscription(writer http.ResponseWriter, r
 	token, err := reader(request.Context())
 	if err != nil {
 		writer.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
@@ -323,6 +327,7 @@ func (reader VerifyTokenReader) VerifySubscription(writer http.ResponseWriter, r
 
 	if providedToken != token || mode != "subscribe" {
 		writer.WriteHeader(http.StatusBadRequest)
+
 		return
 	}
 

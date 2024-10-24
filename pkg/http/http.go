@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/piusalfred/whatsapp/pkg/crypto"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 	"github.com/piusalfred/whatsapp/pkg/types"
 )
@@ -125,7 +126,9 @@ func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decode
 	return nil
 }
 
-func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptorFunc, resHook ResponseInterceptorFunc) SenderFunc[T] {
+func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptorFunc,
+	resHook ResponseInterceptorFunc,
+) SenderFunc[T] {
 	fn := SenderFunc[T](func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
 		req, err := RequestWithContext(ctx, request)
 		if err != nil {
@@ -138,11 +141,14 @@ func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterce
 			}
 		}
 
-		response, err := client.Do(req)
+		response, err := client.Do(req) //nolint:bodyclose
 		if err != nil {
-			return fmt.Errorf("send req: %w", err)
+			return fmt.Errorf("send request: %w", err)
 		}
-		defer response.Body.Close()
+
+		defer func(Body io.ReadCloser) {
+			_ = Body.Close()
+		}(response.Body)
 
 		if resHook != nil {
 			bodyBytes, errRead := io.ReadAll(response.Body)
@@ -226,22 +232,25 @@ const (
 	RequestTypeRefreshToken
 	RequestTypeGenerateToken
 	RequestTypeRevokeToken
+	RequestTypeTwoStepVerification
 )
 
 type (
 	RequestType uint8
 
 	Request[T any] struct {
-		Type        RequestType
-		Method      string
-		Bearer      string
-		Headers     map[string]string
-		QueryParams map[string]string
-		BaseURL     string
-		Endpoints   []string
-		Metadata    types.Metadata
-		Message     *T
-		Form        *RequestForm
+		Type           RequestType
+		Method         string
+		Bearer         string
+		Headers        map[string]string
+		QueryParams    map[string]string
+		BaseURL        string
+		Endpoints      []string
+		Metadata       types.Metadata
+		Message        *T
+		Form           *RequestForm
+		AppSecret      string
+		SecureRequests bool
 	}
 
 	RequestForm struct {
@@ -255,9 +264,11 @@ type (
 	}
 )
 
+var errNilRequest = errors.New("nil request provided")
+
 func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Request, error) {
 	if req == nil {
-		return nil, fmt.Errorf("nil context")
+		return nil, fmt.Errorf("request: %w", errNilRequest)
 	}
 	ctx = InjectMessageMetadata(ctx, req.Metadata)
 
@@ -270,9 +281,19 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Requ
 	if err != nil {
 		return nil, fmt.Errorf("parse url: %w", err)
 	}
+
 	q := parsedURL.Query()
+
 	for key, value := range req.QueryParams {
 		q.Set(key, value)
+	}
+
+	if req.SecureRequests {
+		proof, err := crypto.GenerateAppSecretProof(req.Bearer, req.AppSecret)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate app secret proof: %w", err)
+		}
+		q.Set("appsecret_proof", proof)
 	}
 
 	parsedURL.RawQuery = q.Encode()
@@ -291,13 +312,13 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Requ
 
 	r, err := http.NewRequestWithContext(ctx, req.Method, parsedURL.String(), body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create http request: %w", err)
 	}
 
 	r.Header.Set("Content-Type", contentType)
 
 	if req.Bearer != "" {
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", req.Bearer))
+		r.Header.Set("Authorization", "Bearer "+req.Bearer)
 	}
 
 	for key, value := range req.Headers {
@@ -325,6 +346,7 @@ func EncodePayload(payload any) (*EncodeResponse, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode form data: %w", err)
 		}
+
 		return &EncodeResponse{
 			Body:        body,
 			ContentType: contentType,
@@ -349,6 +371,7 @@ func EncodePayload(payload any) (*EncodeResponse, error) {
 		if err := json.NewEncoder(buf).Encode(p); err != nil {
 			return nil, fmt.Errorf("failed to encode payload as JSON: %w", err)
 		}
+
 		return &EncodeResponse{
 			Body:        buf,
 			ContentType: "application/json",
@@ -356,7 +379,7 @@ func EncodePayload(payload any) (*EncodeResponse, error) {
 	}
 }
 
-// encodeFormData encodes form fields and file data into multipart/form-data
+// encodeFormData encodes form fields and file data into multipart/form-data.
 func encodeFormData(formData *RequestForm) (io.Reader, string, error) {
 	var payload bytes.Buffer
 	writer := multipart.NewWriter(&payload)
@@ -373,7 +396,10 @@ func encodeFormData(formData *RequestForm) (io.Reader, string, error) {
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to open file %s: %w", formData.FormFile.Path, err)
 		}
-		defer file.Close()
+
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(file)
 
 		part, err := writer.CreateFormFile(formData.FormFile.Name, filepath.Base(formData.FormFile.Path))
 		if err != nil {
@@ -418,7 +444,8 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 	}
 
 	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode < 300
-	if !isResponseOk {
+
+	if !isResponseOk { //nolint:nestif
 		if opts.InspectResponseError {
 			if len(responseBody) == 0 {
 				return fmt.Errorf("%w: status code: %d", ErrRequestFailure, response.StatusCode)
@@ -426,8 +453,9 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 
 			var errorResponse ResponseError
 			if err := json.Unmarshal(responseBody, &errorResponse); err != nil {
-				return fmt.Errorf("%w: %v, status code: %d", ErrDecodeErrorResponse, err, response.StatusCode)
+				return fmt.Errorf("%w: %w, status code: %d", ErrDecodeErrorResponse, err, response.StatusCode)
 			}
+
 			return &errorResponse
 		}
 
@@ -453,7 +481,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 	}
 
 	if err := decoder.Decode(v); err != nil {
-		return fmt.Errorf("%w: %v", ErrDecodeResponseBody, err)
+		return fmt.Errorf("%w: %w", ErrDecodeResponseBody, err)
 	}
 
 	return nil
@@ -461,7 +489,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 
 func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) error {
 	if request == nil {
-		return fmt.Errorf("nil request provided")
+		return ErrNilResponse
 	}
 
 	requestBody, err := io.ReadAll(request.Body)
@@ -495,7 +523,7 @@ func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) e
 	}
 
 	if decodeErr := decoder.Decode(v); decodeErr != nil {
-		return fmt.Errorf("%w: %v", ErrDecodeResponseBody, decodeErr)
+		return fmt.Errorf("%w: %w", ErrDecodeResponseBody, decodeErr)
 	}
 
 	return nil
@@ -515,17 +543,17 @@ func (e *ResponseError) Unwrap() error {
 }
 
 const (
-	ErrNilResponse         = httpErr("nil response provided")
-	ErrEmptyResponseBody   = httpErr("empty response body")
-	ErrNilTarget           = httpErr("nil value passed for decoding target")
-	ErrRequestFailure      = httpErr("request failed")
-	ErrDecodeResponseBody  = httpErr("failed to decode response body")
-	ErrDecodeErrorResponse = httpErr("failed to decode error response")
+	ErrNilResponse         = httpError("nil response provided")
+	ErrEmptyResponseBody   = httpError("empty response body")
+	ErrNilTarget           = httpError("nil value passed for decoding target")
+	ErrRequestFailure      = httpError("request failed")
+	ErrDecodeResponseBody  = httpError("failed to decode response body")
+	ErrDecodeErrorResponse = httpError("failed to decode error response")
 )
 
-type httpErr string
+type httpError string
 
-func (e httpErr) Error() string {
+func (e httpError) Error() string {
 	return string(e)
 }
 
@@ -572,7 +600,7 @@ func (decoder ResponseDecoderFunc) Decode(ctx context.Context, response *http.Re
 }
 
 func ResponseDecoderJSON[T any](v *T, options DecodeOptions) ResponseDecoderFunc {
-	fn := ResponseDecoderFunc(func(ctx context.Context, response *http.Response) error {
+	fn := ResponseDecoderFunc(func(_ context.Context, response *http.Response) error {
 		if err := DecodeResponseJSON(response, v, options); err != nil {
 			return fmt.Errorf("decode json: %w", err)
 		}

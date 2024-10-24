@@ -61,7 +61,7 @@ type (
 func (client *BaseClient) GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*MetricsAPIResponse, error) {
 	conf, err := client.Reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get flow metrics failed: %w", err)
 	}
 
 	queryParams := map[string]string{

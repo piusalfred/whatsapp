@@ -24,10 +24,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/piusalfred/whatsapp/webhooks/flow"
-
 	"github.com/piusalfred/whatsapp/webhooks"
 	"github.com/piusalfred/whatsapp/webhooks/business"
+	"github.com/piusalfred/whatsapp/webhooks/flow"
 	"github.com/piusalfred/whatsapp/webhooks/message"
 )
 

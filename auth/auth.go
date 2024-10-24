@@ -2,13 +2,11 @@ package auth
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/piusalfred/whatsapp/pkg/crypto"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
@@ -33,8 +31,8 @@ type InstallAppParams struct {
 	SystemUserID string // The ID of the system user for whom the app is being installed.
 }
 
-// InstallResponse represents the response for the InstallApp API call.
-type InstallResponse struct {
+// SuccessResponse represents the response for the InstallApp API call.
+type SuccessResponse struct {
 	Success bool `json:"success,omitempty"` // Indicates if the app installation was successful.
 }
 
@@ -65,7 +63,7 @@ func (c *Client) InstallApp(ctx context.Context, params InstallAppParams) error 
 		},
 	}
 
-	res := &InstallResponse{}
+	res := &SuccessResponse{}
 
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		DisallowUnknownFields: false,
@@ -75,10 +73,56 @@ func (c *Client) InstallApp(ctx context.Context, params InstallAppParams) error 
 
 	err := c.sender.Send(ctx, req, decoder)
 	if err != nil {
-		return err
+		return fmt.Errorf("install app: %w", err)
 	}
 
 	return nil
+}
+
+type TwoStepVerificationRequest struct {
+	SixDigitCode  string `json:"pin"`
+	PhoneNumberID string `json:"-"`
+	AccessToken   string `json:"-"`
+}
+
+type TwoStepVerificationClient struct {
+	baseURL    string
+	apiVersion string
+	sender     whttp.Sender[TwoStepVerificationRequest]
+}
+
+// TwoStepVerification sends a request to set up two-step verification for a WhatsApp Business API
+// phone number.
+func (c *TwoStepVerificationClient) TwoStepVerification(ctx context.Context,
+	request *TwoStepVerificationRequest,
+) (*SuccessResponse, error) {
+	req := &whttp.Request[TwoStepVerificationRequest]{
+		Type:      whttp.RequestTypeTwoStepVerification,
+		BaseURL:   c.baseURL,
+		Bearer:    request.AccessToken,
+		Method:    http.MethodPost,
+		Endpoints: []string{c.apiVersion, request.PhoneNumberID},
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		// avoid leaking the phone number and access token.
+		Message: &TwoStepVerificationRequest{SixDigitCode: request.SixDigitCode},
+	}
+
+	res := &SuccessResponse{}
+	decodeOptions := whttp.DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	}
+
+	decoder := whttp.ResponseDecoderJSON(res, decodeOptions)
+
+	if err := c.sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("send two step verification code: %w", err)
+	}
+
+	return res, nil
 }
 
 // GenerateAccessTokenParams contains the parameters required to generate a persistent access token.
@@ -96,27 +140,9 @@ type GenerateAccessTokenResponse struct {
 	AccessToken string `json:"access_token"` // The newly generated access token.
 }
 
-// GenerateAppSecretProof generates the app secret proof required for secure API calls.
-// It creates an HMAC-SHA-256 hash using the access token and the app secret.
-//
-// Params:
-// - accessToken: The access token used in the call.
-// - appSecret: The app secret associated with the app.
-//
-// Returns:
-// - string: The generated app secret proof.
-// - error: Any error encountered during hash generation.
-func GenerateAppSecretProof(accessToken, appSecret string) (string, error) {
-	h := hmac.New(sha256.New, []byte(appSecret))
-	_, err := h.Write([]byte(accessToken))
-	if err != nil {
-		return "", fmt.Errorf("failed to create appsecret_proof: %v", err)
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
 // GenerateAccessToken generates a persistent access token for a system user.
-// The system user must have installed the app beforehand. The generated access token is needed to make API calls on behalf of the system user.
+// The system user must have installed the app beforehand. The generated access token is needed to make API
+// calls on behalf of the system user.
 //
 // Params:
 // - ctx: The request context.
@@ -133,10 +159,12 @@ func GenerateAppSecretProof(accessToken, appSecret string) (string, error) {
 // Returns:
 // - *GenerateAccessTokenResponse: Contains the newly generated access token.
 // - error: Any error encountered during the token generation process.
-func (c *Client) GenerateAccessToken(ctx context.Context, params GenerateAccessTokenParams) (*GenerateAccessTokenResponse, error) {
-	appSecretProof, err := GenerateAppSecretProof(params.AccessToken, params.AppSecret)
+func (c *Client) GenerateAccessToken(ctx context.Context,
+	params GenerateAccessTokenParams,
+) (*GenerateAccessTokenResponse, error) {
+	appSecretProof, err := crypto.GenerateAppSecretProof(params.AccessToken, params.AppSecret)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate app secret proof: %w", err)
 	}
 
 	formData := map[string]string{
@@ -165,13 +193,13 @@ func (c *Client) GenerateAccessToken(ctx context.Context, params GenerateAccessT
 	})
 
 	if err := c.sender.Send(ctx, req, decoder); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generate access token: %w", err)
 	}
 
 	return res, nil
 }
 
-// RevokeAccessTokenParams contains the parameters for revoking an access token
+// RevokeAccessTokenParams contains the parameters for revoking an access token.
 type RevokeAccessTokenParams struct {
 	ClientID        string
 	ClientSecret    string
@@ -184,7 +212,9 @@ type RevokeAccessTokenResponse struct {
 	Success bool `json:"success"`
 }
 
-func (c *Client) RevokeAccessToken(ctx context.Context, params RevokeAccessTokenParams) (*RevokeAccessTokenResponse, error) {
+func (c *Client) RevokeAccessToken(ctx context.Context,
+	params RevokeAccessTokenParams,
+) (*RevokeAccessTokenResponse, error) {
 	queryParams := map[string]string{
 		"client_id":     params.ClientID,
 		"client_secret": params.ClientSecret,
@@ -208,13 +238,13 @@ func (c *Client) RevokeAccessToken(ctx context.Context, params RevokeAccessToken
 	})
 
 	if err := c.sender.Send(ctx, req, decoder); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("revoke access token: %w", err)
 	}
 
 	return res, nil
 }
 
-// RefreshAccessTokenParams contains the parameters for refreshing an access token
+// RefreshAccessTokenParams contains the parameters for refreshing an access token.
 type RefreshAccessTokenParams struct {
 	ClientID            string
 	ClientSecret        string
@@ -223,15 +253,17 @@ type RefreshAccessTokenParams struct {
 	SetTokenExpiresIn60 bool // Set to true to refresh for another 60 days
 }
 
-// RefreshAccessTokenResponse contains the response from the refresh token request
+// RefreshAccessTokenResponse contains the response from the refresh token request.
 type RefreshAccessTokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int    `json:"expires_in"`
 }
 
-// RefreshAccessToken sends a request to refresh an expiring system user access token
-func (c *Client) RefreshAccessToken(ctx context.Context, params RefreshAccessTokenParams) (*RefreshAccessTokenResponse, error) {
+// RefreshAccessToken sends a request to refresh an expiring system user access token.
+func (c *Client) RefreshAccessToken(ctx context.Context,
+	params RefreshAccessTokenParams,
+) (*RefreshAccessTokenResponse, error) {
 	queryParams := map[string]string{
 		"grant_type":        "fb_exchange_token",
 		"client_id":         params.ClientID,
@@ -257,7 +289,7 @@ func (c *Client) RefreshAccessToken(ctx context.Context, params RefreshAccessTok
 	})
 
 	if err := c.sender.Send(ctx, req, decoder); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("refresh access token: %w", err)
 	}
 
 	return res, nil
@@ -271,21 +303,23 @@ type (
 	TokenRotatorFunc func(ctx context.Context, refresher TokenRefresher, revoker TokenRevoker, store TokenStore) error
 )
 
-func (fn TokenRotatorFunc) RotateToken(ctx context.Context, refresher TokenRefresher, revoker TokenRevoker, store TokenStore) error {
+func (fn TokenRotatorFunc) RotateToken(ctx context.Context, refresher TokenRefresher,
+	revoker TokenRevoker, store TokenStore,
+) error {
 	return fn(ctx, refresher, revoker, store)
 }
 
-// TokenRefresher defines an interface to refresh and fetch a new token
+// TokenRefresher defines an interface to refresh and fetch a new token.
 type TokenRefresher interface {
 	Refresh(ctx context.Context, currentToken string) (string, error) // Refreshes and returns the new token
 }
 
-// TokenRevoker defines an interface to revoke a token
+// TokenRevoker defines an interface to revoke a token.
 type TokenRevoker interface {
 	Revoke(ctx context.Context, oldToken string) error // Revokes the old token
 }
 
-// TokenStore defines an interface to store the new token
+// TokenStore defines an interface to store the new token.
 type TokenStore interface {
 	Add(ctx context.Context, newToken string) error
 	Get(ctx context.Context) (string, error)
@@ -329,31 +363,31 @@ const (
 	TokenScopeCommerceAccountManageOrders     = "commerce_account_manage_orders"
 	TokenScopeCommerceAccountReadOrders       = "commerce_account_read_orders"
 	TokenScopeCommerceAccountReadSettings     = "commerce_account_read_settings"
-	TokenScopeInstagramBasic                  = "instagram_basic"
+	TokenScopeInstagramBasic                  = "instagram_basic" //nolint:gosec
 	TokenScopeInstagramBrandedContentAdsBrand = "instagram_branded_content_ads_brand"
 	TokenScopeInstagramBrandedContentBrand    = "instagram_branded_content_brand"
-	TokenScopeInstagramContentPublish         = "instagram_content_publish"
+	TokenScopeInstagramContentPublish         = "instagram_content_publish" //nolint:gosec
 	TokenScopeInstagramManageComments         = "instagram_manage_comments"
 	TokenScopeInstagramManageInsights         = "instagram_manage_insights"
 	TokenScopeInstagramManageMessages         = "instagram_manage_messages"
-	TokenScopeInstagramShoppingTagProducts    = "instagram_shopping_tag_products"
+	TokenScopeInstagramShoppingTagProducts    = "instagram_shopping_tag_products" //nolint:gosec
 	TokenScopeLeadsRetrieval                  = "leads_retrieval"
 	TokenScopePageEvents                      = "page_events"
 	TokenScopePagesManageAds                  = "pages_manage_ads"
-	TokenScopePagesManageCta                  = "pages_manage_cta"
+	TokenScopePagesManageCta                  = "pages_manage_cta" //nolint:gosec
 	TokenScopePagesManageEngagement           = "pages_manage_engagement"
 	TokenScopePagesManageInstantArticles      = "pages_manage_instant_articles"
 	TokenScopePagesManageMetadata             = "pages_manage_metadata"
 	TokenScopePagesManagePosts                = "pages_manage_posts"
 	TokenScopePagesMessaging                  = "pages_messaging"
-	TokenScopePagesReadEngagement             = "pages_read_engagement"
-	TokenScopePagesReadUserContent            = "pages_read_user_content"
+	TokenScopePagesReadEngagement             = "pages_read_engagement"   //nolint:gosec
+	TokenScopePagesReadUserContent            = "pages_read_user_content" //nolint:gosec
 	TokenScopePagesShowList                   = "pages_show_list"
 	TokenScopePrivateComputationAccess        = "private_computation_access"
 	TokenScopePublishVideo                    = "publish_video"
 	TokenScopeReadAudienceNetworkInsights     = "read_audience_network_insights"
 	TokenScopeReadInsights                    = "read_insights"
-	TokenScopeReadPageMailboxes               = "read_page_mailboxes"
+	TokenScopeReadPageMailboxes               = "read_page_mailboxes" //nolint:gosec
 	TokenScopeWhatsappBusinessManagement      = "whatsapp_business_management"
 	TokenScopeWhatsappBusinessMessaging       = "whatsapp_business_messaging"
 )

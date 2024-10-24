@@ -27,9 +27,8 @@ import (
 	"strings"
 
 	"github.com/piusalfred/whatsapp/message"
-	"github.com/piusalfred/whatsapp/webhooks"
-
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
+	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 type (
@@ -37,7 +36,9 @@ type (
 	NotificationHandlerFunc webhooks.NotificationHandlerFunc[Notification]
 )
 
-func (e NotificationHandlerFunc) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
+func (e NotificationHandlerFunc) HandleNotification(ctx context.Context,
+	notification *Notification,
+) *webhooks.Response {
 	return e(ctx, notification)
 }
 
@@ -251,7 +252,7 @@ type (
 		Metadata *Metadata
 	}
 
-	// MessageContext is the context of a message contains information about the
+	// Info is the context of a message contains information about the
 	// message and the business that is subscribed to the Webhooks.
 	// these are common fields to all type of messages.
 	// From The customer's phone number who sent the message to the business.
@@ -259,14 +260,14 @@ type (
 	// endpoint to mark this specific message as read.
 	// Timestamp The timestamp for when the message was received by the business.
 	// Type The type of message that was received by the business.
-	// Ctx The context of the message. Only included when a user replies or interacts with one
+	// Context The context of the message. Only included when a user replies or interacts with one
 	// of your messages.
-	MessageContext struct {
+	Info struct {
 		From      string
 		ID        string
 		Timestamp string
 		Type      string
-		Ctx       *Context
+		Context   *Context
 	}
 )
 
@@ -378,12 +379,12 @@ func (handler *Handlers) handleNotificationChangeValue(ctx context.Context,
 func (handler *Handlers) handleNotificationMessage(ctx context.Context,
 	nctx *NotificationContext, message *Message,
 ) error {
-	mctx := &MessageContext{
+	mctx := &Info{
 		From:      message.From,
 		ID:        message.ID,
 		Timestamp: message.Timestamp,
 		Type:      message.Type,
-		Ctx:       message.Context,
+		Context:   message.Context,
 	}
 
 	messageType := ParseType(message.Type)
@@ -402,52 +403,11 @@ func (handler *Handlers) handleNotificationMessage(ctx context.Context,
 
 		return nil
 
-	case TypeAudio:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
-		}
-
-		return nil
-
-	case TypeVideo:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Video); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
-		}
-
-		return nil
-
-	case TypeImage:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Image); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
-		}
-
-		return nil
-
-	case TypeDocument:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Document); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
-		}
-
-		return nil
-
-	case TypeSticker:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Sticker); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
-		}
-
-		return nil
+	case TypeAudio, TypeVideo, TypeImage, TypeDocument, TypeSticker:
+		return handler.handleMediaMessage(ctx, nctx, message, mctx)
 
 	case TypeInteractive:
-		switch message.Interactive.Type {
-		case InteractiveTypeListReply:
-			return handler.ListReply.Handle(ctx, nctx, mctx, message.Interactive.ListReply)
-		case InteractiveTypeButtonReply:
-			return handler.ButtonReply.Handle(ctx, nctx, mctx, message.Interactive.ButtonReply)
-		case InteractiveTypeNFMReply:
-			return handler.FlowReply.Handle(ctx, nctx, mctx, message.Interactive.NFMReply)
-		default:
-			return handler.InteractiveMessage.Handle(ctx, nctx, mctx, message.Interactive)
-		}
+		return handler.handleInteractiveNotification(ctx, nctx, message, mctx)
 
 	case TypeSystem:
 		if err := handler.SystemMessage.Handle(ctx, nctx, mctx, message.System); err != nil {
@@ -464,31 +424,7 @@ func (handler *Handlers) handleNotificationMessage(ctx context.Context,
 		return nil
 
 	case TypeText:
-		if message.Referral != nil {
-			reff := &ReferralNotification{
-				Text:     message.Text,
-				Referral: message.Referral,
-			}
-			if err := handler.ReferralMessage.Handle(ctx, nctx, mctx, reff); err != nil {
-				return fmt.Errorf("%w: %w", ErrReferralMessage, err)
-			}
-
-			return nil
-		}
-
-		if mctx.Ctx != nil {
-			if err := handler.ProductEnquiry.Handle(ctx, nctx, mctx, message.Text); err != nil {
-				return fmt.Errorf("%w: %w", ErrProductEnquiry, err)
-			}
-
-			return nil
-		}
-
-		if err := handler.TextMessage.Handle(ctx, nctx, mctx, message.Text); err != nil {
-			return fmt.Errorf("%w: %w", ErrTextMessageHandler, err)
-		}
-
-		return nil
+		return handler.handleTextNotification(ctx, nctx, message, mctx)
 
 	case TypeReaction:
 		if err := handler.MessageReaction.Handle(ctx, nctx, mctx, message.Reaction); err != nil {
@@ -512,30 +448,141 @@ func (handler *Handlers) handleNotificationMessage(ctx context.Context,
 		return nil
 
 	default:
-		if message.Contacts != nil {
-			if err := handler.ContactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
-				return fmt.Errorf("%w: %w", ErrContactsMessageHandler, err)
-			}
+		return handler.handleDefaultNotificationMessage(ctx, nctx, message, mctx)
+	}
+}
 
-			return nil
-		}
-		if message.Location != nil {
-			if err := handler.LocationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
-				return fmt.Errorf("%w: %w", ErrLocationMessage, err)
-			}
-
-			return nil
-		}
-
-		if message.Identity != nil {
-			if err := handler.CustomerIDChange.Handle(ctx, nctx, mctx, message.Identity); err != nil {
-				return fmt.Errorf("%w: %w", ErrCustomerIDChange, err)
-			}
-
-			return nil
+func (handler *Handlers) handleMediaMessage(ctx context.Context, nctx *NotificationContext,
+	message *Message, mctx *Info,
+) error {
+	messageType := ParseType(message.Type)
+	switch messageType { //nolint:exhaustive
+	case TypeAudio:
+		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
-		return fmt.Errorf("%w: unsupported message type", ErrHandleMessage)
+		return nil
+
+	case TypeVideo:
+		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Video); err != nil {
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
+		}
+
+		return nil
+
+	case TypeImage:
+		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Image); err != nil {
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
+		}
+
+		return nil
+
+	case TypeDocument:
+		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Document); err != nil {
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
+		}
+
+		return nil
+
+	case TypeSticker:
+		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Sticker); err != nil {
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
+		}
+
+		return nil
+	}
+
+	return nil
+}
+
+func (handler *Handlers) handleTextNotification(ctx context.Context, nctx *NotificationContext,
+	message *Message, mctx *Info,
+) error {
+	if message.Referral != nil {
+		reff := &ReferralNotification{
+			Text:     message.Text,
+			Referral: message.Referral,
+		}
+		if err := handler.ReferralMessage.Handle(ctx, nctx, mctx, reff); err != nil {
+			return fmt.Errorf("%w: %w", ErrReferralMessage, err)
+		}
+
+		return nil
+	}
+
+	if mctx.Context != nil {
+		if err := handler.ProductEnquiry.Handle(ctx, nctx, mctx, message.Text); err != nil {
+			return fmt.Errorf("%w: %w", ErrProductEnquiry, err)
+		}
+
+		return nil
+	}
+
+	if err := handler.TextMessage.Handle(ctx, nctx, mctx, message.Text); err != nil {
+		return fmt.Errorf("%w: %w", ErrTextMessageHandler, err)
+	}
+
+	return nil
+}
+
+func (handler *Handlers) handleDefaultNotificationMessage(ctx context.Context, nctx *NotificationContext,
+	message *Message, mctx *Info,
+) error {
+	if message.Contacts != nil {
+		if err := handler.ContactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
+			return fmt.Errorf("%w: %w", ErrContactsMessageHandler, err)
+		}
+
+		return nil
+	}
+	if message.Location != nil {
+		if err := handler.LocationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
+			return fmt.Errorf("%w: %w", ErrLocationMessage, err)
+		}
+
+		return nil
+	}
+
+	if message.Identity != nil {
+		if err := handler.CustomerIDChange.Handle(ctx, nctx, mctx, message.Identity); err != nil {
+			return fmt.Errorf("%w: %w", ErrCustomerIDChange, err)
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("%w: unsupported message type", ErrHandleMessage)
+}
+
+func (handler *Handlers) handleInteractiveNotification(ctx context.Context,
+	nctx *NotificationContext, message *Message, mctx *Info,
+) error {
+	switch message.Interactive.Type {
+	case InteractiveTypeListReply:
+		if err := handler.ListReply.Handle(ctx, nctx, mctx, message.Interactive.ListReply); err != nil {
+			return fmt.Errorf("handle list reply: %w", err)
+		}
+
+		return nil
+	case InteractiveTypeButtonReply:
+		if err := handler.ButtonReply.Handle(ctx, nctx, mctx, message.Interactive.ButtonReply); err != nil {
+			return fmt.Errorf("handle button reply: %w", err)
+		}
+
+		return nil
+	case InteractiveTypeNFMReply:
+		if err := handler.FlowReply.Handle(ctx, nctx, mctx, message.Interactive.NFMReply); err != nil {
+			return fmt.Errorf("handle flow reply: %w", err)
+		}
+
+		return nil
+	default:
+		if err := handler.InteractiveMessage.Handle(ctx, nctx, mctx, message.Interactive); err != nil {
+			return fmt.Errorf("handle interactive message: %w", err)
+		}
+
+		return nil
 	}
 }
 
@@ -580,17 +627,17 @@ type (
 
 type (
 	HandlerFunc[T any] func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, message *T) error
+		ctx context.Context, nctx *NotificationContext, mctx *Info, message *T) error
 
 	Handler[T any] interface {
-		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, message *T) error
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *Info, message *T) error
 	}
 )
 
 func (h HandlerFunc[T]) Handle(
 	ctx context.Context,
 	nctx *NotificationContext,
-	mctx *MessageContext,
+	mctx *Info,
 	message *T,
 ) error {
 	return h(ctx, nctx, mctx, message)
@@ -608,16 +655,16 @@ func (f ChangeValueHandlerFunc[T]) Handle(ctx context.Context, nctx *Notificatio
 
 type (
 	ErrorsHandlerFunc func(
-		ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
+		ctx context.Context, nctx *NotificationContext, mctx *Info, errors []*werrors.Error) error
 	ErrorsHandler interface {
-		Handle(ctx context.Context, nctx *NotificationContext, mctx *MessageContext, errors []*werrors.Error) error
+		Handle(ctx context.Context, nctx *NotificationContext, mctx *Info, errors []*werrors.Error) error
 	}
 )
 
 func (h ErrorsHandlerFunc) Handle(
 	ctx context.Context,
 	nctx *NotificationContext,
-	mctx *MessageContext,
+	mctx *Info,
 	errors []*werrors.Error,
 ) error {
 	return h(ctx, nctx, mctx, errors)

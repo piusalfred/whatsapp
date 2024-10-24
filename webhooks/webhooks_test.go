@@ -25,7 +25,12 @@ type TestServerConfig[T any] struct {
 
 func NewTestWebhookServer[T any](t *testing.T, cfg TestServerConfig[T]) *httptest.Server {
 	t.Helper()
-	listener := webhooks.NewListener(cfg.Handler.HandleNotification, cfg.VerifyTokenReader, cfg.ValidateOptions, cfg.Middlewares...)
+	listener := webhooks.NewListener(
+		cfg.Handler.HandleNotification,
+		cfg.VerifyTokenReader,
+		cfg.ValidateOptions,
+		cfg.Middlewares...,
+	)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -42,8 +47,9 @@ func NewTestWebhookServer[T any](t *testing.T, cfg TestServerConfig[T]) *httptes
 }
 
 func TestListener_HandleNotification_Message(t *testing.T) {
+	t.Parallel()
 	var (
-		reader = webhooks.VerifyTokenReader(func(ctx context.Context) (string, error) {
+		reader = webhooks.VerifyTokenReader(func(_ context.Context) (string, error) {
 			return "APP-SECRET", nil
 		})
 		verifyEndpoint       = "/webhooks/verify"
@@ -68,11 +74,16 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 			},
 			handler: func() webhooks.NotificationHandler[message.Notification] {
 				handler := &message.Handlers{
-					TextMessage: message.HandlerFunc[message.Text](func(ctx context.Context, nctx *message.NotificationContext, mctx *message.MessageContext, message *message.Text) error {
-						fmt.Printf("Message: %s\n", message.Body)
-						return nil
-					}),
+					TextMessage: message.HandlerFunc[message.Text](
+						func(_ context.Context, _ *message.NotificationContext,
+							_ *message.Info, message *message.Text,
+						) error {
+							fmt.Printf("Message: %s\n", message.Body)
+
+							return nil
+						}),
 				}
+
 				return webhooks.NotificationHandlerFunc[message.Notification](handler.HandleNotification)
 			},
 			payload:   []byte(`{"object": "whatsapp_business_account", "entry": [{"id": "<WHATSAPP_BUSINESS_ACCOUNT_ID>", "changes": [{"value": {"messaging_product": "whatsapp", "contacts": [{"profile": {"name": "<WHATSAPP_USER_NAME>"}, "wa_id": "<WHATSAPP_USER_ID>"}], "messages": [{"from": "<WHATSAPP_USER_PHONE_NUMBER>", "id": "<WHATSAPP_MESSAGE_ID>", "timestamp": "<WEBHOOK_SENT_TIMESTAMP>", "text": {"body": "dudeeeee"}, "type": "text"}]}, "field": "messages"}]}]}`),
@@ -82,6 +93,7 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			server := NewTestWebhookServer[message.Notification](t, TestServerConfig[message.Notification]{
 				Handler:              tt.handler(),
 				VerifyEndpoint:       verifyEndpoint,
@@ -99,7 +111,8 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 			params.Add("hub.verify_token", "APP-SECRET")
 
 			ctx := context.TODO()
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s?%s", server.URL+verifyEndpoint, params.Encode()), nil)
+			req, err := http.NewRequestWithContext(
+				ctx, http.MethodGet, fmt.Sprintf("%s?%s", server.URL+verifyEndpoint, params.Encode()), nil)
 			if err != nil {
 				t.Fatalf("error creating http request for subscription verification")
 			}
@@ -120,13 +133,15 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 			}
 
 			// Test notification
-			req, err = http.NewRequestWithContext(ctx, http.MethodPost, server.URL+notificationEndpoint, bytes.NewBuffer(tt.payload))
+			req, err = http.NewRequestWithContext(ctx,
+				http.MethodPost, server.URL+notificationEndpoint, bytes.NewBuffer(tt.payload))
 			if err != nil {
 				t.Fatalf("error creating http request for notification")
 			}
+
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err = http.DefaultClient.Do(req)
+			resp, err = http.DefaultClient.Do(req) //nolint:bodyclose
 			if err != nil {
 				t.Fatalf("Failed to send request: %v", err)
 			}

@@ -14,16 +14,7 @@ Describe how you tested your changes, and any relevant test results.
 Include screenshots of the changes you made, if applicable.
 
 ## Affected Areas
-List areas that are affected by your changes is it core, cli, webhooks, testing, documentation,
-repo management, cicd, etc.
-
-- [ ] core
-- [x] cli
-- [ ] webhooks
-- [ ] testing
-- [ ] documentation
-- [ ] repo management
-- [ ] ci/cd
+List areas that are affected by your changes e.g webhooks, templates, etc.
 
 ## Whatsapp API Versions
 - Which version(s) of the WhatsApp API does this affect?
