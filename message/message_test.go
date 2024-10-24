@@ -17,9 +17,11 @@ import (
 )
 
 func TestBaseSender_Send(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
+	t.Cleanup(func() {
+		ctrl.Finish()
+	})
 	success := &message.Response{
 		Product: whatsapp.MessageProduct,
 		Contacts: []*message.ResponseContact{
@@ -68,7 +70,8 @@ func TestBaseSender_Send(t *testing.T) {
 				}),
 			},
 			mock: whttp.SenderFunc[message.Message](func(ctx context.Context,
-				request *whttp.Request[message.Message], decoder whttp.ResponseDecoder,
+				_ *whttp.Request[message.Message],
+				decoder whttp.ResponseDecoder,
 			) error {
 				response := &http.Response{
 					Status:     "OK",
@@ -103,7 +106,7 @@ func TestBaseSender_Send(t *testing.T) {
 				}),
 			},
 			mock: whttp.SenderFunc[message.Message](func(ctx context.Context,
-				request *whttp.Request[message.Message],
+				_ *whttp.Request[message.Message],
 				decoder whttp.ResponseDecoder,
 			) error {
 				response := &http.Response{
@@ -120,6 +123,7 @@ func TestBaseSender_Send(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			m, err := message.New(tt.recipient, tt.options...)
 			if err != nil {
 				t.Fatalf("create message: %v\n", err)

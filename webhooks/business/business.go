@@ -42,26 +42,46 @@ type (
 		Value Value  `json:"value"`
 	}
 
+	// Value holds details related to message templates, account limits, and status updates.
+	// - Event: e.g., "APPROVED", "FLAGGED", etc.
+	// - MessageTemplateID: ID of the message template.
+	// - MessageTemplateName: Name of the message template.
+	// - MessageTemplateLanguage: Language and locale code, e.g., "en_US".
+	// - Reason: Nullable reason for template rejection or status.
+	// - PreviousCategory: Previous template category.
+	// - NewCategory: New template category.
+	// - DisplayPhoneNumber: Display phone number related to the account.
+	// - CurrentLimit: Current messaging limit tier.
+	// - MaxDailyConversationPerPhone: Max daily conversations allowed.
+	// - MaxPhoneNumbersPerBusiness: Max phone numbers per business.
+	// - MaxPhoneNumbersPerWABA: Max phone numbers per WABA.
+	// - RejectionReason: Reason for template rejection.
+	// - RequestedVerifiedName: Verified name request.
+	// - RestrictionInfo: Information related to account restrictions.
+	// - BanInfo: Information when an account is banned.
+	// - Decision: Decision made regarding the account or phone number.
+	// - DisableInfo: Information about a template being disabled.
+	// - ViolationInfo: Details when the account violates policy.
 	Value struct {
-		Event                        string            `json:"event,omitempty"`                            // e.g., "APPROVED", "FLAGGED", etc.
-		MessageTemplateID            int64             `json:"message_template_id,omitempty"`              // ID of the message template
-		MessageTemplateName          string            `json:"message_template_name,omitempty"`            // Name of the message template
-		MessageTemplateLanguage      string            `json:"message_template_language,omitempty"`        // Language and locale code, e.g., "en_US"
-		Reason                       *string           `json:"reason,omitempty"`                           // Reason for template rejection or status, nullable
-		PreviousCategory             string            `json:"previous_category,omitempty"`                // Previous template category
-		NewCategory                  string            `json:"new_category,omitempty"`                     // New template category
-		DisplayPhoneNumber           string            `json:"display_phone_number,omitempty"`             // Display phone number related to the account
-		CurrentLimit                 string            `json:"current_limit,omitempty"`                    // Current messaging limit tier
-		MaxDailyConversationPerPhone int               `json:"max_daily_conversation_per_phone,omitempty"` // Max daily conversations allowed
-		MaxPhoneNumbersPerBusiness   int               `json:"max_phone_numbers_per_business,omitempty"`   // Max phone numbers per business
-		MaxPhoneNumbersPerWABA       int               `json:"max_phone_numbers_per_waba,omitempty"`       // Max phone numbers per WABA
-		RejectionReason              string            `json:"rejection_reason,omitempty"`                 // Reason for template rejection
-		RequestedVerifiedName        string            `json:"requested_verified_name,omitempty"`          // Verified name request
-		RestrictionInfo              []RestrictionInfo `json:"restriction_info,omitempty"`                 // Info related to account restrictions
-		BanInfo                      *BanInfo          `json:"ban_info,omitempty"`                         // Information when an account is banned
-		Decision                     string            `json:"decision,omitempty"`                         // Decision made regarding the account or phone number
-		DisableInfo                  *DisableInfo      `json:"disable_info,omitempty"`                     // Information about a template being disabled
-		ViolationInfo                *ViolationInfo    `json:"violation_info,omitempty"`                   // Details when account violates policy
+		Event                        string            `json:"event,omitempty"`
+		MessageTemplateID            int64             `json:"message_template_id,omitempty"`
+		MessageTemplateName          string            `json:"message_template_name,omitempty"`
+		MessageTemplateLanguage      string            `json:"message_template_language,omitempty"`
+		Reason                       *string           `json:"reason,omitempty"`
+		PreviousCategory             string            `json:"previous_category,omitempty"`
+		NewCategory                  string            `json:"new_category,omitempty"`
+		DisplayPhoneNumber           string            `json:"display_phone_number,omitempty"`
+		CurrentLimit                 string            `json:"current_limit,omitempty"`
+		MaxDailyConversationPerPhone int               `json:"max_daily_conversation_per_phone,omitempty"`
+		MaxPhoneNumbersPerBusiness   int               `json:"max_phone_numbers_per_business,omitempty"`
+		MaxPhoneNumbersPerWABA       int               `json:"max_phone_numbers_per_waba,omitempty"`
+		RejectionReason              string            `json:"rejection_reason,omitempty"`
+		RequestedVerifiedName        string            `json:"requested_verified_name,omitempty"`
+		RestrictionInfo              []RestrictionInfo `json:"restriction_info,omitempty"`
+		BanInfo                      *BanInfo          `json:"ban_info,omitempty"`
+		Decision                     string            `json:"decision,omitempty"`
+		DisableInfo                  *DisableInfo      `json:"disable_info,omitempty"`
+		ViolationInfo                *ViolationInfo    `json:"violation_info,omitempty"`
 	}
 
 	BanInfo struct {
@@ -115,6 +135,8 @@ type (
 	NotificationHandlerFunc webhooks.NotificationHandlerFunc[Notification]
 )
 
-func (e NotificationHandlerFunc) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
+func (e NotificationHandlerFunc) HandleNotification(ctx context.Context,
+	notification *Notification,
+) *webhooks.Response {
 	return e(ctx, notification)
 }

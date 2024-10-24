@@ -32,12 +32,12 @@ import (
 )
 
 const (
-	NameStatusApproved               = "APPROVED"                 // The name has been approved, and the certificate is ready for download.
-	NameStatusAvailableWithoutReview = "AVAILABLE_WITHOUT_REVIEW" // The certificate is available and can be used without review.
-	NameStatusDeclined               = "DECLINED"                 // The name was not approved, and the certificate cannot be downloaded.
-	NameStatusExpired                = "EXPIRED"                  // The certificate has expired and cannot be downloaded.
-	NameStatusPendingReview          = "PENDING_REVIEW"           // The name request is still under review.
-	NameStatusNone                   = "NONE"                     // No certificate is available for this phone number.
+	NameStatusApproved               = "APPROVED"
+	NameStatusAvailableWithoutReview = "AVAILABLE_WITHOUT_REVIEW"
+	NameStatusDeclined               = "DECLINED"
+	NameStatusExpired                = "EXPIRED"
+	NameStatusPendingReview          = "PENDING_REVIEW"
+	NameStatusNone                   = "NONE"
 )
 
 type (
@@ -227,10 +227,12 @@ type Client struct {
 	Sender Sender
 }
 
-func NewClient(ctx context.Context, reader config.Reader, sender Sender, middlewares ...SenderMiddleware) (*Client, error) {
+func NewClient(ctx context.Context, reader config.Reader, sender Sender,
+	middlewares ...SenderMiddleware,
+) (*Client, error) {
 	conf, err := reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
 	for i := len(middlewares) - 1; i >= 0; i-- {
@@ -274,7 +276,7 @@ func (c *Client) Get(ctx context.Context, req *GetRequest) (*PhoneNumber, error)
 
 	response, err := c.Sender.Send(ctx, c.Config, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get phone number: %w", err)
 	}
 
 	return response.PhoneNumber(), nil

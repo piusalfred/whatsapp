@@ -72,127 +72,150 @@ var (
 	ErrMediaGetInfo  = errors.New("media get info failed")
 )
 
+type Category string
+
+const (
+	CategoryAudio    Category = "audio"
+	CategoryDocument Category = "document"
+	CategoryImage    Category = "image"
+	CategorySticker  Category = "sticker"
+	CategoryVideo    Category = "video"
+)
+
 type Info struct {
 	MediaType Type
 	MIMEType  string
 	MaxSize   int64
 	Extension string
+	Category  Category
 }
 
-var mediaTypes = []Info{
-	{
+var InfoMap = map[Type]Info{ //nolint:gochecknoglobals
+	TypeAudioAAC: {
 		MediaType: TypeAudioAAC,
 		MIMEType:  string(TypeAudioAAC),
 		MaxSize:   AudioMaxSize,
 		Extension: ".aac",
+		Category:  CategoryAudio,
 	},
-	{
+	TypeAudioAMR: {
 		MediaType: TypeAudioAMR,
 		MIMEType:  string(TypeAudioAMR),
 		MaxSize:   AudioMaxSize,
 		Extension: ".amr",
+		Category:  CategoryAudio,
 	},
-	{
+	TypeAudioMP3: {
 		MediaType: TypeAudioMP3,
 		MIMEType:  string(TypeAudioMP3),
 		MaxSize:   AudioMaxSize,
 		Extension: ".mp3",
+		Category:  CategoryAudio,
 	},
-	{
+	TypeAudioMP4: {
 		MediaType: TypeAudioMP4,
 		MIMEType:  string(TypeAudioMP4),
 		MaxSize:   AudioMaxSize,
 		Extension: ".m4a",
+		Category:  CategoryAudio,
 	},
-	{
+	TypeAudioOGG: {
 		MediaType: TypeAudioOGG,
 		MIMEType:  string(TypeAudioOGG),
 		MaxSize:   AudioMaxSize,
 		Extension: ".ogg",
+		Category:  CategoryAudio,
 	},
-	{
+	TypeDocText: {
 		MediaType: TypeDocText,
 		MIMEType:  string(TypeDocText),
 		MaxSize:   DocMaxSize,
 		Extension: ".txt",
+		Category:  CategoryDocument,
 	},
-	{
+	TypeDocExcelXLS: {
 		MediaType: TypeDocExcelXLS,
 		MIMEType:  string(TypeDocExcelXLS),
 		MaxSize:   DocMaxSize,
 		Extension: ".xls",
+		Category:  CategoryDocument,
 	},
-	{
+	TypeDocExcelXLSX: {
 		MediaType: TypeDocExcelXLSX,
 		MIMEType:  string(TypeDocExcelXLSX),
 		MaxSize:   DocMaxSize,
 		Extension: ".xlsx",
+		Category:  CategoryDocument,
 	},
-	{
+	TypeDocWordDOC: {
 		MediaType: TypeDocWordDOC,
 		MIMEType:  string(TypeDocWordDOC),
 		MaxSize:   DocMaxSize,
 		Extension: ".doc",
+		Category:  CategoryDocument,
 	},
-	{
+	TypeDocWordDOCX: {
 		MediaType: TypeDocWordDOCX,
 		MIMEType:  string(TypeDocWordDOCX),
 		MaxSize:   DocMaxSize,
 		Extension: ".docx",
+		Category:  CategoryDocument,
 	},
-	{
+	TypeDocPPT: {
 		MediaType: TypeDocPPT,
 		MIMEType:  string(TypeDocPPT),
 		MaxSize:   DocMaxSize,
 		Extension: ".ppt",
+		Category:  CategoryDocument,
 	},
-	{
+	TypeDocPPTX: {
 		MediaType: TypeDocPPTX,
 		MIMEType:  string(TypeDocPPTX),
 		MaxSize:   DocMaxSize,
 		Extension: ".pptx",
+		Category:  CategoryDocument,
 	},
-	{
+	TypeDocPDF: {
 		MediaType: TypeDocPDF,
 		MIMEType:  string(TypeDocPDF),
 		MaxSize:   DocMaxSize,
 		Extension: ".pdf",
+		Category:  CategoryDocument,
 	},
-	{
+	TypeImageJPEG: {
 		MediaType: TypeImageJPEG,
 		MIMEType:  string(TypeImageJPEG),
 		MaxSize:   ImageMaxSize,
 		Extension: ".jpeg",
+		Category:  CategoryImage,
 	},
-	{
+	TypeImagePNG: {
 		MediaType: TypeImagePNG,
 		MIMEType:  string(TypeImagePNG),
 		MaxSize:   ImageMaxSize,
 		Extension: ".png",
+		Category:  CategoryImage,
 	},
-	{
+	TypeStickerStatic: {
 		MediaType: TypeStickerStatic,
 		MIMEType:  string(TypeStickerStatic),
 		MaxSize:   StickerStaticMaxSize,
 		Extension: ".webp",
+		Category:  CategorySticker,
 	},
-	{
-		MediaType: TypeStickerAnimated,
-		MIMEType:  string(TypeStickerAnimated),
-		MaxSize:   StickerAnimatedMaxSize,
-		Extension: ".webp",
-	},
-	{
+	TypeVideo3GPP: {
 		MediaType: TypeVideo3GPP,
 		MIMEType:  string(TypeVideo3GPP),
 		MaxSize:   VideoMaxSize,
 		Extension: ".3gp",
+		Category:  CategoryVideo,
 	},
-	{
+	TypeVideoMP4: {
 		MediaType: TypeVideoMP4,
 		MIMEType:  string(TypeVideoMP4),
 		MaxSize:   VideoMaxSize,
 		Extension: ".mp4",
+		Category:  CategoryVideo,
 	},
 }
 
@@ -357,6 +380,12 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 	conf, err := s.ConfReader.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: config read: %w", ErrMediaUpload, err)
+	}
+
+	_, ok := InfoMap[req.MediaType]
+	isAnimated := req.MediaType == TypeStickerAnimated
+	if !ok && !isAnimated {
+		return nil, fmt.Errorf("%w: media type not supported", ErrMediaUpload)
 	}
 
 	request := &whttp.Request[any]{

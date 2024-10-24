@@ -148,7 +148,7 @@ func ExtractAndValidatePayload[T any](request *http.Request, options *ValidateOp
 
 	var notification T
 	if err := json.NewDecoder(&buff).Decode(&notification); err != nil && !errors.Is(err, io.EOF) {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err)
 	}
 
 	return &notification, nil
