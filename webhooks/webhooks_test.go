@@ -68,10 +68,13 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 			},
 			handler: func() webhooks.NotificationHandler[message.Notification] {
 				handler := &message.Handlers{
-					TextMessage: message.HandlerFunc[message.Text](func(ctx context.Context, nctx *message.NotificationContext, mctx *message.MessageContext, message *message.Text) error {
-						fmt.Printf("Message: %s\n", message.Body)
-						return nil
-					}),
+					TextMessage: message.HandlerFunc[message.Text](
+						func(ctx context.Context, nctx *message.NotificationContext,
+							mctx *message.MessageContext, message *message.Text,
+						) error {
+							fmt.Printf("Message: %s\n", message.Body)
+							return nil
+						}),
 				}
 				return webhooks.NotificationHandlerFunc[message.Notification](handler.HandleNotification)
 			},

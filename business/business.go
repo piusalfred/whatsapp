@@ -89,7 +89,7 @@ func (s *BaseSender) Send(ctx context.Context, config *config.Config, request *B
 		request.QueryFields = []string{}
 	}
 
-	var params map[string]string
+	params := map[string]string{}
 	fields := strings.Join(request.QueryFields, ",")
 	if fields != "" {
 		params["fields"] = fields
@@ -173,7 +173,7 @@ func (b *BaseClient) Update(ctx context.Context, request *UpdateProfileRequest) 
 }
 
 func (b *BaseClient) Send(ctx context.Context, config *config.Config, request *BaseRequest) (*Response, error) {
-	return b.Sender.Send(ctx, config, request)
+	return b.Sender.Send(ctx, config, request) //nolint:wrapcheck
 }
 
 var (
@@ -189,7 +189,7 @@ type Client struct {
 func NewClient(ctx context.Context, reader config.Reader, sender Sender) (*Client, error) {
 	conf, err := reader.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
 	c := &Client{
@@ -231,7 +231,7 @@ func (c *Client) Update(ctx context.Context, request *UpdateProfileRequest) (boo
 }
 
 func (c *Client) Send(ctx context.Context, config *config.Config, request *BaseRequest) (*Response, error) {
-	return c.Sender.Send(ctx, config, request)
+	return c.Sender.Send(ctx, config, request) //nolint:wrapcheck
 }
 
 var (

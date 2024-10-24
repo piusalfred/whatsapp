@@ -27,9 +27,8 @@ import (
 	"strings"
 
 	"github.com/piusalfred/whatsapp/message"
-	"github.com/piusalfred/whatsapp/webhooks"
-
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
+	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 type (
@@ -37,7 +36,9 @@ type (
 	NotificationHandlerFunc webhooks.NotificationHandlerFunc[Notification]
 )
 
-func (e NotificationHandlerFunc) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
+func (e NotificationHandlerFunc) HandleNotification(ctx context.Context,
+	notification *Notification,
+) *webhooks.Response {
 	return e(ctx, notification)
 }
 
@@ -375,6 +376,8 @@ func (handler *Handlers) handleNotificationChangeValue(ctx context.Context,
 	return nil
 }
 
+//nolint:gocognit
+//nolint:gocyclo
 func (handler *Handlers) handleNotificationMessage(ctx context.Context,
 	nctx *NotificationContext, message *Message,
 ) error {
@@ -404,35 +407,35 @@ func (handler *Handlers) handleNotificationMessage(ctx context.Context,
 
 	case TypeAudio:
 		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil
 
 	case TypeVideo:
 		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Video); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil
 
 	case TypeImage:
 		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Image); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil
 
 	case TypeDocument:
 		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Document); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil
 
 	case TypeSticker:
 		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Sticker); err != nil {
-			return fmt.Errorf("%w: %v", ErrMediaMessageHandler, err)
+			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil

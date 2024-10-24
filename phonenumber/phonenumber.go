@@ -134,7 +134,7 @@ func (c *BaseClient) List(ctx context.Context) (*ListResponse, error) {
 
 	response, err := c.Sender.Send(ctx, conf, req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list: %w", err)
 	}
 
 	return response.ListPhoneNumbersResponse(), nil
@@ -156,7 +156,7 @@ func (c *BaseClient) Get(ctx context.Context, req *GetRequest) (*PhoneNumber, er
 
 	response, err := c.Sender.Send(ctx, conf, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get phone number: %w", err)
 	}
 
 	return response.PhoneNumber(), nil
@@ -257,7 +257,7 @@ func (c *Client) List(ctx context.Context) (*ListResponse, error) {
 
 	response, err := c.Sender.Send(ctx, c.Config, req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list phone numbers: %w", err)
 	}
 
 	return response.ListPhoneNumbersResponse(), nil

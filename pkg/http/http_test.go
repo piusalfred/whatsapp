@@ -353,7 +353,8 @@ func TestRequestWithContext(t *testing.T) {
 			}
 			for key := range tt.want.Header {
 				if got.Header.Get(key) != tt.want.Header.Get(key) {
-					t.Errorf("RequestWithContext() header %v mismatch, want %v, got %v", key, tt.want.Header.Get(key), got.Header.Get(key))
+					t.Errorf("RequestWithContext() header %v mismatch, want %v,"+
+						" got %v", key, tt.want.Header.Get(key), got.Header.Get(key))
 				}
 			}
 
@@ -420,7 +421,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 			response: &http.Response{
 				Body: io.NopCloser(strings.NewReader(`{"name": "John", "age": 30}`)),
 			},
-			fn: func(ctx context.Context, reader io.Reader) error {
+			fn: func(_ context.Context, reader io.Reader) error {
 				var result map[string]interface{}
 				err := json.NewDecoder(reader).Decode(&result)
 				if err != nil {
@@ -430,6 +431,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 				if result["name"] != "John" || result["age"] != float64(30) {
 					t.Errorf("expected name=John and age=30, got name=%v and age=%v", result["name"], result["age"])
 				}
+
 				return nil
 			},
 			expectedBody: `{"name": "John", "age": 30}`,
@@ -440,7 +442,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 			response: &http.Response{
 				Body: io.NopCloser(strings.NewReader("Hello, World!")),
 			},
-			fn: func(ctx context.Context, reader io.Reader) error {
+			fn: func(_ context.Context, reader io.Reader) error {
 				bodyBytes, err := io.ReadAll(reader)
 				if err != nil {
 					return fmt.Errorf("failed to read body: %w", err)
@@ -448,6 +450,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 				if string(bodyBytes) != "Hello, World!" {
 					t.Errorf("expected body 'Hello, World!', got %s", string(bodyBytes))
 				}
+
 				return nil
 			},
 			expectedBody: "Hello, World!",
@@ -458,7 +461,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 			response: &http.Response{
 				Body: io.NopCloser(bytes.NewReader(fileContent)),
 			},
-			fn: func(ctx context.Context, reader io.Reader) error {
+			fn: func(_ context.Context, reader io.Reader) error {
 				bodyBytes, err := io.ReadAll(reader)
 				if err != nil {
 					return fmt.Errorf("failed to read file content: %w", err)
@@ -467,6 +470,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 				if string(bodyBytes) != string(fileContent) {
 					t.Errorf("expected file content %q, got %q", "Hello World", string(bodyBytes))
 				}
+
 				return nil
 			},
 			expectedBody: "Hello World",

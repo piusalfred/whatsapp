@@ -36,7 +36,6 @@ import (
 	"strings"
 
 	"github.com/piusalfred/whatsapp/config"
-
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 

@@ -32,6 +32,8 @@ type (
 		AccessToken       string
 		PhoneNumberID     string
 		BusinessAccountID string
+		AppSecret         string
+		SecureRequests    bool
 	}
 
 	Reader interface {

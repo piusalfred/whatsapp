@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/piusalfred/whatsapp/pkg/crypto"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 	"github.com/piusalfred/whatsapp/pkg/types"
 )
@@ -125,7 +126,9 @@ func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decode
 	return nil
 }
 
-func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptorFunc, resHook ResponseInterceptorFunc) SenderFunc[T] {
+func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptorFunc,
+	resHook ResponseInterceptorFunc,
+) SenderFunc[T] {
 	fn := SenderFunc[T](func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
 		req, err := RequestWithContext(ctx, request)
 		if err != nil {
@@ -142,7 +145,10 @@ func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterce
 		if err != nil {
 			return fmt.Errorf("send req: %w", err)
 		}
-		defer response.Body.Close()
+
+		defer func(Body io.ReadCloser) {
+			_ = Body.Close()
+		}(response.Body)
 
 		if resHook != nil {
 			bodyBytes, errRead := io.ReadAll(response.Body)
@@ -226,22 +232,25 @@ const (
 	RequestTypeRefreshToken
 	RequestTypeGenerateToken
 	RequestTypeRevokeToken
+	RequestTypeTwoStepVerification
 )
 
 type (
 	RequestType uint8
 
 	Request[T any] struct {
-		Type        RequestType
-		Method      string
-		Bearer      string
-		Headers     map[string]string
-		QueryParams map[string]string
-		BaseURL     string
-		Endpoints   []string
-		Metadata    types.Metadata
-		Message     *T
-		Form        *RequestForm
+		Type           RequestType
+		Method         string
+		Bearer         string
+		Headers        map[string]string
+		QueryParams    map[string]string
+		BaseURL        string
+		Endpoints      []string
+		Metadata       types.Metadata
+		Message        *T
+		Form           *RequestForm
+		AppSecret      string
+		SecureRequests bool
 	}
 
 	RequestForm struct {
@@ -255,9 +264,11 @@ type (
 	}
 )
 
+var errNilRequest = errors.New("nil request provided")
+
 func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Request, error) {
 	if req == nil {
-		return nil, fmt.Errorf("nil context")
+		return nil, fmt.Errorf("request: %w", errNilRequest)
 	}
 	ctx = InjectMessageMetadata(ctx, req.Metadata)
 
@@ -270,9 +281,19 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Requ
 	if err != nil {
 		return nil, fmt.Errorf("parse url: %w", err)
 	}
+
 	q := parsedURL.Query()
+
 	for key, value := range req.QueryParams {
 		q.Set(key, value)
+	}
+
+	if req.SecureRequests {
+		proof, err := crypto.GenerateAppSecretProof(req.Bearer, req.AppSecret)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate app secret proof: %w", err)
+		}
+		q.Set("appsecret_proof", proof)
 	}
 
 	parsedURL.RawQuery = q.Encode()
@@ -291,13 +312,13 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Requ
 
 	r, err := http.NewRequestWithContext(ctx, req.Method, parsedURL.String(), body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create http request: %w", err)
 	}
 
 	r.Header.Set("Content-Type", contentType)
 
 	if req.Bearer != "" {
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", req.Bearer))
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer "+req.Bearer))
 	}
 
 	for key, value := range req.Headers {
@@ -356,7 +377,7 @@ func EncodePayload(payload any) (*EncodeResponse, error) {
 	}
 }
 
-// encodeFormData encodes form fields and file data into multipart/form-data
+// encodeFormData encodes form fields and file data into multipart/form-data.
 func encodeFormData(formData *RequestForm) (io.Reader, string, error) {
 	var payload bytes.Buffer
 	writer := multipart.NewWriter(&payload)
@@ -373,7 +394,10 @@ func encodeFormData(formData *RequestForm) (io.Reader, string, error) {
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to open file %s: %w", formData.FormFile.Path, err)
 		}
-		defer file.Close()
+
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(file)
 
 		part, err := writer.CreateFormFile(formData.FormFile.Name, filepath.Base(formData.FormFile.Path))
 		if err != nil {
@@ -418,6 +442,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 	}
 
 	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode < 300
+
 	if !isResponseOk {
 		if opts.InspectResponseError {
 			if len(responseBody) == 0 {

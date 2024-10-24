@@ -26,8 +26,9 @@ import (
 
 const (
 	BaseURL                   = "https://graph.facebook.com"
-	LowestSupportedApiVersion = "v16.0" // This is the lowest version of the API that is supported
+	LowestSupportedAPIVersion = "v16.0" // This is the lowest version of the API that is supported
 	MessageProduct            = "whatsapp"
+	lowestMajorVersion        = 16
 )
 
 // IsCorrectAPIVersion checks if the provided API version string is valid and supported.
@@ -42,15 +43,12 @@ func IsCorrectAPIVersion(apiVersion string) bool {
 
 	majorStr := matches[1]
 	major, _ := strconv.Atoi(majorStr)
-	if major < 16 {
+	if major < lowestMajorVersion {
 		return false
 	}
 
 	minorStr := matches[2]
 	minor, _ := strconv.Atoi(minorStr)
-	if minor < 0 {
-		return false
-	}
 
-	return true
+	return minor >= 0
 }

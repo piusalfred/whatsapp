@@ -96,16 +96,6 @@ func main() {
 
 	client := auth.NewClient(conf.BaseURL, conf.APIVersion, coreClient)
 
-	// INSTALL APPLICATION
-	//if err := client.InstallApp(ctx, auth.InstallAppParams{
-	//	AccessToken:  conf.AccessToken,
-	//	AppID:        conf.ApplicationID,
-	//	SystemUserID: conf.SystemUserID,
-	//}); err != nil {
-	//	logger.LogAttrs(ctx, slog.LevelError, "error installing apps", slog.String("error", err.Error()))
-	//	return
-	//}
-
 	response, err := client.GenerateAccessToken(ctx, auth.GenerateAccessTokenParams{
 		AccessToken:  conf.AccessToken,
 		AppID:        conf.ApplicationID,

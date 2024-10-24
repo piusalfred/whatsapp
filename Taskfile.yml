@@ -3,10 +3,10 @@ version: '3'
 tasks:
   clean:
     cmds:
+      - gci write --skip-generated -s standard -s default .
       - gofumpt -l -w .
       - go generate ./...
       - go test -v -race -coverpkg=./... -parallel=4 ./...
-      -
   update-message-examples-deps:
     dir: examples/message
     cmds:

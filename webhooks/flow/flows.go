@@ -78,6 +78,7 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					OldStatus: change.Value.OldStatus,
 					NewStatus: change.Value.NewStatus,
 				}
+
 				return handlers.FlowStatusChangeHandler(ctx, notificationCtx, details)
 			case EventClientErrorRate:
 				details := &ClientErrorRateDetails{
@@ -86,6 +87,7 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					AlertState: change.Value.AlertState,
 					Errors:     change.Value.Errors,
 				}
+
 				return handlers.ClientErrorRateHandler(ctx, notificationCtx, details)
 			case EventEndpointErrorRate:
 				details := &EndpointErrorRateDetails{
@@ -94,6 +96,7 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					AlertState: change.Value.AlertState,
 					Errors:     change.Value.Errors,
 				}
+
 				return handlers.EndpointErrorRateHandler(ctx, notificationCtx, details)
 			case EventEndpointLatency:
 				details := &EndpointLatencyDetails{
@@ -103,6 +106,7 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					Threshold:     change.Value.Threshold,
 					AlertState:    change.Value.AlertState,
 				}
+
 				return handlers.EndpointLatencyHandler(ctx, notificationCtx, details)
 			case EventEndpointAvailability:
 				details := &EndpointAvailabilityDetails{
@@ -110,10 +114,12 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					Threshold:    change.Value.Threshold,
 					AlertState:   change.Value.AlertState,
 				}
+
 				return handlers.EndpointAvailabilityHandler(ctx, notificationCtx, details)
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -122,7 +128,9 @@ type (
 	NotificationHandlerFunc webhooks.NotificationHandlerFunc[Notification]
 )
 
-func (e NotificationHandlerFunc) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
+func (e NotificationHandlerFunc) HandleNotification(ctx context.Context,
+	notification *Notification,
+) *webhooks.Response {
 	return e(ctx, notification)
 }
 

@@ -13,8 +13,6 @@ linters-settings:
     min-complexity: 20
   gocognit:
     min-complexity: 45
-  golint:
-    min-confidence: 0.8
   govet:
     min-confidence: 0.8
   exclude-use-default: true
@@ -60,19 +58,11 @@ linters:
     - rowserrcheck
     - sqlclosecheck
     - wsl
-    - golint
+    - gomnd
+    - mnd
     - tagliatelle
     - musttag
-    - exhaustivestruct
     - exhaustruct
-    - varcheck
-    - nosnakecase
-    - deadcode
-    - interfacer
-    - structcheck
-    - ifshort
-    - scopelint
-    - maligned
     - wastedassign
     - dupword
     - varnamelen
