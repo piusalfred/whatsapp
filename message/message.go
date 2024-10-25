@@ -377,17 +377,17 @@ func (fn SenderFunc) Send(ctx context.Context, conf *config.Config, request *Bas
 }
 
 func (c *BaseSender) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*Response, error) {
-	req := &whttp.Request[Message]{
-		Type:           request.Type,
-		Method:         request.Method,
-		Bearer:         conf.AccessToken,
-		BaseURL:        conf.BaseURL,
-		Endpoints:      []string{conf.APIVersion, conf.PhoneNumberID, Endpoint},
-		Message:        request.Message,
-		Metadata:       request.Metadata,
-		AppSecret:      conf.AppSecret,
-		SecureRequests: conf.SecureRequests,
+	options := []whttp.RequestOption[Message]{
+		whttp.WithRequestEndpoints[Message](conf.APIVersion, conf.PhoneNumberID, Endpoint),
+		whttp.WithRequestBearer[Message](conf.AccessToken),
+		whttp.WithRequestType[Message](request.Type),
+		whttp.WithRequestAppSecret[Message](conf.AppSecret),
+		whttp.WithRequestSecured[Message](conf.SecureRequests),
+		whttp.WithRequestMessage[Message](request.Message),
+		whttp.WithRequestMetadata[Message](request.Metadata),
 	}
+
+	req := whttp.MakeRequest[Message](request.Method, conf.BaseURL, options...)
 
 	response := &Response{}
 

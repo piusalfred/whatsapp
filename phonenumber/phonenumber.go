@@ -199,14 +199,16 @@ func (c *BaseSender) Send(ctx context.Context, conf *config.Config, req *BaseReq
 		endpoints = append(endpoints, conf.PhoneNumberID)
 	}
 
-	request := &whttp.Request[any]{
-		Type:        req.Type,
-		Method:      req.Method,
-		Bearer:      conf.AccessToken,
-		BaseURL:     conf.BaseURL,
-		Endpoints:   endpoints,
-		QueryParams: req.QueryParams,
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestEndpoints[any](endpoints...),
+		whttp.WithRequestQueryParams[any](req.QueryParams),
+		whttp.WithRequestBearer[any](conf.AccessToken),
+		whttp.WithRequestType[any](req.Type),
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
 	}
+
+	request := whttp.MakeRequest(req.Method, conf.BaseURL, opts...)
 
 	response := &Response{}
 
