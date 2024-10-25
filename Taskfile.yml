@@ -6,6 +6,7 @@ tasks:
       - gci write --skip-generated -s standard -s default .
       - gofumpt -l -w .
       - go generate ./...
+      - golangci-lint run --fix
       - go test -v -race -coverpkg=./... -parallel=4 ./...
   update-message-examples-deps:
     dir: examples/message
@@ -27,3 +28,6 @@ tasks:
       - go build -trimpath -race -o bin/message message/main.go
       - go build -trimpath -race -o bin/qr qr/main.go
       - go build -trimpath -race -o bin/auth auth/main.go
+  lint-check:
+    cmds:
+      - golangci-lint run
