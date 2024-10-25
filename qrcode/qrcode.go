@@ -341,13 +341,15 @@ func (sender *BaseSender) Send(ctx context.Context, conf *config.Config, req *Ba
 		endpoints = append(endpoints, req.QRCodeID)
 	}
 
-	request := &whttp.Request[any]{
-		Type:        req.Type,
-		Method:      req.Method,
-		BaseURL:     conf.BaseURL,
-		Endpoints:   endpoints,
-		QueryParams: req.QueryParams,
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestType[any](req.Type),
+		whttp.WithRequestEndpoints[any](endpoints...),
+		whttp.WithRequestQueryParams[any](req.QueryParams),
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
 	}
+
+	request := whttp.MakeRequest[any](req.Method, conf.BaseURL, opts...)
 
 	response := &Response{}
 

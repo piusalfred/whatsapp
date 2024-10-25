@@ -69,14 +69,16 @@ func (client *BaseClient) GetFlowMetrics(ctx context.Context, request *MetricsRe
 			request.MetricName, request.Granularity, request.Since.Format(time.DateOnly), request.Until.Format(time.DateOnly)),
 	}
 
-	req := &whttp.Request[any]{
-		Type:        whttp.RequestTypeGetFlowMetrics,
-		Method:      http.MethodGet,
-		Bearer:      conf.AccessToken,
-		QueryParams: queryParams,
-		BaseURL:     conf.BaseURL,
-		Endpoints:   []string{conf.APIVersion, request.FlowID},
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestType[any](whttp.RequestTypeGetFlowMetrics),
+		whttp.WithRequestBearer[any](conf.AccessToken),
+		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestEndpoints[any](conf.APIVersion, request.FlowID),
 	}
+
+	req := whttp.MakeRequest[any](http.MethodGet, conf.BaseURL, opts...)
 
 	var resp MetricsAPIResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{

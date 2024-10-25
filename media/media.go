@@ -278,12 +278,15 @@ func (s *BaseClient) Download(ctx context.Context, request *DownloadRequest, dec
 	if err != nil {
 		return fmt.Errorf("%w: config read: %w", ErrMediaDownload, err)
 	}
-	req := &whttp.Request[any]{
-		Type:    whttp.RequestTypeDownloadMedia,
-		Method:  http.MethodGet,
-		BaseURL: request.URL,
-		Bearer:  conf.AccessToken,
+
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestBearer[any](conf.AccessToken),
+		whttp.WithRequestType[any](whttp.RequestTypeDownloadMedia),
 	}
+
+	req := whttp.MakeRequest[any](http.MethodGet, request.URL, opts...)
 
 	for i := 0; i <= request.Retries; i++ {
 		if err := s.Sender.Send(ctx, req, decoder); err != nil {
@@ -316,14 +319,16 @@ func (s *BaseClient) Delete(ctx context.Context, req *BaseRequest) (*DeleteMedia
 		queryParams["phone_number_id"] = phoneNumberID
 	}
 
-	request := &whttp.Request[any]{
-		Type:        whttp.RequestTypeDeleteMedia,
-		Method:      http.MethodDelete,
-		Bearer:      conf.AccessToken,
-		BaseURL:     conf.BaseURL,
-		QueryParams: queryParams,
-		Endpoints:   []string{conf.APIVersion, req.MediaID},
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestBearer[any](conf.AccessToken),
+		whttp.WithRequestType[any](whttp.RequestTypeDeleteMedia),
+		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestEndpoints[any](conf.APIVersion, req.MediaID),
 	}
+
+	request := whttp.MakeRequest[any](http.MethodDelete, conf.BaseURL, opts...)
 
 	var resp DeleteMediaResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
@@ -354,14 +359,15 @@ func (s *BaseClient) GetInfo(ctx context.Context, req *BaseRequest) (*Informatio
 		queryParams["phone_number_id"] = phoneNumberID
 	}
 
-	request := &whttp.Request[any]{
-		Type:        whttp.RequestTypeGetMedia,
-		Method:      http.MethodGet,
-		Bearer:      conf.AccessToken,
-		QueryParams: queryParams,
-		BaseURL:     conf.BaseURL,
-		Endpoints:   []string{conf.APIVersion, req.MediaID},
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestType[any](whttp.RequestTypeGetMedia),
+		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestEndpoints[any](conf.APIVersion, req.MediaID),
 	}
+
+	request := whttp.MakeRequest[any](http.MethodGet, conf.BaseURL, opts...)
 
 	var info Information
 	decoder := whttp.ResponseDecoderJSON(&info, whttp.DecodeOptions{
@@ -388,26 +394,27 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 		return nil, fmt.Errorf("%w: media type not supported", ErrMediaUpload)
 	}
 
-	request := &whttp.Request[any]{
-		Type:        whttp.RequestTypeUploadMedia,
-		Method:      http.MethodPost,
-		Bearer:      conf.AccessToken,
-		QueryParams: nil,
-		BaseURL:     conf.BaseURL,
-		Endpoints:   []string{conf.APIVersion, conf.PhoneNumberID, "media"},
-		Metadata:    nil,
-		Message:     nil,
-		Form: &whttp.RequestForm{
-			Fields: map[string]string{
-				"type":              string(req.MediaType),
-				"messaging_product": "whatsapp",
-			},
-			FormFile: &whttp.FormFile{
-				Name: "file",
-				Path: req.Filename,
-			},
+	form := &whttp.RequestForm{
+		Fields: map[string]string{
+			"type":              string(req.MediaType),
+			"messaging_product": "whatsapp",
+		},
+		FormFile: &whttp.FormFile{
+			Name: "file",
+			Path: req.Filename,
 		},
 	}
+
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestBearer[any](conf.AccessToken),
+		whttp.WithRequestType[any](whttp.RequestTypeUploadMedia),
+		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.PhoneNumberID, "media"),
+		whttp.WithRequestForm[any](form),
+	}
+
+	request := whttp.MakeRequest[any](http.MethodPost, conf.BaseURL, opts...)
 
 	var resp UploadMediaResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
