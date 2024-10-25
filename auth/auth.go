@@ -274,13 +274,15 @@ func (c *Client) RefreshAccessToken(ctx context.Context,
 	if params.SetTokenExpiresIn60 {
 		queryParams["set_token_expires_in_60_days"] = "true"
 	}
-	req := &whttp.Request[any]{
-		Type:        whttp.RequestTypeRefreshToken,
-		BaseURL:     c.baseURL,
-		Method:      http.MethodGet,
-		Endpoints:   []string{c.apiVersion, "/oauth/access_token"},
-		QueryParams: queryParams,
+
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestType[any](whttp.RequestTypeRefreshToken),
+		whttp.WithRequestEndpoints[any](c.apiVersion, "/oauth/access_token"),
+		whttp.WithRequestQueryParams[any](queryParams),
 	}
+
+	req := whttp.MakeRequest[any](http.MethodGet, c.baseURL, opts...)
+
 	res := &RefreshAccessTokenResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		DisallowUnknownFields: false,

@@ -401,26 +401,27 @@ func (client *BaseClient) UpdateFlowJSON(ctx context.Context,
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 
-	req := &whttp.Request[any]{
-		Type:        whttp.RequestTypeUploadMedia,
-		Method:      http.MethodPost,
-		Bearer:      conf.AccessToken,
-		QueryParams: nil,
-		BaseURL:     conf.BaseURL,
-		Endpoints:   []string{conf.APIVersion, conf.PhoneNumberID, "media"},
-		Metadata:    nil,
-		Message:     nil,
-		Form: &whttp.RequestForm{
-			Fields: map[string]string{
-				"name":       request.Name,
-				"asset_type": "FLOW_JSON",
-			},
-			FormFile: &whttp.FormFile{
-				Name: "file",
-				Path: request.File,
-			},
+	form := &whttp.RequestForm{
+		Fields: map[string]string{
+			"name":       request.Name,
+			"asset_type": "FLOW_JSON",
+		},
+		FormFile: &whttp.FormFile{
+			Name: "file",
+			Path: request.File,
 		},
 	}
+
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestType[any](whttp.RequestTypeUploadMedia),
+		whttp.WithRequestBearer[any](conf.AccessToken),
+		whttp.WithRequestForm[any](form),
+		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.PhoneNumberID, "media"),
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
+	}
+
+	req := whttp.MakeRequest[any](http.MethodPost, conf.BaseURL, opts...)
 
 	var resp UpdateFlowJSONResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{

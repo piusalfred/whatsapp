@@ -95,18 +95,20 @@ func (s *BaseSender) Send(ctx context.Context, config *config.Config, request *B
 		params["fields"] = fields
 	}
 
-	req := &whttp.Request[any]{
-		Type:        request.Type,
-		Method:      request.Method,
-		BaseURL:     config.BaseURL,
-		Endpoints:   []string{config.APIVersion, config.PhoneNumberID, Endpoint},
-		QueryParams: params,
-		Bearer:      config.AccessToken,
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestEndpoints[any](config.APIVersion, config.PhoneNumberID, Endpoint),
+		whttp.WithRequestQueryParams[any](params),
+		whttp.WithRequestBearer[any](config.AccessToken),
+		whttp.WithRequestType[any](request.Type),
+		whttp.WithRequestAppSecret[any](config.AppSecret),
+		whttp.WithRequestSecured[any](config.SecureRequests),
 	}
 
 	if request.Payload != nil {
-		req.Message = &request.Payload
+		opts = append(opts, whttp.WithRequestMessage[any](&request.Payload))
 	}
+
+	req := whttp.MakeRequest[any](request.Method, config.BaseURL, opts...)
 
 	response := &Response{}
 

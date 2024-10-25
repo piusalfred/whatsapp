@@ -262,7 +262,107 @@ type (
 		Name string
 		Path string
 	}
+
+	RequestOption[T any] func(request *Request[T])
 )
+
+// MakeRequest creates a new request with the provided options.
+func MakeRequest[T any](method, baseURL string, options ...RequestOption[T]) *Request[T] {
+	req := &Request[T]{
+		Method:      method,
+		BaseURL:     baseURL,
+		Headers:     make(map[string]string),
+		QueryParams: make(map[string]string),
+	}
+
+	for _, option := range options {
+		if option != nil {
+			option(req)
+		}
+	}
+
+	return req
+}
+
+// NewRequestWithContext ...
+func NewRequestWithContext[T any](ctx context.Context, method, baseURL string,
+	options ...RequestOption[T],
+) (*http.Request, error) {
+	req := MakeRequest[T](method, baseURL, options...)
+
+	return RequestWithContext(ctx, req)
+}
+
+// WithRequestType sets the request type for the request.
+func WithRequestType[T any](requestType RequestType) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.Type = requestType
+	}
+}
+
+// WithRequestBearer sets the bearer token for the request.
+func WithRequestBearer[T any](bearer string) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.Bearer = bearer
+	}
+}
+
+// WithRequestEndpoints sets the endpoints for the request.
+func WithRequestEndpoints[T any](endpoints ...string) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.Endpoints = endpoints
+	}
+}
+
+// WithRequestMetadata sets the metadata for the request.
+func WithRequestMetadata[T any](metadata types.Metadata) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.Metadata = metadata
+	}
+}
+
+// WithRequestHeaders sets the headers for the request.
+func WithRequestHeaders[T any](headers map[string]string) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.Headers = headers
+	}
+}
+
+// WithRequestQueryParams sets the query parameters for the request.
+func WithRequestQueryParams[T any](queryParams map[string]string) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.QueryParams = queryParams
+	}
+}
+
+// WithRequestMessage sets the message for the request.
+func WithRequestMessage[T any](message *T) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.Message = message
+	}
+}
+
+func WithRequestForm[T any](form *RequestForm) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.Form = form
+	}
+}
+
+// WithRequestAppSecret sets the app secret for the request and turns on secure requests.
+func WithRequestAppSecret[T any](appSecret string) RequestOption[T] {
+	return func(request *Request[T]) {
+		if request.AppSecret != "" {
+			request.AppSecret = appSecret
+		}
+	}
+}
+
+// WithRequestSecured sets the request to be secure.
+func WithRequestSecured[T any](secured bool) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.SecureRequests = secured
+	}
+}
 
 var errNilRequest = errors.New("nil request provided")
 
