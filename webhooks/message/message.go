@@ -238,7 +238,6 @@ type (
 const PayloadMaxSize = 3 * 1024 * 1024
 
 type (
-
 	// NotificationContext is the context of a notification contains information about the
 	// notification and the business that is subscribed to the Webhooks.
 	// these are common fields to all notifications.
@@ -290,10 +289,134 @@ type Handlers struct {
 	ReferralMessage     ReferralMessageHandler
 	CustomerIDChange    CustomerIDChangeHandler
 	SystemMessage       SystemMessageHandler
-	MediaMessage        MediaMessageHandler
+	AudioMessage        MediaMessageHandler
+	VideoMessage        MediaMessageHandler
+	ImageMessage        MediaMessageHandler
+	DocumentMessage     MediaMessageHandler
+	StickerMessage      MediaMessageHandler
 	NotificationError   ErrorHandler
 	MessageStatusChange StatusChangeHandler
 	MessageReceived     ReceivedHandler
+}
+
+// SetOrderMessageHandler sets the order message handler.
+func (handler *Handlers) SetOrderMessageHandler(h OrderMessageHandler) {
+	handler.OrderMessage = h
+}
+
+// SetButtonMessageHandler sets the button message handler.
+func (handler *Handlers) SetButtonMessageHandler(h ButtonMessageHandler) {
+	handler.ButtonMessage = h
+}
+
+// SetLocationMessageHandler sets the location message handler.
+func (handler *Handlers) SetLocationMessageHandler(h LocationMessageHandler) {
+	handler.LocationMessage = h
+}
+
+// SetContactsMessageHandler sets the contacts message handler.
+func (handler *Handlers) SetContactsMessageHandler(h ContactsMessageHandler) {
+	handler.ContactsMessage = h
+}
+
+// SetMessageReactionHandler sets the message reaction handler.
+func (handler *Handlers) SetMessageReactionHandler(h ReactionHandler) {
+	handler.MessageReaction = h
+}
+
+// SetUnknownMessageHandler sets the unknown message handler.
+func (handler *Handlers) SetUnknownMessageHandler(h ErrorsHandler) {
+	handler.UnknownMessage = h
+}
+
+// SetProductEnquiryHandler sets the product enquiry handler.
+func (handler *Handlers) SetProductEnquiryHandler(h ProductEnquiryHandler) {
+	handler.ProductEnquiry = h
+}
+
+// SetInteractiveMessageHandler sets the interactive message handler.
+func (handler *Handlers) SetInteractiveMessageHandler(h InteractiveMessageHandler) {
+	handler.InteractiveMessage = h
+}
+
+// SetButtonReplyMessageHandler sets the button reply message handler.
+func (handler *Handlers) SetButtonReplyMessageHandler(h ButtonReplyMessageHandler) {
+	handler.ButtonReply = h
+}
+
+// SetListReplyMessageHandler sets the list reply message handler.
+func (handler *Handlers) SetListReplyMessageHandler(h ListReplyMessageHandler) {
+	handler.ListReply = h
+}
+
+// SetFlowCompletionMessageHandler sets the flow completion message handler.
+func (handler *Handlers) SetFlowCompletionMessageHandler(h FlowCompletionMessageHandler) {
+	handler.FlowReply = h
+}
+
+// SetMessageErrorsHandler sets the message errors handler.
+func (handler *Handlers) SetMessageErrorsHandler(h ErrorsHandler) {
+	handler.MessageErrors = h
+}
+
+// SetTextMessageHandler sets the text message handler.
+func (handler *Handlers) SetTextMessageHandler(h TextMessageHandler) {
+	handler.TextMessage = h
+}
+
+// SetReferralMessageHandler sets the referral message handler.
+func (handler *Handlers) SetReferralMessageHandler(h ReferralMessageHandler) {
+	handler.ReferralMessage = h
+}
+
+// SetCustomerIDChangeHandler sets the customer ID change handler.
+func (handler *Handlers) SetCustomerIDChangeHandler(h CustomerIDChangeHandler) {
+	handler.CustomerIDChange = h
+}
+
+// SetSystemMessageHandler sets the system message handler.
+func (handler *Handlers) SetSystemMessageHandler(h SystemMessageHandler) {
+	handler.SystemMessage = h
+}
+
+// SetAudioMessageHandler sets the audio message handler.
+func (handler *Handlers) SetAudioMessageHandler(h MediaMessageHandler) {
+	handler.AudioMessage = h
+}
+
+// SetVideoMessageHandler sets the video message handler.
+func (handler *Handlers) SetVideoMessageHandler(h MediaMessageHandler) {
+	handler.VideoMessage = h
+}
+
+// SetImageMessageHandler sets the image message handler.
+func (handler *Handlers) SetImageMessageHandler(h MediaMessageHandler) {
+	handler.ImageMessage = h
+}
+
+// SetDocumentMessageHandler sets the document message handler.
+func (handler *Handlers) SetDocumentMessageHandler(h MediaMessageHandler) {
+	handler.DocumentMessage = h
+}
+
+// SetStickerMessageHandler sets the sticker message handler.
+func (handler *Handlers) SetStickerMessageHandler(h MediaMessageHandler) {
+	handler.StickerMessage = h
+}
+
+// SetNotificationErrorHandler sets the notification error handler.
+func (handler *Handlers) SetNotificationErrorHandler(h ErrorHandler) {
+	handler.NotificationError = h
+}
+
+// SetMessageStatusChangeHandler sets the message status change handler.
+func (handler *Handlers) SetMessageStatusChangeHandler(h StatusChangeHandler) {
+	handler.MessageStatusChange = h
+}
+
+// SetMessageReceivedHandler sets the message received handler.
+func (handler *Handlers) SetMessageReceivedHandler(h ReceivedHandler) {
+	handler.MessageReceived = h
 }
 
 func (handler *Handlers) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
@@ -458,35 +581,35 @@ func (handler *Handlers) handleMediaMessage(ctx context.Context, nctx *Notificat
 	messageType := ParseType(message.Type)
 	switch messageType { //nolint:exhaustive
 	case TypeAudio:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
+		if err := handler.AudioMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
 			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil
 
 	case TypeVideo:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Video); err != nil {
+		if err := handler.VideoMessage.Handle(ctx, nctx, mctx, message.Video); err != nil {
 			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil
 
 	case TypeImage:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Image); err != nil {
+		if err := handler.ImageMessage.Handle(ctx, nctx, mctx, message.Image); err != nil {
 			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil
 
 	case TypeDocument:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Document); err != nil {
+		if err := handler.DocumentMessage.Handle(ctx, nctx, mctx, message.Document); err != nil {
 			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
 		return nil
 
 	case TypeSticker:
-		if err := handler.MediaMessage.Handle(ctx, nctx, mctx, message.Sticker); err != nil {
+		if err := handler.StickerMessage.Handle(ctx, nctx, mctx, message.Sticker); err != nil {
 			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)
 		}
 
