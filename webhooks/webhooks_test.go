@@ -65,6 +65,17 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 		challenge       string
 	}
 
+	printNotificationMiddleware := webhooks.HandleMiddleware[message.Notification](
+		func(handlerFunc webhooks.NotificationHandlerFunc[message.Notification]) webhooks.NotificationHandlerFunc[message.Notification] {
+			return func(ctx context.Context, notification *message.Notification) *webhooks.Response {
+				fmt.Println("Before middleware")
+				resp := handlerFunc.HandleNotification(ctx, notification)
+				fmt.Println("After middleware")
+
+				return resp
+			}
+		})
+
 	tests := []testCase[message.Notification]{
 		{
 			name: "normal text message webhook",
@@ -86,8 +97,9 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 
 				return webhooks.NotificationHandlerFunc[message.Notification](handler.HandleNotification)
 			},
-			payload:   []byte(`{"object": "whatsapp_business_account", "entry": [{"id": "<WHATSAPP_BUSINESS_ACCOUNT_ID>", "changes": [{"value": {"messaging_product": "whatsapp", "contacts": [{"profile": {"name": "<WHATSAPP_USER_NAME>"}, "wa_id": "<WHATSAPP_USER_ID>"}], "messages": [{"from": "<WHATSAPP_USER_PHONE_NUMBER>", "id": "<WHATSAPP_MESSAGE_ID>", "timestamp": "<WEBHOOK_SENT_TIMESTAMP>", "text": {"body": "dudeeeee"}, "type": "text"}]}, "field": "messages"}]}]}`),
-			challenge: "SAYCHEESEIFYOUKNOWWHATIMEAN",
+			middlewares: []webhooks.HandleMiddleware[message.Notification]{printNotificationMiddleware},
+			payload:     []byte(`{"object": "whatsapp_business_account", "entry": [{"id": "<WHATSAPP_BUSINESS_ACCOUNT_ID>", "changes": [{"value": {"messaging_product": "whatsapp", "contacts": [{"profile": {"name": "<WHATSAPP_USER_NAME>"}, "wa_id": "<WHATSAPP_USER_ID>"}], "messages": [{"from": "<WHATSAPP_USER_PHONE_NUMBER>", "id": "<WHATSAPP_MESSAGE_ID>", "timestamp": "<WEBHOOK_SENT_TIMESTAMP>", "text": {"body": "dudeeeee"}, "type": "text"}]}, "field": "messages"}]}]}`),
+			challenge:   "SAYCHEESEIFYOUKNOWWHATIMEAN",
 		},
 	}
 

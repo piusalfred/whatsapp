@@ -21,6 +21,7 @@ package business
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/piusalfred/whatsapp/webhooks"
 )
@@ -39,7 +40,7 @@ type (
 
 	Change struct {
 		Field string `json:"field"` // e.g., "message_template_status_update"
-		Value Value  `json:"value"`
+		Value *Value `json:"value"`
 	}
 
 	// Value holds details related to message templates, account limits, and status updates.
@@ -139,4 +140,46 @@ func (e NotificationHandlerFunc) HandleNotification(ctx context.Context,
 	notification *Notification,
 ) *webhooks.Response {
 	return e(ctx, notification)
+}
+
+type (
+	// NotificationContext holds the context of the webhook event. Information includes the object type, ID,
+	// and timestamp. that helps to identify the webhook event.
+	NotificationContext struct {
+		Object      string
+		EntryID     string
+		EntryTime   int64
+		ChangeField string
+	}
+
+	EvenHandler interface {
+		HandleEvent(ctx context.Context, ntx *NotificationContext, notification *Value) error
+	}
+
+	EventHandlerFunc func(ctx context.Context, ntx *NotificationContext, notification *Value) error
+
+	HandleEventFunc func(ctx context.Context, event *NotificationContext, value *Value) error
+)
+
+func (fn EventHandlerFunc) HandleEvent(ctx context.Context, ntx *NotificationContext, notification *Value) error {
+	return fn(ctx, ntx, notification)
+}
+
+func (fn HandleEventFunc) HandleNotification(ctx context.Context,
+	notification *Notification,
+) *webhooks.Response {
+	ec := &NotificationContext{}
+	for _, entry := range notification.Entry {
+		ec.Object = notification.Object
+		ec.EntryID = entry.ID
+		ec.EntryTime = entry.Time
+		for _, change := range entry.Changes {
+			ec.ChangeField = change.Field
+			if err := fn(ctx, ec, change.Value); err != nil {
+				return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+			}
+		}
+	}
+
+	return &webhooks.Response{StatusCode: http.StatusOK}
 }
