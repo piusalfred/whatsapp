@@ -23,6 +23,7 @@ package flow
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/piusalfred/whatsapp/webhooks"
@@ -44,11 +45,11 @@ const (
 var _ NotificationHandler = (*Handlers)(nil)
 
 type Handlers struct {
-	FlowStatusChangeHandler     EventHandlerFunc[StatusChangeDetails]
-	ClientErrorRateHandler      EventHandlerFunc[ClientErrorRateDetails]
-	EndpointErrorRateHandler    EventHandlerFunc[EndpointErrorRateDetails]
-	EndpointLatencyHandler      EventHandlerFunc[EndpointLatencyDetails]
-	EndpointAvailabilityHandler EventHandlerFunc[EndpointAvailabilityDetails]
+	FlowStatusChangeHandler     EventHandler[StatusChangeDetails]
+	ClientErrorRateHandler      EventHandler[ClientErrorRateDetails]
+	EndpointErrorRateHandler    EventHandler[EndpointErrorRateDetails]
+	EndpointLatencyHandler      EventHandler[EndpointLatencyDetails]
+	EndpointAvailabilityHandler EventHandler[EndpointAvailabilityDetails]
 }
 
 func (handlers *Handlers) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
@@ -79,7 +80,11 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					NewStatus: change.Value.NewStatus,
 				}
 
-				return handlers.FlowStatusChangeHandler(ctx, notificationCtx, details)
+				if err := handlers.FlowStatusChangeHandler.HandleEvent(ctx, notificationCtx, details); err != nil {
+					return fmt.Errorf("handle flow status change event: %w", err)
+				}
+
+				return nil
 			case EventClientErrorRate:
 				details := &ClientErrorRateDetails{
 					ErrorRate:  change.Value.ErrorRate,
@@ -88,7 +93,11 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					Errors:     change.Value.Errors,
 				}
 
-				return handlers.ClientErrorRateHandler(ctx, notificationCtx, details)
+				if err := handlers.ClientErrorRateHandler.HandleEvent(ctx, notificationCtx, details); err != nil {
+					return fmt.Errorf("handle client error rate event: %w", err)
+				}
+
+				return nil
 			case EventEndpointErrorRate:
 				details := &EndpointErrorRateDetails{
 					ErrorRate:  change.Value.ErrorRate,
@@ -97,7 +106,11 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					Errors:     change.Value.Errors,
 				}
 
-				return handlers.EndpointErrorRateHandler(ctx, notificationCtx, details)
+				if err := handlers.EndpointErrorRateHandler.HandleEvent(ctx, notificationCtx, details); err != nil {
+					return fmt.Errorf("handle endpoint error rate event: %w", err)
+				}
+
+				return nil
 			case EventEndpointLatency:
 				details := &EndpointLatencyDetails{
 					P50Latency:    change.Value.P50Latency,
@@ -107,7 +120,11 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					AlertState:    change.Value.AlertState,
 				}
 
-				return handlers.EndpointLatencyHandler(ctx, notificationCtx, details)
+				if err := handlers.EndpointLatencyHandler.HandleEvent(ctx, notificationCtx, details); err != nil {
+					return fmt.Errorf("handle endpoint latency event: %w", err)
+				}
+
+				return nil
 			case EventEndpointAvailability:
 				details := &EndpointAvailabilityDetails{
 					Availability: change.Value.Availability,
@@ -115,7 +132,11 @@ func (handlers *Handlers) dispatchNotification(ctx context.Context, notification
 					AlertState:   change.Value.AlertState,
 				}
 
-				return handlers.EndpointAvailabilityHandler(ctx, notificationCtx, details)
+				if err := handlers.EndpointAvailabilityHandler.HandleEvent(ctx, notificationCtx, details); err != nil {
+					return fmt.Errorf("handle endpoint availability event: %w", err)
+				}
+
+				return nil
 			}
 		}
 	}
@@ -135,7 +156,7 @@ func (e NotificationHandlerFunc) HandleNotification(ctx context.Context,
 }
 
 type (
-	EvenHandler[T any] interface {
+	EventHandler[T any] interface {
 		HandleEvent(ctx context.Context, ntx *NotificationContext, notification *T) error
 	}
 

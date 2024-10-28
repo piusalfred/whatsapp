@@ -34,6 +34,8 @@ import (
 )
 
 type Listener[T any] struct {
+	middlewares       []HandleMiddleware[T]
+	originalHandler   NotificationHandlerFunc[T]
 	Handler           NotificationHandlerFunc[T]
 	VerifyTokenReader VerifyTokenReader
 	ValidateOptions   *ValidateOptions
@@ -49,6 +51,8 @@ func NewListener[T any](handler NotificationHandlerFunc[T],
 	}
 
 	return &Listener[T]{
+		middlewares:       middlewares,
+		originalHandler:   handler,
 		Handler:           wrappedHandler,
 		VerifyTokenReader: reader,
 		ValidateOptions:   validateOpts,
