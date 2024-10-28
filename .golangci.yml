@@ -53,6 +53,7 @@ linters:
     - depguard
     - forbidigo
     - exportloopref
+    - ireturn
 
 output:
   formats:

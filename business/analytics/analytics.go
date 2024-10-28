@@ -12,121 +12,69 @@ import (
 )
 
 type (
-	// ConversationAnalyticsEntry represents an entry in the conversation analytics data.
-	ConversationAnalyticsEntry struct {
+	ConversationAnalytics struct {
+		Data []*Data `json:"data,omitempty"`
+	}
+
+	ConversationAnalyticsResponse struct {
+		ConversationAnalytics *ConversationAnalytics `json:"conversation_analytics,omitempty"`
+		ID                    string                 `json:"id,omitempty"`
+	}
+
+	Data struct {
 		DataPoints []*DataPoint `json:"data_points,omitempty"`
 	}
 
-	// ConversationData represents the data in the conversation analytics response.
-	ConversationData struct {
-		Data []*ConversationAnalyticsEntry `json:"data,omitempty"`
+	PricingAnalytics struct {
+		Data []*Data `json:"data,omitempty"`
 	}
 
-	// ConversationAnalyticsResponse represents the response from the conversation analytics request.
-	ConversationAnalyticsResponse struct {
-		ConversationAnalytics *ConversationData `json:"conversation_analytics,omitempty"`
-		ID                    string            `json:"id,omitempty"`
-	}
-
-	// TemplateAnalyticsRequest represents the request to get template analytics.
-	TemplateAnalyticsRequest struct {
-		Fields      string   `json:"fields"` // Always 'template_analytics'
-		Start       int64    `json:"start"`
-		End         int64    `json:"end"`
-		Granularity string   `json:"granularity"`  // Must be 'DAILY'
-		TemplateIDs []string `json:"template_ids"` // Max 10
-		MetricTypes []string `json:"metric_types,omitempty"`
-	}
-
-	// TemplateCostMetric represents a cost metric in the template analytics response.
-	TemplateCostMetric struct {
-		Type  string  `json:"type,omitempty"`
-		Value float64 `json:"value,omitempty"`
-	}
-
-	// TemplateClicked represents a clicked metric in the template analytics response.
-	TemplateClicked struct {
-		Type          string `json:"type,omitempty"`
-		ButtonContent string `json:"button_content,omitempty"`
-		Count         int64  `json:"count,omitempty"`
-	}
-
-	// TemplateAnalyticsPoint represents a data point in the template analytics response.
-	TemplateAnalyticsPoint struct {
-		TemplateID string               `json:"template_id,omitempty"`
-		Start      int64                `json:"start,omitempty"`
-		End        int64                `json:"end,omitempty"`
-		Sent       int64                `json:"sent,omitempty"`
-		Delivered  int64                `json:"delivered,omitempty"`
-		Read       int64                `json:"read,omitempty"`
-		Clicked    []TemplateClicked    `json:"clicked,omitempty"`
-		Cost       []TemplateCostMetric `json:"cost,omitempty"`
-	}
-
-	// TemplateAnalyticsData represents the data in the template analytics response.
-	TemplateAnalyticsData struct {
-		Granularity string                   `json:"granularity,omitempty"`
-		ProductType string                   `json:"product_type,omitempty"`
-		DataPoints  []TemplateAnalyticsPoint `json:"data_points,omitempty"`
-	}
-
-	// Cursor represents pagination cursors.
-	Cursor struct {
-		Before string `json:"before,omitempty"`
-		After  string `json:"after,omitempty"`
-	}
-
-	// Paging represents pagination information.
-	Paging struct {
-		Cursors Cursor `json:"cursors,omitempty"`
-	}
-
-	// TemplateAnalyticsResponse represents the response from the template analytics request.
-	TemplateAnalyticsResponse struct {
-		Data   []TemplateAnalyticsData `json:"data,omitempty"`
-		Paging Paging                  `json:"paging,omitempty"`
-	}
-
-	// PricingAnalyticsRequest represents the request to get pricing analytics.
-	PricingAnalyticsRequest struct {
-		Fields            string   `json:"fields"` // Always 'pricing_analytics'
-		Start             int64    `json:"start"`
-		End               int64    `json:"end"`
-		Granularity       string   `json:"granularity"`
-		PhoneNumbers      []string `json:"phone_numbers,omitempty"`
-		CountryCodes      []string `json:"country_codes,omitempty"`
-		MetricTypes       []string `json:"metric_types,omitempty"`
-		PricingTypes      []string `json:"pricing_types,omitempty"`
-		PricingCategories []string `json:"pricing_categories,omitempty"`
-		Dimensions        []string `json:"dimensions,omitempty"`
-	}
-
-	// PricingDataPoint represents a data point in the pricing analytics response.
-	PricingDataPoint struct {
-		Start           int64   `json:"start,omitempty"`
-		End             int64   `json:"end,omitempty"`
-		Cost            float64 `json:"cost,omitempty"`
-		Volume          int64   `json:"volume,omitempty"`
-		PhoneNumber     string  `json:"phone_number,omitempty"`
-		Country         string  `json:"country,omitempty"`
-		PricingType     string  `json:"pricing_type,omitempty"`
-		PricingCategory string  `json:"pricing_category,omitempty"`
-	}
-
-	// PricingAnalyticsEntry represents an entry in the pricing analytics data.
-	PricingAnalyticsEntry struct {
-		DataPoints []PricingDataPoint `json:"data_points,omitempty"`
-	}
-
-	// PricingAnalyticsData represents the data in the pricing analytics response.
-	PricingAnalyticsData struct {
-		Data []PricingAnalyticsEntry `json:"data,omitempty"`
-	}
-
-	// PricingAnalyticsResponse represents the response from the pricing analytics request.
 	PricingAnalyticsResponse struct {
-		PricingAnalytics PricingAnalyticsData `json:"pricing_analytics,omitempty"`
-		ID               string               `json:"id,omitempty"`
+		PricingAnalytics *PricingAnalytics `json:"pricing_analytics,omitempty"`
+		ID               string            `json:"id,omitempty"`
+	}
+
+	DataPoint struct {
+		Start                 int64   `json:"start,omitempty"`
+		End                   int64   `json:"end,omitempty"`
+		Sent                  int64   `json:"sent,omitempty"`
+		Delivered             int64   `json:"delivered,omitempty"`
+		Conversation          int64   `json:"conversation,omitempty"`
+		PhoneNumber           string  `json:"phone_number,omitempty"`
+		Country               string  `json:"country,omitempty"`
+		ConversationType      string  `json:"conversation_type,omitempty"`
+		ConversationDirection string  `json:"conversation_direction,omitempty"`
+		ConversationCategory  string  `json:"conversation_category,omitempty"`
+		Cost                  float64 `json:"cost,omitempty"`
+		Volume                int64   `json:"volume,omitempty"`
+		PricingType           string  `json:"pricing_type,omitempty"`
+		PricingCategory       string  `json:"pricing_category,omitempty"`
+	}
+
+	GeneralAnalyticsRequest struct {
+		Start       int64
+		End         int64
+		Granularity Granularity
+		Options     []ParamsOption
+	}
+
+	ConversationAnalyticsRequest struct {
+		Start       int64
+		End         int64
+		Granularity Granularity
+		Options     []ConversationalParamsOption
+	}
+
+	GeneralResponse struct {
+		Analytics *Analytics `json:"analytics,omitempty"`
+		ID        string     `json:"id,omitempty"`
+	}
+
+	Analytics struct {
+		PhoneNumbers []string     `json:"phone_numbers,omitempty"`
+		CountryCodes []string     `json:"country_codes,omitempty"`
+		Granularity  string       `json:"granularity,omitempty"`
+		DataPoints   []*DataPoint `json:"data_points,omitempty"`
 	}
 )
 
@@ -178,9 +126,10 @@ type (
 	}
 
 	Response struct {
-		Analytics          *Analytics        `json:"analytics,omitempty"`
-		ConversationalData *ConversationData `json:"conversation_analytics,omitempty"`
-		ID                 string            `json:"id,omitempty"`
+		Analytics          *Analytics             `json:"analytics,omitempty"`
+		ConversationalData *ConversationAnalytics `json:"conversation_analytics,omitempty"`
+		PricingData        *PricingAnalytics      `json:"pricing_analytics,omitempty"`
+		ID                 string                 `json:"id,omitempty"`
 	}
 
 	Request struct {
@@ -223,6 +172,13 @@ func (response *Response) ConversationAnalytics() *ConversationAnalyticsResponse
 	}
 }
 
+func (response *Response) PricingAnalytics() *PricingAnalyticsResponse {
+	return &PricingAnalyticsResponse{
+		PricingAnalytics: response.PricingData,
+		ID:               response.ID,
+	}
+}
+
 func (f FetcherFunc) FetchAnalytics(ctx context.Context, request *Request) (*Response, error) {
 	return f(ctx, request)
 }
@@ -234,46 +190,6 @@ func wrapMiddleware(fetcher Fetcher, middlewares ...Middleware) Fetcher {
 	}
 
 	return fetcher
-}
-
-type GeneralAnalyticsRequest struct {
-	Start       int64
-	End         int64
-	Granularity Granularity
-	Options     []ParamsOption
-}
-
-type ConversationAnalyticsRequest struct {
-	Start       int64
-	End         int64
-	Granularity Granularity
-	Options     []ConversationalParamsOption
-}
-
-type GeneralResponse struct {
-	Analytics *Analytics `json:"analytics,omitempty"`
-	ID        string     `json:"id,omitempty"`
-}
-
-type Analytics struct {
-	PhoneNumbers []string     `json:"phone_numbers,omitempty"`
-	CountryCodes []string     `json:"country_codes,omitempty"`
-	Granularity  string       `json:"granularity,omitempty"`
-	DataPoints   []*DataPoint `json:"data_points,omitempty"`
-}
-
-type DataPoint struct {
-	Start                 int64   `json:"start,omitempty"`
-	End                   int64   `json:"end,omitempty"`
-	Sent                  int64   `json:"sent,omitempty"`
-	Delivered             int64   `json:"delivered,omitempty"`
-	Conversation          int64   `json:"conversation,omitempty"`
-	PhoneNumber           string  `json:"phone_number,omitempty"`
-	Country               string  `json:"country,omitempty"`
-	ConversationType      string  `json:"conversation_type,omitempty"`
-	ConversationDirection string  `json:"conversation_direction,omitempty"`
-	ConversationCategory  string  `json:"conversation_category,omitempty"`
-	Cost                  float64 `json:"cost,omitempty"`
 }
 
 // FetchGeneralAnalytics fetches the general analytics data.
@@ -309,6 +225,29 @@ func (b *BaseClient) FetchConversationAnalytics(ctx context.Context,
 	}
 
 	return resp.ConversationAnalytics(), nil
+}
+
+type PricingAnalyticsRequest struct {
+	Start       int64
+	End         int64
+	Granularity Granularity
+	Options     []PricingAnalyticsParamsOption
+}
+
+// FetchPricingAnalytics fetches the pricing analytics data.
+func (b *BaseClient) FetchPricingAnalytics(ctx context.Context, params *PricingAnalyticsRequest) (
+	*PricingAnalyticsResponse, error,
+) {
+	coreFetcher := FetcherFunc(b.FetchAnalytics)
+	fetcher := wrapMiddleware(coreFetcher, b.Middlewares...)
+
+	request := NewPricingParameters(params.Start, params.End, params.Granularity, params.Options...)
+	resp, err := fetcher.FetchAnalytics(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("fetch pricing analytics: %w", err)
+	}
+
+	return resp.PricingAnalytics(), nil
 }
 
 func (b *BaseClient) FetchAnalytics(ctx context.Context, request *Request) (*Response, error) {
@@ -592,14 +531,12 @@ func (r *Request) QueryParamsString() string {
 		})
 	}
 
-	// dimensions
 	if len(r.Dimensions) > 0 {
 		AppendParamValue(&buffer, "dimensions", r.Dimensions, func(dimensions []Dimension) string {
 			return formatArray(dimensions, quoteString)
 		})
 	}
 
-	// Fields specific to analytics type
 	switch r.Fields { //nolint:exhaustive
 	case TypeGeneralAnalytics:
 		if len(r.ProductTypes) > 0 {
