@@ -240,3 +240,5 @@ There is provision of [**mocks**](./mocks) that may come handy in testing.
 - [Create, Retrieve and Update a System User](https://developers.facebook.com/docs/marketing-api/system-users/create-retrieve-update)
 - [Access Token Debugger](https://developers.facebook.com/tools/accesstoken/)
 - [Securing Requests](https://developers.facebook.com/docs/graph-api/guides/secure-requests)
+- [Analytics](https://developers.facebook.com/docs/whatsapp/business-management-api/analytics#analytics-parameters)
+- [Graph API Reference](https://developers.facebook.com/docs/graph-api)

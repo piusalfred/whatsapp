@@ -1,30 +1,29 @@
 package analytics
 
-type (
-	// TemplateAnalyticsRequest represents the request to get template analytics.
-	TemplateAnalyticsRequest struct {
-		Fields      string   `json:"fields"` // Always 'template_analytics'
-		Start       int64    `json:"start"`
-		End         int64    `json:"end"`
-		Granularity string   `json:"granularity"`  // Must be 'DAILY'
-		TemplateIDs []string `json:"template_ids"` // Max 10
-		MetricTypes []string `json:"metric_types,omitempty"`
-	}
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
 
-	// TemplateCostMetric represents a cost metric in the template analytics response.
+	"github.com/piusalfred/whatsapp/config"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
+)
+
+type (
 	TemplateCostMetric struct {
 		Type  string  `json:"type,omitempty"`
 		Value float64 `json:"value,omitempty"`
 	}
 
-	// TemplateClicked represents a clicked metric in the template analytics response.
 	TemplateClicked struct {
 		Type          string `json:"type,omitempty"`
 		ButtonContent string `json:"button_content,omitempty"`
 		Count         int64  `json:"count,omitempty"`
 	}
 
-	// TemplateAnalyticsPoint represents a data point in the template analytics response.
 	TemplateAnalyticsPoint struct {
 		TemplateID string               `json:"template_id,omitempty"`
 		Start      int64                `json:"start,omitempty"`
@@ -36,27 +35,184 @@ type (
 		Cost       []TemplateCostMetric `json:"cost,omitempty"`
 	}
 
-	// TemplateAnalyticsData represents the data in the template analytics response.
 	TemplateAnalyticsData struct {
 		Granularity string                   `json:"granularity,omitempty"`
 		ProductType string                   `json:"product_type,omitempty"`
 		DataPoints  []TemplateAnalyticsPoint `json:"data_points,omitempty"`
 	}
 
-	// Cursor represents pagination cursors.
 	Cursor struct {
 		Before string `json:"before,omitempty"`
 		After  string `json:"after,omitempty"`
 	}
 
-	// Paging represents pagination information.
 	Paging struct {
 		Cursors Cursor `json:"cursors,omitempty"`
 	}
 
-	// TemplateAnalyticsResponse represents the response from the template analytics request.
-	TemplateAnalyticsResponse struct {
+	TemplateAnalytics struct {
 		Data   []TemplateAnalyticsData `json:"data,omitempty"`
 		Paging Paging                  `json:"paging,omitempty"`
 	}
+
+	TemplatesClient struct {
+		reader config.Reader
+		sender whttp.Sender[any]
+	}
 )
+
+// NewTemplateAnalyticsClient returns a new instance of the TemplatesClient.
+func NewTemplateAnalyticsClient(reader config.Reader, sender whttp.Sender[any]) *TemplatesClient {
+	return &TemplatesClient{reader: reader, sender: sender}
+}
+
+type DisableButtonClickTrackingRequest struct {
+	TemplateID string `json:"template_id"`
+	OptOut     bool   `json:"cta_url_link_tracking_opted_out"`
+	Category   string `json:"category"`
+}
+
+type DisableButtonClickTrackingResponse struct {
+	Success bool `json:"success"`
+}
+
+func (c *TemplatesClient) DisableButtonClickTracking(ctx context.Context,
+	req *DisableButtonClickTrackingRequest,
+) (*DisableButtonClickTrackingResponse, error) {
+	conf, err := c.reader.Read(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+
+	queryParams := map[string]string{
+		"cta_url_link_tracking_opted_out": strconv.FormatBool(req.OptOut),
+		"category":                        req.Category,
+	}
+
+	options := []whttp.RequestOption[any]{
+		whttp.WithRequestType[any](whttp.RequestTypeDisableButtonClickTracking),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestBearer[any](conf.AccessToken),
+		whttp.WithRequestEndpoints[any](conf.APIVersion, req.TemplateID),
+		whttp.WithRequestQueryParams[any](queryParams),
+	}
+
+	request := whttp.MakeRequest[any](http.MethodPost, conf.BaseURL, options...)
+
+	response := &DisableButtonClickTrackingResponse{}
+
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		DisallowUnknownFields: true,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	})
+
+	if err := c.sender.Send(ctx, request, decoder); err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	return response, nil
+}
+
+type EnableTemplateAnalyticsResponse struct {
+	ID string `json:"id"`
+}
+
+// EnableAnalytics confirms template analytics on your WhatsApp Business Account. Once confirmed,
+// template analytics cannot be disabled.
+func (c *TemplatesClient) EnableAnalytics(ctx context.Context) (string, error) {
+	conf, err := c.reader.Read(ctx)
+	if err != nil {
+		return "", fmt.Errorf("read config: %w", err)
+	}
+
+	queryParams := map[string]string{
+		"is_enabled_for_insights": "true",
+	}
+
+	options := []whttp.RequestOption[any]{
+		whttp.WithRequestType[any](whttp.RequestTypeEnableTemplatesAnalytics),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestBearer[any](conf.AccessToken),
+		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.BusinessAccountID),
+		whttp.WithRequestQueryParams[any](queryParams),
+	}
+
+	req := whttp.MakeRequest[any](http.MethodPost, conf.BaseURL, options...)
+
+	response := &EnableTemplateAnalyticsResponse{}
+
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		DisallowUnknownFields: true,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	})
+
+	if err := c.sender.Send(ctx, req, decoder); err != nil {
+		return "", fmt.Errorf("send request: %w", err)
+	}
+
+	return response.ID, nil
+}
+
+type TemplateAnalyticsRequest struct {
+	Start       int64    `json:"start"`
+	End         int64    `json:"end"`
+	Templates   []string `json:"template_ids"`
+	MetricTypes []string `json:"metric_types,omitempty"`
+}
+
+var ErrInvalidTemplatesCount = errors.New("invalid number of templates")
+
+// FetchAnalytics fetches template analytics for the specified templates within the specified date range.
+func (c *TemplatesClient) FetchAnalytics(ctx context.Context, params *TemplateAnalyticsRequest) (
+	*TemplateAnalytics, error,
+) {
+	queryParams := map[string]string{}
+	queryParams["start"] = strconv.FormatInt(params.Start, 10)
+	queryParams["end"] = strconv.FormatInt(params.End, 10)
+	queryParams["granularity"] = GranularityDaily.String()
+	if len(params.Templates) > 0 && len(params.Templates) <= 10 {
+		queryParams["template_ids"] = "[" + strings.Join(params.Templates, ",") + "]"
+	} else {
+		return nil, fmt.Errorf("%w: count: %d: shold be >0 and < 11", ErrInvalidTemplatesCount, len(params.Templates))
+	}
+
+	if len(params.MetricTypes) > 0 {
+		queryParams["metric_types"] = strings.Join(params.MetricTypes, ",")
+	}
+
+	conf, err := c.reader.Read(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+
+	options := []whttp.RequestOption[any]{
+		whttp.WithRequestType[any](whttp.RequestTypeFetchTemplateAnalytics),
+		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestAppSecret[any](conf.AppSecret),
+		whttp.WithRequestBearer[any](conf.AccessToken),
+		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.BusinessAccountID, string(TypeTemplateAnalytics)),
+		whttp.WithRequestQueryParams[any](queryParams),
+	}
+
+	req := whttp.MakeRequest[any](http.MethodGet, conf.BaseURL,
+		options...,
+	)
+
+	response := &TemplateAnalytics{}
+
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		DisallowUnknownFields: true,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	})
+
+	if err := c.sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	return response, nil
+}
