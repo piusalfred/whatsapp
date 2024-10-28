@@ -278,6 +278,8 @@ func (r RequestType) String() string {
 		"fetch_template_analytics",
 		"fetch_pricing_analytics",
 		"fetch_conversation_analytics",
+		"enable_templates_analytics",
+		"disable_button_click_tracking",
 	}[r]
 }
 
