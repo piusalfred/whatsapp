@@ -10,6 +10,8 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
+//go:generate mockgen -destination=../mocks/auth/mock_auth.go -package=auth -source=auth.go
+
 type Client struct {
 	baseURL    string
 	apiVersion string

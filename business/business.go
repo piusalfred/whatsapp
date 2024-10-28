@@ -29,6 +29,8 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
+//go:generate mockgen -destination=../mocks/business/mock_business.go -package=business -source=business.go
+
 const (
 	Endpoint = "whatsapp_business_profile"
 )

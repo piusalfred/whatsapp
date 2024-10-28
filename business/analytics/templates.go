@@ -12,6 +12,8 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
+//go:generate mockgen -destination=../../mocks/business/analytics/mock_templates.go -package=analytics -source=templates.go
+
 type (
 	TemplateCostMetric struct {
 		Type  string  `json:"type,omitempty"`
@@ -50,7 +52,7 @@ type (
 		Cursors Cursor `json:"cursors,omitempty"`
 	}
 
-	TemplateAnalytics struct {
+	TemplateAnalyticsResponse struct {
 		Data   []TemplateAnalyticsData `json:"data,omitempty"`
 		Paging Paging                  `json:"paging,omitempty"`
 	}
@@ -119,9 +121,9 @@ type EnableTemplateAnalyticsResponse struct {
 	ID string `json:"id"`
 }
 
-// EnableAnalytics confirms template analytics on your WhatsApp Business Account. Once confirmed,
+// Enable confirms template analytics on your WhatsApp Business Account. Once confirmed,
 // template analytics cannot be disabled.
-func (c *TemplatesClient) EnableAnalytics(ctx context.Context) (string, error) {
+func (c *TemplatesClient) Enable(ctx context.Context) (string, error) {
 	conf, err := c.reader.Read(ctx)
 	if err != nil {
 		return "", fmt.Errorf("read config: %w", err)
@@ -166,9 +168,9 @@ type TemplateAnalyticsRequest struct {
 
 var ErrInvalidTemplatesCount = errors.New("invalid number of templates")
 
-// FetchAnalytics fetches template analytics for the specified templates within the specified date range.
-func (c *TemplatesClient) FetchAnalytics(ctx context.Context, params *TemplateAnalyticsRequest) (
-	*TemplateAnalytics, error,
+// Fetch fetches template analytics for the specified templates within the specified date range.
+func (c *TemplatesClient) Fetch(ctx context.Context, params *TemplateAnalyticsRequest) (
+	*TemplateAnalyticsResponse, error,
 ) {
 	queryParams := map[string]string{}
 	queryParams["start"] = strconv.FormatInt(params.Start, 10)
@@ -202,7 +204,7 @@ func (c *TemplatesClient) FetchAnalytics(ctx context.Context, params *TemplateAn
 		options...,
 	)
 
-	response := &TemplateAnalytics{}
+	response := &TemplateAnalyticsResponse{}
 
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
 		DisallowUnknownFields: true,
@@ -215,4 +217,14 @@ func (c *TemplatesClient) FetchAnalytics(ctx context.Context, params *TemplateAn
 	}
 
 	return response, nil
+}
+
+type TemplatesAnalytics interface {
+	DisableButtonClickTracking(ctx context.Context,
+		req *DisableButtonClickTrackingRequest,
+	) (*DisableButtonClickTrackingResponse, error)
+	Enable(ctx context.Context) (string, error)
+	Fetch(ctx context.Context, params *TemplateAnalyticsRequest) (
+		*TemplateAnalyticsResponse, error,
+	)
 }
