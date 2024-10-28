@@ -11,26 +11,26 @@ func TestQueryParamsString(t *testing.T) {
 	}
 
 	tests := []testCase{
-		// General Analytics Example
+		// General MessagingAnalytics Example
 		{
-			name: "General Analytics Example",
+			name: "General MessagingAnalytics Example",
 			generate: func() *Request {
-				return NewAnalyticsParameters(
+				return MakeMessagingAnalyticsQueryParams(
 					1685602800,
 					1688194800,
 					GranularityMonthly,
-					WithPhoneNumbers("16505550111", "16505550112"),
-					WithProductTypes(0, 2),
-					WithCountryCodes("US", "CA"),
+					WithMessagingPhoneNumbers("16505550111", "16505550112"),
+					WithMessagingProductTypes(0, 2),
+					WithMessagingCountryCodes("US", "CA"),
 				)
 			},
 			expected: "analytics.start(1685602800).end(1688194800).granularity(MONTHLY).phone_numbers([\"16505550111\",\"16505550112\"]).country_codes([\"US\",\"CA\"]).product_types([0,2])",
 		},
-		// Conversation Analytics Example 1
+		// Conversation MessagingAnalytics Example 1
 		{
-			name: "Conversation Analytics Example 1",
+			name: "Conversation MessagingAnalytics Example 1",
 			generate: func() *Request {
-				return NewConversationalParameters(
+				return MakeConversationalAnalyticsQueryParams(
 					1685602800,
 					1688194800,
 					GranularityMonthly,
@@ -44,11 +44,11 @@ func TestQueryParamsString(t *testing.T) {
 			},
 			expected: "conversation_analytics.start(1685602800).end(1688194800).granularity(MONTHLY).phone_numbers([]).dimensions([\"CONVERSATION_CATEGORY\",\"CONVERSATION_TYPE\",\"COUNTRY\",\"PHONE\"])",
 		},
-		// Conversation Analytics Example 2
+		// Conversation MessagingAnalytics Example 2
 		{
-			name: "Conversation Analytics Example 2",
+			name: "Conversation MessagingAnalytics Example 2",
 			generate: func() *Request {
-				return NewConversationalParameters(
+				return MakeConversationalAnalyticsQueryParams(
 					1685602800,
 					1685689200,
 					GranularityHalfHour,
@@ -63,11 +63,11 @@ func TestQueryParamsString(t *testing.T) {
 			},
 			expected: "conversation_analytics.start(1685602800).end(1685689200).granularity(HALF_HOUR).phone_numbers([\"19195552584\"]).dimensions([\"CONVERSATION_CATEGORY\",\"CONVERSATION_TYPE\",\"COUNTRY\",\"PHONE\"])",
 		},
-		// Conversation Analytics Example 3
+		// Conversation MessagingAnalytics Example 3
 		{
-			name: "Conversation Analytics Example 3",
+			name: "Conversation MessagingAnalytics Example 3",
 			generate: func() *Request {
-				return NewConversationalParameters(
+				return MakeConversationalAnalyticsQueryParams(
 					1685527200,
 					1685613600,
 					GranularityHalfHour,
@@ -83,11 +83,11 @@ func TestQueryParamsString(t *testing.T) {
 			},
 			expected: "conversation_analytics.start(1685527200).end(1685613600).granularity(HALF_HOUR).phone_numbers([]).dimensions([\"CONVERSATION_CATEGORY\",\"CONVERSATION_TYPE\"]).conversation_categories([\"MARKETING\",\"AUTHENTICATION\"])",
 		},
-		// Pricing Analytics Example
+		// Pricing MessagingAnalytics Example
 		{
-			name: "Pricing Analytics Example",
+			name: "Pricing MessagingAnalytics Example",
 			generate: func() *Request {
-				return NewPricingParameters(
+				return MakePricingAnalyticsQueryParams(
 					1685602800,
 					1688194800,
 					GranularityMonthly,

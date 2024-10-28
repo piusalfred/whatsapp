@@ -233,7 +233,55 @@ const (
 	RequestTypeGenerateToken
 	RequestTypeRevokeToken
 	RequestTypeTwoStepVerification
+	RequestTypeFetchMessagingAnalytics
+	RequestTypeFetchTemplateAnalytics
+	RequestTypeFetchPricingAnalytics
+	RequestTypeFetchConversationAnalytics
+	RequestTypeEnableTemplatesAnalytics
+	RequestTypeDisableButtonClickTracking
 )
+
+// String returns the string representation of the request type.
+func (r RequestType) String() string {
+	return [...]string{
+		"send_message",
+		"update_status",
+		"create_qr",
+		"list_qr",
+		"get_qr",
+		"update_qr",
+		"delete_qr",
+		"list_phone_numbers",
+		"get_phone_number",
+		"download_media",
+		"upload_media",
+		"delete_media",
+		"get_media",
+		"update_business_profile",
+		"get_business_profile",
+		"retrieve_flows",
+		"retrieve_flow_details",
+		"retrieve_assets",
+		"publish_flow",
+		"deprecate_flow",
+		"delete_flow",
+		"update_flow",
+		"create_flow",
+		"retrieve_flow_preview",
+		"get_flow_metrics",
+		"install_app",
+		"refresh_token",
+		"generate_token",
+		"revoke_token",
+		"two_step_verification",
+		"fetch_messaging_analytics",
+		"fetch_template_analytics",
+		"fetch_pricing_analytics",
+		"fetch_conversation_analytics",
+		"enable_templates_analytics",
+		"disable_button_click_tracking",
+	}[r]
+}
 
 type (
 	RequestType uint8
