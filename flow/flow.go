@@ -329,7 +329,7 @@ func (client *BaseClient) Send(ctx context.Context, conf *config.Config, req *Ba
 type (
 	BaseClient struct {
 		Reader config.Reader
-		Sender whttp.Sender[any]
+		Sender whttp.AnySender
 	}
 
 	GetRequest struct {
@@ -338,7 +338,7 @@ type (
 	}
 )
 
-func NewBaseClient(reader config.Reader, sender whttp.Sender[any]) *BaseClient {
+func NewBaseClient(reader config.Reader, sender whttp.AnySender) *BaseClient {
 	return &BaseClient{
 		Reader: reader,
 		Sender: sender,

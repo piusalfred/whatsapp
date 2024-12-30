@@ -59,12 +59,12 @@ type (
 
 	TemplatesClient struct {
 		reader config.Reader
-		sender whttp.Sender[any]
+		sender whttp.AnySender
 	}
 )
 
 // NewTemplateAnalyticsClient returns a new instance of the TemplatesClient.
-func NewTemplateAnalyticsClient(reader config.Reader, sender whttp.Sender[any]) *TemplatesClient {
+func NewTemplateAnalyticsClient(reader config.Reader, sender whttp.AnySender) *TemplatesClient {
 	return &TemplatesClient{reader: reader, sender: sender}
 }
 

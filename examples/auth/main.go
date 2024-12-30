@@ -86,7 +86,7 @@ func main() {
 	}
 	ctx := context.Background()
 
-	coreClient := whttp.NewSender[any](clientOptions...)
+	coreClient := whttp.NewAnySender(clientOptions...)
 
 	conf, err := LoadConfigFromFile("api.env")
 	if err != nil {
