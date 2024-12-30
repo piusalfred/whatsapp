@@ -72,7 +72,7 @@ type (
 	}
 
 	BaseSender struct {
-		Sender whttp.Sender[any]
+		Sender whttp.AnySender
 	}
 
 	Response struct {

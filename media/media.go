@@ -263,7 +263,7 @@ type (
 
 	BaseClient struct {
 		ConfReader config.Reader
-		Sender     whttp.Sender[any]
+		Sender     whttp.AnySender
 	}
 
 	BaseRequest struct {

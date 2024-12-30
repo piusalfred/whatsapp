@@ -15,10 +15,10 @@ import (
 type Client struct {
 	baseURL    string
 	apiVersion string
-	sender     whttp.Sender[any]
+	sender     whttp.AnySender
 }
 
-func NewClient(baseURL, apiVersion string, sender whttp.Sender[any]) *Client {
+func NewClient(baseURL, apiVersion string, sender whttp.AnySender) *Client {
 	return &Client{
 		baseURL:    baseURL,
 		apiVersion: apiVersion,

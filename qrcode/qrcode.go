@@ -79,7 +79,7 @@ type (
 	}
 )
 
-func NewBaseClient(s whttp.Sender[any], reader config.Reader, middlewares ...SenderMiddleware) *BaseClient {
+func NewBaseClient(s whttp.AnySender, reader config.Reader, middlewares ...SenderMiddleware) *BaseClient {
 	sender := &BaseSender{Sender: s}
 
 	return &BaseClient{
@@ -327,7 +327,7 @@ func (response *Response) ListResponse() *ListResponse {
 }
 
 type BaseSender struct {
-	Sender whttp.Sender[any]
+	Sender whttp.AnySender
 }
 
 func (sender *BaseSender) Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error) {

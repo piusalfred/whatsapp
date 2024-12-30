@@ -118,6 +118,22 @@ func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
 	return core
 }
 
+func NewAnySender(options ...CoreClientOption[any]) *CoreClient[any] {
+	core := &CoreClient[any]{
+		http: http.DefaultClient,
+	}
+
+	core.sender = SenderFunc[any](core.send)
+
+	for _, option := range options {
+		if option != nil {
+			option(core)
+		}
+	}
+
+	return core
+}
+
 func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
 	if err := SendFuncWithInterceptors[T](core.http, core.reqHook, core.resHook)(ctx, request, decoder); err != nil {
 		return err
@@ -186,9 +202,17 @@ type (
 	SenderFunc[T any] func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error
 
 	Middleware[T any] func(next SenderFunc[T]) SenderFunc[T]
+
+	AnySender Sender[any]
+
+	AnySenderFunc SenderFunc[any]
 )
 
 func (fn SenderFunc[T]) Send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
+	return fn(ctx, request, decoder)
+}
+
+func (fn AnySenderFunc) Send(ctx context.Context, request *Request[any], decoder ResponseDecoder) error {
 	return fn(ctx, request, decoder)
 }
 

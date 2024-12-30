@@ -75,7 +75,7 @@ func main() {
 		whttp.WithCoreClientMiddlewares(middlewares...),
 	}
 
-	coreClient := whttp.NewSender[any](clientOptions...)
+	coreClient := whttp.NewAnySender(clientOptions...)
 	client := qrcode.NewBaseClient(coreClient, LoadConfigFromFile("api.env"))
 	ctx := context.Background()
 
