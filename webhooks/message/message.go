@@ -102,7 +102,7 @@ type (
 		ID                    string           `json:"id,omitempty"`
 		RecipientID           string           `json:"recipient_id,omitempty"`
 		StatusValue           string           `json:"status,omitempty"`
-		Timestamp             int64            `json:"timestamp,omitempty"`
+		Timestamp             string           `json:"timestamp,omitempty"`
 		Conversation          *Conversation    `json:"conversation,omitempty"`
 		Pricing               *Pricing         `json:"pricing,omitempty"`
 		Errors                []*werrors.Error `json:"errors,omitempty"`
@@ -132,7 +132,7 @@ type (
 	Conversation struct {
 		ID     string              `json:"id,omitempty"`
 		Origin *ConversationOrigin `json:"origin,omitempty"`
-		Expiry int                 `json:"expiration_timestamp,omitempty"`
+		Expiry string              `json:"expiration_timestamp,omitempty"`
 	}
 
 	Profile struct {
