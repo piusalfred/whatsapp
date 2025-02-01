@@ -16,7 +16,7 @@ permissions:
   packages: read
 
 jobs:
-  test-and-build:
+  test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -63,7 +63,7 @@ jobs:
 
   tag-and-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [unit-test, golangci]
+    needs: [test, golangci]
     runs-on: ubuntu-latest
     steps:
       - name: Auto-tag with version
