@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: daily
+    commit-message:
+      prefix: "go get -u "
+      include: scope
+    labels:
+      - maintenance
+      - dependencies

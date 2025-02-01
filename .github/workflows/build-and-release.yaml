@@ -1,0 +1,94 @@
+name: build and release
+
+env:
+  GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+  GO_VERSION: "1.23"
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: read
+
+jobs:
+  test-and-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.23'
+
+      - name: Install dependencies
+        run: go mod tidy
+
+      - name: Run tests
+        run: go test -v -race ./... && go build -race ./...
+
+  golangci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup dependencies
+        run: |
+          go mod tidy
+          go mod download
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          args: >-
+            --timeout 5m
+
+  tag-and-release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [unit-test, golangci]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-tag with version
+        id: tagger
+        uses: phish108/autotag-action@v1.1.55
+        with:
+          with-v: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify tag creation
+        run: |
+          if [ -z "${{ steps.tagger.outputs.new-tag}}" ]; then
+            echo "Error: No tag was created. Exiting."
+            exit 1
+          fi
+        env:
+          TAG: ${{ steps.tagger.outputs.new-tag }}
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tagger.outputs.new-tag }}
+        run: |
+          gh release create "${TAG}" \
+              --repo="$GITHUB_REPOSITORY" \
+              --title="${TAG#v}" \
+              --generate-notes
+              
