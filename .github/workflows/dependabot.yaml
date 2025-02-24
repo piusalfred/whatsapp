@@ -24,18 +24,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Approve a PR if not already approved
-        run: |
-          gh pr checkout "$PR_URL"
-          if [ "$(gh pr status --json reviewDecision -q .currentBranch.reviewDecision)" != "APPROVED" ]; then
-            gh pr review --approve "$PR_URL"
-          else
-            echo "PR already approved.";
-          fi
-        env:
-          PR_URL: ${{github.event.pull_request.html_url}}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Request dependabot to automatically merge PR
         uses: marocchino/sticky-pull-request-comment@v2
         with:
