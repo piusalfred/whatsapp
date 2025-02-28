@@ -32,17 +32,6 @@ import (
 )
 
 type (
-	NotificationHandler     webhooks.NotificationHandler[Notification]
-	NotificationHandlerFunc webhooks.NotificationHandlerFunc[Notification]
-)
-
-func (e NotificationHandlerFunc) HandleNotification(ctx context.Context,
-	notification *Notification,
-) *webhooks.Response {
-	return e(ctx, notification)
-}
-
-type (
 	Notification struct {
 		Object string   `json:"object,omitempty"`
 		Entry  []*Entry `json:"entry,omitempty"`
@@ -307,6 +296,7 @@ type Handlers struct {
 	MessageStatusChange  StatusChangeHandler
 	MessageReceived      ReceivedHandler
 	UserPreferenceChange UserPreferenceHandler
+	RequestWelcome       HandleMessageFunc
 }
 
 // SetOrderMessageHandler sets the order message handler.
@@ -434,6 +424,11 @@ func (handler *Handlers) SetMessageReceivedHandler(h ReceivedHandler) {
 	handler.MessageReceived = h
 }
 
+// SetRequestWelcomeMessageHandler sets the request welcome message handler.
+func (handler *Handlers) SetRequestWelcomeMessageHandler(h HandleMessageFunc) {
+	handler.RequestWelcome = h
+}
+
 func (handler *Handlers) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
 	if err := handler.handleNotification(ctx, notification); err != nil {
 		return &webhooks.Response{StatusCode: http.StatusInternalServerError}
@@ -522,7 +517,7 @@ func (handler *Handlers) handleNotificationChangeValue(ctx context.Context,
 	return nil
 }
 
-func (handler *Handlers) handleNotificationMessage(ctx context.Context,
+func (handler *Handlers) handleNotificationMessage(ctx context.Context, //nolint: gocyclo
 	nctx *NotificationContext, message *Message,
 ) error {
 	mctx := &Info{
@@ -571,6 +566,15 @@ func (handler *Handlers) handleNotificationMessage(ctx context.Context,
 
 	case TypeText:
 		return handler.handleTextNotification(ctx, nctx, message, mctx)
+
+	case TypeRequestWelcome:
+		if handler.RequestWelcome != nil {
+			if err := handler.RequestWelcome(ctx, nctx, mctx, message); err != nil {
+				return fmt.Errorf("%w: %w", ErrRequestWelcomeMessage, err)
+			}
+		}
+
+		return nil
 
 	case TypeReaction:
 		if err := handler.MessageReaction.Handle(ctx, nctx, mctx, message.Reaction); err != nil {
@@ -844,23 +848,25 @@ const (
 	ErrMessageStatusChangeHandler         = messageError("message status change handler failed")
 	ErrMessageReceivedNotificationHandler = messageError("message received notification handler failed")
 	ErrUserPreferenceChangeHandler        = messageError("user preference change handler failed")
+	ErrRequestWelcomeMessage              = messageError("request welcome message handler failed")
 )
 
 const (
-	TypeAudio       Type = "audio"
-	TypeButton      Type = "button"
-	TypeDocument    Type = "document"
-	TypeText        Type = "text"
-	TypeImage       Type = "image"
-	TypeInteractive Type = "interactive"
-	TypeOrder       Type = "order"
-	TypeSticker     Type = "sticker"
-	TypeSystem      Type = "system"
-	TypeUnknown     Type = "unknown"
-	TypeVideo       Type = "video"
-	TypeLocation    Type = "location"
-	TypeReaction    Type = "reaction"
-	TypeContacts    Type = "contacts"
+	TypeAudio          Type = "audio"
+	TypeButton         Type = "button"
+	TypeDocument       Type = "document"
+	TypeText           Type = "text"
+	TypeImage          Type = "image"
+	TypeInteractive    Type = "interactive"
+	TypeOrder          Type = "order"
+	TypeSticker        Type = "sticker"
+	TypeSystem         Type = "system"
+	TypeUnknown        Type = "unknown"
+	TypeVideo          Type = "video"
+	TypeLocation       Type = "location"
+	TypeReaction       Type = "reaction"
+	TypeContacts       Type = "contacts"
+	TypeRequestWelcome Type = "request_welcome"
 )
 
 // Type is type of message that has been received by the business that has subscribed
@@ -873,20 +879,21 @@ type Type string
 // ParseType parses the message type from a string.
 func ParseType(s string) Type {
 	msgMap := map[string]Type{
-		"audio":       TypeAudio,
-		"button":      TypeButton,
-		"document":    TypeDocument,
-		"text":        TypeText,
-		"image":       TypeImage,
-		"interactive": TypeInteractive,
-		"order":       TypeOrder,
-		"sticker":     TypeSticker,
-		"system":      TypeSystem,
-		"unknown":     TypeUnknown,
-		"video":       TypeVideo,
-		"location":    TypeLocation,
-		"reaction":    TypeReaction,
-		"contacts":    TypeContacts,
+		"audio":           TypeAudio,
+		"button":          TypeButton,
+		"document":        TypeDocument,
+		"text":            TypeText,
+		"image":           TypeImage,
+		"interactive":     TypeInteractive,
+		"order":           TypeOrder,
+		"sticker":         TypeSticker,
+		"system":          TypeSystem,
+		"unknown":         TypeUnknown,
+		"video":           TypeVideo,
+		"location":        TypeLocation,
+		"reaction":        TypeReaction,
+		"contacts":        TypeContacts,
+		"request_welcome": TypeRequestWelcome,
 	}
 
 	msgType, ok := msgMap[strings.TrimSpace(strings.ToLower(s))]
