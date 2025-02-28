@@ -43,18 +43,9 @@ type (
 		DataPoints  []TemplateAnalyticsPoint `json:"data_points,omitempty"`
 	}
 
-	Cursor struct {
-		Before string `json:"before,omitempty"`
-		After  string `json:"after,omitempty"`
-	}
-
-	Paging struct {
-		Cursors Cursor `json:"cursors,omitempty"`
-	}
-
 	TemplateAnalyticsResponse struct {
 		Data   []TemplateAnalyticsData `json:"data,omitempty"`
-		Paging Paging                  `json:"paging,omitempty"`
+		Paging *whttp.Paging           `json:"paging,omitempty"`
 	}
 
 	TemplatesClient struct {

@@ -52,16 +52,7 @@ type (
 
 	ListResponse struct {
 		Data   []*PhoneNumber `json:"data,omitempty"`
-		Paging *Paging        `json:"paging,omitempty"`
-	}
-
-	Paging struct {
-		Cursors *Cursors `json:"cursors"`
-	}
-
-	Cursors struct {
-		Before string `json:"before"`
-		After  string `json:"after"`
+		Paging *whttp.Paging  `json:"paging,omitempty"`
 	}
 
 	Response struct {
@@ -71,7 +62,7 @@ type (
 		ID                     string         `json:"id,omitempty"`
 		QualityRating          string         `json:"quality_rating,omitempty"`
 		VerifiedName           string         `json:"verified_name,omitempty"`
-		Paging                 *Paging        `json:"paging,omitempty"`
+		Paging                 *whttp.Paging  `json:"paging,omitempty"`
 		NameStatus             string         `json:"name_status,omitempty"`
 	}
 
