@@ -10,7 +10,7 @@ linters-settings:
     no-inline-comments: true
     no-prefix-comments: true
     skip-generated: true
-    funlen:
+  funlen:
     lines: 70
   gocyclo:
     min-complexity: 20
