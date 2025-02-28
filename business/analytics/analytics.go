@@ -11,7 +11,7 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-//go:generate mockgen -destination=../../mocks/business/analytics/mock_analytics.go -package=analytics -source=analytics.go
+//go:generate go tool mockgen -destination=../../mocks/business/analytics/mock_analytics.go -package=analytics -source=analytics.go
 
 var _ Fetcher = (*BaseClient)(nil)
 

@@ -19,7 +19,7 @@
 
 package qrcode
 
-//go:generate mockgen -destination=../mocks/qrcode/mock_qrcode.go -package=qrcode -source=qrcode.go
+//go:generate go tool mockgen -destination=../mocks/qrcode/mock_qrcode.go -package=qrcode -source=qrcode.go
 
 import (
 	"context"

@@ -19,7 +19,7 @@
 
 package flow
 
-//go:generate mockgen -destination=../mocks/flow/mock_flow.go -package=flow -source=flow.go
+//go:generate go tool mockgen -destination=../mocks/flow/mock_flow.go -package=flow -source=flow.go
 
 import (
 	"context"

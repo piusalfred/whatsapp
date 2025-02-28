@@ -19,7 +19,7 @@
 
 package config
 
-//go:generate mockgen -destination=../mocks/config/config_mock.go -package=config -source=config.go
+//go:generate go tool mockgen -destination=../mocks/config/config_mock.go -package=config -source=config.go
 
 import (
 	"context"

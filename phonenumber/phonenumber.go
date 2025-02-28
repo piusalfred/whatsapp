@@ -19,7 +19,7 @@
 
 package phonenumber
 
-//go:generate mockgen -destination=../mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=phonenumber.go
+//go:generate go tool mockgen -destination=../mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=phonenumber.go
 
 import (
 	"context"

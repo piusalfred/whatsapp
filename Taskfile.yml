@@ -3,6 +3,8 @@ version: '3'
 tasks:
   clean:
     cmds:
+      - go get -u ./...
+      - go mod tidy
       - go generate ./...
       - go tool golangci-lint run --fix
       - go tool gofumpt -l -w .

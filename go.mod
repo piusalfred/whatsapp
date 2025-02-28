@@ -236,5 +236,6 @@ tool (
 	github.com/daixiang0/gci
 	github.com/go-task/task/v3/cmd/task
 	github.com/golangci/golangci-lint/cmd/golangci-lint
+	go.uber.org/mock/mockgen
 	mvdan.cc/gofumpt
 )
