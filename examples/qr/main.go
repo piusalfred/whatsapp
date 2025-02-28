@@ -27,6 +27,7 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+
 	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/qrcode"

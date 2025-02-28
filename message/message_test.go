@@ -139,7 +139,7 @@ func TestBaseSender_Send(t *testing.T) {
 			).DoAndReturn(tt.mock).Times(1)
 
 			sender := &message.BaseSender{Sender: mockSender}
-			response, err := sender.Send(context.TODO(), conf, request)
+			response, err := sender.Send(t.Context(), conf, request)
 			if err != nil {
 				return
 			}
