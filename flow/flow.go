@@ -110,17 +110,8 @@ type (
 	}
 
 	ListResponse struct {
-		Data   []*Flow `json:"data"`
-		Paging Paging  `json:"paging"`
-	}
-
-	Paging struct {
-		Cursors Cursors `json:"cursors"`
-	}
-
-	Cursors struct {
-		Before string `json:"before"`
-		After  string `json:"after"`
+		Data   []*Flow       `json:"data"`
+		Paging *whttp.Paging `json:"paging"`
 	}
 
 	Preview struct {
@@ -169,8 +160,8 @@ type (
 	}
 
 	RetrieveAssetsResponse struct {
-		Data   []*Asset `json:"data"`
-		Paging Paging   `json:"paging"`
+		Data   []*Asset      `json:"data"`
+		Paging *whttp.Paging `json:"paging"`
 	}
 
 	SuccessResponse struct {
@@ -202,7 +193,7 @@ type (
 		ID                      string                 `json:"id,omitempty"`
 		Success                 bool                   `json:"success,omitempty"`
 		Data                    []*BaseResponseData    `json:"data,omitempty"`
-		Paging                  Paging                 `json:"paging,omitempty"`
+		Paging                  *whttp.Paging          `json:"paging,omitempty"`
 		ValidationErrors        []ValidationError      `json:"validation_errors,omitempty"`
 		PreviewURL              string                 `json:"preview_url,omitempty"`
 		ExpiresAt               string                 `json:"expires_at,omitempty"`

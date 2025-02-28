@@ -263,6 +263,9 @@ const (
 	RequestTypeFetchConversationAnalytics
 	RequestTypeEnableTemplatesAnalytics
 	RequestTypeDisableButtonClickTracking
+	RequestTypeBlockUsers
+	RequestTypeUnblockUsers
+	RequestTypeListBlockedUsers
 )
 
 // String returns the string representation of the request type.

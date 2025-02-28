@@ -122,7 +122,7 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 			params.Add("hub.challenge", tt.challenge)
 			params.Add("hub.verify_token", "APP-SECRET")
 
-			ctx := context.TODO()
+			ctx := t.Context()
 			req, err := http.NewRequestWithContext(
 				ctx, http.MethodGet, fmt.Sprintf("%s?%s", server.URL+verifyEndpoint, params.Encode()), nil)
 			if err != nil {

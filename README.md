@@ -211,6 +211,19 @@ func main() {
 }
 ```
 
+#### block users from sending messages to your business account
+
+```go
+        reader, recipient := LoadConfigFromFile("api.env")
+	coreClient1 := whttp.NewSender[user.BlockUsersBaseRequest]()
+	blocker := user.NewBlockUsersBaseClient(reader, coreClient1)
+	resp, err := blocker.Block(ctx, []string{"1234567890"})
+	if err != nil {
+		return 
+	}
+	fmt.Println(resp)
+```
+
 See more in [examples](./examples/)
 
 ## Testing

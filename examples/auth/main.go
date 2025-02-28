@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+
 	"github.com/piusalfred/whatsapp/auth"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )

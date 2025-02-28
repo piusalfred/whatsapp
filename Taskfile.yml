@@ -3,10 +3,10 @@ version: '3'
 tasks:
   clean:
     cmds:
-      - gci write --skip-generated -s standard -s default .
-      - gofumpt -l -w .
       - go generate ./...
-      - golangci-lint run --fix
+      - go tool golangci-lint run --fix
+      - go tool gofumpt -l -w .
+      - go tool gci write --skip-generated -s standard -s default -s "prefix(github.com/piusalfred/whatsapp)" .
       - go test -v -race -coverpkg=./... -parallel=4 ./...
   update-message-examples-deps:
     dir: examples/message

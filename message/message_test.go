@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	gcmp "github.com/google/go-cmp/cmp"
+	"go.uber.org/mock/gomock"
+
 	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/message"
 	mockhttp "github.com/piusalfred/whatsapp/mocks/http"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
-	"go.uber.org/mock/gomock"
 )
 
 func TestBaseSender_Send(t *testing.T) {
@@ -139,7 +140,7 @@ func TestBaseSender_Send(t *testing.T) {
 			).DoAndReturn(tt.mock).Times(1)
 
 			sender := &message.BaseSender{Sender: mockSender}
-			response, err := sender.Send(context.TODO(), conf, request)
+			response, err := sender.Send(t.Context(), conf, request)
 			if err != nil {
 				return
 			}

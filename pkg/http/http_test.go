@@ -16,6 +16,7 @@ import (
 	"time"
 
 	gcmp "github.com/google/go-cmp/cmp"
+
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
@@ -348,7 +349,7 @@ func TestRequestWithContext(t *testing.T) {
 	for _, tt := range messageTests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := whttp.RequestWithContext(context.TODO(), tt.req)
+			got, err := whttp.RequestWithContext(t.Context(), tt.req)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("RequestWithContext() error = %v, wantErr %v", err, tt.wantErr)
 
@@ -493,7 +494,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			decoder := whttp.BodyReaderResponseDecoder(tt.fn)
-			err := decoder(context.TODO(), tt.response)
+			err := decoder(t.Context(), tt.response)
 
 			if (err != nil) != tt.expectErr {
 				t.Errorf("BodyReaderResponseDecoder() error = %v, expectErr %v", err, tt.expectErr)
