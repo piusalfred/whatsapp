@@ -60,12 +60,13 @@ type (
 	}
 
 	Value struct {
-		MessagingProduct string           `json:"messaging_product,omitempty"`
-		Metadata         *Metadata        `json:"metadata,omitempty"`
-		Errors           []*werrors.Error `json:"errors,omitempty"`
-		Contacts         []*Contact       `json:"contacts,omitempty"`
-		Messages         []*Message       `json:"messages,omitempty"`
-		Statuses         []*Status        `json:"statuses,omitempty"`
+		MessagingProduct string            `json:"messaging_product,omitempty"`
+		Metadata         *Metadata         `json:"metadata,omitempty"`
+		Errors           []*werrors.Error  `json:"errors,omitempty"`
+		Contacts         []*Contact        `json:"contacts,omitempty"`
+		UserPreferences  []*UserPreference `json:"user_preferences,omitempty"`
+		Messages         []*Message        `json:"messages,omitempty"`
+		Statuses         []*Status         `json:"statuses,omitempty"`
 	}
 
 	Contact struct {
@@ -107,6 +108,14 @@ type (
 		Pricing               *Pricing         `json:"pricing,omitempty"`
 		Errors                []*werrors.Error `json:"errors,omitempty"`
 		BizOpaqueCallbackData string           `json:"biz_opaque_callback_data,omitempty"`
+	}
+
+	UserPreference struct {
+		WaID      string `json:"wa_id"`
+		Detail    string `json:"detail"`
+		Category  string `json:"category"` // always "marketing_messages"
+		Value     string `json:"value"`    // can be "stop" or "resume"
+		Timestamp string `json:"timestamp"`
 	}
 
 	Metadata struct {
@@ -273,30 +282,31 @@ type (
 var _ webhooks.NotificationHandler[Notification] = (*Handlers)(nil)
 
 type Handlers struct {
-	OrderMessage        OrderMessageHandler
-	ButtonMessage       ButtonMessageHandler
-	LocationMessage     LocationMessageHandler
-	ContactsMessage     ContactsMessageHandler
-	MessageReaction     ReactionHandler
-	UnknownMessage      ErrorsHandler
-	ProductEnquiry      ProductEnquiryHandler
-	InteractiveMessage  InteractiveMessageHandler
-	ButtonReply         ButtonReplyMessageHandler
-	ListReply           ListReplyMessageHandler
-	FlowReply           FlowCompletionMessageHandler
-	MessageErrors       ErrorsHandler
-	TextMessage         TextMessageHandler
-	ReferralMessage     ReferralMessageHandler
-	CustomerIDChange    CustomerIDChangeHandler
-	SystemMessage       SystemMessageHandler
-	AudioMessage        MediaMessageHandler
-	VideoMessage        MediaMessageHandler
-	ImageMessage        MediaMessageHandler
-	DocumentMessage     MediaMessageHandler
-	StickerMessage      MediaMessageHandler
-	NotificationError   ErrorHandler
-	MessageStatusChange StatusChangeHandler
-	MessageReceived     ReceivedHandler
+	OrderMessage         OrderMessageHandler
+	ButtonMessage        ButtonMessageHandler
+	LocationMessage      LocationMessageHandler
+	ContactsMessage      ContactsMessageHandler
+	MessageReaction      ReactionHandler
+	UnknownMessage       ErrorsHandler
+	ProductEnquiry       ProductEnquiryHandler
+	InteractiveMessage   InteractiveMessageHandler
+	ButtonReply          ButtonReplyMessageHandler
+	ListReply            ListReplyMessageHandler
+	FlowReply            FlowCompletionMessageHandler
+	MessageErrors        ErrorsHandler
+	TextMessage          TextMessageHandler
+	ReferralMessage      ReferralMessageHandler
+	CustomerIDChange     CustomerIDChangeHandler
+	SystemMessage        SystemMessageHandler
+	AudioMessage         MediaMessageHandler
+	VideoMessage         MediaMessageHandler
+	ImageMessage         MediaMessageHandler
+	DocumentMessage      MediaMessageHandler
+	StickerMessage       MediaMessageHandler
+	NotificationError    ErrorHandler
+	MessageStatusChange  StatusChangeHandler
+	MessageReceived      ReceivedHandler
+	UserPreferenceChange UserPreferenceHandler
 }
 
 // SetOrderMessageHandler sets the order message handler.
@@ -414,6 +424,11 @@ func (handler *Handlers) SetMessageStatusChangeHandler(h StatusChangeHandler) {
 	handler.MessageStatusChange = h
 }
 
+// SetUserPreferenceChangeHandler sets the user preference change handler.
+func (handler *Handlers) SetUserPreferenceChangeHandler(h UserPreferenceHandler) {
+	handler.UserPreferenceChange = h
+}
+
 // SetMessageReceivedHandler sets the message received handler.
 func (handler *Handlers) SetMessageReceivedHandler(h ReceivedHandler) {
 	handler.MessageReceived = h
@@ -480,6 +495,14 @@ func (handler *Handlers) handleNotificationChangeValue(ctx context.Context,
 		for _, sv := range value.Statuses {
 			if err := handler.MessageStatusChange.Handle(ctx, notificationCtx, sv); err != nil {
 				return fmt.Errorf("%w: %w", ErrMessageStatusChangeHandler, err)
+			}
+		}
+	}
+
+	if handler.UserPreferenceChange != nil {
+		for _, up := range value.UserPreferences {
+			if err := handler.UserPreferenceChange.Handle(ctx, notificationCtx, up); err != nil {
+				return fmt.Errorf("%w: %w", ErrUserPreferenceChangeHandler, err)
 			}
 		}
 	}
@@ -728,6 +751,7 @@ type (
 	ErrorHandler                 = ChangeValueHandler[werrors.Error]
 	StatusChangeHandler          = ChangeValueHandler[Status]
 	ReceivedHandler              = ChangeValueHandler[Message]
+	UserPreferenceHandler        = ChangeValueHandler[UserPreference]
 	OnButtonMessageHook          = HandlerFunc[Button]
 	OnTextMessageHook            = HandlerFunc[Text]
 	OnOrderMessageHook           = HandlerFunc[Order]
@@ -746,6 +770,7 @@ type (
 	OnNotificationErrorHook      = ChangeValueHandlerFunc[werrors.Error]
 	OnMessageStatusChangeHook    = ChangeValueHandlerFunc[Status]
 	OnMessageReceivedHook        = ChangeValueHandlerFunc[Message]
+	OnUserPreferenceHook         = ChangeValueHandlerFunc[UserPreference]
 )
 
 type (
@@ -818,6 +843,7 @@ const (
 	ErrContactsMessageHandler             = messageError("contacts message handler failed")
 	ErrMessageStatusChangeHandler         = messageError("message status change handler failed")
 	ErrMessageReceivedNotificationHandler = messageError("message received notification handler failed")
+	ErrUserPreferenceChangeHandler        = messageError("user preference change handler failed")
 )
 
 const (
