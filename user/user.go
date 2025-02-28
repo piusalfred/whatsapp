@@ -296,3 +296,7 @@ func NewBlockUsersBaseRequest(action BlockAction, options ...BlockUsersBaseReque
 
 	return b
 }
+
+func NewBlockUsersBaseClient(reader config.Reader, sender whttp.Sender[BlockUsersBaseRequest]) *BlockUsersBaseClient {
+	return &BlockUsersBaseClient{Config: reader, Sender: sender}
+}
