@@ -148,13 +148,6 @@ func (b *BlockUsersBaseClient) Block(ctx context.Context, numbers []string) (*Bl
 
 func (b *BlockUsersBaseClient) Do(ctx context.Context, request *BlockUsersBaseRequest) (*BlockUserBaseResponse, error) {
 	var method string
-	if request.BlockAction == BlockActionBlockUsers {
-		method = http.MethodPost
-	} else if request.BlockAction == BlockActionUnblockUsers {
-		method = http.MethodDelete
-	} else {
-		method = http.MethodGet
-	}
 
 	conf, err := b.Config.Read(ctx)
 	if err != nil {
@@ -168,14 +161,17 @@ func (b *BlockUsersBaseClient) Do(ctx context.Context, request *BlockUsersBaseRe
 		whttp.WithRequestSecured[BlockUsersBaseRequest](conf.SecureRequests),
 	}
 
-	if request.BlockAction != BlockActionListBlocked {
+	switch request.BlockAction {
+	case BlockActionBlockUsers:
+		method = http.MethodPost
 		options = append(options, whttp.WithRequestMessage[BlockUsersBaseRequest](request))
-		if request.BlockAction == BlockActionBlockUsers {
-			options = append(options, whttp.WithRequestType[BlockUsersBaseRequest](whttp.RequestTypeBlockUsers))
-		} else {
-			options = append(options, whttp.WithRequestType[BlockUsersBaseRequest](whttp.RequestTypeUnblockUsers))
-		}
-	} else {
+		options = append(options, whttp.WithRequestType[BlockUsersBaseRequest](whttp.RequestTypeBlockUsers))
+	case BlockActionUnblockUsers:
+		method = http.MethodDelete
+		options = append(options, whttp.WithRequestType[BlockUsersBaseRequest](whttp.RequestTypeUnblockUsers))
+		options = append(options, whttp.WithRequestMessage[BlockUsersBaseRequest](request))
+	case BlockActionListBlocked:
+		method = http.MethodGet
 		options = append(options, whttp.WithRequestType[BlockUsersBaseRequest](whttp.RequestTypeListBlockedUsers))
 		params := map[string]string{}
 		if request.ListOptions != nil {
@@ -193,6 +189,8 @@ func (b *BlockUsersBaseClient) Do(ctx context.Context, request *BlockUsersBaseRe
 				options = append(options, whttp.WithRequestQueryParams[BlockUsersBaseRequest](params))
 			}
 		}
+	default:
+		method = http.MethodGet
 	}
 
 	var (
@@ -201,19 +199,11 @@ func (b *BlockUsersBaseClient) Do(ctx context.Context, request *BlockUsersBaseRe
 		response = &BlockUserBaseResponse{}
 	)
 
-	if request.BlockAction != BlockActionListBlocked {
-		decoder = whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-			DisallowUnknownFields: true,
-			DisallowEmptyResponse: true,
-			InspectResponseError:  true,
-		})
-	} else {
-		decoder = whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-			DisallowUnknownFields: true,
-			DisallowEmptyResponse: true,
-			InspectResponseError:  true,
-		})
-	}
+	decoder = whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		DisallowUnknownFields: true,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	})
 
 	if err = b.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
