@@ -60,15 +60,17 @@ type (
 		Error            *werrors.Error `json:"error,omitempty"`
 	}
 
-	BlockUsersService interface {
-		Block(ctx context.Context, numbers []string) (*BlockUsersResponse, error)
-		Unblock(ctx context.Context, numbers []string) (*BlockUsersResponse, error)
-		ListBlocked(ctx context.Context, request *ListBlockedUsersOptions) (*GetBlockedUsersResponse, error)
+	ListBlockedUsersResponse struct {
+		MessagingProduct string             `json:"messaging_product"`
+		BlockUsers       *BlockUsers        `json:"block_users"`
+		Data             []BlockedUsersData `json:"data"`
+		Paging           *whttp.Paging      `json:"paging"`
+		Error            *werrors.Error     `json:"error,omitempty"`
 	}
 
-	BlockUsersBaseClient struct {
-		Config config.Reader
-		Sender whttp.Sender[BlockUsersBaseRequest]
+	BlockedUser struct {
+		Input string `json:"input"`
+		WaID  string `json:"wa_id"`
 	}
 
 	Identifier struct {
@@ -86,11 +88,6 @@ type (
 		Errors []werrors.Error `json:"errors,omitempty"`
 	}
 
-	GetBlockedUsersResponse struct {
-		Data   []BlockedUsersData `json:"data"`
-		Paging *whttp.Paging      `json:"paging,omitempty"`
-	}
-
 	BlockedUsersData struct {
 		BlockUsers []BlockResult `json:"block_users"`
 	}
@@ -102,11 +99,25 @@ type (
 		ListOptions      *ListBlockedUsersOptions `json:"-"`
 	}
 
-	BlockUserBaseResponse struct {
-		Data   []BlockedUsersData `json:"data"`
-		Paging *whttp.Paging      `json:"paging,omitempty"`
+	BlockUsersBaseResponse struct {
+		MessagingProduct string             `json:"messaging_product"`
+		Data             []BlockedUsersData `json:"data"`
+		BlockUsers       *BlockUsers        `json:"block_users"`
+		Paging           *whttp.Paging      `json:"paging"`
+		Error            *werrors.Error     `json:"error,omitempty"`
 	}
 	BlockUsersBaseRequestOption func(*BlockUsersBaseRequest)
+
+	BlockUsersBaseClient struct {
+		Config config.Reader
+		Sender whttp.Sender[BlockUsersBaseRequest]
+	}
+
+	BlockUsersService interface {
+		Block(ctx context.Context, numbers []string) (*BlockUsersResponse, error)
+		Unblock(ctx context.Context, numbers []string) (*BlockUsersResponse, error)
+		ListBlocked(ctx context.Context, request *ListBlockedUsersOptions) (*ListBlockedUsersResponse, error)
+	}
 )
 
 func (b *BlockUsersBaseClient) Unblock(ctx context.Context, numbers []string) (*BlockUsersResponse, error) {
@@ -121,7 +132,7 @@ func (b *BlockUsersBaseClient) Unblock(ctx context.Context, numbers []string) (*
 }
 
 func (b *BlockUsersBaseClient) ListBlocked(ctx context.Context, request *ListBlockedUsersOptions) (
-	*GetBlockedUsersResponse, error,
+	*ListBlockedUsersResponse, error,
 ) {
 	req := NewBlockUsersBaseRequest(BlockActionListBlocked, func(r *BlockUsersBaseRequest) {
 		r.ListOptions = request
@@ -132,7 +143,7 @@ func (b *BlockUsersBaseClient) ListBlocked(ctx context.Context, request *ListBlo
 		return nil, fmt.Errorf("failed to list blocked users: %w", err)
 	}
 
-	return resp.BlockUsersListResponse(), nil
+	return resp.ListResponse(), nil
 }
 
 func (b *BlockUsersBaseClient) Block(ctx context.Context, numbers []string) (*BlockUsersResponse, error) {
@@ -146,7 +157,9 @@ func (b *BlockUsersBaseClient) Block(ctx context.Context, numbers []string) (*Bl
 	return resp.BlockUsersResponse(), nil
 }
 
-func (b *BlockUsersBaseClient) Do(ctx context.Context, request *BlockUsersBaseRequest) (*BlockUserBaseResponse, error) {
+func (b *BlockUsersBaseClient) Do(ctx context.Context, request *BlockUsersBaseRequest) (
+	*BlockUsersBaseResponse, error,
+) {
 	var method string
 
 	conf, err := b.Config.Read(ctx)
@@ -196,7 +209,7 @@ func (b *BlockUsersBaseClient) Do(ctx context.Context, request *BlockUsersBaseRe
 	var (
 		req      = whttp.MakeRequest[BlockUsersBaseRequest](method, conf.BaseURL, options...)
 		decoder  whttp.ResponseDecoderFunc
-		response = &BlockUserBaseResponse{}
+		response = &BlockUsersBaseResponse{}
 	)
 
 	decoder = whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
@@ -214,14 +227,20 @@ func (b *BlockUsersBaseClient) Do(ctx context.Context, request *BlockUsersBaseRe
 
 var _ BlockUsersService = (*BlockUsersBaseClient)(nil)
 
-func (base *BlockUserBaseResponse) BlockUsersResponse() *BlockUsersResponse {
-	return &BlockUsersResponse{}
+func (base *BlockUsersBaseResponse) BlockUsersResponse() *BlockUsersResponse {
+	return &BlockUsersResponse{
+		MessagingProduct: base.MessagingProduct,
+		BlockUsers:       base.BlockUsers,
+		Error:            base.Error,
+	}
 }
 
-func (base *BlockUserBaseResponse) BlockUsersListResponse() *GetBlockedUsersResponse {
-	return &GetBlockedUsersResponse{
-		Data:   nil,
-		Paging: nil,
+func (base *BlockUsersBaseResponse) ListResponse() *ListBlockedUsersResponse {
+	return &ListBlockedUsersResponse{
+		MessagingProduct: base.MessagingProduct,
+		Data:             base.Data,
+		Paging:           base.Paging,
+		Error:            base.Error,
 	}
 }
 

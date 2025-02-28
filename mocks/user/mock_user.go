@@ -56,10 +56,10 @@ func (mr *MockBlockUsersServiceMockRecorder) Block(ctx, numbers any) *gomock.Cal
 }
 
 // ListBlocked mocks base method.
-func (m *MockBlockUsersService) ListBlocked(ctx context.Context, request *user.ListBlockedUsersOptions) (*user.GetBlockedUsersResponse, error) {
+func (m *MockBlockUsersService) ListBlocked(ctx context.Context, request *user.ListBlockedUsersOptions) (*user.ListBlockedUsersResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListBlocked", ctx, request)
-	ret0, _ := ret[0].(*user.GetBlockedUsersResponse)
+	ret0, _ := ret[0].(*user.ListBlockedUsersResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

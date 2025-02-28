@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	gcmp "github.com/google/go-cmp/cmp"
+	"go.uber.org/mock/gomock"
+
 	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/message"
 	mockhttp "github.com/piusalfred/whatsapp/mocks/http"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
-	"go.uber.org/mock/gomock"
 )
 
 func TestBaseSender_Send(t *testing.T) {
