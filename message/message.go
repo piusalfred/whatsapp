@@ -19,7 +19,7 @@
 
 package message
 
-//go:generate mockgen -destination=../mocks/message/mock_message.go -package=message -source=message.go
+//go:generate go tool mockgen -destination=../mocks/message/mock_message.go -package=message -source=message.go
 
 import (
 	"context"

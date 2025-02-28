@@ -22,6 +22,7 @@ import (
 type MockService struct {
 	ctrl     *gomock.Controller
 	recorder *MockServiceMockRecorder
+	isgomock struct{}
 }
 
 // MockServiceMockRecorder is the mock recorder for MockService.
@@ -225,6 +226,7 @@ func (mr *MockServiceMockRecorder) SendVideo(ctx, request any) *gomock.Call {
 type MockStatusUpdater struct {
 	ctrl     *gomock.Controller
 	recorder *MockStatusUpdaterMockRecorder
+	isgomock struct{}
 }
 
 // MockStatusUpdaterMockRecorder is the mock recorder for MockStatusUpdater.
@@ -263,6 +265,7 @@ func (mr *MockStatusUpdaterMockRecorder) UpdateStatus(ctx, request any) *gomock.
 type MockSender struct {
 	ctrl     *gomock.Controller
 	recorder *MockSenderMockRecorder
+	isgomock struct{}
 }
 
 // MockSenderMockRecorder is the mock recorder for MockSender.

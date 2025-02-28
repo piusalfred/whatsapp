@@ -22,6 +22,7 @@ import (
 type MockSender[T any] struct {
 	ctrl     *gomock.Controller
 	recorder *MockSenderMockRecorder[T]
+	isgomock struct{}
 }
 
 // MockSenderMockRecorder is the mock recorder for MockSender.
@@ -59,6 +60,7 @@ func (mr *MockSenderMockRecorder[T]) Send(ctx, request, decoder any) *gomock.Cal
 type MockRequestInterceptor struct {
 	ctrl     *gomock.Controller
 	recorder *MockRequestInterceptorMockRecorder
+	isgomock struct{}
 }
 
 // MockRequestInterceptorMockRecorder is the mock recorder for MockRequestInterceptor.
@@ -96,6 +98,7 @@ func (mr *MockRequestInterceptorMockRecorder) InterceptRequest(ctx, request any)
 type MockResponseInterceptor struct {
 	ctrl     *gomock.Controller
 	recorder *MockResponseInterceptorMockRecorder
+	isgomock struct{}
 }
 
 // MockResponseInterceptorMockRecorder is the mock recorder for MockResponseInterceptor.
@@ -133,6 +136,7 @@ func (mr *MockResponseInterceptorMockRecorder) InterceptResponse(ctx, response a
 type MockResponseDecoder struct {
 	ctrl     *gomock.Controller
 	recorder *MockResponseDecoderMockRecorder
+	isgomock struct{}
 }
 
 // MockResponseDecoderMockRecorder is the mock recorder for MockResponseDecoder.

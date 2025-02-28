@@ -17,46 +17,47 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockBlockUsersService is a mock of BlockUsersService interface.
-type MockBlockUsersService struct {
+// MockBlockService is a mock of BlockService interface.
+type MockBlockService struct {
 	ctrl     *gomock.Controller
-	recorder *MockBlockUsersServiceMockRecorder
+	recorder *MockBlockServiceMockRecorder
+	isgomock struct{}
 }
 
-// MockBlockUsersServiceMockRecorder is the mock recorder for MockBlockUsersService.
-type MockBlockUsersServiceMockRecorder struct {
-	mock *MockBlockUsersService
+// MockBlockServiceMockRecorder is the mock recorder for MockBlockService.
+type MockBlockServiceMockRecorder struct {
+	mock *MockBlockService
 }
 
-// NewMockBlockUsersService creates a new mock instance.
-func NewMockBlockUsersService(ctrl *gomock.Controller) *MockBlockUsersService {
-	mock := &MockBlockUsersService{ctrl: ctrl}
-	mock.recorder = &MockBlockUsersServiceMockRecorder{mock}
+// NewMockBlockService creates a new mock instance.
+func NewMockBlockService(ctrl *gomock.Controller) *MockBlockService {
+	mock := &MockBlockService{ctrl: ctrl}
+	mock.recorder = &MockBlockServiceMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockBlockUsersService) EXPECT() *MockBlockUsersServiceMockRecorder {
+func (m *MockBlockService) EXPECT() *MockBlockServiceMockRecorder {
 	return m.recorder
 }
 
 // Block mocks base method.
-func (m *MockBlockUsersService) Block(ctx context.Context, numbers []string) (*user.BlockUsersResponse, error) {
+func (m *MockBlockService) Block(ctx context.Context, numbers []string) (*user.BlockResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Block", ctx, numbers)
-	ret0, _ := ret[0].(*user.BlockUsersResponse)
+	ret0, _ := ret[0].(*user.BlockResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Block indicates an expected call of Block.
-func (mr *MockBlockUsersServiceMockRecorder) Block(ctx, numbers any) *gomock.Call {
+func (mr *MockBlockServiceMockRecorder) Block(ctx, numbers any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Block", reflect.TypeOf((*MockBlockUsersService)(nil).Block), ctx, numbers)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Block", reflect.TypeOf((*MockBlockService)(nil).Block), ctx, numbers)
 }
 
 // ListBlocked mocks base method.
-func (m *MockBlockUsersService) ListBlocked(ctx context.Context, request *user.ListBlockedUsersOptions) (*user.ListBlockedUsersResponse, error) {
+func (m *MockBlockService) ListBlocked(ctx context.Context, request *user.ListBlockedUsersOptions) (*user.ListBlockedUsersResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListBlocked", ctx, request)
 	ret0, _ := ret[0].(*user.ListBlockedUsersResponse)
@@ -65,22 +66,22 @@ func (m *MockBlockUsersService) ListBlocked(ctx context.Context, request *user.L
 }
 
 // ListBlocked indicates an expected call of ListBlocked.
-func (mr *MockBlockUsersServiceMockRecorder) ListBlocked(ctx, request any) *gomock.Call {
+func (mr *MockBlockServiceMockRecorder) ListBlocked(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBlocked", reflect.TypeOf((*MockBlockUsersService)(nil).ListBlocked), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBlocked", reflect.TypeOf((*MockBlockService)(nil).ListBlocked), ctx, request)
 }
 
 // Unblock mocks base method.
-func (m *MockBlockUsersService) Unblock(ctx context.Context, numbers []string) (*user.BlockUsersResponse, error) {
+func (m *MockBlockService) Unblock(ctx context.Context, numbers []string) (*user.BlockResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Unblock", ctx, numbers)
-	ret0, _ := ret[0].(*user.BlockUsersResponse)
+	ret0, _ := ret[0].(*user.BlockResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Unblock indicates an expected call of Unblock.
-func (mr *MockBlockUsersServiceMockRecorder) Unblock(ctx, numbers any) *gomock.Call {
+func (mr *MockBlockServiceMockRecorder) Unblock(ctx, numbers any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unblock", reflect.TypeOf((*MockBlockUsersService)(nil).Unblock), ctx, numbers)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unblock", reflect.TypeOf((*MockBlockService)(nil).Unblock), ctx, numbers)
 }

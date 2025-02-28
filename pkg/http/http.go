@@ -19,7 +19,7 @@
 
 package http
 
-//go:generate mockgen -destination=../../mocks/http/mock_http.go -package=http -source=http.go
+//go:generate go tool mockgen -destination=../../mocks/http/mock_http.go -package=http -source=http.go
 
 import (
 	"bytes"

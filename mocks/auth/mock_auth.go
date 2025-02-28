@@ -21,6 +21,7 @@ import (
 type MockTokenRotator struct {
 	ctrl     *gomock.Controller
 	recorder *MockTokenRotatorMockRecorder
+	isgomock struct{}
 }
 
 // MockTokenRotatorMockRecorder is the mock recorder for MockTokenRotator.
@@ -58,6 +59,7 @@ func (mr *MockTokenRotatorMockRecorder) RotateToken(ctx, refresher, revoker, sto
 type MockTokenRefresher struct {
 	ctrl     *gomock.Controller
 	recorder *MockTokenRefresherMockRecorder
+	isgomock struct{}
 }
 
 // MockTokenRefresherMockRecorder is the mock recorder for MockTokenRefresher.
@@ -96,6 +98,7 @@ func (mr *MockTokenRefresherMockRecorder) Refresh(ctx, currentToken any) *gomock
 type MockTokenRevoker struct {
 	ctrl     *gomock.Controller
 	recorder *MockTokenRevokerMockRecorder
+	isgomock struct{}
 }
 
 // MockTokenRevokerMockRecorder is the mock recorder for MockTokenRevoker.
@@ -133,6 +136,7 @@ func (mr *MockTokenRevokerMockRecorder) Revoke(ctx, oldToken any) *gomock.Call {
 type MockTokenStore struct {
 	ctrl     *gomock.Controller
 	recorder *MockTokenStoreMockRecorder
+	isgomock struct{}
 }
 
 // MockTokenStoreMockRecorder is the mock recorder for MockTokenStore.

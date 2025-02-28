@@ -19,7 +19,7 @@
 
 package media
 
-//go:generate mockgen -destination=../mocks/media/mock_media.go -package=media -source=media.go
+//go:generate go tool mockgen -destination=../mocks/media/mock_media.go -package=media -source=media.go
 
 import (
 	"context"

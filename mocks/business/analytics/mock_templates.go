@@ -21,6 +21,7 @@ import (
 type MockTemplatesAnalytics struct {
 	ctrl     *gomock.Controller
 	recorder *MockTemplatesAnalyticsMockRecorder
+	isgomock struct{}
 }
 
 // MockTemplatesAnalyticsMockRecorder is the mock recorder for MockTemplatesAnalytics.
