@@ -16,7 +16,6 @@ import (
 	"time"
 
 	gcmp "github.com/google/go-cmp/cmp"
-
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
