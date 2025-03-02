@@ -266,6 +266,10 @@ const (
 	RequestTypeBlockUsers
 	RequestTypeUnblockUsers
 	RequestTypeListBlockedUsers
+	RequestTypeDisableWelcomeMessage
+	RequestTypeEnableWelcomeMessage
+	RequestTypeGetConversationAutomationComponents
+	RequestTypeUpdateConversationAutomationComponents
 )
 
 // String returns the string representation of the request type.
@@ -307,6 +311,13 @@ func (r RequestType) String() string {
 		"fetch_conversation_analytics",
 		"enable_templates_analytics",
 		"disable_button_click_tracking",
+		"block_users",
+		"unblock_users",
+		"list_blocked_users",
+		"disable_welcome_message",
+		"enable_welcome_message",
+		"get_conversation_automation_components",
+		"update_conversation_automation_components",
 	}[r]
 }
 
