@@ -97,6 +97,7 @@ func (client *BaseClient) AddComponents(ctx context.Context, reader config.Reade
 		whttp.WithRequestAppSecret[Request](conf.AppSecret),
 		whttp.WithRequestSecured[Request](conf.SecureRequests),
 		whttp.WithRequestMessage(message),
+		whttp.WithRequestType[Request](whttp.RequestTypeUpdateConversationAutomationComponents),
 	}
 
 	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
@@ -122,6 +123,14 @@ func (client *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, reader
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
+	var requestTypeOption whttp.RequestOption[Request]
+
+	if shouldEnable {
+		requestTypeOption = whttp.WithRequestType[Request](whttp.RequestTypeEnableWelcomeMessage)
+	} else {
+		requestTypeOption = whttp.WithRequestType[Request](whttp.RequestTypeDisableWelcomeMessage)
+	}
+
 	options := []whttp.RequestOption[Request]{
 		whttp.WithRequestEndpoints[Request](conf.APIVersion, conf.PhoneNumberID, Endpoint),
 		whttp.WithRequestBearer[Request](conf.AccessToken),
@@ -130,6 +139,7 @@ func (client *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, reader
 		whttp.WithRequestQueryParams[Request](map[string]string{
 			"enable_welcome_message": strconv.FormatBool(shouldEnable),
 		}),
+		requestTypeOption,
 	}
 
 	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
@@ -158,6 +168,7 @@ func (client *BaseClient) ListComponents(ctx context.Context, reader config.Read
 		whttp.WithRequestBearer[Request](conf.AccessToken),
 		whttp.WithRequestAppSecret[Request](conf.AppSecret),
 		whttp.WithRequestSecured[Request](conf.SecureRequests),
+		whttp.WithRequestType[Request](whttp.RequestTypeGetConversationAutomationComponents),
 	}
 
 	request := whttp.MakeRequest(http.MethodGet, conf.BaseURL, options...)
