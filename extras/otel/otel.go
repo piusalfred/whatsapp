@@ -7,8 +7,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
@@ -26,11 +24,9 @@ const (
 const tracerName = "github.com/piusalfred/whatsapp/extras/otel"
 
 type Options struct {
-	traceProvider  trace.TracerProvider
-	meterProvider  metric.MeterProvider
-	textPropagator propagation.TextMapPropagator
-	resource       *resource.Resource
-	attributes     []attribute.KeyValue
+	traceProvider trace.TracerProvider
+	meterProvider metric.MeterProvider
+	attributes    []attribute.KeyValue
 }
 
 type Option func(*Options)
@@ -44,18 +40,6 @@ func WithTracerProvider(tp trace.TracerProvider) Option {
 func WithMeter(meter metric.MeterProvider) Option {
 	return func(o *Options) {
 		o.meterProvider = meter
-	}
-}
-
-func WithPropagator(p propagation.TextMapPropagator) Option {
-	return func(o *Options) {
-		o.textPropagator = p
-	}
-}
-
-func WithResource(r *resource.Resource) Option {
-	return func(o *Options) {
-		o.resource = r
 	}
 }
 
@@ -74,11 +58,9 @@ type Sender[T any] struct {
 
 func NewSender[T any](core whttp.Sender[T], opts ...Option) (*Sender[T], error) {
 	options := Options{
-		traceProvider:  tracenoop.NewTracerProvider(),
-		meterProvider:  metricnoop.NewMeterProvider(),
-		textPropagator: propagation.TraceContext{},
-		resource:       resource.Empty(),
-		attributes:     []attribute.KeyValue{},
+		traceProvider: tracenoop.NewTracerProvider(),
+		meterProvider: metricnoop.NewMeterProvider(),
+		attributes:    []attribute.KeyValue{},
 	}
 
 	for _, opt := range opts {
