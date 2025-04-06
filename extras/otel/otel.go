@@ -110,7 +110,7 @@ func (s *Sender[T]) Send(ctx context.Context, req *whttp.Request[T], decoder wht
 
 	reqURL, err := req.URL()
 	if err == nil {
-		WhatsappRequestURLKey.String(reqURL.String())
+		attrs = append(attrs, WhatsappRequestURLKey.String(reqURL.String()))
 	}
 
 	ctx, span := s.tracer.Start(ctx, req.Type.Name(),
