@@ -123,7 +123,7 @@ type (
 func (b *BlockClient) Unblock(ctx context.Context, numbers []string) (*BlockResponse, error) {
 	req := NewBlockBaseRequest(BlockActionUnblock, WithBlockUsersBaseRequestNumbers(numbers))
 
-	resp, err := b.Do(ctx, req)
+	resp, err := b.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unblock users: %w", err)
 	}
@@ -138,7 +138,7 @@ func (b *BlockClient) ListBlocked(ctx context.Context, request *ListBlockedUsers
 		r.ListOptions = request
 	})
 
-	resp, err := b.Do(ctx, req)
+	resp, err := b.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list blocked users: %w", err)
 	}
@@ -149,7 +149,7 @@ func (b *BlockClient) ListBlocked(ctx context.Context, request *ListBlockedUsers
 func (b *BlockClient) Block(ctx context.Context, numbers []string) (*BlockResponse, error) {
 	req := NewBlockBaseRequest(BlockActionBlock, WithBlockUsersBaseRequestNumbers(numbers))
 
-	resp, err := b.Do(ctx, req)
+	resp, err := b.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to block users: %w", err)
 	}
@@ -157,10 +157,10 @@ func (b *BlockClient) Block(ctx context.Context, numbers []string) (*BlockRespon
 	return resp.BlockUsersResponse(), nil
 }
 
-func (b *BlockClient) Do(ctx context.Context, request *BlockBaseRequest) (
+func (b *BlockClient) Send(ctx context.Context, request *BlockBaseRequest) (
 	*BlockBaseResponse, error,
 ) {
-	resp, err := b.Base.Do(ctx, b.Config, request)
+	resp, err := b.Base.Send(ctx, b.Config, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -250,7 +250,7 @@ type BlockBaseClient struct {
 	Sender whttp.Sender[BlockBaseRequest]
 }
 
-func (b *BlockBaseClient) Do(ctx context.Context, reader config.Reader, request *BlockBaseRequest) (
+func (b *BlockBaseClient) Send(ctx context.Context, reader config.Reader, request *BlockBaseRequest) (
 	*BlockBaseResponse, error,
 ) {
 	var method string

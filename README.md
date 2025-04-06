@@ -251,4 +251,5 @@ There is provision of [**mocks**](./mocks) that may come handy in testing.
 - [Access Token Debugger](https://developers.facebook.com/tools/accesstoken/)
 - [Securing Requests](https://developers.facebook.com/docs/graph-api/guides/secure-requests)
 - [Analytics](https://developers.facebook.com/docs/whatsapp/business-management-api/analytics#analytics-parameters)
+- [Conversational Components](https://developers.facebook.com/docs/whatsapp/cloud-api/phone-numbers/conversational-components)
 - [Graph API Reference](https://developers.facebook.com/docs/graph-api)

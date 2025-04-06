@@ -157,7 +157,7 @@ func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterce
 			}
 		}
 
-		response, err := client.Do(req) //nolint:bodyclose
+		response, err := client.Do(req) //nolint:bodyclose // body closed
 		if err != nil {
 			return fmt.Errorf("send request: %w", err)
 		}
@@ -178,7 +178,7 @@ func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterce
 			response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
 
-		if err := decoder.Decode(ctx, response); err != nil {
+		if err = decoder.Decode(ctx, response); err != nil {
 			return fmt.Errorf("core send: decode: %w", err)
 		}
 
@@ -266,6 +266,10 @@ const (
 	RequestTypeBlockUsers
 	RequestTypeUnblockUsers
 	RequestTypeListBlockedUsers
+	RequestTypeDisableWelcomeMessage
+	RequestTypeEnableWelcomeMessage
+	RequestTypeGetConversationAutomationComponents
+	RequestTypeUpdateConversationAutomationComponents
 )
 
 // String returns the string representation of the request type.
@@ -307,7 +311,18 @@ func (r RequestType) String() string {
 		"fetch_conversation_analytics",
 		"enable_templates_analytics",
 		"disable_button_click_tracking",
+		"block_users",
+		"unblock_users",
+		"list_blocked_users",
+		"disable_welcome_message",
+		"enable_welcome_message",
+		"get_conversation_automation_components",
+		"update_conversation_automation_components",
 	}[r]
+}
+
+func (r RequestType) Name() string {
+	return strings.ReplaceAll(r.String(), "_", " ")
 }
 
 type (
@@ -439,14 +454,8 @@ func WithRequestSecured[T any](secured bool) RequestOption[T] {
 	}
 }
 
-var errNilRequest = errors.New("nil request provided")
-
-func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Request, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request: %w", errNilRequest)
-	}
-	ctx = InjectMessageMetadata(ctx, req.Metadata)
-
+// URL returns the formatted URL for the request.
+func (req *Request[T]) URL() (*url.URL, error) {
 	fmtURL, err := url.JoinPath(req.BaseURL, req.Endpoints...)
 	if err != nil {
 		return nil, fmt.Errorf("format url: %w", err)
@@ -464,22 +473,38 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Requ
 	}
 
 	if req.SecureRequests {
-		proof, err := crypto.GenerateAppSecretProof(req.Bearer, req.AppSecret)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate app secret proof: %w", err)
+		proof, proofErr := crypto.GenerateAppSecretProof(req.Bearer, req.AppSecret)
+		if proofErr != nil {
+			return nil, fmt.Errorf("failed to generate app secret proof: %w", proofErr)
 		}
 		q.Set("appsecret_proof", proof)
 	}
 
 	parsedURL.RawQuery = q.Encode()
 
+	return parsedURL, nil
+}
+
+var errNilRequest = errors.New("nil request provided")
+
+func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Request, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request: %w", errNilRequest)
+	}
+	ctx = InjectMessageMetadata(ctx, req.Metadata)
+
+	parsedURL, err := req.URL()
+	if err != nil {
+		return nil, fmt.Errorf("format url: %w", err)
+	}
+
 	var body io.Reader
 	contentType := "application/json"
 
 	if req.Message != nil {
-		encodeResp, err := EncodePayload(req.Message)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode request payload: %w", err)
+		encodeResp, encodeErr := EncodePayload(req.Message)
+		if encodeErr != nil {
+			return nil, fmt.Errorf("failed to encode request payload: %w", encodeErr)
 		}
 		body = encodeResp.Body
 		contentType = encodeResp.ContentType
@@ -618,16 +643,16 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		return fmt.Errorf("%w: expected non-empty response body", ErrEmptyResponseBody)
 	}
 
-	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode < 300
+	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusPermanentRedirect
 
-	if !isResponseOk { //nolint:nestif
+	if !isResponseOk { //nolint:nestif // no need to nest
 		if opts.InspectResponseError {
 			if len(responseBody) == 0 {
 				return fmt.Errorf("%w: status code: %d", ErrRequestFailure, response.StatusCode)
 			}
 
 			var errorResponse ResponseError
-			if err := json.Unmarshal(responseBody, &errorResponse); err != nil {
+			if err = json.Unmarshal(responseBody, &errorResponse); err != nil {
 				return fmt.Errorf("%w: %w, status code: %d", ErrDecodeErrorResponse, err, response.StatusCode)
 			}
 
@@ -655,7 +680,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		decoder.DisallowUnknownFields()
 	}
 
-	if err := decoder.Decode(v); err != nil {
+	if err = decoder.Decode(v); err != nil {
 		return fmt.Errorf("%w: %w", ErrDecodeResponseBody, err)
 	}
 
@@ -797,7 +822,7 @@ func BodyReaderResponseDecoder(fn ResponseBodyReaderFunc) ResponseDecoderFunc {
 			response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 		}()
 
-		if err := fn(ctx, bytes.NewReader(responseBody)); err != nil {
+		if err = fn(ctx, bytes.NewReader(responseBody)); err != nil {
 			return err
 		}
 

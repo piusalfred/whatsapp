@@ -469,8 +469,10 @@ func (handler *Handlers) handleNotificationEntry(ctx context.Context, entry *Ent
 	return nil
 }
 
-func (handler *Handlers) handleNotificationChangeValue(ctx context.Context,
-	id string, value *Value,
+func (handler *Handlers) handleNotificationChangeValue( //nolint: gocognit // ok
+	ctx context.Context,
+	id string,
+	value *Value,
 ) error {
 	notificationCtx := &NotificationContext{
 		ID:       id,
@@ -517,7 +519,7 @@ func (handler *Handlers) handleNotificationChangeValue(ctx context.Context,
 	return nil
 }
 
-func (handler *Handlers) handleNotificationMessage(ctx context.Context, //nolint: gocyclo
+func (handler *Handlers) handleNotificationMessage(ctx context.Context,
 	nctx *NotificationContext, message *Message,
 ) error {
 	mctx := &Info{
@@ -606,7 +608,7 @@ func (handler *Handlers) handleMediaMessage(ctx context.Context, nctx *Notificat
 	message *Message, mctx *Info,
 ) error {
 	messageType := ParseType(message.Type)
-	switch messageType { //nolint:exhaustive
+	switch messageType { //nolint:exhaustive // ok
 	case TypeAudio:
 		if err := handler.AudioMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
 			return fmt.Errorf("%w: %w", ErrMediaMessageHandler, err)

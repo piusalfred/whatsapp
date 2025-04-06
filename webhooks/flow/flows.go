@@ -60,7 +60,10 @@ func (handlers *Handlers) HandleNotification(ctx context.Context, notification *
 	return &webhooks.Response{StatusCode: http.StatusOK}
 }
 
-func (handlers *Handlers) dispatchNotification(ctx context.Context, notification *Notification) error {
+func (handlers *Handlers) dispatchNotification( //nolint:gocognit // ok
+	ctx context.Context,
+	notification *Notification,
+) error {
 	for _, entry := range notification.Entry {
 		for _, change := range entry.Changes {
 			notificationCtx := &NotificationContext{

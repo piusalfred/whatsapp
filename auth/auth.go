@@ -194,7 +194,7 @@ func (c *Client) GenerateAccessToken(ctx context.Context,
 		InspectResponseError:  true,
 	})
 
-	if err := c.sender.Send(ctx, req, decoder); err != nil {
+	if err = c.sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
 
@@ -367,31 +367,31 @@ const (
 	TokenScopeCommerceAccountManageOrders     = "commerce_account_manage_orders"
 	TokenScopeCommerceAccountReadOrders       = "commerce_account_read_orders"
 	TokenScopeCommerceAccountReadSettings     = "commerce_account_read_settings"
-	TokenScopeInstagramBasic                  = "instagram_basic" //nolint:gosec
+	TokenScopeInstagramBasic                  = "instagram_basic" //nolint:gosec // ok
 	TokenScopeInstagramBrandedContentAdsBrand = "instagram_branded_content_ads_brand"
 	TokenScopeInstagramBrandedContentBrand    = "instagram_branded_content_brand"
-	TokenScopeInstagramContentPublish         = "instagram_content_publish" //nolint:gosec
+	TokenScopeInstagramContentPublish         = "instagram_content_publish" //nolint:gosec // ok
 	TokenScopeInstagramManageComments         = "instagram_manage_comments"
 	TokenScopeInstagramManageInsights         = "instagram_manage_insights"
 	TokenScopeInstagramManageMessages         = "instagram_manage_messages"
-	TokenScopeInstagramShoppingTagProducts    = "instagram_shopping_tag_products" //nolint:gosec
+	TokenScopeInstagramShoppingTagProducts    = "instagram_shopping_tag_products" //nolint:gosec // ok
 	TokenScopeLeadsRetrieval                  = "leads_retrieval"
 	TokenScopePageEvents                      = "page_events"
 	TokenScopePagesManageAds                  = "pages_manage_ads"
-	TokenScopePagesManageCta                  = "pages_manage_cta" //nolint:gosec
+	TokenScopePagesManageCta                  = "pages_manage_cta" //nolint:gosec // ok
 	TokenScopePagesManageEngagement           = "pages_manage_engagement"
 	TokenScopePagesManageInstantArticles      = "pages_manage_instant_articles"
 	TokenScopePagesManageMetadata             = "pages_manage_metadata"
 	TokenScopePagesManagePosts                = "pages_manage_posts"
 	TokenScopePagesMessaging                  = "pages_messaging"
-	TokenScopePagesReadEngagement             = "pages_read_engagement"   //nolint:gosec
-	TokenScopePagesReadUserContent            = "pages_read_user_content" //nolint:gosec
+	TokenScopePagesReadEngagement             = "pages_read_engagement"   //nolint:gosec // ok
+	TokenScopePagesReadUserContent            = "pages_read_user_content" //nolint:gosec // ok
 	TokenScopePagesShowList                   = "pages_show_list"
 	TokenScopePrivateComputationAccess        = "private_computation_access"
 	TokenScopePublishVideo                    = "publish_video"
 	TokenScopeReadAudienceNetworkInsights     = "read_audience_network_insights"
 	TokenScopeReadInsights                    = "read_insights"
-	TokenScopeReadPageMailboxes               = "read_page_mailboxes" //nolint:gosec
+	TokenScopeReadPageMailboxes               = "read_page_mailboxes" //nolint:gosec // ok
 	TokenScopeWhatsappBusinessManagement      = "whatsapp_business_management"
 	TokenScopeWhatsappBusinessMessaging       = "whatsapp_business_messaging"
 )
