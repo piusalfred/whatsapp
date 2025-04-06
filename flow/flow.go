@@ -420,7 +420,7 @@ func (client *BaseClient) UpdateFlowJSON(ctx context.Context,
 		DisallowEmptyResponse: true,
 	})
 
-	if err := client.Sender.Send(ctx, req, decoder); err != nil {
+	if err = client.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("upload media failed: %w", err)
 	}
 
@@ -558,7 +558,7 @@ func (client *BaseClient) Deprecate(ctx context.Context, id string) (*SuccessRes
 var _ Service = (*BaseClient)(nil)
 
 type (
-	Service interface { //nolint:interfacebloat
+	Service interface {
 		Create(ctx context.Context, request CreateRequest) (*CreateResponse, error)
 		Update(ctx context.Context, id string, request UpdateRequest) (*UpdateResponse, error)
 		UpdateFlowJSON(ctx context.Context, request *UpdateFlowJSONRequest) (*UpdateFlowJSONResponse, error)
@@ -766,7 +766,7 @@ func (h *DataExchangeHandlerImpl) Handle(w http.ResponseWriter, request *http.Re
 	}
 
 	var message *DataExchangeRequest
-	if err := json.Unmarshal(decryptedRequest.FlowData, &message); err != nil {
+	if err = json.Unmarshal(decryptedRequest.FlowData, &message); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
@@ -794,7 +794,7 @@ func (h *DataExchangeHandlerImpl) EncryptResponse(response *Response, request *D
 	// flip the IV
 	flippedIV := make([]byte, len(request.InitialVector))
 	for i, b := range request.InitialVector {
-		flippedIV[i] = b ^ 0xFF
+		flippedIV[i] = b ^ 0xFF //nolint:mnd // ok
 	}
 
 	responseData, err := json.Marshal(response)
@@ -838,9 +838,9 @@ func (h *DataExchangeHandlerImpl) DecryptRequest(ctx context.Context, request *R
 		return nil, fmt.Errorf("decode initial vector: %w", err)
 	}
 
-	TagLength := 16
-	encryptedFlowDataBody := encryptedFlowData[:len(encryptedFlowData)-TagLength]
-	encryptedFlowDataTag := encryptedFlowData[len(encryptedFlowData)-TagLength:]
+	tagLength := 16
+	encryptedFlowDataBody := encryptedFlowData[:len(encryptedFlowData)-tagLength]
+	encryptedFlowDataTag := encryptedFlowData[len(encryptedFlowData)-tagLength:]
 
 	decryptedFlowData, err := aesGCMDecrypt(encryptedFlowDataBody, decryptedAesKey, initialVector, encryptedFlowDataTag)
 	if err != nil {

@@ -101,7 +101,7 @@ func (c *TemplatesClient) DisableButtonClickTracking(ctx context.Context,
 		InspectResponseError:  true,
 	})
 
-	if err := c.sender.Send(ctx, request, decoder); err != nil {
+	if err = c.sender.Send(ctx, request, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 
@@ -143,7 +143,7 @@ func (c *TemplatesClient) Enable(ctx context.Context) (string, error) {
 		InspectResponseError:  true,
 	})
 
-	if err := c.sender.Send(ctx, req, decoder); err != nil {
+	if err = c.sender.Send(ctx, req, decoder); err != nil {
 		return "", fmt.Errorf("send request: %w", err)
 	}
 
@@ -203,7 +203,7 @@ func (c *TemplatesClient) Fetch(ctx context.Context, params *TemplateAnalyticsRe
 		InspectResponseError:  true,
 	})
 
-	if err := c.sender.Send(ctx, req, decoder); err != nil {
+	if err = c.sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 

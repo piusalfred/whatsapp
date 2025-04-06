@@ -74,7 +74,8 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 
 				return resp
 			}
-		})
+		},
+	)
 
 	tests := []testCase[message.Notification]{
 		{
@@ -98,8 +99,10 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 				return webhooks.NotificationHandlerFunc[message.Notification](handler.HandleNotification)
 			},
 			middlewares: []webhooks.HandleMiddleware[message.Notification]{printNotificationMiddleware},
-			payload:     []byte(`{"object": "whatsapp_business_account", "entry": [{"id": "<WHATSAPP_BUSINESS_ACCOUNT_ID>", "changes": [{"value": {"messaging_product": "whatsapp", "contacts": [{"profile": {"name": "<WHATSAPP_USER_NAME>"}, "wa_id": "<WHATSAPP_USER_ID>"}], "messages": [{"from": "<WHATSAPP_USER_PHONE_NUMBER>", "id": "<WHATSAPP_MESSAGE_ID>", "timestamp": "<WEBHOOK_SENT_TIMESTAMP>", "text": {"body": "dudeeeee"}, "type": "text"}]}, "field": "messages"}]}]}`),
-			challenge:   "SAYCHEESEIFYOUKNOWWHATIMEAN",
+			payload: []byte(
+				`{"object": "whatsapp_business_account", "entry": [{"id": "<WHATSAPP_BUSINESS_ACCOUNT_ID>", "changes": [{"value": {"messaging_product": "whatsapp", "contacts": [{"profile": {"name": "<WHATSAPP_USER_NAME>"}, "wa_id": "<WHATSAPP_USER_ID>"}], "messages": [{"from": "<WHATSAPP_USER_PHONE_NUMBER>", "id": "<WHATSAPP_MESSAGE_ID>", "timestamp": "<WEBHOOK_SENT_TIMESTAMP>", "text": {"body": "dudeeeee"}, "type": "text"}]}, "field": "messages"}]}]}`,
+			),
+			challenge: "SAYCHEESEIFYOUKNOWWHATIMEAN",
 		},
 	}
 
@@ -153,7 +156,7 @@ func TestListener_HandleNotification_Message(t *testing.T) {
 
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err = http.DefaultClient.Do(req) //nolint:bodyclose
+			resp, err = http.DefaultClient.Do(req)
 			if err != nil {
 				t.Fatalf("Failed to send request: %v", err)
 			}

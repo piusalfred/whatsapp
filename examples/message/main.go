@@ -114,13 +114,23 @@ func main() {
 
 	initTmplMessage, err := message.New(recipient, initTmpl)
 	if err != nil {
-		logger.LogAttrs(ctx, slog.LevelError, "error creating initial template message", slog.String("error", err.Error()))
+		logger.LogAttrs(
+			ctx,
+			slog.LevelError,
+			"error creating initial template message",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
 	response, err := baseClient.SendMessage(ctx, initTmplMessage)
 	if err != nil {
-		logger.LogAttrs(ctx, slog.LevelError, "error sending initial template message", slog.String("error", err.Error()))
+		logger.LogAttrs(
+			ctx,
+			slog.LevelError,
+			"error sending initial template message",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -155,7 +165,12 @@ func main() {
 	// use dedicated method
 	response, err = baseClient.SendInteractiveMessage(ctx, ir)
 	if err != nil {
-		logger.LogAttrs(ctx, slog.LevelError, "error sending interactive CTA message", slog.String("error", err.Error()))
+		logger.LogAttrs(
+			ctx,
+			slog.LevelError,
+			"error sending interactive CTA message",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -165,13 +180,23 @@ func main() {
 
 	locationMessage, err := message.New(recipient, message.WithRequestLocationMessage(&msg))
 	if err != nil {
-		logger.LogAttrs(ctx, slog.LevelError, "error creating location request message", slog.String("error", err.Error()))
+		logger.LogAttrs(
+			ctx,
+			slog.LevelError,
+			"error creating location request message",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
 	response, err = baseClient.SendMessage(ctx, locationMessage)
 	if err != nil {
-		logger.LogAttrs(ctx, slog.LevelError, "error sending location request message", slog.String("error", err.Error()))
+		logger.LogAttrs(
+			ctx,
+			slog.LevelError,
+			"error sending location request message",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 

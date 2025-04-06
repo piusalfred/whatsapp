@@ -37,7 +37,7 @@ const (
 func IsCorrectAPIVersion(apiVersion string) bool {
 	reg := regexp.MustCompile(`^v(?P<major_version>\d+)\.(?P<minor_version>\d+)$`)
 	matches := reg.FindStringSubmatch(apiVersion)
-	if len(matches) != 3 {
+	if len(matches) != 3 { //nolint:mnd // ok
 		return false
 	}
 

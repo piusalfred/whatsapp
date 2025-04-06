@@ -115,7 +115,7 @@ func OnEventNotification[T any](handler NotificationHandler[T]) http.HandlerFunc
 
 		var payload T
 
-		if err := json.Unmarshal(body, &payload); err != nil {
+		if err = json.Unmarshal(body, &payload); err != nil {
 			msgErr := fmt.Errorf("%w: %w", ErrMessageDecode, err)
 			http.Error(writer, msgErr.Error(), http.StatusInternalServerError)
 
@@ -145,13 +145,13 @@ func ExtractAndValidatePayload[T any](request *http.Request, options *ValidateOp
 	request.Body = io.NopCloser(&buff)
 
 	if options.Validate {
-		if err := ValidatePayloadSignature(request.Header, buff.Bytes(), options.AppSecret); err != nil {
+		if err = ValidatePayloadSignature(request.Header, buff.Bytes(), options.AppSecret); err != nil {
 			return nil, err
 		}
 	}
 
 	var notification T
-	if err := json.NewDecoder(&buff).Decode(&notification); err != nil && !errors.Is(err, io.EOF) {
+	if err = json.NewDecoder(&buff).Decode(&notification); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err)
 	}
 
@@ -191,7 +191,7 @@ func ValidateSignature(payload []byte, params ValidateSignatureOptions) error {
 	}
 
 	mac := hmac.New(sha256.New, []byte(params.AppSecret))
-	if _, err := mac.Write(payload); err != nil {
+	if _, err = mac.Write(payload); err != nil {
 		return fmt.Errorf("error hashing payload: %w", err)
 	}
 	expectedSignature := mac.Sum(nil)
@@ -245,7 +245,7 @@ func ValidatePayloadSignature(header http.Header, payload []byte, secret string)
 		AppSecret: secret,
 	}
 
-	if err := ValidateSignature(payload, params); err != nil {
+	if err = ValidateSignature(payload, params); err != nil {
 		return fmt.Errorf("%w: %w", ErrSignatureVerification, err)
 	}
 
@@ -271,7 +271,7 @@ func ValidateRequestPayloadSignature(request *http.Request, secret string) error
 
 	request.Body = io.NopCloser(&buff)
 
-	if err := ValidateSignature(buff.Bytes(), params); err != nil {
+	if err = ValidateSignature(buff.Bytes(), params); err != nil {
 		return fmt.Errorf("%w: %w", ErrSignatureVerification, err)
 	}
 

@@ -177,7 +177,12 @@ func (b *BaseClient) Update(ctx context.Context, request *UpdateProfileRequest) 
 }
 
 func (b *BaseClient) Send(ctx context.Context, config *config.Config, request *BaseRequest) (*Response, error) {
-	return b.Sender.Send(ctx, config, request) //nolint:wrapcheck
+	response, err := b.Sender.Send(ctx, config, request)
+	if err != nil {
+		return nil, fmt.Errorf("business client: %w", err)
+	}
+
+	return response, nil
 }
 
 var (
@@ -235,7 +240,12 @@ func (c *Client) Update(ctx context.Context, request *UpdateProfileRequest) (boo
 }
 
 func (c *Client) Send(ctx context.Context, config *config.Config, request *BaseRequest) (*Response, error) {
-	return c.Sender.Send(ctx, config, request) //nolint:wrapcheck
+	response, err := c.Sender.Send(ctx, config, request)
+	if err != nil {
+		return nil, fmt.Errorf("business client: %w", err)
+	}
+
+	return response, nil
 }
 
 var (
