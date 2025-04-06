@@ -34,7 +34,7 @@ import (
 )
 
 type (
-	Service interface { //nolint:interfacebloat
+	Service interface {
 		SendText(ctx context.Context, request *Request[Text]) (*Response, error)
 		SendLocation(ctx context.Context, request *Request[Location]) (*Response, error)
 		SendVideo(ctx context.Context, request *Request[Video]) (*Response, error)
@@ -405,7 +405,7 @@ func NewRequest[T any](recipient string, message *T, replyTo string) *Request[T]
 }
 
 func buildOptions[T any](message *T, replyTo string, createMessageFunc func(*T) Option) []Option {
-	options := make([]Option, 1, 2)
+	options := make([]Option, 1, 2) //nolint: mnd // ok
 	options[0] = createMessageFunc(message)
 	if replyTo != "" {
 		options = append(options, WithMessageAsReplyTo(replyTo))

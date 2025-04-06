@@ -40,7 +40,7 @@ func HandleMessageNotification(ctx context.Context, notification *message.Notifi
 	return &webhooks.Response{StatusCode: http.StatusOK}
 }
 
-// LoggingMiddleware logs the start and end of request processing
+// LoggingMiddleware logs the start and end of request processing.
 func LoggingMiddleware[T any](next webhooks.NotificationHandlerFunc[T]) webhooks.NotificationHandlerFunc[T] {
 	return func(ctx context.Context, notification *T) *webhooks.Response {
 		fmt.Println("Logging: Before handling notification")
@@ -50,7 +50,7 @@ func LoggingMiddleware[T any](next webhooks.NotificationHandlerFunc[T]) webhooks
 	}
 }
 
-// AddMetadataMiddleware adds some metadata to the context
+// AddMetadataMiddleware adds some metadata to the context.
 func AddMetadataMiddleware[T any](next webhooks.NotificationHandlerFunc[T]) webhooks.NotificationHandlerFunc[T] {
 	return func(ctx context.Context, notification *T) *webhooks.Response {
 		fmt.Println("Adding metadata to the context")

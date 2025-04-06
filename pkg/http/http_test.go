@@ -385,7 +385,7 @@ func TestRequestWithContext(t *testing.T) {
 			}
 
 			if strings.Contains(got.Header.Get("Content-Type"), "multipart/form-data") {
-				err := got.ParseMultipartForm(10 << 20) // 10 MB
+				err = got.ParseMultipartForm(10 << 20) // 10 MB
 				if err != nil {
 					t.Fatalf("failed to parse multipart form: %v", err)
 				}

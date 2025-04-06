@@ -1,12 +1,16 @@
-package analytics
+package analytics_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/piusalfred/whatsapp/business/analytics"
+)
 
 func TestQueryParamsString(t *testing.T) {
 	t.Parallel()
 	type testCase struct {
 		name     string
-		generate func() *Request
+		generate func() *analytics.Request
 		expected string
 	}
 
@@ -14,14 +18,14 @@ func TestQueryParamsString(t *testing.T) {
 		// General MessagingAnalytics Example
 		{
 			name: "General MessagingAnalytics Example",
-			generate: func() *Request {
-				return MakeMessagingAnalyticsQueryParams(
+			generate: func() *analytics.Request {
+				return analytics.MakeMessagingAnalyticsQueryParams(
 					1685602800,
 					1688194800,
-					GranularityMonthly,
-					WithMessagingPhoneNumbers("16505550111", "16505550112"),
-					WithMessagingProductTypes(0, 2),
-					WithMessagingCountryCodes("US", "CA"),
+					analytics.GranularityMonthly,
+					analytics.WithMessagingPhoneNumbers("16505550111", "16505550112"),
+					analytics.WithMessagingProductTypes(0, 2),
+					analytics.WithMessagingCountryCodes("US", "CA"),
 				)
 			},
 			expected: "analytics.start(1685602800).end(1688194800).granularity(MONTHLY).phone_numbers([\"16505550111\",\"16505550112\"]).country_codes([\"US\",\"CA\"]).product_types([0,2])",
@@ -29,16 +33,16 @@ func TestQueryParamsString(t *testing.T) {
 		// Conversation MessagingAnalytics Example 1
 		{
 			name: "Conversation MessagingAnalytics Example 1",
-			generate: func() *Request {
-				return MakeConversationalAnalyticsQueryParams(
+			generate: func() *analytics.Request {
+				return analytics.MakeConversationalAnalyticsQueryParams(
 					1685602800,
 					1688194800,
-					GranularityMonthly,
-					WithConversationalDimensions(
-						DimensionConversationCategory,
-						DimensionConversationType,
-						DimensionCountry,
-						DimensionPhone,
+					analytics.GranularityMonthly,
+					analytics.WithConversationalDimensions(
+						analytics.DimensionConversationCategory,
+						analytics.DimensionConversationType,
+						analytics.DimensionCountry,
+						analytics.DimensionPhone,
 					),
 				)
 			},
@@ -47,17 +51,17 @@ func TestQueryParamsString(t *testing.T) {
 		// Conversation MessagingAnalytics Example 2
 		{
 			name: "Conversation MessagingAnalytics Example 2",
-			generate: func() *Request {
-				return MakeConversationalAnalyticsQueryParams(
+			generate: func() *analytics.Request {
+				return analytics.MakeConversationalAnalyticsQueryParams(
 					1685602800,
 					1685689200,
-					GranularityHalfHour,
-					WithConversationalPhoneNumbers("19195552584"),
-					WithConversationalDimensions(
-						DimensionConversationCategory,
-						DimensionConversationType,
-						DimensionCountry,
-						DimensionPhone,
+					analytics.GranularityHalfHour,
+					analytics.WithConversationalPhoneNumbers("19195552584"),
+					analytics.WithConversationalDimensions(
+						analytics.DimensionConversationCategory,
+						analytics.DimensionConversationType,
+						analytics.DimensionCountry,
+						analytics.DimensionPhone,
 					),
 				)
 			},
@@ -66,18 +70,18 @@ func TestQueryParamsString(t *testing.T) {
 		// Conversation MessagingAnalytics Example 3
 		{
 			name: "Conversation MessagingAnalytics Example 3",
-			generate: func() *Request {
-				return MakeConversationalAnalyticsQueryParams(
+			generate: func() *analytics.Request {
+				return analytics.MakeConversationalAnalyticsQueryParams(
 					1685527200,
 					1685613600,
-					GranularityHalfHour,
-					WithConversationalCategories(
-						ConversationalCategoryMarketing,
-						ConversationalCategoryAuthentications,
+					analytics.GranularityHalfHour,
+					analytics.WithConversationalCategories(
+						analytics.ConversationalCategoryMarketing,
+						analytics.ConversationalCategoryAuthentications,
 					),
-					WithConversationalDimensions(
-						DimensionConversationCategory,
-						DimensionConversationType,
+					analytics.WithConversationalDimensions(
+						analytics.DimensionConversationCategory,
+						analytics.DimensionConversationType,
 					),
 				)
 			},
@@ -86,18 +90,18 @@ func TestQueryParamsString(t *testing.T) {
 		// Pricing MessagingAnalytics Example
 		{
 			name: "Pricing MessagingAnalytics Example",
-			generate: func() *Request {
-				return MakePricingAnalyticsQueryParams(
+			generate: func() *analytics.Request {
+				return analytics.MakePricingAnalyticsQueryParams(
 					1685602800,
 					1688194800,
-					GranularityMonthly,
-					WithPricingPhoneNumbers("19195552584", "19195552585"),
-					WithPricingMetricTypes(MetricTypeCost),
-					WithPricingTypes(PricingTypeRegular),
-					WithPricingCategories(PricingCategoryMarketing),
-					WithPricingDimensions(
-						DimensionCountry,
-						DimensionPhone,
+					analytics.GranularityMonthly,
+					analytics.WithPricingPhoneNumbers("19195552584", "19195552585"),
+					analytics.WithPricingMetricTypes(analytics.MetricTypeCost),
+					analytics.WithPricingTypes(analytics.PricingTypeRegular),
+					analytics.WithPricingCategories(analytics.PricingCategoryMarketing),
+					analytics.WithPricingDimensions(
+						analytics.DimensionCountry,
+						analytics.DimensionPhone,
 					),
 				)
 			},

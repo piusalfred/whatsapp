@@ -65,8 +65,13 @@ func (client *BaseClient) GetFlowMetrics(ctx context.Context, request *MetricsRe
 	}
 
 	queryParams := map[string]string{
-		"fields": fmt.Sprintf("metric.name(%s).granularity(%s).since(%s).until(%s)",
-			request.MetricName, request.Granularity, request.Since.Format(time.DateOnly), request.Until.Format(time.DateOnly)),
+		"fields": fmt.Sprintf(
+			"metric.name(%s).granularity(%s).since(%s).until(%s)",
+			request.MetricName,
+			request.Granularity,
+			request.Since.Format(time.DateOnly),
+			request.Until.Format(time.DateOnly),
+		),
 	}
 
 	opts := []whttp.RequestOption[any]{
@@ -86,7 +91,7 @@ func (client *BaseClient) GetFlowMetrics(ctx context.Context, request *MetricsRe
 		DisallowEmptyResponse: true,
 	})
 
-	if err := client.Sender.Send(ctx, req, decoder); err != nil {
+	if err = client.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("get flow metrics failed: %w", err)
 	}
 

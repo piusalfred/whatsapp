@@ -36,7 +36,7 @@ func (f FetcherFunc) FetchAnalytics(ctx context.Context, request *Request) (*Res
 	return f(ctx, request)
 }
 
-//nolint:ireturn
+//nolint:ireturn // ok
 func wrapMiddleware(fetcher Fetcher, middlewares ...Middleware) Fetcher {
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		fetcher = middlewares[i](fetcher)
@@ -449,7 +449,7 @@ func (r *Request) QueryParamsString() string {
 		})
 	}
 
-	switch r.Fields { //nolint:exhaustive
+	switch r.Fields { //nolint:exhaustive // ok
 	case TypeMessagingAnalytics:
 		if len(r.ProductTypes) > 0 {
 			appendParamValue(&buffer, "product_types", r.ProductTypes, func(productTypes []int64) string {

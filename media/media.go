@@ -90,7 +90,7 @@ type Info struct {
 	Category  Category
 }
 
-var InfoMap = map[Type]Info{ //nolint:gochecknoglobals
+var InfoMap = map[Type]Info{ //nolint:gochecknoglobals // ok
 	TypeAudioAAC: {
 		MediaType: TypeAudioAAC,
 		MIMEType:  string(TypeAudioAAC),
@@ -289,7 +289,7 @@ func (s *BaseClient) Download(ctx context.Context, request *DownloadRequest, dec
 	req := whttp.MakeRequest[any](http.MethodGet, request.URL, opts...)
 
 	for i := 0; i <= request.Retries; i++ {
-		if err := s.Sender.Send(ctx, req, decoder); err != nil {
+		if err = s.Sender.Send(ctx, req, decoder); err != nil {
 			if i < request.Retries {
 				continue
 			}
@@ -336,7 +336,7 @@ func (s *BaseClient) Delete(ctx context.Context, req *BaseRequest) (*DeleteMedia
 		DisallowEmptyResponse: true,
 	})
 
-	if err := s.Sender.Send(ctx, request, decoder); err != nil {
+	if err = s.Sender.Send(ctx, request, decoder); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrMediaDelete, err)
 	}
 
@@ -375,7 +375,7 @@ func (s *BaseClient) GetInfo(ctx context.Context, req *BaseRequest) (*Informatio
 		DisallowEmptyResponse: true,
 	})
 
-	if err := s.Sender.Send(ctx, request, decoder); err != nil {
+	if err = s.Sender.Send(ctx, request, decoder); err != nil {
 		return nil, fmt.Errorf("get media info failed: %w", err)
 	}
 
@@ -422,7 +422,7 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 		DisallowEmptyResponse: true,
 	})
 
-	if err := s.Sender.Send(ctx, request, decoder); err != nil {
+	if err = s.Sender.Send(ctx, request, decoder); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrMediaUpload, err)
 	}
 

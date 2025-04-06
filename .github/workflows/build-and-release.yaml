@@ -24,13 +24,12 @@ jobs:
         arch: [amd64, arm64]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
-
+          go-version: '>=1.24.0'
       - name: Install dependencies
         run: go mod tidy
 
@@ -55,11 +54,10 @@ jobs:
           go mod tidy
           go mod download
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
         with:
-          args: >-
-            --timeout 5m
+          version: v2.0.2
 
   tag-and-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -91,4 +89,3 @@ jobs:
               --repo="$GITHUB_REPOSITORY" \
               --title="${TAG#v}" \
               --generate-notes
-              
