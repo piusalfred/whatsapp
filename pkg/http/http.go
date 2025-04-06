@@ -321,6 +321,10 @@ func (r RequestType) String() string {
 	}[r]
 }
 
+func (r RequestType) Name() string {
+	return strings.ReplaceAll(r.String(), "_", " ")
+}
+
 type (
 	RequestType uint8
 
