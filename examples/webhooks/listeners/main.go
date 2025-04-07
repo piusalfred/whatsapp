@@ -86,8 +86,23 @@ func main() {
 		AddMetadataMiddleware[business.Notification],
 	)
 
+	bizHandler := &business.Handler{}
+	alertsHandler := func(ctx context.Context, ntx *business.NotificationContext, message *business.AlertNotification) error {
+		return nil
+	}
+	bizHandler.SetAlertsHandler(business.EventHandlerFunc[business.AlertNotification](alertsHandler))
+
+	businessListener2 := webhooks.NewListener(
+		bizHandler.HandleNotification,
+		func(ctx context.Context) (string, error) {
+			return "", nil
+		},
+		&webhooks.ValidateOptions{},
+	)
+
 	http.HandleFunc("POST /webhooks/messages", messageListener.HandleNotification)
 	http.HandleFunc("POST /webhooks/business", businessListener.HandleNotification)
+	http.HandleFunc("POST /webhooks/business/2", businessListener2.HandleNotification)
 	http.HandleFunc("POST /webhooks/messages/verify", messageListener.HandleSubscriptionVerification)
 	http.HandleFunc("POST /webhooks/business/verify", businessListener.HandleSubscriptionVerification)
 
