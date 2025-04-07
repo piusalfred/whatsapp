@@ -460,11 +460,11 @@ func (h *Handler) HandleNotification(ctx context.Context,
 	return &webhooks.Response{StatusCode: http.StatusOK}
 }
 
-func (h *Handler) handleChangeValue(
+func (h *Handler) handleChangeValue( //nolint: gocognit // ok
 	ctx context.Context,
 	ntx *NotificationContext,
 	value *Value,
-) error { //nolint: gocognit // ok
+) error {
 	if h.isHandlerSet(ntx.ChangeField) { //nolint: nestif // ok
 		switch ntx.ChangeField {
 		case ChangeFieldAccountAlerts:

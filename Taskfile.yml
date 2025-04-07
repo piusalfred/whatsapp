@@ -13,14 +13,17 @@ tasks:
   update-message-examples-deps:
     dir: examples/message
     cmds:
+      - go get -u ./...
       - go mod tidy
   update-qr-examples-deps:
     dir: examples/qr
     cmds:
+      - go get -u ./...
       - go mod tidy
   update-auth-examples-deps:
     dir: examples/auth
     cmds:
+      - go get -u ./...
       - go mod tidy
   build-examples:
     deps: [clean, update-message-examples-deps,update-qr-examples-deps,update-auth-examples-deps]
