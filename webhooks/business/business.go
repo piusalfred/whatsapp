@@ -83,6 +83,8 @@ type (
 		MessageTemplateLanguage      string            `json:"message_template_language,omitempty"`
 		Reason                       *string           `json:"reason,omitempty"`
 		PreviousCategory             string            `json:"previous_category,omitempty"`
+		PreviousQualityScore         string            `json:"previous_quality_score,omitempty"`
+		NewQualityScore              string            `json:"new_quality_score,omitempty"`
 		NewCategory                  string            `json:"new_category,omitempty"`
 		DisplayPhoneNumber           string            `json:"display_phone_number,omitempty"`
 		PhoneNumber                  string            `json:"phone_number,omitempty"`
@@ -201,8 +203,8 @@ type TemplateQualityUpdateNotification struct {
 
 func (v *Value) TemplateQualityUpdate() *TemplateQualityUpdateNotification {
 	return &TemplateQualityUpdateNotification{
-		PreviousQualityScore:    v.PreviousCategory,
-		NewQualityScore:         v.NewCategory,
+		PreviousQualityScore:    v.PreviousQualityScore,
+		NewQualityScore:         v.NewQualityScore,
 		MessageTemplateID:       v.MessageTemplateID,
 		MessageTemplateName:     v.MessageTemplateName,
 		MessageTemplateLanguage: v.MessageTemplateLanguage,
