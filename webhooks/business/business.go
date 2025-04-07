@@ -26,6 +26,19 @@ import (
 	"github.com/piusalfred/whatsapp/webhooks"
 )
 
+const (
+	NotificationObjectBusinessAccount   = "whatsapp_business_account"
+	ChangeFieldAccountAlerts            = "account_alerts"
+	ChangeFieldTemplateStatusUpdate     = "message_template_status_update"
+	ChangeFieldTemplateCategoryUpdate   = "template_category_update"
+	ChangeFieldTemplateQualityUpdate    = "message_template_quality_update"
+	ChangeFieldPhoneNumberNameUpdate    = "phone_number_name_update"
+	ChangeFieldBusinessCapabilityUpdate = "business_capability_update"
+	ChangeFieldAccountUpdate            = "account_update"
+	ChangeFieldAccountReviewUpdate      = "account_review_update"
+	ChangeFieldPhoneNumberQualityUpdate = "phone_number_quality_update"
+)
+
 type (
 	Notification struct {
 		Object string  `json:"object"`
@@ -72,6 +85,7 @@ type (
 		PreviousCategory             string            `json:"previous_category,omitempty"`
 		NewCategory                  string            `json:"new_category,omitempty"`
 		DisplayPhoneNumber           string            `json:"display_phone_number,omitempty"`
+		PhoneNumber                  string            `json:"phone_number,omitempty"`
 		CurrentLimit                 string            `json:"current_limit,omitempty"`
 		MaxDailyConversationPerPhone int               `json:"max_daily_conversation_per_phone,omitempty"`
 		MaxPhoneNumbersPerBusiness   int               `json:"max_phone_numbers_per_business,omitempty"`
@@ -82,7 +96,14 @@ type (
 		BanInfo                      *BanInfo          `json:"ban_info,omitempty"`
 		Decision                     string            `json:"decision,omitempty"`
 		DisableInfo                  *DisableInfo      `json:"disable_info,omitempty"`
+		OtherInfo                    *OtherInfo        `json:"other_info,omitempty"`
 		ViolationInfo                *ViolationInfo    `json:"violation_info,omitempty"`
+		EntityType                   string            `json:"entity_type,omitempty"`
+		EntityID                     string            `json:"entity_id,omitempty"`
+		AlertSeverity                string            `json:"alert_severity,omitempty"`
+		AlertStatus                  string            `json:"alert_status,omitempty"`
+		AlertType                    string            `json:"alert_type,omitempty"`
+		AlertDescription             string            `json:"alert_description,omitempty"`
 	}
 
 	BanInfo struct {
@@ -95,6 +116,11 @@ type (
 		DisableDate string `json:"disable_date"` // Date when the template was disabled
 	}
 
+	OtherInfo struct {
+		Title       string `json:"title,omitempty"`
+		Description string `json:"description,omitempty"`
+	}
+
 	ViolationInfo struct {
 		ViolationType string `json:"violation_type"` // e.g., "ACCOUNT_VIOLATION"
 	}
@@ -104,6 +130,154 @@ type (
 		Expiration      string          `json:"expiration"`       // Expiration date of the restriction
 	}
 )
+
+type AlertNotification struct {
+	EntityType       string `json:"entity_type,omitempty"`
+	EntityID         string `json:"entity_id,omitempty"`
+	AlertSeverity    string `json:"alert_severity,omitempty"`
+	AlertStatus      string `json:"alert_status,omitempty"`
+	AlertType        string `json:"alert_type,omitempty"`
+	AlertDescription string `json:"alert_description,omitempty"`
+}
+
+func (v *Value) AlertNotification() *AlertNotification {
+	return &AlertNotification{
+		EntityType:       v.EntityType,
+		EntityID:         v.EntityID,
+		AlertSeverity:    v.AlertSeverity,
+		AlertStatus:      v.AlertStatus,
+		AlertType:        v.AlertType,
+		AlertDescription: v.AlertDescription,
+	}
+}
+
+type TemplateStatusUpdateNotification struct {
+	Event                   string       `json:"event,omitempty"`
+	MessageTemplateID       int64        `json:"message_template_id,omitempty"`
+	MessageTemplateName     string       `json:"message_template_name,omitempty"`
+	MessageTemplateLanguage string       `json:"message_template_language,omitempty"`
+	Reason                  string       `json:"reason,omitempty"`
+	DisableInfo             *DisableInfo `json:"disable_info,omitempty"`
+	OtherInfo               *OtherInfo   `json:"other_info,omitempty"`
+}
+
+func (v *Value) TemplateStatusUpdate() *TemplateStatusUpdateNotification {
+	return &TemplateStatusUpdateNotification{
+		Event:                   v.Event,
+		MessageTemplateID:       v.MessageTemplateID,
+		MessageTemplateName:     v.MessageTemplateName,
+		MessageTemplateLanguage: v.MessageTemplateLanguage,
+		Reason:                  *v.Reason,
+		DisableInfo:             v.DisableInfo,
+		OtherInfo:               v.OtherInfo,
+	}
+}
+
+type TemplateCategoryUpdateNotification struct {
+	MessageTemplateID       int64  `json:"message_template_id,omitempty"`
+	MessageTemplateName     string `json:"message_template_name,omitempty"`
+	MessageTemplateLanguage string `json:"message_template_language,omitempty"`
+	PreviousCategory        string `json:"previous_category,omitempty"`
+	NewCategory             string `json:"new_category,omitempty"`
+}
+
+func (v *Value) TemplateCategoryUpdate() *TemplateCategoryUpdateNotification {
+	return &TemplateCategoryUpdateNotification{
+		MessageTemplateID:       v.MessageTemplateID,
+		MessageTemplateName:     v.MessageTemplateName,
+		MessageTemplateLanguage: v.MessageTemplateLanguage,
+		PreviousCategory:        v.PreviousCategory,
+		NewCategory:             v.NewCategory,
+	}
+}
+
+type TemplateQualityUpdateNotification struct {
+	PreviousQualityScore    string `json:"previous_quality_score,omitempty"`
+	NewQualityScore         string `json:"new_quality_score,omitempty"`
+	MessageTemplateID       int64  `json:"message_template_id,omitempty"`
+	MessageTemplateName     string `json:"message_template_name,omitempty"`
+	MessageTemplateLanguage string `json:"message_template_language,omitempty"`
+}
+
+func (v *Value) TemplateQualityUpdate() *TemplateQualityUpdateNotification {
+	return &TemplateQualityUpdateNotification{
+		PreviousQualityScore:    v.PreviousCategory,
+		NewQualityScore:         v.NewCategory,
+		MessageTemplateID:       v.MessageTemplateID,
+		MessageTemplateName:     v.MessageTemplateName,
+		MessageTemplateLanguage: v.MessageTemplateLanguage,
+	}
+}
+
+type PhoneNumberNameUpdate struct {
+	PhoneNumber           string `json:"display_phone_number"`
+	Decision              string `json:"decision"`
+	RequestedVerifiedName string `json:"requested_verified_name"`
+	RejectionReason       string `json:"rejection_reason"`
+}
+
+func (v *Value) PhoneNumberNameUpdate() *PhoneNumberNameUpdate {
+	return &PhoneNumberNameUpdate{
+		PhoneNumber:           v.DisplayPhoneNumber,
+		Decision:              v.Decision,
+		RequestedVerifiedName: v.RequestedVerifiedName,
+		RejectionReason:       v.RejectionReason,
+	}
+}
+
+type PhoneNumberQualityUpdate struct {
+	DisplayPhoneNumber string `json:"display_phone_number,omitempty"`
+	Event              string `json:"event,omitempty"`
+	CurrentLimit       string `json:"current_limit,omitempty"`
+}
+
+func (v *Value) PhoneNumberQualityUpdate() *PhoneNumberQualityUpdate {
+	return &PhoneNumberQualityUpdate{
+		DisplayPhoneNumber: v.DisplayPhoneNumber,
+		Event:              v.Event,
+		CurrentLimit:       v.CurrentLimit,
+	}
+}
+
+type AccountReviewUpdate struct {
+	Decision string `json:"decision,omitempty"`
+}
+
+func (v *Value) AccountReviewUpdate() *AccountReviewUpdate {
+	return &AccountReviewUpdate{
+		Decision: v.Decision,
+	}
+}
+
+type AccountUpdate struct {
+	PhoneNumber     string            `json:"phone_number,omitempty"`
+	Event           string            `json:"event,omitempty"`
+	RestrictionInfo []RestrictionInfo `json:"restriction_info,omitempty"`
+	BanInfo         *BanInfo          `json:"ban_info,omitempty"`
+	ViolationInfo   *ViolationInfo    `json:"violation_info,omitempty"`
+}
+
+func (v *Value) AccountUpdate() *AccountUpdate {
+	return &AccountUpdate{
+		PhoneNumber:     v.PhoneNumber,
+		Event:           v.Event,
+		RestrictionInfo: v.RestrictionInfo,
+		BanInfo:         v.BanInfo,
+		ViolationInfo:   v.ViolationInfo,
+	}
+}
+
+type CapabilityUpdate struct {
+	MaxDailyConversationPerPhone int `json:"max_daily_conversation_per_phone,omitempty"`
+	MaxPhoneNumbersPerBusiness   int `json:"max_phone_numbers_per_business,omitempty"`
+}
+
+func (v *Value) CapabilityUpdate() *CapabilityUpdate {
+	return &CapabilityUpdate{
+		MaxDailyConversationPerPhone: v.MaxDailyConversationPerPhone,
+		MaxPhoneNumbersPerBusiness:   v.MaxPhoneNumbersPerBusiness,
+	}
+}
 
 type WABABanState string
 
@@ -152,7 +326,7 @@ type (
 		ChangeField string
 	}
 
-	EvenHandler interface {
+	EventHandler interface {
 		HandleEvent(ctx context.Context, ntx *NotificationContext, notification *Value) error
 	}
 
@@ -177,6 +351,89 @@ func (fn HandleEventFunc) HandleNotification(ctx context.Context,
 			ec.ChangeField = change.Field
 			if err := fn(ctx, ec, change.Value); err != nil {
 				return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+			}
+		}
+	}
+
+	return &webhooks.Response{StatusCode: http.StatusOK}
+}
+
+type (
+	MessageHandlerFunc[T any] func(ctx context.Context, ntx *NotificationContext, message *T) error
+
+	Handlers struct {
+		AlertsHandler                   MessageHandlerFunc[AlertNotification]
+		TemplateStatusHandler           MessageHandlerFunc[TemplateStatusUpdateNotification]
+		TemplateCategoryHandler         MessageHandlerFunc[TemplateCategoryUpdateNotification]
+		TemplateQualityHandler          MessageHandlerFunc[TemplateQualityUpdateNotification]
+		PhoneNumberNameHandler          MessageHandlerFunc[PhoneNumberNameUpdate]
+		CapabilityUpdateHandler         MessageHandlerFunc[CapabilityUpdate]
+		AccountUpdateHandler            MessageHandlerFunc[AccountUpdate]
+		PhoneNumberQualityUpdateHandler MessageHandlerFunc[PhoneNumberQualityUpdate]
+		AccountReviewUpdateHandler      MessageHandlerFunc[AccountReviewUpdate]
+	}
+)
+
+func (h *Handlers) HandleNotification(ctx context.Context,
+	notification *Notification) *webhooks.Response {
+	ec := &NotificationContext{}
+	for _, entry := range notification.Entry {
+		ec.Object = notification.Object
+		ec.EntryID = entry.ID
+		ec.EntryTime = entry.Time
+		for _, change := range entry.Changes {
+			ec.ChangeField = change.Field
+			switch change.Field {
+			case ChangeFieldAccountAlerts:
+				alert := change.Value.AlertNotification()
+				if err := h.AlertsHandler(ctx, ec, alert); err != nil {
+					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				}
+			case ChangeFieldTemplateStatusUpdate:
+				status := change.Value.TemplateStatusUpdate()
+				if err := h.TemplateStatusHandler(ctx, ec, status); err != nil {
+					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				}
+			case ChangeFieldTemplateCategoryUpdate:
+				category := change.Value.TemplateCategoryUpdate()
+				if err := h.TemplateCategoryHandler(ctx, ec, category); err != nil {
+					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				}
+			case ChangeFieldTemplateQualityUpdate:
+				quality := change.Value.TemplateQualityUpdate()
+				if err := h.TemplateQualityHandler(ctx, ec, quality); err != nil {
+					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				}
+
+			case ChangeFieldPhoneNumberNameUpdate:
+				name := change.Value.PhoneNumberNameUpdate()
+				if err := h.PhoneNumberNameHandler(ctx, ec, name); err != nil {
+					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				}
+
+			case ChangeFieldBusinessCapabilityUpdate:
+				capability := change.Value.CapabilityUpdate()
+				if err := h.CapabilityUpdateHandler(ctx, ec, capability); err != nil {
+					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				}
+
+			case ChangeFieldAccountUpdate:
+				account := change.Value.AccountUpdate()
+				if err := h.AccountUpdateHandler(ctx, ec, account); err != nil {
+					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				}
+
+			case ChangeFieldPhoneNumberQualityUpdate:
+				quality := change.Value.PhoneNumberQualityUpdate()
+				if err := h.PhoneNumberQualityUpdateHandler(ctx, ec, quality); err != nil {
+					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				}
+
+			case ChangeFieldAccountReviewUpdate:
+				account := change.Value.AccountReviewUpdate()
+				if err := h.AccountReviewUpdateHandler(ctx, ec, account); err != nil {
+					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				}
 			}
 		}
 	}
