@@ -355,36 +355,90 @@ func (h *Handler) SetAlertsHandler(handler EventHandler[AlertNotification]) {
 	h.AlertsHandler = handler
 }
 
+func (h *Handler) OnAlertsNotification(
+	handler func(ctx context.Context, ntx *NotificationContext, notification *AlertNotification) error,
+) {
+	h.AlertsHandler = EventHandlerFunc[AlertNotification](handler)
+}
+
 func (h *Handler) SetTemplateStatusHandler(handler EventHandler[TemplateStatusUpdateNotification]) {
 	h.TemplateStatusHandler = handler
+}
+
+func (h *Handler) OnTemplateStatusChange(
+	handler func(ctx context.Context, ntx *NotificationContext, notification *TemplateStatusUpdateNotification) error,
+) {
+	h.TemplateStatusHandler = EventHandlerFunc[TemplateStatusUpdateNotification](handler)
 }
 
 func (h *Handler) SetTemplateCategoryHandler(handler EventHandler[TemplateCategoryUpdateNotification]) {
 	h.TemplateCategoryHandler = handler
 }
 
+func (h *Handler) OnTemplateCategoryChange(
+	handler func(ctx context.Context, ntx *NotificationContext, notification *TemplateCategoryUpdateNotification) error,
+) {
+	h.TemplateCategoryHandler = EventHandlerFunc[TemplateCategoryUpdateNotification](handler)
+}
+
 func (h *Handler) SetTemplateQualityHandler(handler EventHandler[TemplateQualityUpdateNotification]) {
 	h.TemplateQualityHandler = handler
+}
+
+func (h *Handler) OnTemplateQualityUpdate(
+	handler func(ctx context.Context, ntx *NotificationContext, notification *TemplateQualityUpdateNotification) error,
+) {
+	h.TemplateQualityHandler = EventHandlerFunc[TemplateQualityUpdateNotification](handler)
 }
 
 func (h *Handler) SetPhoneNumberNameHandler(handler EventHandler[PhoneNumberNameUpdate]) {
 	h.PhoneNumberNameHandler = handler
 }
 
+func (h *Handler) OnPhoneNumberNameUpdate(
+	handler func(ctx context.Context, ntx *NotificationContext, notification *PhoneNumberNameUpdate) error,
+) {
+	h.PhoneNumberNameHandler = EventHandlerFunc[PhoneNumberNameUpdate](handler)
+}
+
 func (h *Handler) SetCapabilityUpdateHandler(handler EventHandler[CapabilityUpdate]) {
 	h.CapabilityUpdateHandler = handler
+}
+
+func (h *Handler) OnBusinessCapabilityUpdate(
+	handler func(ctx context.Context, ntx *NotificationContext, notification *CapabilityUpdate) error,
+) {
+	h.CapabilityUpdateHandler = EventHandlerFunc[CapabilityUpdate](handler)
 }
 
 func (h *Handler) SetAccountUpdateHandler(handler EventHandler[AccountUpdate]) {
 	h.AccountUpdateHandler = handler
 }
 
+func (h *Handler) OnAccountUpdate(
+	handler func(ctx context.Context, ntx *NotificationContext, notification *AccountUpdate) error,
+) {
+	h.AccountUpdateHandler = EventHandlerFunc[AccountUpdate](handler)
+}
+
 func (h *Handler) SetPhoneNumberQualityUpdateHandler(handler EventHandler[PhoneNumberQualityUpdate]) {
 	h.PhoneNumberQualityUpdateHandler = handler
 }
 
+func (h *Handler) OnPhoneNumberQualityUpdate(
+	handler func(ctx context.Context, ntx *NotificationContext, notification *PhoneNumberQualityUpdate) error,
+) {
+	h.PhoneNumberQualityUpdateHandler = EventHandlerFunc[PhoneNumberQualityUpdate](handler)
+}
+
 func (h *Handler) SetAccountReviewUpdateHandler(handler EventHandler[AccountReviewUpdate]) {
 	h.AccountReviewUpdateHandler = handler
+}
+
+func (h *Handler) OnAccountReviewUpdate(
+	handler func(ctx context.Context, ntx *NotificationContext, notification *AccountReviewUpdate) error,
+) {
+	h.AccountReviewUpdateHandler = EventHandlerFunc[AccountReviewUpdate](handler)
 }
 
 func (h *Handler) SetErrorHandler(handler func(ctx context.Context, err error) error) {
