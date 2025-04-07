@@ -22,12 +22,12 @@ package business
 import (
 	"context"
 	"net/http"
+	"slices"
 
 	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 const (
-	NotificationObjectBusinessAccount   = "whatsapp_business_account"
 	ChangeFieldAccountAlerts            = "account_alerts"
 	ChangeFieldTemplateStatusUpdate     = "message_template_status_update"
 	ChangeFieldTemplateCategoryUpdate   = "template_category_update"
@@ -317,8 +317,6 @@ func (e NotificationHandlerFunc) HandleNotification(ctx context.Context,
 }
 
 type (
-	// NotificationContext holds the context of the webhook event. Information includes the object type, ID,
-	// and timestamp. that helps to identify the webhook event.
 	NotificationContext struct {
 		Object      string
 		EntryID     string
@@ -326,117 +324,204 @@ type (
 		ChangeField string
 	}
 
-	EventHandler interface {
-		HandleEvent(ctx context.Context, ntx *NotificationContext, notification *Value) error
+	EventHandler[T any] interface {
+		HandleEvent(ctx context.Context, ntx *NotificationContext, message *T) error
 	}
 
-	EventHandlerFunc func(ctx context.Context, ntx *NotificationContext, notification *Value) error
+	EventHandlerFunc[T any] func(ctx context.Context, ntx *NotificationContext, message *T) error
 
-	HandleEventFunc func(ctx context.Context, event *NotificationContext, value *Value) error
-)
-
-func (fn EventHandlerFunc) HandleEvent(ctx context.Context, ntx *NotificationContext, notification *Value) error {
-	return fn(ctx, ntx, notification)
-}
-
-func (fn HandleEventFunc) HandleNotification(ctx context.Context,
-	notification *Notification,
-) *webhooks.Response {
-	ec := &NotificationContext{}
-	for _, entry := range notification.Entry {
-		ec.Object = notification.Object
-		ec.EntryID = entry.ID
-		ec.EntryTime = entry.Time
-		for _, change := range entry.Changes {
-			ec.ChangeField = change.Field
-			if err := fn(ctx, ec, change.Value); err != nil {
-				return &webhooks.Response{StatusCode: http.StatusInternalServerError}
-			}
-		}
-	}
-
-	return &webhooks.Response{StatusCode: http.StatusOK}
-}
-
-type (
-	MessageHandlerFunc[T any] func(ctx context.Context, ntx *NotificationContext, message *T) error
-
-	Handlers struct {
-		AlertsHandler                   MessageHandlerFunc[AlertNotification]
-		TemplateStatusHandler           MessageHandlerFunc[TemplateStatusUpdateNotification]
-		TemplateCategoryHandler         MessageHandlerFunc[TemplateCategoryUpdateNotification]
-		TemplateQualityHandler          MessageHandlerFunc[TemplateQualityUpdateNotification]
-		PhoneNumberNameHandler          MessageHandlerFunc[PhoneNumberNameUpdate]
-		CapabilityUpdateHandler         MessageHandlerFunc[CapabilityUpdate]
-		AccountUpdateHandler            MessageHandlerFunc[AccountUpdate]
-		PhoneNumberQualityUpdateHandler MessageHandlerFunc[PhoneNumberQualityUpdate]
-		AccountReviewUpdateHandler      MessageHandlerFunc[AccountReviewUpdate]
+	Handler struct {
+		AlertsHandler                   EventHandler[AlertNotification]
+		TemplateStatusHandler           EventHandler[TemplateStatusUpdateNotification]
+		TemplateCategoryHandler         EventHandler[TemplateCategoryUpdateNotification]
+		TemplateQualityHandler          EventHandler[TemplateQualityUpdateNotification]
+		PhoneNumberNameHandler          EventHandler[PhoneNumberNameUpdate]
+		CapabilityUpdateHandler         EventHandler[CapabilityUpdate]
+		AccountUpdateHandler            EventHandler[AccountUpdate]
+		PhoneNumberQualityUpdateHandler EventHandler[PhoneNumberQualityUpdate]
+		AccountReviewUpdateHandler      EventHandler[AccountReviewUpdate]
+		availableHandlers               []string
+		errorHandler                    func(ctx context.Context, err error) error
 	}
 )
 
-func (h *Handlers) HandleNotification(ctx context.Context,
+func (fn EventHandlerFunc[T]) HandleEvent(ctx context.Context, ntx *NotificationContext, message *T) error {
+	return fn(ctx, ntx, message)
+}
+
+func (h *Handler) SetAlertsHandler(handler EventHandler[AlertNotification]) {
+	h.AlertsHandler = handler
+}
+
+func (h *Handler) SetTemplateStatusHandler(handler EventHandler[TemplateStatusUpdateNotification]) {
+	h.TemplateStatusHandler = handler
+}
+
+func (h *Handler) SetTemplateCategoryHandler(handler EventHandler[TemplateCategoryUpdateNotification]) {
+	h.TemplateCategoryHandler = handler
+}
+
+func (h *Handler) SetTemplateQualityHandler(handler EventHandler[TemplateQualityUpdateNotification]) {
+	h.TemplateQualityHandler = handler
+}
+
+func (h *Handler) SetPhoneNumberNameHandler(handler EventHandler[PhoneNumberNameUpdate]) {
+	h.PhoneNumberNameHandler = handler
+}
+
+func (h *Handler) SetCapabilityUpdateHandler(handler EventHandler[CapabilityUpdate]) {
+	h.CapabilityUpdateHandler = handler
+}
+
+func (h *Handler) SetAccountUpdateHandler(handler EventHandler[AccountUpdate]) {
+	h.AccountUpdateHandler = handler
+}
+
+func (h *Handler) SetPhoneNumberQualityUpdateHandler(handler EventHandler[PhoneNumberQualityUpdate]) {
+	h.PhoneNumberQualityUpdateHandler = handler
+}
+
+func (h *Handler) SetAccountReviewUpdateHandler(handler EventHandler[AccountReviewUpdate]) {
+	h.AccountReviewUpdateHandler = handler
+}
+
+func (h *Handler) SetErrorHandler(handler func(ctx context.Context, err error) error) {
+	h.errorHandler = handler
+}
+
+func (h *Handler) ensureHandlers() {
+	if h.availableHandlers == nil {
+		h.availableHandlers = make([]string, 0)
+	}
+
+	h.availableHandlers = h.availableHandlers[:0]
+
+	if h.AlertsHandler != nil {
+		h.availableHandlers = append(h.availableHandlers, ChangeFieldAccountAlerts)
+	}
+	if h.TemplateStatusHandler != nil {
+		h.availableHandlers = append(h.availableHandlers, ChangeFieldTemplateStatusUpdate)
+	}
+	if h.TemplateCategoryHandler != nil {
+		h.availableHandlers = append(h.availableHandlers, ChangeFieldTemplateCategoryUpdate)
+	}
+	if h.TemplateQualityHandler != nil {
+		h.availableHandlers = append(h.availableHandlers, ChangeFieldTemplateQualityUpdate)
+	}
+	if h.PhoneNumberNameHandler != nil {
+		h.availableHandlers = append(h.availableHandlers, ChangeFieldPhoneNumberNameUpdate)
+	}
+	if h.CapabilityUpdateHandler != nil {
+		h.availableHandlers = append(h.availableHandlers, ChangeFieldBusinessCapabilityUpdate)
+	}
+	if h.AccountUpdateHandler != nil {
+		h.availableHandlers = append(h.availableHandlers, ChangeFieldAccountUpdate)
+	}
+	if h.AccountReviewUpdateHandler != nil {
+		h.availableHandlers = append(h.availableHandlers, ChangeFieldAccountReviewUpdate)
+	}
+	if h.PhoneNumberQualityUpdateHandler != nil {
+		h.availableHandlers = append(h.availableHandlers, ChangeFieldPhoneNumberQualityUpdate)
+	}
+}
+
+func (h *Handler) isHandlerSet(name string) bool {
+	h.ensureHandlers()
+
+	return slices.Contains(h.availableHandlers, name)
+}
+
+// HandleNotification processes the notification and calls the appropriate handler based on the change field.
+// if the handler for a specific change field is not set, it will skip that notification. if it is available and
+// returns an error, it will call the error handler if set. If the error handler also returns an error,
+// the execution will stop and return an internal server error response. if the handlers or error handler do not
+// return an error, it will return a success response.
+func (h *Handler) HandleNotification(ctx context.Context,
 	notification *Notification) *webhooks.Response {
-	ec := &NotificationContext{}
 	for _, entry := range notification.Entry {
-		ec.Object = notification.Object
-		ec.EntryID = entry.ID
-		ec.EntryTime = entry.Time
 		for _, change := range entry.Changes {
-			ec.ChangeField = change.Field
-			switch change.Field {
-			case ChangeFieldAccountAlerts:
-				alert := change.Value.AlertNotification()
-				if err := h.AlertsHandler(ctx, ec, alert); err != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
-				}
-			case ChangeFieldTemplateStatusUpdate:
-				status := change.Value.TemplateStatusUpdate()
-				if err := h.TemplateStatusHandler(ctx, ec, status); err != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
-				}
-			case ChangeFieldTemplateCategoryUpdate:
-				category := change.Value.TemplateCategoryUpdate()
-				if err := h.TemplateCategoryHandler(ctx, ec, category); err != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
-				}
-			case ChangeFieldTemplateQualityUpdate:
-				quality := change.Value.TemplateQualityUpdate()
-				if err := h.TemplateQualityHandler(ctx, ec, quality); err != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
-				}
+			notificationCtx := &NotificationContext{
+				Object:      notification.Object,
+				EntryID:     entry.ID,
+				EntryTime:   entry.Time,
+				ChangeField: change.Field,
+			}
 
-			case ChangeFieldPhoneNumberNameUpdate:
-				name := change.Value.PhoneNumberNameUpdate()
-				if err := h.PhoneNumberNameHandler(ctx, ec, name); err != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
-				}
-
-			case ChangeFieldBusinessCapabilityUpdate:
-				capability := change.Value.CapabilityUpdate()
-				if err := h.CapabilityUpdateHandler(ctx, ec, capability); err != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
-				}
-
-			case ChangeFieldAccountUpdate:
-				account := change.Value.AccountUpdate()
-				if err := h.AccountUpdateHandler(ctx, ec, account); err != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
-				}
-
-			case ChangeFieldPhoneNumberQualityUpdate:
-				quality := change.Value.PhoneNumberQualityUpdate()
-				if err := h.PhoneNumberQualityUpdateHandler(ctx, ec, quality); err != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
-				}
-
-			case ChangeFieldAccountReviewUpdate:
-				account := change.Value.AccountReviewUpdate()
-				if err := h.AccountReviewUpdateHandler(ctx, ec, account); err != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+			if err := h.handleChangeValue(ctx, notificationCtx, change.Value); err != nil {
+				if h.errorHandler != nil {
+					if handlerErr := h.errorHandler(ctx, err); handlerErr != nil {
+						return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+					}
 				}
 			}
 		}
 	}
 
 	return &webhooks.Response{StatusCode: http.StatusOK}
+}
+
+func (h *Handler) handleChangeValue(
+	ctx context.Context,
+	ntx *NotificationContext,
+	value *Value,
+) error { //nolint: gocognit // ok
+	if h.isHandlerSet(ntx.ChangeField) { //nolint: nestif // ok
+		switch ntx.ChangeField {
+		case ChangeFieldAccountAlerts:
+			alert := value.AlertNotification()
+			if err := h.AlertsHandler.HandleEvent(ctx, ntx, alert); err != nil {
+				return err
+			}
+
+		case ChangeFieldTemplateStatusUpdate:
+			status := value.TemplateStatusUpdate()
+			if err := h.TemplateStatusHandler.HandleEvent(ctx, ntx, status); err != nil {
+				return err
+			}
+
+		case ChangeFieldTemplateCategoryUpdate:
+			category := value.TemplateCategoryUpdate()
+			if err := h.TemplateCategoryHandler.HandleEvent(ctx, ntx, category); err != nil {
+				return err
+			}
+
+		case ChangeFieldTemplateQualityUpdate:
+			quality := value.TemplateQualityUpdate()
+			if err := h.TemplateQualityHandler.HandleEvent(ctx, ntx, quality); err != nil {
+				return err
+			}
+
+		case ChangeFieldPhoneNumberNameUpdate:
+			name := value.PhoneNumberNameUpdate()
+			if err := h.PhoneNumberNameHandler.HandleEvent(ctx, ntx, name); err != nil {
+				return err
+			}
+
+		case ChangeFieldBusinessCapabilityUpdate:
+			capability := value.CapabilityUpdate()
+			if err := h.CapabilityUpdateHandler.HandleEvent(ctx, ntx, capability); err != nil {
+				return err
+			}
+
+		case ChangeFieldAccountUpdate:
+			account := value.AccountUpdate()
+			if err := h.AccountUpdateHandler.HandleEvent(ctx, ntx, account); err != nil {
+				return err
+			}
+
+		case ChangeFieldPhoneNumberQualityUpdate:
+			quality := value.PhoneNumberQualityUpdate()
+			if err := h.PhoneNumberQualityUpdateHandler.HandleEvent(ctx, ntx, quality); err != nil {
+				return err
+			}
+
+		case ChangeFieldAccountReviewUpdate:
+			account := value.AccountReviewUpdate()
+			if err := h.AccountReviewUpdateHandler.HandleEvent(ctx, ntx, account); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
