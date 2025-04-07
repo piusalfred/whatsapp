@@ -92,6 +92,14 @@ func main() {
 	}
 	bizHandler.SetAlertsHandler(business.EventHandlerFunc[business.AlertNotification](alertsHandler))
 
+	bizHandler.OnAccountUpdate(
+		func(ctx context.Context, ntx *business.NotificationContext, notification *business.AccountUpdate) error {
+			fmt.Printf("Account update happened: %+v\n", notification)
+
+			return nil
+		},
+	)
+
 	businessListener2 := webhooks.NewListener(
 		bizHandler.HandleNotification,
 		func(ctx context.Context) (string, error) {
