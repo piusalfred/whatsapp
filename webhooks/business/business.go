@@ -52,7 +52,7 @@ type (
 	}
 
 	Change struct {
-		Field string `json:"field"` // e.g., "message_template_status_update"
+		Field string `json:"field"`
 		Value *Value `json:"value"`
 	}
 
