@@ -1,4 +1,4 @@
-package handler
+package webhooks
 
 import (
 	"context"
@@ -6,12 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/piusalfred/whatsapp/message"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
-	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 type (
@@ -145,91 +143,104 @@ func ErrorInfosAsErrors(infos []ErrorInfo) []*werrors.Error {
 type MediaMessageHandler MessageHandler[message.MediaInfo]
 
 type Handler struct {
-	FlowStatusChangeHandler          EventHandler[FlowNotificationContext, StatusChangeDetails]
-	FlowClientErrorRateHandler       EventHandler[FlowNotificationContext, ClientErrorRateDetails]
-	FlowEndpointErrorRateHandler     EventHandler[FlowNotificationContext, EndpointErrorRateDetails]
-	FlowEndpointLatencyHandler       EventHandler[FlowNotificationContext, EndpointLatencyDetails]
-	FlowEndpointAvailabilityHandler  EventHandler[FlowNotificationContext, EndpointAvailabilityDetails]
-	AlertsHandler                    EventHandler[BusinessNotificationContext, AlertNotification]
-	TemplateStatusHandler            EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
-	TemplateCategoryHandler          EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
-	TemplateQualityHandler           EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]
-	PhoneNumberNameHandler           EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
-	CapabilityUpdateHandler          EventHandler[BusinessNotificationContext, CapabilityUpdate]
-	AccountUpdateHandler             EventHandler[BusinessNotificationContext, AccountUpdate]
-	PhoneNumberQualityUpdateHandler  EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
-	AccountReviewUpdateHandler       EventHandler[BusinessNotificationContext, AccountReviewUpdate]
-	ButtonMessageHandler             MessageHandler[Button]
-	TextMessageHandler               MessageHandler[Text]
-	OrderMessageHandler              MessageHandler[Order]
-	LocationMessageHandler           MessageHandler[message.Location]
-	ContactsMessageHandler           MessageHandler[message.Contacts]
-	ReactionHandler                  MessageHandler[message.Reaction]
-	ProductEnquiryHandler            MessageHandler[Text]
-	InteractiveMessageHandler        MessageHandler[Interactive]
-	ButtonReplyMessageHandler        MessageHandler[ButtonReply]
-	ListReplyMessageHandler          MessageHandler[ListReply]
-	FlowCompletionMessageHandler     MessageHandler[NFMReply]
-	ReferralMessageHandler           MessageHandler[ReferralNotification]
-	CustomerIDChangeHandler          MessageHandler[Identity]
-	SystemMessageHandler             MessageHandler[System]
-	AudioMessageHandler              MediaMessageHandler
-	VideoMessageHandler              MediaMessageHandler
-	ImageMessageHandler              MediaMessageHandler
-	DocumentMessageHandler           MediaMessageHandler
-	StickerMessageHandler            MediaMessageHandler
-	ErrorHandler                     func(ctx context.Context, err error) error
-	MessageNotificationErrorsHandler MessageChangeValueHandler[werrors.Error]
-	MessageStatusChangeHandler       MessageChangeValueHandler[Status]
-	UserPreferencesUpdateHandler     MessageChangeValueHandler[UserPreference]
-	MessageErrorsHandler             MessageErrorsHandler
-	RequestWelcome                   func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, message *Message) error
+	flowStatus               EventHandler[FlowNotificationContext, StatusChangeDetails]
+	flowClientErrorRate      EventHandler[FlowNotificationContext, ClientErrorRateDetails]
+	flowEndpointErrorRate    EventHandler[FlowNotificationContext, EndpointErrorRateDetails]
+	flowEndpointLatency      EventHandler[FlowNotificationContext, EndpointLatencyDetails]
+	flowEndpointAvailability EventHandler[FlowNotificationContext, EndpointAvailabilityDetails]
+	alerts                   EventHandler[BusinessNotificationContext, AlertNotification]
+	templateStatus           EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
+	templateCategory         EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
+	templateQuality          EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]
+	phoneNumberNameUpdate    EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
+	capabilityUpdate         EventHandler[BusinessNotificationContext, CapabilityUpdate]
+	accountUpdate            EventHandler[BusinessNotificationContext, AccountUpdate]
+	phoneNumberQualityUpdate EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
+	accountReviewUpdate      EventHandler[BusinessNotificationContext, AccountReviewUpdate]
+	buttonMessage            MessageHandler[Button]
+	textMessage              MessageHandler[Text]
+	orderMessage             MessageHandler[Order]
+	locationMessage          MessageHandler[message.Location]
+	contactsMessage          MessageHandler[message.Contacts]
+	reactionMessage          MessageHandler[message.Reaction]
+	productInquiry           MessageHandler[Text]
+	interactiveMessage       MessageHandler[Interactive]
+	buttonReplyMessage       MessageHandler[ButtonReply]
+	listReplyMessage         MessageHandler[ListReply]
+	flowCompletionUpdate     MessageHandler[NFMReply]
+	referralMessage          MessageHandler[ReferralNotification]
+	customerIDChange         MessageHandler[Identity]
+	systemMessage            MessageHandler[System]
+	audioMessage             MediaMessageHandler
+	videoMessage             MediaMessageHandler
+	imageMessage             MediaMessageHandler
+	documentMessage          MediaMessageHandler
+	stickerMessage           MediaMessageHandler
+	notificationErrors       MessageChangeValueHandler[werrors.Error]
+	messageStatusChange      MessageChangeValueHandler[Status]
+	userPreferencesUpdate    MessageChangeValueHandler[UserPreference]
+	errorMessage             MessageErrorsHandler
+	requestWelcome           MessageHandler[Message]
 
-	availableHandlers []string
+	errorHandlerFunc func(ctx context.Context, err error) error
 }
 
-func (handler *Handler) ensureHandlers() {
-	if handler.availableHandlers == nil {
-		handler.availableHandlers = make([]string, 0)
-	}
-
-	if handler.FlowStatusChangeHandler != nil {
-		handler.availableHandlers = append(handler.availableHandlers, EventFlowStatusChange)
-	}
-
-	if handler.FlowClientErrorRateHandler != nil {
-		handler.availableHandlers = append(handler.availableHandlers, EventClientErrorRate)
-	}
-
-	if handler.FlowEndpointErrorRateHandler != nil {
-		handler.availableHandlers = append(handler.availableHandlers, EventEndpointErrorRate)
-	}
-
-	if handler.FlowEndpointLatencyHandler != nil {
-		handler.availableHandlers = append(handler.availableHandlers, EventEndpointLatency)
-	}
-
-	if handler.FlowEndpointAvailabilityHandler != nil {
-		handler.availableHandlers = append(handler.availableHandlers, EventEndpointAvailability)
+func NewHandler() *Handler {
+	return &Handler{
+		flowStatus:               NewNoOpEventHandler[FlowNotificationContext, StatusChangeDetails](),
+		flowClientErrorRate:      NewNoOpEventHandler[FlowNotificationContext, ClientErrorRateDetails](),
+		flowEndpointErrorRate:    NewNoOpEventHandler[FlowNotificationContext, EndpointErrorRateDetails](),
+		flowEndpointLatency:      NewNoOpEventHandler[FlowNotificationContext, EndpointLatencyDetails](),
+		flowEndpointAvailability: NewNoOpEventHandler[FlowNotificationContext, EndpointAvailabilityDetails](),
+		alerts:                   NewNoOpEventHandler[BusinessNotificationContext, AlertNotification](),
+		templateStatus:           NewNoOpEventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification](),
+		templateCategory:         NewNoOpEventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification](),
+		templateQuality:          NewNoOpEventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification](),
+		phoneNumberNameUpdate:    NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberNameUpdate](),
+		capabilityUpdate:         NewNoOpEventHandler[BusinessNotificationContext, CapabilityUpdate](),
+		accountUpdate:            NewNoOpEventHandler[BusinessNotificationContext, AccountUpdate](),
+		phoneNumberQualityUpdate: NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate](),
+		accountReviewUpdate:      NewNoOpEventHandler[BusinessNotificationContext, AccountReviewUpdate](),
+		buttonMessage:            NewNoOpMessageHandler[Button](),
+		textMessage:              NewNoOpMessageHandler[Text](),
+		orderMessage:             NewNoOpMessageHandler[Order](),
+		locationMessage:          NewNoOpMessageHandler[message.Location](),
+		contactsMessage:          NewNoOpMessageHandler[message.Contacts](),
+		reactionMessage:          NewNoOpMessageHandler[message.Reaction](),
+		productInquiry:           NewNoOpMessageHandler[Text](),
+		interactiveMessage:       NewNoOpMessageHandler[Interactive](),
+		buttonReplyMessage:       NewNoOpMessageHandler[ButtonReply](),
+		listReplyMessage:         NewNoOpMessageHandler[ListReply](),
+		flowCompletionUpdate:     NewNoOpMessageHandler[NFMReply](),
+		referralMessage:          NewNoOpMessageHandler[ReferralNotification](),
+		customerIDChange:         NewNoOpMessageHandler[Identity](),
+		systemMessage:            NewNoOpMessageHandler[System](),
+		audioMessage:             NewNoOpMessageHandler[message.MediaInfo](),
+		videoMessage:             NewNoOpMessageHandler[message.MediaInfo](),
+		imageMessage:             NewNoOpMessageHandler[message.MediaInfo](),
+		documentMessage:          NewNoOpMessageHandler[message.MediaInfo](),
+		stickerMessage:           NewNoOpMessageHandler[message.MediaInfo](),
+		notificationErrors:       NewNoOpMessageChangeValueHandler[werrors.Error](),
+		messageStatusChange:      NewNoOpMessageChangeValueHandler[Status](),
+		userPreferencesUpdate:    NewNoOpMessageChangeValueHandler[UserPreference](),
+		errorMessage:             NewNoOpMessageErrorsHandler(),
+		requestWelcome:           NewNoOpMessageHandler[Message](),
+		errorHandlerFunc: func(_ context.Context, _ error) error {
+			return nil
+		},
 	}
 }
 
-func (handler *Handler) isHandlerSet(name string) bool {
-	handler.ensureHandlers()
-
-	return slices.Contains(handler.availableHandlers, name)
-}
-
-func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
+func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *Response {
 	for _, entry := range notification.Entry {
 		for _, change := range entry.Changes {
 			if err := handler.handleNotificationChange(ctx, notification, change, entry); err != nil {
-				return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				return &Response{StatusCode: http.StatusInternalServerError}
 			}
 		}
 	}
 
-	return &webhooks.Response{StatusCode: http.StatusOK}
+	return &Response{StatusCode: http.StatusOK}
 }
 
 func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cyclop, funlen // ok
@@ -250,63 +261,55 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 		}
 
 		if err := handler.handleFlowNotification(ctx, notificationCtx, change.Value); err != nil {
-			if handler.ErrorHandler != nil {
-				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+				return handlerErr
+			}
+		}
+	}
+
+	if change.Field == ChangeFieldAccountAlerts.String() {
+		if err := handler.handleAccountAlerts(ctx, notification, change, entry); err != nil {
+			return err
+		}
+	}
+
+	if change.Field == ChangeFieldTemplateStatusUpdate.String() {
+		if err := handler.handleTemplateStatusUpdate(ctx, notification, change, entry); err != nil {
+			return err
+		}
+	}
+
+	if change.Field == ChangeFieldTemplateCategoryUpdate.String() {
+		if err := handler.handleTemplateCategoryUpdate(ctx, notification, change, entry); err != nil {
+			return err
+		}
+	}
+
+	if change.Field == ChangeFieldTemplateQualityUpdate.String() {
+		if err := handler.handleTemplateQualityUpdate(ctx, notification, change, entry); err != nil {
+			return err
+		}
+	}
+
+	if change.Field == ChangeFieldPhoneNumberNameUpdate.String() {
+		if handler.phoneNumberNameUpdate != nil {
+			notificationCtx := &BusinessNotificationContext{
+				Object:      notification.Object,
+				EntryID:     entry.ID,
+				EntryTime:   entry.Time,
+				ChangeField: change.Field,
+			}
+
+			if err := handler.phoneNumberNameUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberNameUpdate()); err != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
 	}
 
-	if change.Field == ChangeFieldAccountAlerts.String() {
-		err := handler.handleAccountAlerts(ctx, notification, change, entry)
-		if err != nil {
-			return err
-		}
-	}
-
-	if change.Field == ChangeFieldTemplateStatusUpdate.String() {
-		err := handler.handleTemplateStatusUpdate(ctx, notification, change, entry)
-		if err != nil {
-			return err
-		}
-	}
-
-	if change.Field == ChangeFieldTemplateCategoryUpdate.String() {
-		err := handler.handleTemplateCategoryUpdate(ctx, notification, change, entry)
-		if err != nil {
-			return err
-		}
-	}
-
-	if change.Field == ChangeFieldTemplateQualityUpdate.String() {
-		err := handler.handleTemplateQualityUpdate(ctx, notification, change, entry)
-		if err != nil {
-			return err
-		}
-	}
-
-	if change.Field == ChangeFieldPhoneNumberNameUpdate.String() {
-		if handler.PhoneNumberNameHandler != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-
-			if err := handler.PhoneNumberNameHandler.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberNameUpdate()); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return handlerErr
-					}
-				}
-			}
-		}
-	}
-
 	if change.Field == ChangeFieldPhoneNumberQualityUpdate.String() {
-		if handler.PhoneNumberQualityUpdateHandler != nil {
+		if handler.phoneNumberQualityUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
 				EntryID:     entry.ID,
@@ -314,18 +317,16 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				ChangeField: change.Field,
 			}
 
-			if err := handler.PhoneNumberQualityUpdateHandler.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberQualityUpdate()); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return handlerErr
-					}
+			if err := handler.phoneNumberQualityUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberQualityUpdate()); err != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+					return handlerErr
 				}
 			}
 		}
 	}
 
 	if change.Field == ChangeFieldAccountUpdate.String() {
-		if handler.AccountUpdateHandler != nil {
+		if handler.accountUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
 				EntryID:     entry.ID,
@@ -333,18 +334,16 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				ChangeField: change.Field,
 			}
 
-			if err := handler.AccountUpdateHandler.HandleEvent(ctx, notificationCtx, change.Value.AccountUpdate()); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return handlerErr
-					}
+			if err := handler.accountUpdate.HandleEvent(ctx, notificationCtx, change.Value.AccountUpdate()); err != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+					return handlerErr
 				}
 			}
 		}
 	}
 
 	if change.Field == ChangeFieldAccountReviewUpdate.String() {
-		if handler.AccountReviewUpdateHandler != nil {
+		if handler.accountReviewUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
 				EntryID:     entry.ID,
@@ -352,18 +351,16 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				ChangeField: change.Field,
 			}
 
-			if err := handler.AccountReviewUpdateHandler.HandleEvent(ctx, notificationCtx, change.Value.AccountReviewUpdate()); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return handlerErr
-					}
+			if err := handler.accountReviewUpdate.HandleEvent(ctx, notificationCtx, change.Value.AccountReviewUpdate()); err != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+					return handlerErr
 				}
 			}
 		}
 	}
 
 	if change.Field == ChangeFieldBusinessCapabilityUpdate.String() {
-		if handler.CapabilityUpdateHandler != nil {
+		if handler.capabilityUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
 				EntryID:     entry.ID,
@@ -371,18 +368,16 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				ChangeField: change.Field,
 			}
 
-			if err := handler.CapabilityUpdateHandler.HandleEvent(ctx, notificationCtx, change.Value.CapabilityUpdate()); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return handlerErr
-					}
+			if err := handler.capabilityUpdate.HandleEvent(ctx, notificationCtx, change.Value.CapabilityUpdate()); err != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+					return handlerErr
 				}
 			}
 		}
 	}
 
 	if change.Field == ChangeFieldUserPreferences.String() {
-		if handler.UserPreferencesUpdateHandler != nil {
+		if handler.userPreferencesUpdate != nil {
 			notificationCtx := &MessageNotificationContext{
 				EntryID:          entry.ID,
 				MessagingProduct: change.Value.MessagingProduct,
@@ -390,11 +385,9 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				Metadata:         change.Value.Metadata,
 			}
 
-			if err := handler.UserPreferencesUpdateHandler.Handle(ctx, notificationCtx, change.Value.UserPreferences); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return handlerErr
-					}
+			if err := handler.userPreferencesUpdate.Handle(ctx, notificationCtx, change.Value.UserPreferences); err != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+					return handlerErr
 				}
 			}
 		}
@@ -413,7 +406,7 @@ func (handler *Handler) handleTemplateQualityUpdate(
 	change Change,
 	entry Entry,
 ) error {
-	if handler.TemplateQualityHandler != nil {
+	if handler.templateQuality != nil {
 		notificationCtx := &BusinessNotificationContext{
 			Object:      notification.Object,
 			EntryID:     entry.ID,
@@ -421,11 +414,9 @@ func (handler *Handler) handleTemplateQualityUpdate(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.TemplateQualityHandler.HandleEvent(ctx, notificationCtx, change.Value.TemplateQualityUpdate()); err != nil {
-			if handler.ErrorHandler != nil {
-				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-					return handlerErr
-				}
+		if err := handler.templateQuality.HandleEvent(ctx, notificationCtx, change.Value.TemplateQualityUpdate()); err != nil {
+			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+				return handlerErr
 			}
 		}
 	}
@@ -438,7 +429,7 @@ func (handler *Handler) handleTemplateCategoryUpdate(
 	change Change,
 	entry Entry,
 ) error {
-	if handler.TemplateCategoryHandler != nil {
+	if handler.templateCategory != nil {
 		notificationCtx := &BusinessNotificationContext{
 			Object:      notification.Object,
 			EntryID:     entry.ID,
@@ -446,11 +437,9 @@ func (handler *Handler) handleTemplateCategoryUpdate(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.TemplateCategoryHandler.HandleEvent(ctx, notificationCtx, change.Value.TemplateCategoryUpdate()); err != nil {
-			if handler.ErrorHandler != nil {
-				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-					return handlerErr
-				}
+		if err := handler.templateCategory.HandleEvent(ctx, notificationCtx, change.Value.TemplateCategoryUpdate()); err != nil {
+			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+				return handlerErr
 			}
 		}
 	}
@@ -463,7 +452,7 @@ func (handler *Handler) handleAccountAlerts(
 	change Change,
 	entry Entry,
 ) error {
-	if handler.AlertsHandler != nil {
+	if handler.alerts != nil {
 		notificationCtx := &BusinessNotificationContext{
 			Object:      notification.Object,
 			EntryID:     entry.ID,
@@ -471,9 +460,9 @@ func (handler *Handler) handleAccountAlerts(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.AlertsHandler.HandleEvent(ctx, notificationCtx, change.Value.AlertNotification()); err != nil {
-			if handler.ErrorHandler != nil {
-				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+		if err := handler.alerts.HandleEvent(ctx, notificationCtx, change.Value.AlertNotification()); err != nil {
+			if handler.errorHandlerFunc != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
@@ -488,7 +477,7 @@ func (handler *Handler) handleTemplateStatusUpdate(
 	change Change,
 	entry Entry,
 ) error {
-	if handler.TemplateStatusHandler != nil {
+	if handler.templateStatus != nil {
 		notificationCtx := &BusinessNotificationContext{
 			Object:      notification.Object,
 			EntryID:     entry.ID,
@@ -496,9 +485,9 @@ func (handler *Handler) handleTemplateStatusUpdate(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.TemplateStatusHandler.HandleEvent(ctx, notificationCtx, change.Value.TemplateStatusUpdate()); err != nil {
-			if handler.ErrorHandler != nil {
-				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+		if err := handler.templateStatus.HandleEvent(ctx, notificationCtx, change.Value.TemplateStatusUpdate()); err != nil {
+			if handler.errorHandlerFunc != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
@@ -520,24 +509,24 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 	}
 
 	// handle notification errors do not terminate of its success or if the error is not fatal
-	if handler.MessageNotificationErrorsHandler != nil {
-		if err := handler.MessageNotificationErrorsHandler.Handle(
+	if handler.notificationErrors != nil {
+		if err := handler.notificationErrors.Handle(
 			ctx, notificationCtx, ErrorInfosAsErrors(change.Value.Errors),
 		); err != nil {
-			if handler.ErrorHandler != nil {
-				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+			if handler.errorHandlerFunc != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
 	}
 
-	if handler.MessageStatusChangeHandler != nil {
-		if err := handler.MessageStatusChangeHandler.Handle(
+	if handler.messageStatusChange != nil {
+		if err := handler.messageStatusChange.Handle(
 			ctx, notificationCtx, change.Value.Statuses,
 		); err != nil {
-			if handler.ErrorHandler != nil {
-				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+			if handler.errorHandlerFunc != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
@@ -546,8 +535,8 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 
 	for _, m := range change.Value.Messages {
 		if err := handler.handleNotificationMessage(ctx, notificationCtx, m); err != nil {
-			if handler.ErrorHandler != nil {
-				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+			if handler.errorHandlerFunc != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
@@ -575,6 +564,7 @@ const (
 	ChangeFieldMessages                 ChangeField = "messages"
 	ChangeFieldUserPreferences          ChangeField = "user_preferences"
 )
+
 const (
 	EventFlowStatusChange     = "FLOW_STATUS_CHANGE"
 	EventEndpointErrorRate    = "ENDPOINT_ERROR_RATE"
@@ -597,6 +587,12 @@ type (
 
 func (f EventHandlerFunc[S, T]) HandleEvent(ctx context.Context, ntx *S, notification *T) error {
 	return f(ctx, ntx, notification)
+}
+
+func NewNoOpEventHandler[S any, T any]() EventHandler[S, T] {
+	return EventHandlerFunc[S, T](func(_ context.Context, _ *S, _ *T) error {
+		return nil
+	})
 }
 
 const (
@@ -773,106 +769,115 @@ func (value *Value) CapabilityUpdate() *CapabilityUpdate {
 func (handler *Handler) OnBusinessAlertNotification(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *AlertNotification) error,
 ) {
-	handler.AlertsHandler = EventHandlerFunc[BusinessNotificationContext, AlertNotification](fn)
+	handler.alerts = EventHandlerFunc[BusinessNotificationContext, AlertNotification](fn)
 }
 
 func (handler *Handler) SetBusinessAlertNotificationHandler(
-	fn EventHandler[BusinessNotificationContext, AlertNotification]) {
-	handler.AlertsHandler = fn
+	fn EventHandler[BusinessNotificationContext, AlertNotification],
+) {
+	handler.alerts = fn
 }
 
 func (handler *Handler) OnBusinessTemplateStatusUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *TemplateStatusUpdateNotification) error,
 ) {
-	handler.TemplateStatusHandler = EventHandlerFunc[BusinessNotificationContext, TemplateStatusUpdateNotification](fn)
+	handler.templateStatus = EventHandlerFunc[BusinessNotificationContext, TemplateStatusUpdateNotification](fn)
 }
 
 func (handler *Handler) SetBusinessTemplateStatusUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]) {
-	handler.TemplateStatusHandler = fn
+	fn EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification],
+) {
+	handler.templateStatus = fn
 }
 
 func (handler *Handler) OnBusinessTemplateCategoryUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *TemplateCategoryUpdateNotification) error,
 ) {
-	handler.TemplateCategoryHandler = EventHandlerFunc[BusinessNotificationContext, TemplateCategoryUpdateNotification](
+	handler.templateCategory = EventHandlerFunc[BusinessNotificationContext, TemplateCategoryUpdateNotification](
 		fn,
 	)
 }
 
 func (handler *Handler) SetBusinessTemplateCategoryUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]) {
-	handler.TemplateCategoryHandler = fn
+	fn EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification],
+) {
+	handler.templateCategory = fn
 }
 
 func (handler *Handler) OnBusinessTemplateQualityUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *TemplateQualityUpdateNotification) error,
 ) {
-	handler.TemplateQualityHandler = EventHandlerFunc[BusinessNotificationContext, TemplateQualityUpdateNotification](
+	handler.templateQuality = EventHandlerFunc[BusinessNotificationContext, TemplateQualityUpdateNotification](
 		fn,
 	)
 }
 
 func (handler *Handler) SetBusinessTemplateQualityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]) {
-	handler.TemplateQualityHandler = fn
+	fn EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification],
+) {
+	handler.templateQuality = fn
 }
 
 func (handler *Handler) OnBusinessPhoneNumberNameUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *PhoneNumberNameUpdate) error,
 ) {
-	handler.PhoneNumberNameHandler = EventHandlerFunc[BusinessNotificationContext, PhoneNumberNameUpdate](fn)
+	handler.phoneNumberNameUpdate = EventHandlerFunc[BusinessNotificationContext, PhoneNumberNameUpdate](fn)
 }
 
 func (handler *Handler) SetBusinessPhoneNumberNameUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]) {
-	handler.PhoneNumberNameHandler = fn
+	fn EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate],
+) {
+	handler.phoneNumberNameUpdate = fn
 }
 
 func (handler *Handler) OnBusinessPhoneNumberQualityUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *PhoneNumberQualityUpdate) error,
 ) {
-	handler.PhoneNumberQualityUpdateHandler = EventHandlerFunc[BusinessNotificationContext, PhoneNumberQualityUpdate](
+	handler.phoneNumberQualityUpdate = EventHandlerFunc[BusinessNotificationContext, PhoneNumberQualityUpdate](
 		fn,
 	)
 }
 
 func (handler *Handler) SetBusinessPhoneNumberQualityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]) {
-	handler.PhoneNumberQualityUpdateHandler = fn
+	fn EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate],
+) {
+	handler.phoneNumberQualityUpdate = fn
 }
 
 func (handler *Handler) OnBusinessAccountReviewUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *AccountReviewUpdate) error,
 ) {
-	handler.AccountReviewUpdateHandler = EventHandlerFunc[BusinessNotificationContext, AccountReviewUpdate](fn)
+	handler.accountReviewUpdate = EventHandlerFunc[BusinessNotificationContext, AccountReviewUpdate](fn)
 }
 
 func (handler *Handler) SetBusinessAccountReviewUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, AccountReviewUpdate]) {
-	handler.AccountReviewUpdateHandler = fn
+	fn EventHandler[BusinessNotificationContext, AccountReviewUpdate],
+) {
+	handler.accountReviewUpdate = fn
 }
 
 func (handler *Handler) OnBusinessAccountUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *AccountUpdate) error,
 ) {
-	handler.AccountUpdateHandler = EventHandlerFunc[BusinessNotificationContext, AccountUpdate](fn)
+	handler.accountUpdate = EventHandlerFunc[BusinessNotificationContext, AccountUpdate](fn)
 }
 
 func (handler *Handler) SetBusinessAccountUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, AccountUpdate]) {
-	handler.AccountUpdateHandler = fn
+	fn EventHandler[BusinessNotificationContext, AccountUpdate],
+) {
+	handler.accountUpdate = fn
 }
 
 func (handler *Handler) OnBusinessCapabilityUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *CapabilityUpdate) error,
 ) {
-	handler.CapabilityUpdateHandler = EventHandlerFunc[BusinessNotificationContext, CapabilityUpdate](fn)
+	handler.capabilityUpdate = EventHandlerFunc[BusinessNotificationContext, CapabilityUpdate](fn)
 }
 
 func (handler *Handler) SetBusinessCapabilityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, CapabilityUpdate]) {
-	handler.CapabilityUpdateHandler = fn
+	fn EventHandler[BusinessNotificationContext, CapabilityUpdate],
+) {
+	handler.capabilityUpdate = fn
 }
 
 type (
@@ -968,37 +973,35 @@ func (handler *Handler) handleFlowNotification(
 	notificationContext *FlowNotificationContext,
 	value *Value,
 ) error {
-	if handler.isHandlerSet(value.Event) {
-		switch value.Event {
-		case EventFlowStatusChange:
-			details := value.FlowStatusChange()
-			if err := handler.FlowStatusChangeHandler.HandleEvent(ctx, notificationContext, details); err != nil {
-				return fmt.Errorf("handle flow status change event: %w", err)
-			}
+	switch value.Event {
+	case EventFlowStatusChange:
+		details := value.FlowStatusChange()
+		if err := handler.flowStatus.HandleEvent(ctx, notificationContext, details); err != nil {
+			return fmt.Errorf("handle flow status change event: %w", err)
+		}
 
-		case EventClientErrorRate:
-			details := value.FlowClientErrorRate()
-			if err := handler.FlowClientErrorRateHandler.HandleEvent(ctx, notificationContext, details); err != nil {
-				return fmt.Errorf("handle client error rate event: %w", err)
-			}
+	case EventClientErrorRate:
+		details := value.FlowClientErrorRate()
+		if err := handler.flowClientErrorRate.HandleEvent(ctx, notificationContext, details); err != nil {
+			return fmt.Errorf("handle client error rate event: %w", err)
+		}
 
-		case EventEndpointErrorRate:
-			details := value.FlowEndpointErrorRate()
-			if err := handler.FlowEndpointErrorRateHandler.HandleEvent(ctx, notificationContext, details); err != nil {
-				return fmt.Errorf("handle endpoint error rate event: %w", err)
-			}
+	case EventEndpointErrorRate:
+		details := value.FlowEndpointErrorRate()
+		if err := handler.flowEndpointErrorRate.HandleEvent(ctx, notificationContext, details); err != nil {
+			return fmt.Errorf("handle endpoint error rate event: %w", err)
+		}
 
-		case EventEndpointLatency:
-			details := value.FlowEndpointLatency()
-			if err := handler.FlowEndpointLatencyHandler.HandleEvent(ctx, notificationContext, details); err != nil {
-				return fmt.Errorf("handle endpoint latency event: %w", err)
-			}
+	case EventEndpointLatency:
+		details := value.FlowEndpointLatency()
+		if err := handler.flowEndpointLatency.HandleEvent(ctx, notificationContext, details); err != nil {
+			return fmt.Errorf("handle endpoint latency event: %w", err)
+		}
 
-		case EventEndpointAvailability:
-			details := value.FlowEndpointAvailability()
-			if err := handler.FlowEndpointAvailabilityHandler.HandleEvent(ctx, notificationContext, details); err != nil {
-				return fmt.Errorf("handle endpoint availability event: %w", err)
-			}
+	case EventEndpointAvailability:
+		details := value.FlowEndpointAvailability()
+		if err := handler.flowEndpointAvailability.HandleEvent(ctx, notificationContext, details); err != nil {
+			return fmt.Errorf("handle endpoint availability event: %w", err)
 		}
 	}
 
@@ -1008,59 +1011,59 @@ func (handler *Handler) handleFlowNotification(
 func (handler *Handler) OnFlowStatusChange(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *StatusChangeDetails) error,
 ) {
-	handler.FlowStatusChangeHandler = EventHandlerFunc[FlowNotificationContext, StatusChangeDetails](fn)
+	handler.flowStatus = EventHandlerFunc[FlowNotificationContext, StatusChangeDetails](fn)
 }
 
 func (handler *Handler) SetFlowStatusChangeHandler(fn EventHandler[FlowNotificationContext, StatusChangeDetails]) {
-	handler.FlowStatusChangeHandler = fn
+	handler.flowStatus = fn
 }
 
 func (handler *Handler) OnFlowClientErrorRate(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *ClientErrorRateDetails) error,
 ) {
-	handler.FlowClientErrorRateHandler = EventHandlerFunc[FlowNotificationContext, ClientErrorRateDetails](fn)
+	handler.flowClientErrorRate = EventHandlerFunc[FlowNotificationContext, ClientErrorRateDetails](fn)
 }
 
 func (handler *Handler) SetFlowClientErrorRateHandler(
 	fn EventHandler[FlowNotificationContext, ClientErrorRateDetails],
 ) {
-	handler.FlowClientErrorRateHandler = fn
+	handler.flowClientErrorRate = fn
 }
 
 func (handler *Handler) OnFlowEndpointErrorRate(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointErrorRateDetails) error,
 ) {
-	handler.FlowEndpointErrorRateHandler = EventHandlerFunc[FlowNotificationContext, EndpointErrorRateDetails](fn)
+	handler.flowEndpointErrorRate = EventHandlerFunc[FlowNotificationContext, EndpointErrorRateDetails](fn)
 }
 
 func (handler *Handler) SetFlowEndpointErrorRateHandler(
 	fn EventHandler[FlowNotificationContext, EndpointErrorRateDetails],
 ) {
-	handler.FlowEndpointErrorRateHandler = fn
+	handler.flowEndpointErrorRate = fn
 }
 
 func (handler *Handler) OnFlowEndpointLatency(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointLatencyDetails) error,
 ) {
-	handler.FlowEndpointLatencyHandler = EventHandlerFunc[FlowNotificationContext, EndpointLatencyDetails](fn)
+	handler.flowEndpointLatency = EventHandlerFunc[FlowNotificationContext, EndpointLatencyDetails](fn)
 }
 
 func (handler *Handler) SetFlowEndpointLatencyHandler(
 	fn EventHandler[FlowNotificationContext, EndpointLatencyDetails],
 ) {
-	handler.FlowEndpointLatencyHandler = fn
+	handler.flowEndpointLatency = fn
 }
 
 func (handler *Handler) OnFlowEndpointAvailability(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointAvailabilityDetails) error,
 ) {
-	handler.FlowEndpointAvailabilityHandler = EventHandlerFunc[FlowNotificationContext, EndpointAvailabilityDetails](fn)
+	handler.flowEndpointAvailability = EventHandlerFunc[FlowNotificationContext, EndpointAvailabilityDetails](fn)
 }
 
 func (handler *Handler) SetFlowEndpointAvailabilityHandler(
 	fn EventHandler[FlowNotificationContext, EndpointAvailabilityDetails],
 ) {
-	handler.FlowEndpointAvailabilityHandler = fn
+	handler.flowEndpointAvailability = fn
 }
 
 const (
@@ -1332,8 +1335,15 @@ type (
 )
 
 func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, nctx *MessageNotificationContext,
-	mctx *MessageInfo, message *T) error {
+	mctx *MessageInfo, message *T,
+) error {
 	return fn(ctx, nctx, mctx, message)
+}
+
+func NewNoOpMessageHandler[T any]() MessageHandler[T] {
+	return MessageHandlerFunc[T](func(_ context.Context, _ *MessageNotificationContext, _ *MessageInfo, _ *T) error {
+		return nil
+	})
 }
 
 type (
@@ -1352,6 +1362,12 @@ func (f MessageChangeValueHandlerFunc[T]) Handle(
 	return f(ctx, nctx, values)
 }
 
+func NewNoOpMessageChangeValueHandler[T any]() MessageChangeValueHandler[T] {
+	return MessageChangeValueHandlerFunc[T](func(_ context.Context, _ *MessageNotificationContext, _ []*T) error {
+		return nil
+	})
+}
+
 const (
 	InteractiveTypeListReply   = "list_reply"
 	InteractiveTypeButtonReply = "button_reply"
@@ -1365,6 +1381,20 @@ type (
 		Handle(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, errors []*werrors.Error) error
 	}
 )
+
+func (fn MessageErrorsHandlerFunc) Handle(ctx context.Context, nctx *MessageNotificationContext,
+	mctx *MessageInfo, errors []*werrors.Error,
+) error {
+	return fn(ctx, nctx, mctx, errors)
+}
+
+func NewNoOpMessageErrorsHandler() MessageErrorsHandler {
+	return MessageErrorsHandlerFunc(
+		func(_ context.Context, _ *MessageNotificationContext, _ *MessageInfo, _ []*werrors.Error) error {
+			return nil
+		},
+	)
+}
 
 func (handler *Handler) handleNotificationMessage(ctx context.Context,
 	nctx *MessageNotificationContext, message *Message,
@@ -1380,14 +1410,14 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 	messageType := ParseMessageType(message.Type)
 	switch messageType {
 	case MessageTypeOrder:
-		if err := handler.OrderMessageHandler.Handle(ctx, nctx, mctx, message.Order); err != nil {
+		if err := handler.orderMessage.Handle(ctx, nctx, mctx, message.Order); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeButton:
-		if err := handler.ButtonMessageHandler.Handle(ctx, nctx, mctx, message.Button); err != nil {
+		if err := handler.buttonMessage.Handle(ctx, nctx, mctx, message.Button); err != nil {
 			return err
 		}
 
@@ -1400,14 +1430,14 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 		return handler.handleInteractiveNotification(ctx, nctx, message, mctx)
 
 	case MessageTypeSystem:
-		if err := handler.SystemMessageHandler.Handle(ctx, nctx, mctx, message.System); err != nil {
+		if err := handler.systemMessage.Handle(ctx, nctx, mctx, message.System); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeUnknown:
-		if err := handler.MessageErrorsHandler.Handle(ctx, nctx, mctx, message.Errors); err != nil {
+		if err := handler.errorMessage.Handle(ctx, nctx, mctx, message.Errors); err != nil {
 			return err
 		}
 
@@ -1417,8 +1447,8 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 		return handler.handleTextNotification(ctx, nctx, message, mctx)
 
 	case MessageTypeRequestWelcome:
-		if handler.RequestWelcome != nil {
-			if err := handler.RequestWelcome(ctx, nctx, mctx, message); err != nil {
+		if handler.requestWelcome != nil {
+			if err := handler.requestWelcome.Handle(ctx, nctx, mctx, message); err != nil {
 				return err
 			}
 		}
@@ -1426,21 +1456,21 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 		return nil
 
 	case MessageTypeReaction:
-		if err := handler.ReactionHandler.Handle(ctx, nctx, mctx, message.Reaction); err != nil {
+		if err := handler.reactionMessage.Handle(ctx, nctx, mctx, message.Reaction); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeLocation:
-		if err := handler.LocationMessageHandler.Handle(ctx, nctx, mctx, message.Location); err != nil {
+		if err := handler.locationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeContacts:
-		if err := handler.ContactsMessageHandler.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
+		if err := handler.contactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
 			return err
 		}
 
@@ -1457,35 +1487,35 @@ func (handler *Handler) handleMediaMessage(ctx context.Context, nctx *MessageNot
 	messageType := ParseMessageType(message.Type)
 	switch messageType { //nolint:exhaustive // ok
 	case MessageTypeAudio:
-		if err := handler.AudioMessageHandler.Handle(ctx, nctx, mctx, message.Audio); err != nil {
+		if err := handler.audioMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeVideo:
-		if err := handler.VideoMessageHandler.Handle(ctx, nctx, mctx, message.Video); err != nil {
+		if err := handler.videoMessage.Handle(ctx, nctx, mctx, message.Video); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeImage:
-		if err := handler.ImageMessageHandler.Handle(ctx, nctx, mctx, message.Image); err != nil {
+		if err := handler.imageMessage.Handle(ctx, nctx, mctx, message.Image); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeDocument:
-		if err := handler.DocumentMessageHandler.Handle(ctx, nctx, mctx, message.Document); err != nil {
+		if err := handler.documentMessage.Handle(ctx, nctx, mctx, message.Document); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeSticker:
-		if err := handler.StickerMessageHandler.Handle(ctx, nctx, mctx, message.Sticker); err != nil {
+		if err := handler.stickerMessage.Handle(ctx, nctx, mctx, message.Sticker); err != nil {
 			return err
 		}
 
@@ -1499,11 +1529,11 @@ func (handler *Handler) handleTextNotification(ctx context.Context, nctx *Messag
 	message *Message, mctx *MessageInfo,
 ) error {
 	if message.Referral != nil {
-		reff := &ReferralNotification{
+		referral := &ReferralNotification{
 			Text:     message.Text,
 			Referral: message.Referral,
 		}
-		if err := handler.ReferralMessageHandler.Handle(ctx, nctx, mctx, reff); err != nil {
+		if err := handler.referralMessage.Handle(ctx, nctx, mctx, referral); err != nil {
 			return err
 		}
 
@@ -1511,14 +1541,14 @@ func (handler *Handler) handleTextNotification(ctx context.Context, nctx *Messag
 	}
 
 	if mctx.Context != nil {
-		if err := handler.ProductEnquiryHandler.Handle(ctx, nctx, mctx, message.Text); err != nil {
+		if err := handler.productInquiry.Handle(ctx, nctx, mctx, message.Text); err != nil {
 			return err
 		}
 
 		return nil
 	}
 
-	if err := handler.TextMessageHandler.Handle(ctx, nctx, mctx, message.Text); err != nil {
+	if err := handler.textMessage.Handle(ctx, nctx, mctx, message.Text); err != nil {
 		return err
 	}
 
@@ -1529,14 +1559,14 @@ func (handler *Handler) handleDefaultNotificationMessage(ctx context.Context, nc
 	message *Message, mctx *MessageInfo,
 ) error {
 	if message.Contacts != nil {
-		if err := handler.ContactsMessageHandler.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
+		if err := handler.contactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
 			return err
 		}
 
 		return nil
 	}
 	if message.Location != nil {
-		if err := handler.LocationMessageHandler.Handle(ctx, nctx, mctx, message.Location); err != nil {
+		if err := handler.locationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
 			return err
 		}
 
@@ -1544,7 +1574,7 @@ func (handler *Handler) handleDefaultNotificationMessage(ctx context.Context, nc
 	}
 
 	if message.Identity != nil {
-		if err := handler.CustomerIDChangeHandler.Handle(ctx, nctx, mctx, message.Identity); err != nil {
+		if err := handler.customerIDChange.Handle(ctx, nctx, mctx, message.Identity); err != nil {
 			return err
 		}
 
@@ -1559,25 +1589,25 @@ func (handler *Handler) handleInteractiveNotification(ctx context.Context,
 ) error {
 	switch message.Interactive.Type {
 	case InteractiveTypeListReply:
-		if err := handler.ListReplyMessageHandler.Handle(ctx, nctx, mctx, message.Interactive.ListReply); err != nil {
+		if err := handler.listReplyMessage.Handle(ctx, nctx, mctx, message.Interactive.ListReply); err != nil {
 			return fmt.Errorf("handle list reply: %w", err)
 		}
 
 		return nil
 	case InteractiveTypeButtonReply:
-		if err := handler.ButtonReplyMessageHandler.Handle(ctx, nctx, mctx, message.Interactive.ButtonReply); err != nil {
+		if err := handler.buttonReplyMessage.Handle(ctx, nctx, mctx, message.Interactive.ButtonReply); err != nil {
 			return fmt.Errorf("handle button reply: %w", err)
 		}
 
 		return nil
 	case InteractiveTypeNFMReply:
-		if err := handler.FlowCompletionMessageHandler.Handle(ctx, nctx, mctx, message.Interactive.NFMReply); err != nil {
+		if err := handler.flowCompletionUpdate.Handle(ctx, nctx, mctx, message.Interactive.NFMReply); err != nil {
 			return err
 		}
 
 		return nil
 	default:
-		if err := handler.InteractiveMessageHandler.Handle(ctx, nctx, mctx, message.Interactive); err != nil {
+		if err := handler.interactiveMessage.Handle(ctx, nctx, mctx, message.Interactive); err != nil {
 			return err
 		}
 
@@ -1588,239 +1618,239 @@ func (handler *Handler) handleInteractiveNotification(ctx context.Context,
 func (handler *Handler) OnTextMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, text *Text) error,
 ) {
-	handler.TextMessageHandler = MessageHandlerFunc[Text](fn)
+	handler.textMessage = MessageHandlerFunc[Text](fn)
 }
 
 func (handler *Handler) SetTextMessageHandler(
 	h MessageHandler[Text],
 ) {
-	handler.TextMessageHandler = h
+	handler.textMessage = h
 }
 
 func (handler *Handler) OnButtonMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, button *Button) error,
 ) {
-	handler.ButtonMessageHandler = MessageHandlerFunc[Button](fn)
+	handler.buttonMessage = MessageHandlerFunc[Button](fn)
 }
 
 func (handler *Handler) SetButtonMessageHandler(
 	h MessageHandler[Button],
 ) {
-	handler.ButtonMessageHandler = h
+	handler.buttonMessage = h
 }
 
 func (handler *Handler) OnOrderMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, order *Order) error,
 ) {
-	handler.OrderMessageHandler = MessageHandlerFunc[Order](fn)
+	handler.orderMessage = MessageHandlerFunc[Order](fn)
 }
 
 func (handler *Handler) SetOrderMessageHandler(
 	h MessageHandler[Order],
 ) {
-	handler.OrderMessageHandler = h
+	handler.orderMessage = h
 }
 
 func (handler *Handler) OnLocationMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, loc *message.Location) error,
 ) {
-	handler.LocationMessageHandler = MessageHandlerFunc[message.Location](fn)
+	handler.locationMessage = MessageHandlerFunc[message.Location](fn)
 }
 
 func (handler *Handler) SetLocationMessageHandler(
 	h MessageHandler[message.Location],
 ) {
-	handler.LocationMessageHandler = h
+	handler.locationMessage = h
 }
 
 func (handler *Handler) OnContactsMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, contacts *message.Contacts) error,
 ) {
-	handler.ContactsMessageHandler = MessageHandlerFunc[message.Contacts](fn)
+	handler.contactsMessage = MessageHandlerFunc[message.Contacts](fn)
 }
 
 func (handler *Handler) SetContactsMessageHandler(
 	h MessageHandler[message.Contacts],
 ) {
-	handler.ContactsMessageHandler = h
+	handler.contactsMessage = h
 }
 
 func (handler *Handler) OnReactionMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, reaction *message.Reaction) error,
 ) {
-	handler.ReactionHandler = MessageHandlerFunc[message.Reaction](fn)
+	handler.reactionMessage = MessageHandlerFunc[message.Reaction](fn)
 }
 
 func (handler *Handler) SetReactionMessageHandler(
 	h MessageHandler[message.Reaction],
 ) {
-	handler.ReactionHandler = h
+	handler.reactionMessage = h
 }
 
 func (handler *Handler) OnProductEnquiryMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, txt *Text) error,
 ) {
-	handler.ProductEnquiryHandler = MessageHandlerFunc[Text](fn)
+	handler.productInquiry = MessageHandlerFunc[Text](fn)
 }
 
 func (handler *Handler) SetProductEnquiryMessageHandler(
 	h MessageHandler[Text],
 ) {
-	handler.ProductEnquiryHandler = h
+	handler.productInquiry = h
 }
 
 func (handler *Handler) OnInteractiveMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, itv *Interactive) error,
 ) {
-	handler.InteractiveMessageHandler = MessageHandlerFunc[Interactive](fn)
+	handler.interactiveMessage = MessageHandlerFunc[Interactive](fn)
 }
 
 func (handler *Handler) SetInteractiveMessageHandler(
 	h MessageHandler[Interactive],
 ) {
-	handler.InteractiveMessageHandler = h
+	handler.interactiveMessage = h
 }
 
 func (handler *Handler) OnButtonReplyMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, br *ButtonReply) error,
 ) {
-	handler.ButtonReplyMessageHandler = MessageHandlerFunc[ButtonReply](fn)
+	handler.buttonReplyMessage = MessageHandlerFunc[ButtonReply](fn)
 }
 
 func (handler *Handler) SetButtonReplyMessageHandler(
 	h MessageHandler[ButtonReply],
 ) {
-	handler.ButtonReplyMessageHandler = h
+	handler.buttonReplyMessage = h
 }
 
 func (handler *Handler) OnListReplyMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, lr *ListReply) error,
 ) {
-	handler.ListReplyMessageHandler = MessageHandlerFunc[ListReply](fn)
+	handler.listReplyMessage = MessageHandlerFunc[ListReply](fn)
 }
 
 func (handler *Handler) SetListReplyMessageHandler(
 	h MessageHandler[ListReply],
 ) {
-	handler.ListReplyMessageHandler = h
+	handler.listReplyMessage = h
 }
 
 func (handler *Handler) OnFlowCompletionMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, nfm *NFMReply) error,
 ) {
-	handler.FlowCompletionMessageHandler = MessageHandlerFunc[NFMReply](fn)
+	handler.flowCompletionUpdate = MessageHandlerFunc[NFMReply](fn)
 }
 
 func (handler *Handler) SetFlowCompletionMessageHandler(
 	h MessageHandler[NFMReply],
 ) {
-	handler.FlowCompletionMessageHandler = h
+	handler.flowCompletionUpdate = h
 }
 
 func (handler *Handler) OnReferralMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, ref *ReferralNotification) error,
 ) {
-	handler.ReferralMessageHandler = MessageHandlerFunc[ReferralNotification](fn)
+	handler.referralMessage = MessageHandlerFunc[ReferralNotification](fn)
 }
 
 func (handler *Handler) SetReferralMessageHandler(
 	h MessageHandler[ReferralNotification],
 ) {
-	handler.ReferralMessageHandler = h
+	handler.referralMessage = h
 }
 
 func (handler *Handler) OnCustomerIDChangeMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, identity *Identity) error,
 ) {
-	handler.CustomerIDChangeHandler = MessageHandlerFunc[Identity](fn)
+	handler.customerIDChange = MessageHandlerFunc[Identity](fn)
 }
 
 func (handler *Handler) SetCustomerIDChangeMessageHandler(
 	h MessageHandler[Identity],
 ) {
-	handler.CustomerIDChangeHandler = h
+	handler.customerIDChange = h
 }
 
 func (handler *Handler) OnSystemMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, sys *System) error,
 ) {
-	handler.SystemMessageHandler = MessageHandlerFunc[System](fn)
+	handler.systemMessage = MessageHandlerFunc[System](fn)
 }
 
 func (handler *Handler) SetSystemMessageHandler(
 	h MessageHandler[System],
 ) {
-	handler.SystemMessageHandler = h
+	handler.systemMessage = h
 }
 
 func (handler *Handler) OnAudioMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
 ) {
-	handler.AudioMessageHandler = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.audioMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
 
 func (handler *Handler) SetAudioMessageHandler(
 	h MessageHandler[message.MediaInfo],
 ) {
-	handler.AudioMessageHandler = h
+	handler.audioMessage = h
 }
 
 func (handler *Handler) OnVideoMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
 ) {
-	handler.VideoMessageHandler = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.videoMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
 
 func (handler *Handler) SetVideoMessageHandler(
 	h MessageHandler[message.MediaInfo],
 ) {
-	handler.VideoMessageHandler = h
+	handler.videoMessage = h
 }
 
 func (handler *Handler) OnImageMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
 ) {
-	handler.ImageMessageHandler = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.imageMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
 
 func (handler *Handler) SetImageMessageHandler(
 	h MessageHandler[message.MediaInfo],
 ) {
-	handler.ImageMessageHandler = h
+	handler.imageMessage = h
 }
 
 func (handler *Handler) OnDocumentMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
 ) {
-	handler.DocumentMessageHandler = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.documentMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
 
 func (handler *Handler) SetDocumentMessageHandler(
 	h MessageHandler[message.MediaInfo],
 ) {
-	handler.DocumentMessageHandler = h
+	handler.documentMessage = h
 }
 
 func (handler *Handler) OnStickerMessage(
 	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
 ) {
-	handler.StickerMessageHandler = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.stickerMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
 
 func (handler *Handler) SetStickerMessageHandler(
 	h MessageHandler[message.MediaInfo],
 ) {
-	handler.StickerMessageHandler = h
+	handler.stickerMessage = h
 }
 
 func (handler *Handler) OnUserPreferencesUpdate(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, prefs []*UserPreference) error,
 ) {
-	handler.UserPreferencesUpdateHandler = MessageChangeValueHandlerFunc[UserPreference](fn)
+	handler.userPreferencesUpdate = MessageChangeValueHandlerFunc[UserPreference](fn)
 }
 
 func (handler *Handler) SetUserPreferencesUpdateHandler(
 	h MessageChangeValueHandler[UserPreference],
 ) {
-	handler.UserPreferencesUpdateHandler = h
+	handler.userPreferencesUpdate = h
 }
