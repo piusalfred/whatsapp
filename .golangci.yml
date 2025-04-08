@@ -427,5 +427,4 @@ linters:
       - '^examples/qr/.*\.go$'
       - '^examples/message/.*\.go$'
       - '^examples/block/.*\.go$'
-      - '^examples/webhooks/listeners/.*\.go$'
-      - '^examples/webhooks/simple/.*\.go$'
+      - '^examples/webhooks/.*\.go$'

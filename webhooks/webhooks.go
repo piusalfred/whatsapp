@@ -33,44 +33,51 @@ import (
 	"strings"
 )
 
-type Listener[T any] struct {
-	middlewares       []HandleMiddleware[T]
-	originalHandler   NotificationHandlerFunc[T]
-	Handler           NotificationHandlerFunc[T]
-	VerifyTokenReader VerifyTokenReader
-	ValidateOptions   *ValidateOptions
-}
+type (
+	Middleware func(NotificationHandlerFunc) NotificationHandlerFunc
 
-func NewListener[T any](handler NotificationHandlerFunc[T],
-	reader VerifyTokenReader, validateOpts *ValidateOptions, middlewares ...HandleMiddleware[T],
-) *Listener[T] {
-	wrappedHandler := handler
+	Listener struct {
+		middlewares       []Middleware
+		originalHandler   NotificationHandlerFunc
+		Handler           NotificationHandlerFunc
+		VerifyTokenReader VerifyTokenReader
+		ValidateOptions   *ValidateOptions
+	}
+)
+
+func NewListener(
+	handler NotificationHandlerFunc,
+	reader VerifyTokenReader,
+	validateOpts *ValidateOptions,
+	middlewares ...Middleware,
+) *Listener {
+	wrapped := handler
 	for i := len(middlewares) - 1; i >= 0; i-- {
-		middleware := middlewares[i]
-		wrappedHandler = middleware(wrappedHandler)
+		m := middlewares[i]
+		wrapped = m(wrapped)
 	}
 
-	return &Listener[T]{
+	return &Listener{
 		middlewares:       middlewares,
 		originalHandler:   handler,
-		Handler:           wrappedHandler,
+		Handler:           wrapped,
 		VerifyTokenReader: reader,
 		ValidateOptions:   validateOpts,
 	}
 }
 
-func (listener *Listener[T]) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
+func (listener *Listener) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
 	listener.VerifyTokenReader.VerifySubscription(writer, request)
 }
 
-func (listener *Listener[T]) HandleNotification(writer http.ResponseWriter, request *http.Request) {
+func (listener *Listener) HandleNotification(writer http.ResponseWriter, request *http.Request) {
 	var (
-		notification *T
+		notification *Notification
 		ctx          = request.Context()
 		err          error
 	)
 
-	notification, err = ExtractAndValidatePayload[T](request, listener.ValidateOptions)
+	notification, err = ExtractAndValidatePayload(request, listener.ValidateOptions)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 
@@ -83,25 +90,23 @@ func (listener *Listener[T]) HandleNotification(writer http.ResponseWriter, requ
 }
 
 type (
-	HandleMiddleware[T any] func(handlerFunc NotificationHandlerFunc[T]) NotificationHandlerFunc[T]
-
 	Response struct {
 		StatusCode int
 	}
 
-	NotificationHandlerFunc[T any] func(ctx context.Context, notification *T) *Response
+	NotificationHandlerFunc func(ctx context.Context, notification *Notification) *Response
 
-	NotificationHandler[T any] interface {
-		HandleNotification(ctx context.Context, notification *T) *Response
+	NotificationHandler interface {
+		HandleNotification(ctx context.Context, notification *Notification) *Response
 	}
 )
 
-func (fn NotificationHandlerFunc[T]) HandleNotification(ctx context.Context, notification *T) *Response {
+func (fn NotificationHandlerFunc) HandleNotification(ctx context.Context, notification *Notification) *Response {
 	return fn(ctx, notification)
 }
 
 // OnEventNotification creates an HTTP handler function for processing webhook event notifications.
-func OnEventNotification[T any](handler NotificationHandler[T]) http.HandlerFunc {
+func OnEventNotification[T any](handler NotificationHandler) http.HandlerFunc {
 	fn := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		body, err := io.ReadAll(request.Body)
 		if err != nil {
@@ -113,7 +118,7 @@ func OnEventNotification[T any](handler NotificationHandler[T]) http.HandlerFunc
 
 		request.Body = io.NopCloser(bytes.NewBuffer(body))
 
-		var payload T
+		var payload Notification
 
 		if err = json.Unmarshal(body, &payload); err != nil {
 			msgErr := fmt.Errorf("%w: %w", ErrMessageDecode, err)
@@ -135,7 +140,7 @@ type ValidateOptions struct {
 	AppSecret string
 }
 
-func ExtractAndValidatePayload[T any](request *http.Request, options *ValidateOptions) (*T, error) {
+func ExtractAndValidatePayload(request *http.Request, options *ValidateOptions) (*Notification, error) {
 	var buff bytes.Buffer
 	_, err := io.Copy(&buff, request.Body)
 	if err != nil {
@@ -150,7 +155,7 @@ func ExtractAndValidatePayload[T any](request *http.Request, options *ValidateOp
 		}
 	}
 
-	var notification T
+	var notification Notification
 	if err = json.NewDecoder(&buff).Decode(&notification); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err)
 	}

@@ -29,8 +29,8 @@ import (
 )
 
 // LoggingMiddleware logs the start and end of request processing.
-func LoggingMiddleware[T any](next webhooks.NotificationHandlerFunc[T]) webhooks.NotificationHandlerFunc[T] {
-	return func(ctx context.Context, notification *T) *webhooks.Response {
+func LoggingMiddleware(next webhooks.NotificationHandlerFunc) webhooks.NotificationHandlerFunc {
+	return func(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
 		fmt.Println("Logging: Before handling notification")
 		response := next(ctx, notification)
 		fmt.Println("Logging: After handling notification")
@@ -39,8 +39,8 @@ func LoggingMiddleware[T any](next webhooks.NotificationHandlerFunc[T]) webhooks
 }
 
 // AddMetadataMiddleware adds some metadata to the context.
-func AddMetadataMiddleware[T any](next webhooks.NotificationHandlerFunc[T]) webhooks.NotificationHandlerFunc[T] {
-	return func(ctx context.Context, notification *T) *webhooks.Response {
+func AddMetadataMiddleware(next webhooks.NotificationHandlerFunc) webhooks.NotificationHandlerFunc {
+	return func(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
 		fmt.Println("Adding metadata to the context")
 		ctx = context.WithValue(ctx, "metadata", "some value")
 		return next(ctx, notification)
@@ -49,20 +49,28 @@ func AddMetadataMiddleware[T any](next webhooks.NotificationHandlerFunc[T]) webh
 
 func main() {
 	handler := webhooks.NewHandler()
+	handler.OnTextMessage(func(ctx context.Context, nctx *webhooks.MessageNotificationContext,
+		mctx *webhooks.MessageInfo, text *webhooks.Text) error {
+		fmt.Printf("new text message received: context: %+v,message info: %+v, text: %+v\n",
+			nctx, mctx, text)
+
+		return nil
+	})
 	messageListener := webhooks.NewListener(
 		handler.HandleNotification,
 		func(ctx context.Context) (string, error) {
-			return "", nil
+			return "TOKEN", nil
 		},
 		&webhooks.ValidateOptions{
 			Validate:  false,
-			AppSecret: "",
+			AppSecret: "SUPERSECRET",
 		},
-		LoggingMiddleware[webhooks.Notification],
-		AddMetadataMiddleware[webhooks.Notification],
+		LoggingMiddleware,
+		AddMetadataMiddleware,
 	)
 
 	http.HandleFunc("POST /webhooks/messages", messageListener.HandleNotification)
+	http.HandleFunc("GET /webhooks/verify", messageListener.HandleSubscriptionVerification)
 
 	fmt.Println("Starting server on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
