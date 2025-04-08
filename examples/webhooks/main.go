@@ -50,7 +50,8 @@ func AddMetadataMiddleware(next webhooks.NotificationHandlerFunc) webhooks.Notif
 func main() {
 	handler := webhooks.NewHandler()
 	handler.OnTextMessage(func(ctx context.Context, nctx *webhooks.MessageNotificationContext,
-		mctx *webhooks.MessageInfo, text *webhooks.Text) error {
+		mctx *webhooks.MessageInfo, text *webhooks.Text,
+	) error {
 		fmt.Printf("new text message received: context: %+v,message info: %+v, text: %+v\n",
 			nctx, mctx, text)
 
