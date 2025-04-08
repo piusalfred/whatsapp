@@ -171,7 +171,7 @@ type (
 
 type (
 	PreviewRequest struct {
-		FlowID     string `json:"flow_id"`    // The ID of the flow being previewed.
+		FlowID     string `json:"flow_id"`    // The EntryID of the flow being previewed.
 		Invalidate bool   `json:"invalidate"` // If true, it invalidates the previous preview and generates a new one.
 	}
 

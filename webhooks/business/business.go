@@ -52,13 +52,13 @@ type (
 	}
 
 	Change struct {
-		Field string `json:"field"` // e.g., "message_template_status_update"
+		Field string `json:"field"`
 		Value *Value `json:"value"`
 	}
 
 	// Value holds details related to message templates, account limits, and status updates.
 	// - Event: e.g., "APPROVED", "FLAGGED", etc.
-	// - MessageTemplateID: ID of the message template.
+	// - MessageTemplateID: EntryID of the message template.
 	// - MessageTemplateName: Name of the message template.
 	// - MessageTemplateLanguage: Language and locale code, e.g., "en_US".
 	// - Reason: Nullable reason for template rejection or status.

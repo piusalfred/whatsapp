@@ -29,8 +29,8 @@ func NewClient(baseURL, apiVersion string, sender whttp.AnySender) *Client {
 // InstallAppParams contains the parameters required to install an app for a system user.
 type InstallAppParams struct {
 	AccessToken  string // The access token of an admin or system user who installs the app.
-	AppID        string // The ID of the app being installed.
-	SystemUserID string // The ID of the system user for whom the app is being installed.
+	AppID        string // The EntryID of the app being installed.
+	SystemUserID string // The EntryID of the system user for whom the app is being installed.
 }
 
 // SuccessResponse represents the response for the InstallApp API call.
@@ -46,10 +46,10 @@ type SuccessResponse struct {
 // - ctx: The request context.
 // - params: A struct containing:
 //   - AccessToken: The access token of an admin user, admin system user, or another system user.
-//   - AppID: The ID of the app being installed.
+//   - AppID: The EntryID of the app being installed.
 //   - BaseURL: The base URL of the API.
 //   - APIVersion: The version of the API being called.
-//   - SystemUserID: The ID of the system user on whose behalf the app is installed.
+//   - SystemUserID: The EntryID of the system user on whose behalf the app is installed.
 //
 // Returns:
 // - error: Any error encountered during the installation process.
@@ -130,8 +130,8 @@ func (c *TwoStepVerificationClient) TwoStepVerification(ctx context.Context,
 // GenerateAccessTokenParams contains the parameters required to generate a persistent access token.
 type GenerateAccessTokenParams struct {
 	AccessToken         string   // The access token of the user generating the new access token.
-	AppID               string   // The ID of the app for which the token is generated.
-	SystemUserID        string   // The system user ID that is generating the token.
+	AppID               string   // The EntryID of the app for which the token is generated.
+	SystemUserID        string   // The system user EntryID that is generating the token.
 	AppSecret           string   // The app secret associated with the app.
 	Scopes              []string // A list of permissions (scopes) to be granted to the new token.
 	SetTokenExpiresIn60 bool     // If true, sets the token to expire in 60 days.
@@ -150,8 +150,8 @@ type GenerateAccessTokenResponse struct {
 // - ctx: The request context.
 // - params: A struct containing:
 //   - AccessToken: The access token of the user generating the new token.
-//   - AppID: The ID of the app being used for token generation.
-//   - SystemUserID: The ID of the system user generating the token.
+//   - AppID: The EntryID of the app being used for token generation.
+//   - SystemUserID: The EntryID of the system user generating the token.
 //   - BaseURL: The base URL of the API.
 //   - APIVersion: The version of the API being called.
 //   - AppSecret: The app secret for generating the app secret proof.

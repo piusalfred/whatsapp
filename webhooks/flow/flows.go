@@ -233,7 +233,7 @@ type (
 	Value struct {
 		Event         string      `json:"event"`                    // Event type, e.g., "CLIENT_ERROR_RATE"
 		Message       string      `json:"message"`                  // Descriptive message of the event
-		FlowID        string      `json:"flow_id"`                  // ID of the flow
+		FlowID        string      `json:"flow_id"`                  // EntryID of the flow
 		OldStatus     string      `json:"old_status,omitempty"`     // Previous status of the flow (optional)
 		NewStatus     string      `json:"new_status,omitempty"`     // New status of the flow (optional)
 		ErrorRate     float64     `json:"error_rate,omitempty"`     // Overall error rate for the alert (optional)
