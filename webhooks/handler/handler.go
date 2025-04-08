@@ -133,50 +133,57 @@ func (info ErrorInfo) Error() *werrors.Error {
 	}
 }
 
+func ErrorInfosAsErrors(infos []ErrorInfo) []*werrors.Error {
+	errs := make([]*werrors.Error, len(infos))
+	for i, info := range infos {
+		errs[i] = info.Error()
+	}
+
+	return errs
+}
+
 type MediaMessageHandler MessageHandler[message.MediaInfo]
 
 type Handler struct {
-	FlowStatusChangeHandler         EventHandler[FlowNotificationContext, StatusChangeDetails]
-	FlowClientErrorRateHandler      EventHandler[FlowNotificationContext, ClientErrorRateDetails]
-	FlowEndpointErrorRateHandler    EventHandler[FlowNotificationContext, EndpointErrorRateDetails]
-	FlowEndpointLatencyHandler      EventHandler[FlowNotificationContext, EndpointLatencyDetails]
-	FlowEndpointAvailabilityHandler EventHandler[FlowNotificationContext, EndpointAvailabilityDetails]
-	AlertsHandler                   EventHandler[BusinessNotificationContext, AlertNotification]
-	TemplateStatusHandler           EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
-	TemplateCategoryHandler         EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
-	TemplateQualityHandler          EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]
-	PhoneNumberNameHandler          EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
-	CapabilityUpdateHandler         EventHandler[BusinessNotificationContext, CapabilityUpdate]
-	AccountUpdateHandler            EventHandler[BusinessNotificationContext, AccountUpdate]
-	PhoneNumberQualityUpdateHandler EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
-	AccountReviewUpdateHandler      EventHandler[BusinessNotificationContext, AccountReviewUpdate]
-	ButtonMessageHandler            MessageHandler[Button]
-	TextMessageHandler              MessageHandler[Text]
-	OrderMessageHandler             MessageHandler[Order]
-	LocationMessageHandler          MessageHandler[message.Location]
-	ContactsMessageHandler          MessageHandler[message.Contacts]
-	ReactionHandler                 MessageHandler[message.Reaction]
-	ProductEnquiryHandler           MessageHandler[Text]
-	InteractiveMessageHandler       MessageHandler[Interactive]
-	ButtonReplyMessageHandler       MessageHandler[ButtonReply]
-	ListReplyMessageHandler         MessageHandler[ListReply]
-	FlowCompletionMessageHandler    MessageHandler[NFMReply]
-	ReferralMessageHandler          MessageHandler[ReferralNotification]
-	CustomerIDChangeHandler         MessageHandler[Identity]
-	SystemMessageHandler            MessageHandler[System]
-	AudioMessageHandler             MediaMessageHandler
-	VideoMessageHandler             MediaMessageHandler
-	ImageMessageHandler             MediaMessageHandler
-	DocumentMessageHandler          MediaMessageHandler
-	StickerMessageHandler           MediaMessageHandler
-	UserPreferencesUpdateHandler    func(ctx context.Context, notificationCtx *MessageNotificationContext, preferences []*UserPreference) error
-	ErrorHandler                    func(ctx context.Context, err error) error
-	MessageNotificationErrorHandler MessageChangeValueHandler[werrors.Error]
-	MessageStatusChangeHandler      MessageChangeValueHandler[Status]
-	MessageReceivedHandler          MessageChangeValueHandler[Message]
-	MessageUserPreferenceHandler    MessageChangeValueHandler[UserPreference]
-	MessageErrorsHandler            MessageErrorsHandler
-	RequestWelcome                  func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, message *Message) error
+	FlowStatusChangeHandler          EventHandler[FlowNotificationContext, StatusChangeDetails]
+	FlowClientErrorRateHandler       EventHandler[FlowNotificationContext, ClientErrorRateDetails]
+	FlowEndpointErrorRateHandler     EventHandler[FlowNotificationContext, EndpointErrorRateDetails]
+	FlowEndpointLatencyHandler       EventHandler[FlowNotificationContext, EndpointLatencyDetails]
+	FlowEndpointAvailabilityHandler  EventHandler[FlowNotificationContext, EndpointAvailabilityDetails]
+	AlertsHandler                    EventHandler[BusinessNotificationContext, AlertNotification]
+	TemplateStatusHandler            EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
+	TemplateCategoryHandler          EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
+	TemplateQualityHandler           EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]
+	PhoneNumberNameHandler           EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
+	CapabilityUpdateHandler          EventHandler[BusinessNotificationContext, CapabilityUpdate]
+	AccountUpdateHandler             EventHandler[BusinessNotificationContext, AccountUpdate]
+	PhoneNumberQualityUpdateHandler  EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
+	AccountReviewUpdateHandler       EventHandler[BusinessNotificationContext, AccountReviewUpdate]
+	ButtonMessageHandler             MessageHandler[Button]
+	TextMessageHandler               MessageHandler[Text]
+	OrderMessageHandler              MessageHandler[Order]
+	LocationMessageHandler           MessageHandler[message.Location]
+	ContactsMessageHandler           MessageHandler[message.Contacts]
+	ReactionHandler                  MessageHandler[message.Reaction]
+	ProductEnquiryHandler            MessageHandler[Text]
+	InteractiveMessageHandler        MessageHandler[Interactive]
+	ButtonReplyMessageHandler        MessageHandler[ButtonReply]
+	ListReplyMessageHandler          MessageHandler[ListReply]
+	FlowCompletionMessageHandler     MessageHandler[NFMReply]
+	ReferralMessageHandler           MessageHandler[ReferralNotification]
+	CustomerIDChangeHandler          MessageHandler[Identity]
+	SystemMessageHandler             MessageHandler[System]
+	AudioMessageHandler              MediaMessageHandler
+	VideoMessageHandler              MediaMessageHandler
+	ImageMessageHandler              MediaMessageHandler
+	DocumentMessageHandler           MediaMessageHandler
+	StickerMessageHandler            MediaMessageHandler
+	ErrorHandler                     func(ctx context.Context, err error) error
+	MessageNotificationErrorsHandler MessageChangeValueHandler[werrors.Error]
+	MessageStatusChangeHandler       MessageChangeValueHandler[Status]
+	UserPreferencesUpdateHandler     MessageChangeValueHandler[UserPreference]
+	MessageErrorsHandler             MessageErrorsHandler
+	RequestWelcome                   func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, message *Message) error
 
 	availableHandlers []string
 }
@@ -216,9 +223,8 @@ func (handler *Handler) isHandlerSet(name string) bool {
 func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
 	for _, entry := range notification.Entry {
 		for _, change := range entry.Changes {
-			response, done := handler.handleNotificationChange(ctx, notification, change, entry)
-			if done {
-				return response
+			if err := handler.handleNotificationChange(ctx, notification, change, entry); err != nil {
+				return &webhooks.Response{StatusCode: http.StatusInternalServerError}
 			}
 		}
 	}
@@ -226,12 +232,12 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 	return &webhooks.Response{StatusCode: http.StatusOK}
 }
 
-func (handler *Handler) handleNotificationChange(
+func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cyclop, funlen // ok
 	ctx context.Context,
 	notification *Notification,
 	change Change,
 	entry Entry,
-) (*webhooks.Response, bool) {
+) error {
 	if change.Field == ChangeFieldFlows.String() {
 		notificationCtx := &FlowNotificationContext{
 			NotificationObject: notification.Object,
@@ -246,85 +252,37 @@ func (handler *Handler) handleNotificationChange(
 		if err := handler.handleFlowNotification(ctx, notificationCtx, change.Value); err != nil {
 			if handler.ErrorHandler != nil {
 				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
+					return handlerErr
 				}
 			}
 		}
 	}
 
 	if change.Field == ChangeFieldAccountAlerts.String() {
-		if handler.AlertsHandler != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-
-			if err := handler.AlertsHandler.HandleEvent(ctx, notificationCtx, change.Value.AlertNotification()); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
-					}
-				}
-			}
+		err := handler.handleAccountAlerts(ctx, notification, change, entry)
+		if err != nil {
+			return err
 		}
 	}
 
 	if change.Field == ChangeFieldTemplateStatusUpdate.String() {
-		if handler.TemplateStatusHandler != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-
-			if err := handler.TemplateStatusHandler.HandleEvent(ctx, notificationCtx, change.Value.TemplateStatusUpdate()); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
-					}
-				}
-			}
+		err := handler.handleTemplateStatusUpdate(ctx, notification, change, entry)
+		if err != nil {
+			return err
 		}
 	}
 
 	if change.Field == ChangeFieldTemplateCategoryUpdate.String() {
-		if handler.TemplateCategoryHandler != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-
-			if err := handler.TemplateCategoryHandler.HandleEvent(ctx, notificationCtx, change.Value.TemplateCategoryUpdate()); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
-					}
-				}
-			}
+		err := handler.handleTemplateCategoryUpdate(ctx, notification, change, entry)
+		if err != nil {
+			return err
 		}
 	}
 
 	if change.Field == ChangeFieldTemplateQualityUpdate.String() {
-		if handler.TemplateQualityHandler != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-
-			if err := handler.TemplateQualityHandler.HandleEvent(ctx, notificationCtx, change.Value.TemplateQualityUpdate()); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
-					}
-				}
-			}
+		err := handler.handleTemplateQualityUpdate(ctx, notification, change, entry)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -340,7 +298,7 @@ func (handler *Handler) handleNotificationChange(
 			if err := handler.PhoneNumberNameHandler.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberNameUpdate()); err != nil {
 				if handler.ErrorHandler != nil {
 					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
+						return handlerErr
 					}
 				}
 			}
@@ -359,7 +317,7 @@ func (handler *Handler) handleNotificationChange(
 			if err := handler.PhoneNumberQualityUpdateHandler.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberQualityUpdate()); err != nil {
 				if handler.ErrorHandler != nil {
 					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
+						return handlerErr
 					}
 				}
 			}
@@ -378,7 +336,7 @@ func (handler *Handler) handleNotificationChange(
 			if err := handler.AccountUpdateHandler.HandleEvent(ctx, notificationCtx, change.Value.AccountUpdate()); err != nil {
 				if handler.ErrorHandler != nil {
 					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
+						return handlerErr
 					}
 				}
 			}
@@ -397,7 +355,7 @@ func (handler *Handler) handleNotificationChange(
 			if err := handler.AccountReviewUpdateHandler.HandleEvent(ctx, notificationCtx, change.Value.AccountReviewUpdate()); err != nil {
 				if handler.ErrorHandler != nil {
 					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
+						return handlerErr
 					}
 				}
 			}
@@ -416,7 +374,7 @@ func (handler *Handler) handleNotificationChange(
 			if err := handler.CapabilityUpdateHandler.HandleEvent(ctx, notificationCtx, change.Value.CapabilityUpdate()); err != nil {
 				if handler.ErrorHandler != nil {
 					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
+						return handlerErr
 					}
 				}
 			}
@@ -432,10 +390,10 @@ func (handler *Handler) handleNotificationChange(
 				Metadata:         change.Value.Metadata,
 			}
 
-			if err := handler.UserPreferencesUpdateHandler(ctx, notificationCtx, change.Value.UserPreferences); err != nil {
+			if err := handler.UserPreferencesUpdateHandler.Handle(ctx, notificationCtx, change.Value.UserPreferences); err != nil {
 				if handler.ErrorHandler != nil {
 					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true
+						return handlerErr
 					}
 				}
 			}
@@ -443,19 +401,117 @@ func (handler *Handler) handleNotificationChange(
 	}
 
 	if change.Field == ChangeFieldMessages.String() {
-		response, b, done := handler.handleNotificationMessageItem(ctx, entry, change)
-		if done {
-			return response, b
-		}
+		return handler.handleNotificationMessageItem(ctx, entry, change)
 	}
-	return nil, false
+
+	return nil
 }
 
-func (handler *Handler) handleNotificationMessageItem(
+func (handler *Handler) handleTemplateQualityUpdate(
+	ctx context.Context,
+	notification *Notification,
+	change Change,
+	entry Entry,
+) error {
+	if handler.TemplateQualityHandler != nil {
+		notificationCtx := &BusinessNotificationContext{
+			Object:      notification.Object,
+			EntryID:     entry.ID,
+			EntryTime:   entry.Time,
+			ChangeField: change.Field,
+		}
+
+		if err := handler.TemplateQualityHandler.HandleEvent(ctx, notificationCtx, change.Value.TemplateQualityUpdate()); err != nil {
+			if handler.ErrorHandler != nil {
+				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+					return handlerErr
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (handler *Handler) handleTemplateCategoryUpdate(
+	ctx context.Context,
+	notification *Notification,
+	change Change,
+	entry Entry,
+) error {
+	if handler.TemplateCategoryHandler != nil {
+		notificationCtx := &BusinessNotificationContext{
+			Object:      notification.Object,
+			EntryID:     entry.ID,
+			EntryTime:   entry.Time,
+			ChangeField: change.Field,
+		}
+
+		if err := handler.TemplateCategoryHandler.HandleEvent(ctx, notificationCtx, change.Value.TemplateCategoryUpdate()); err != nil {
+			if handler.ErrorHandler != nil {
+				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+					return handlerErr
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (handler *Handler) handleAccountAlerts(
+	ctx context.Context,
+	notification *Notification,
+	change Change,
+	entry Entry,
+) error {
+	if handler.AlertsHandler != nil {
+		notificationCtx := &BusinessNotificationContext{
+			Object:      notification.Object,
+			EntryID:     entry.ID,
+			EntryTime:   entry.Time,
+			ChangeField: change.Field,
+		}
+
+		if err := handler.AlertsHandler.HandleEvent(ctx, notificationCtx, change.Value.AlertNotification()); err != nil {
+			if handler.ErrorHandler != nil {
+				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+					return handlerErr
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (handler *Handler) handleTemplateStatusUpdate(
+	ctx context.Context,
+	notification *Notification,
+	change Change,
+	entry Entry,
+) error {
+	if handler.TemplateStatusHandler != nil {
+		notificationCtx := &BusinessNotificationContext{
+			Object:      notification.Object,
+			EntryID:     entry.ID,
+			EntryTime:   entry.Time,
+			ChangeField: change.Field,
+		}
+
+		if err := handler.TemplateStatusHandler.HandleEvent(ctx, notificationCtx, change.Value.TemplateStatusUpdate()); err != nil {
+			if handler.ErrorHandler != nil {
+				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+					return handlerErr
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 	ctx context.Context,
 	entry Entry,
 	change Change,
-) (*webhooks.Response, bool, bool) {
+) error {
 	notificationCtx := &MessageNotificationContext{
 		EntryID:          entry.ID,
 		MessagingProduct: change.Value.MessagingProduct,
@@ -463,36 +519,42 @@ func (handler *Handler) handleNotificationMessageItem(
 		Metadata:         change.Value.Metadata,
 	}
 
-	for _, m := range change.Value.Messages {
-		if err := handler.handleNotificationMessage(ctx, notificationCtx, m); err != nil {
+	// handle notification errors do not terminate of its success or if the error is not fatal
+	if handler.MessageNotificationErrorsHandler != nil {
+		if err := handler.MessageNotificationErrorsHandler.Handle(
+			ctx, notificationCtx, ErrorInfosAsErrors(change.Value.Errors),
+		); err != nil {
 			if handler.ErrorHandler != nil {
 				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-					return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true, true
+					return handlerErr
 				}
-			}
-		}
-	}
-
-	if handler.MessageNotificationErrorHandler != nil {
-		for _, ev := range change.Value.Errors {
-			if err := handler.MessageNotificationErrorHandler.Handle(ctx, notificationCtx, ev.Error()); err != nil {
-				return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true, true
 			}
 		}
 	}
 
 	if handler.MessageStatusChangeHandler != nil {
-		for _, sv := range change.Value.Statuses {
-			if err := handler.MessageStatusChangeHandler.Handle(ctx, notificationCtx, sv); err != nil {
-				if handler.ErrorHandler != nil {
-					if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
-						return &webhooks.Response{StatusCode: http.StatusInternalServerError}, true, true
-					}
+		if err := handler.MessageStatusChangeHandler.Handle(
+			ctx, notificationCtx, change.Value.Statuses,
+		); err != nil {
+			if handler.ErrorHandler != nil {
+				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+					return handlerErr
 				}
 			}
 		}
 	}
-	return nil, false, false
+
+	for _, m := range change.Value.Messages {
+		if err := handler.handleNotificationMessage(ctx, notificationCtx, m); err != nil {
+			if handler.ErrorHandler != nil {
+				if handlerErr := handler.ErrorHandler(ctx, err); handlerErr != nil {
+					return handlerErr
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // ChangeField represent the name of the field in which the webhook notification payload
@@ -1276,18 +1338,18 @@ func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, nctx *MessageNotific
 
 type (
 	MessageChangeValueHandler[T any] interface {
-		Handle(ctx context.Context, nctx *MessageNotificationContext, value *T) error
+		Handle(ctx context.Context, nctx *MessageNotificationContext, value []*T) error
 	}
 
-	MessageChangeValueHandlerFunc[T any] func(ctx context.Context, nctx *MessageNotificationContext, value *T) error
+	MessageChangeValueHandlerFunc[T any] func(ctx context.Context, nctx *MessageNotificationContext, value []*T) error
 )
 
 func (f MessageChangeValueHandlerFunc[T]) Handle(
 	ctx context.Context,
 	nctx *MessageNotificationContext,
-	value *T,
+	values []*T,
 ) error {
-	return f(ctx, nctx, value)
+	return f(ctx, nctx, values)
 }
 
 const (
@@ -1754,11 +1816,11 @@ func (handler *Handler) SetStickerMessageHandler(
 func (handler *Handler) OnUserPreferencesUpdate(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, prefs []*UserPreference) error,
 ) {
-	handler.UserPreferencesUpdateHandler = fn
+	handler.UserPreferencesUpdateHandler = MessageChangeValueHandlerFunc[UserPreference](fn)
 }
 
 func (handler *Handler) SetUserPreferencesUpdateHandler(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, prefs []*UserPreference) error,
+	h MessageChangeValueHandler[UserPreference],
 ) {
-	handler.UserPreferencesUpdateHandler = fn
+	handler.UserPreferencesUpdateHandler = h
 }
