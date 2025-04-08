@@ -18,15 +18,15 @@ type Config struct {
 	BaseURL           string // Base URL for the API
 	APIVersion        string // API version (e.g., v21.0)
 	AccessToken       string // Access token for API requests
-	PhoneNumberID     string // Phone number EntryID used in the API
-	BusinessAccountID string // Business account EntryID
+	PhoneNumberID     string // Phone number ID used in the API
+	BusinessAccountID string // Business account ID
 	TestRecipient     string // Test recipient phone number
-	ApplicationID     string // Application EntryID
+	ApplicationID     string // Application ID
 	ApplicationSecret string // Application secret
-	BusinessID        string // Business EntryID
+	BusinessID        string // Business ID
 	ClientToken       string // Client token
-	ClientID          string // Client EntryID
-	SystemUserID      string // System user EntryID
+	ClientID          string // Client ID
+	SystemUserID      string // System user ID
 }
 
 // LoadConfigFromFile loads configuration parameters from the provided .env file.

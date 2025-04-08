@@ -369,7 +369,7 @@ func (handler *Handlers) SetReferralMessageHandler(h ReferralMessageHandler) {
 	handler.ReferralMessage = h
 }
 
-// SetCustomerIDChangeHandler sets the customer EntryID change handler.
+// SetCustomerIDChangeHandler sets the customer ID change handler.
 func (handler *Handlers) SetCustomerIDChangeHandler(h CustomerIDChangeHandler) {
 	handler.CustomerIDChange = h
 }

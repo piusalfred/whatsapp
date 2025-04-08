@@ -58,7 +58,7 @@ type (
 
 	// Value holds details related to message templates, account limits, and status updates.
 	// - Event: e.g., "APPROVED", "FLAGGED", etc.
-	// - MessageTemplateID: EntryID of the message template.
+	// - MessageTemplateID: ID of the message template.
 	// - MessageTemplateName: Name of the message template.
 	// - MessageTemplateLanguage: Language and locale code, e.g., "en_US".
 	// - Reason: Nullable reason for template rejection or status.
