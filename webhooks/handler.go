@@ -1,4 +1,4 @@
-package handler
+package webhooks
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/piusalfred/whatsapp/message"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
-	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 type (
@@ -232,16 +231,16 @@ func NewHandler() *Handler {
 	}
 }
 
-func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *webhooks.Response {
+func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *Response {
 	for _, entry := range notification.Entry {
 		for _, change := range entry.Changes {
 			if err := handler.handleNotificationChange(ctx, notification, change, entry); err != nil {
-				return &webhooks.Response{StatusCode: http.StatusInternalServerError}
+				return &Response{StatusCode: http.StatusInternalServerError}
 			}
 		}
 	}
 
-	return &webhooks.Response{StatusCode: http.StatusOK}
+	return &Response{StatusCode: http.StatusOK}
 }
 
 func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cyclop, funlen // ok

@@ -26,19 +26,7 @@ import (
 	"net/http"
 
 	"github.com/piusalfred/whatsapp/webhooks"
-	"github.com/piusalfred/whatsapp/webhooks/business"
-	"github.com/piusalfred/whatsapp/webhooks/message"
 )
-
-func HandleBusinessNotification(ctx context.Context, notification *business.Notification) *webhooks.Response {
-	fmt.Printf("Business notification received: %+v\n", notification)
-	return &webhooks.Response{StatusCode: http.StatusOK}
-}
-
-func HandleMessageNotification(ctx context.Context, notification *message.Notification) *webhooks.Response {
-	fmt.Printf("Message notification received: %+v\n", notification)
-	return &webhooks.Response{StatusCode: http.StatusOK}
-}
 
 // LoggingMiddleware logs the start and end of request processing.
 func LoggingMiddleware[T any](next webhooks.NotificationHandlerFunc[T]) webhooks.NotificationHandlerFunc[T] {
@@ -60,8 +48,9 @@ func AddMetadataMiddleware[T any](next webhooks.NotificationHandlerFunc[T]) webh
 }
 
 func main() {
+	handler := webhooks.NewHandler()
 	messageListener := webhooks.NewListener(
-		HandleMessageNotification,
+		handler.HandleNotification,
 		func(ctx context.Context) (string, error) {
 			return "", nil
 		},
@@ -69,50 +58,11 @@ func main() {
 			Validate:  false,
 			AppSecret: "",
 		},
-		LoggingMiddleware[message.Notification],
-		AddMetadataMiddleware[message.Notification],
-	)
-
-	businessListener := webhooks.NewListener(
-		HandleBusinessNotification,
-		func(ctx context.Context) (string, error) {
-			return "", nil
-		},
-		&webhooks.ValidateOptions{
-			Validate:  false,
-			AppSecret: "",
-		},
-		LoggingMiddleware[business.Notification],
-		AddMetadataMiddleware[business.Notification],
-	)
-
-	bizHandler := &business.Handler{}
-	alertsHandler := func(ctx context.Context, ntx *business.NotificationContext, message *business.AlertNotification) error {
-		return nil
-	}
-	bizHandler.SetAlertsHandler(business.EventHandlerFunc[business.AlertNotification](alertsHandler))
-
-	bizHandler.OnAccountUpdate(
-		func(ctx context.Context, ntx *business.NotificationContext, notification *business.AccountUpdate) error {
-			fmt.Printf("Account update happened: %+v\n", notification)
-
-			return nil
-		},
-	)
-
-	businessListener2 := webhooks.NewListener(
-		bizHandler.HandleNotification,
-		func(ctx context.Context) (string, error) {
-			return "", nil
-		},
-		&webhooks.ValidateOptions{},
+		LoggingMiddleware[webhooks.Notification],
+		AddMetadataMiddleware[webhooks.Notification],
 	)
 
 	http.HandleFunc("POST /webhooks/messages", messageListener.HandleNotification)
-	http.HandleFunc("POST /webhooks/business", businessListener.HandleNotification)
-	http.HandleFunc("POST /webhooks/business/2", businessListener2.HandleNotification)
-	http.HandleFunc("POST /webhooks/messages/verify", messageListener.HandleSubscriptionVerification)
-	http.HandleFunc("POST /webhooks/business/verify", businessListener.HandleSubscriptionVerification)
 
 	fmt.Println("Starting server on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
