@@ -354,27 +354,3 @@ const (
 	ErrMessageDecode         = webhookError("error decoding message")
 	ErrBadRequest            = webhookError("could not retrieve the notification content")
 )
-
-// ChangeField represent the name of the field in which the webhook notification payload
-// is embedded.
-type ChangeField string
-
-const (
-	ChangeFieldFlows                    ChangeField = "flows"
-	ChangeFieldAccountAlerts            ChangeField = "account_alerts"
-	ChangeFieldTemplateStatusUpdate     ChangeField = "message_template_status_update"
-	ChangeFieldTemplateCategoryUpdate   ChangeField = "template_category_update"
-	ChangeFieldTemplateQualityUpdate    ChangeField = "message_template_quality_update"
-	ChangeFieldPhoneNumberNameUpdate    ChangeField = "phone_number_name_update"
-	ChangeFieldBusinessCapabilityUpdate ChangeField = "business_capability_update"
-	ChangeFieldAccountUpdate            ChangeField = "account_update"
-	ChangeFieldAccountReviewUpdate      ChangeField = "account_review_update"
-	ChangeFieldPhoneNumberQualityUpdate ChangeField = "phone_number_quality_update"
-)
-
-func (c ChangeField) String() string {
-	return string(c)
-}
-
-// MaxPayloadSize is the maximum payload size for webhooks which is 3MB.
-const MaxPayloadSize = 3 * 1024 * 1024 // 3MB
