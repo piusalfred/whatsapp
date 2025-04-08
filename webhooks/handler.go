@@ -564,6 +564,7 @@ const (
 	ChangeFieldMessages                 ChangeField = "messages"
 	ChangeFieldUserPreferences          ChangeField = "user_preferences"
 )
+
 const (
 	EventFlowStatusChange     = "FLOW_STATUS_CHANGE"
 	EventEndpointErrorRate    = "ENDPOINT_ERROR_RATE"
@@ -772,7 +773,8 @@ func (handler *Handler) OnBusinessAlertNotification(
 }
 
 func (handler *Handler) SetBusinessAlertNotificationHandler(
-	fn EventHandler[BusinessNotificationContext, AlertNotification]) {
+	fn EventHandler[BusinessNotificationContext, AlertNotification],
+) {
 	handler.alerts = fn
 }
 
@@ -783,7 +785,8 @@ func (handler *Handler) OnBusinessTemplateStatusUpdate(
 }
 
 func (handler *Handler) SetBusinessTemplateStatusUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]) {
+	fn EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification],
+) {
 	handler.templateStatus = fn
 }
 
@@ -796,7 +799,8 @@ func (handler *Handler) OnBusinessTemplateCategoryUpdate(
 }
 
 func (handler *Handler) SetBusinessTemplateCategoryUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]) {
+	fn EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification],
+) {
 	handler.templateCategory = fn
 }
 
@@ -809,7 +813,8 @@ func (handler *Handler) OnBusinessTemplateQualityUpdate(
 }
 
 func (handler *Handler) SetBusinessTemplateQualityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]) {
+	fn EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification],
+) {
 	handler.templateQuality = fn
 }
 
@@ -820,7 +825,8 @@ func (handler *Handler) OnBusinessPhoneNumberNameUpdate(
 }
 
 func (handler *Handler) SetBusinessPhoneNumberNameUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]) {
+	fn EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate],
+) {
 	handler.phoneNumberNameUpdate = fn
 }
 
@@ -833,7 +839,8 @@ func (handler *Handler) OnBusinessPhoneNumberQualityUpdate(
 }
 
 func (handler *Handler) SetBusinessPhoneNumberQualityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]) {
+	fn EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate],
+) {
 	handler.phoneNumberQualityUpdate = fn
 }
 
@@ -844,7 +851,8 @@ func (handler *Handler) OnBusinessAccountReviewUpdate(
 }
 
 func (handler *Handler) SetBusinessAccountReviewUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, AccountReviewUpdate]) {
+	fn EventHandler[BusinessNotificationContext, AccountReviewUpdate],
+) {
 	handler.accountReviewUpdate = fn
 }
 
@@ -855,7 +863,8 @@ func (handler *Handler) OnBusinessAccountUpdate(
 }
 
 func (handler *Handler) SetBusinessAccountUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, AccountUpdate]) {
+	fn EventHandler[BusinessNotificationContext, AccountUpdate],
+) {
 	handler.accountUpdate = fn
 }
 
@@ -866,7 +875,8 @@ func (handler *Handler) OnBusinessCapabilityUpdate(
 }
 
 func (handler *Handler) SetBusinessCapabilityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, CapabilityUpdate]) {
+	fn EventHandler[BusinessNotificationContext, CapabilityUpdate],
+) {
 	handler.capabilityUpdate = fn
 }
 
@@ -1325,7 +1335,8 @@ type (
 )
 
 func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, nctx *MessageNotificationContext,
-	mctx *MessageInfo, message *T) error {
+	mctx *MessageInfo, message *T,
+) error {
 	return fn(ctx, nctx, mctx, message)
 }
 
@@ -1372,7 +1383,8 @@ type (
 )
 
 func (fn MessageErrorsHandlerFunc) Handle(ctx context.Context, nctx *MessageNotificationContext,
-	mctx *MessageInfo, errors []*werrors.Error) error {
+	mctx *MessageInfo, errors []*werrors.Error,
+) error {
 	return fn(ctx, nctx, mctx, errors)
 }
 
