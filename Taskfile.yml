@@ -6,7 +6,7 @@ tasks:
       - go get -u ./...
       - go mod tidy
       - go generate ./...
-      - go tool golangci-lint run --fix
+      - golangci-lint run --fix
       - go tool gofumpt -l -w .
       - go tool gci write --skip-generated -s standard -s default -s "prefix(github.com/piusalfred/whatsapp)" .
       - go test -v -race -coverpkg=./... -parallel=4 ./...
@@ -25,14 +25,26 @@ tasks:
     cmds:
       - go get -u ./...
       - go mod tidy
+  update-webhook-examples-deps:
+    dir: examples/webhooks
+    cmds:
+      - go get -u ./...
+      - go mod tidy
+  update-block-examples-deps:
+    dir: examples/block
+    cmds:
+      - go get -u ./...
+      - go mod tidy
   build-examples:
-    deps: [clean, update-message-examples-deps,update-qr-examples-deps,update-auth-examples-deps]
+    deps: [clean, update-message-examples-deps,update-qr-examples-deps,update-auth-examples-deps,update-webhook-examples-deps,update-block-examples-deps]
     dir: examples
     cmds:
       - mkdir -p bin
       - go build -trimpath -race -o bin/message message/main.go
       - go build -trimpath -race -o bin/qr qr/main.go
       - go build -trimpath -race -o bin/auth auth/main.go
+      - go build -trimpath -race -o bin/webhook webhook/main.go
+      - go build -trimpath -race -o bin/block block/main.go
   lint-check:
     cmds:
       - golangci-lint run

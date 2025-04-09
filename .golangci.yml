@@ -83,9 +83,7 @@ linters:
     - makezero # finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage
     - mnd # detects magic numbers
-    - musttag # enforces field tags in (un)marshaled structs
     - nakedret # finds naked returns in functions greater than a specified function length
-    - nestif # reports deeply nested if statements
     - nilerr # finds the code that returns nil even if it checks that the error is not nil
     - nilnesserr # reports that it checks for err != nil, but it returns a different nil value error (powered by nilness and nilerr)
     - nilnil # checks that there is no simultaneous return of nil error and an invalid value
@@ -423,11 +421,11 @@ linters:
           - wrapcheck
           - forbidigo
           - govet
+          - revive
           - gocognit
     paths:
       - '^examples/auth/.*\.go$'
       - '^examples/qr/.*\.go$'
       - '^examples/message/.*\.go$'
       - '^examples/block/.*\.go$'
-      - '^examples/webhooks/listeners/.*\.go$'
-      - '^examples/webhooks/simple/.*\.go$'
+      - '^examples/webhooks/.*\.go$'

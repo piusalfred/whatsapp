@@ -26,9 +26,9 @@ import (
 
 const (
 	BaseURL                   = "https://graph.facebook.com"
-	LowestSupportedAPIVersion = "v16.0" // This is the lowest version of the API that is supported
+	LowestSupportedAPIVersion = "v20.0" // This is the lowest version of the API that is supported
 	MessageProduct            = "whatsapp"
-	lowestMajorVersion        = 16
+	lowestMajorVersion        = 20
 )
 
 // IsCorrectAPIVersion checks if the provided API version string is valid and supported.

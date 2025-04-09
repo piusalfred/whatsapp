@@ -97,16 +97,16 @@ func (m *MockSender) EXPECT() *MockSenderMockRecorder {
 }
 
 // Send mocks base method.
-func (m *MockSender) Send(ctx context.Context, config *config.Config, request *business.BaseRequest) (*business.Response, error) {
+func (m *MockSender) Send(ctx context.Context, arg1 *config.Config, request *business.BaseRequest) (*business.Response, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Send", ctx, config, request)
+	ret := m.ctrl.Call(m, "Send", ctx, arg1, request)
 	ret0, _ := ret[0].(*business.Response)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Send indicates an expected call of Send.
-func (mr *MockSenderMockRecorder) Send(ctx, config, request any) *gomock.Call {
+func (mr *MockSenderMockRecorder) Send(ctx, arg1, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockSender)(nil).Send), ctx, config, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockSender)(nil).Send), ctx, arg1, request)
 }

@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	github.com/google/go-cmp v0.7.0
-	go.uber.org/mock v0.5.0
+	go.uber.org/mock v0.5.1
 )
 
 require (
@@ -73,41 +73,6 @@ require (
 tool (
 	github.com/daixiang0/gci
 	github.com/go-task/task/v3/cmd/task
-	github.com/piusalfred/whatsapp
-	github.com/piusalfred/whatsapp/auth
-	github.com/piusalfred/whatsapp/business
-	github.com/piusalfred/whatsapp/business/analytics
-	github.com/piusalfred/whatsapp/config
-	github.com/piusalfred/whatsapp/conversation/automation
-	github.com/piusalfred/whatsapp/examples/block
-	github.com/piusalfred/whatsapp/examples/webhooks/listeners
-	github.com/piusalfred/whatsapp/examples/webhooks/simple
-	github.com/piusalfred/whatsapp/flow
-	github.com/piusalfred/whatsapp/media
-	github.com/piusalfred/whatsapp/message
-	github.com/piusalfred/whatsapp/mocks/auth
-	github.com/piusalfred/whatsapp/mocks/business
-	github.com/piusalfred/whatsapp/mocks/business/analytics
-	github.com/piusalfred/whatsapp/mocks/config
-	github.com/piusalfred/whatsapp/mocks/conversation/automation
-	github.com/piusalfred/whatsapp/mocks/flow
-	github.com/piusalfred/whatsapp/mocks/http
-	github.com/piusalfred/whatsapp/mocks/media
-	github.com/piusalfred/whatsapp/mocks/message
-	github.com/piusalfred/whatsapp/mocks/phonenumber
-	github.com/piusalfred/whatsapp/mocks/qrcode
-	github.com/piusalfred/whatsapp/mocks/user
-	github.com/piusalfred/whatsapp/phonenumber
-	github.com/piusalfred/whatsapp/pkg/crypto
-	github.com/piusalfred/whatsapp/pkg/errors
-	github.com/piusalfred/whatsapp/pkg/http
-	github.com/piusalfred/whatsapp/pkg/types
-	github.com/piusalfred/whatsapp/qrcode
-	github.com/piusalfred/whatsapp/user
-	github.com/piusalfred/whatsapp/webhooks
-	github.com/piusalfred/whatsapp/webhooks/business
-	github.com/piusalfred/whatsapp/webhooks/flow
-	github.com/piusalfred/whatsapp/webhooks/message
 	go.uber.org/mock/mockgen
 	mvdan.cc/gofumpt
 )
