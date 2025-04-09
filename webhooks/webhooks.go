@@ -19,6 +19,8 @@
 
 package webhooks
 
+//go:generate go tool mockgen -destination=../mocks/webhooks/mock_webhooks.go -package=webhooks -source=webhooks.go
+
 import (
 	"bytes"
 	"context"

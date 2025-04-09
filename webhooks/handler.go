@@ -1,5 +1,7 @@
 package webhooks
 
+//go:generate go tool mockgen -destination=../mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=handler.go
+
 import (
 	"context"
 	"encoding/json"
@@ -91,6 +93,8 @@ type (
 		UserTitle  string             `json:"error_user_title,omitempty"`
 		UserMsg    string             `json:"error_user_msg,omitempty"`
 		FBTraceID  string             `json:"fbtrace_id,omitempty"`
+		Details    string             `json:"details,omitempty"`
+		Href       string             `json:"href,omitempty"`
 	}
 
 	BanInfo struct {
@@ -128,6 +132,8 @@ func (info ErrorInfo) Error() *werrors.Error {
 		UserTitle: info.UserTitle,
 		UserMsg:   info.UserMsg,
 		FBTraceID: info.FBTraceID,
+		Details:   info.Details,
+		Href:      info.Href,
 	}
 }
 
@@ -231,15 +237,36 @@ func NewHandler() *Handler {
 	}
 }
 
-// OnError sets the error handler function to be called when an error occurs during notification processing.
-// sometimes a payload may consist of multiple changes, and if one of them fails, we can still process the others.
-// This only happens if the error handler function returns nil.
-// The best practise would be not to return an error for non-fatal failures, so that in these cases where the payload
-// has multiple message we can proceed to process others.
+// OnError configures a callback that is invoked whenever an error occurs
+// while processing the webhook payload. The callback can decide whether the
+// error is "fatal" or "non-fatal":
+//
+//   - If the callback returns nil, processing continues for any remaining
+//     changes and messages in the payload.
+//
+//   - If the callback returns a non-nil error, processing stops immediately,
+//     and the Handler responds with an error status (e.g., 500).
+//
+// This allows you to handle partial failures gracefully in multi-change payloads
+// (e.g., ignoring certain errors or logging them) without terminating the entire
+// notification processing.
+// If no callback is set, the default behavior is to ignore errors and continue
+// processing the payload.
 func (handler *Handler) OnError(f func(ctx context.Context, err error) error) {
 	handler.errorHandlerFunc = f
 }
 
+// HandleNotification processes a single Notification containing one or more
+// Entry objects. Each Entry can have multiple Changes, and each Change can
+// contain multiple messages or event objects.
+//
+// For every error encountered in a Change or Message handler, the error is passed
+// to the error handler function (registered via OnError). If that callback
+// returns a non-nil error, processing halts immediately and this method returns
+// an HTTP 500 response. Otherwise, it continues processing subsequent changes.
+//
+// If no fatal errors are encountered, it returns an HTTP 200 response, indicating
+// all parts of the payload were processed successfully.
 func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *Response {
 	for _, entry := range notification.Entry {
 		for _, change := range entry.Changes {
@@ -1101,6 +1128,7 @@ const (
 	MessageTypeSticker        MessageType = "sticker"
 	MessageTypeSystem         MessageType = "system"
 	MessageTypeUnknown        MessageType = "unknown"
+	MessageTypeUnsupported    MessageType = "unsupported"
 	MessageTypeVideo          MessageType = "video"
 	MessageTypeLocation       MessageType = "location"
 	MessageTypeReaction       MessageType = "reaction"
@@ -1128,6 +1156,7 @@ func ParseMessageType(s string) MessageType {
 		"sticker":         MessageTypeSticker,
 		"system":          MessageTypeSystem,
 		"unknown":         MessageTypeUnknown,
+		"unsupported":     MessageTypeUnsupported,
 		"video":           MessageTypeVideo,
 		"location":        MessageTypeLocation,
 		"reaction":        MessageTypeReaction,
@@ -1482,7 +1511,7 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 
 		return nil
 
-	case MessageTypeUnknown:
+	case MessageTypeUnknown, MessageTypeUnsupported:
 		if err := handler.errorMessage.Handle(ctx, nctx, mctx, message.Errors); err != nil {
 			return err
 		}
