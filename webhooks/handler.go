@@ -171,6 +171,7 @@ type Handler struct {
 	referralMessage          MessageHandler[ReferralNotification]
 	customerIDChange         MessageHandler[Identity]
 	systemMessage            MessageHandler[System]
+	requestWelcome           MessageHandler[Message]
 	audioMessage             MediaMessageHandler
 	videoMessage             MediaMessageHandler
 	imageMessage             MediaMessageHandler
@@ -180,7 +181,6 @@ type Handler struct {
 	messageStatusChange      MessageChangeValueHandler[Status]
 	userPreferencesUpdate    MessageChangeValueHandler[UserPreference]
 	errorMessage             MessageErrorsHandler
-	requestWelcome           MessageHandler[Message]
 
 	errorHandlerFunc func(ctx context.Context, err error) error
 }
@@ -229,6 +229,15 @@ func NewHandler() *Handler {
 			return nil
 		},
 	}
+}
+
+// OnError sets the error handler function to be called when an error occurs during notification processing.
+// sometimes a payload may consist of multiple changes, and if one of them fails, we can still process the others.
+// This only happens if the error handler function returns nil.
+// The best practise would be not to return an error for non-fatal failures, so that in these cases where the payload
+// has multiple message we can proceed to process others.
+func (handler *Handler) OnError(f func(ctx context.Context, err error) error) {
+	handler.errorHandlerFunc = f
 }
 
 func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *Response {
@@ -583,6 +592,21 @@ type (
 	}
 
 	EventHandlerFunc[S any, T any] func(ctx context.Context, ntx *S, notification *T) error
+
+	FlowStatusHandler               EventHandler[FlowNotificationContext, StatusChangeDetails]
+	FlowClientErrorRateHandler      EventHandler[FlowNotificationContext, ClientErrorRateDetails]
+	FlowEndpointErrorRateHandler    EventHandler[FlowNotificationContext, EndpointErrorRateDetails]
+	FlowEndpointLatencyHandler      EventHandler[FlowNotificationContext, EndpointLatencyDetails]
+	FlowEndpointAvailabilityHandler EventHandler[FlowNotificationContext, EndpointAvailabilityDetails]
+	AlertsHandler                   EventHandler[BusinessNotificationContext, AlertNotification]
+	TemplateStatusHandler           EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
+	TemplateCategoryHandler         EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
+	TemplateQualityHandler          EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]
+	PhoneNumberNameUpdateHandler    EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
+	CapabilityUpdateHandler         EventHandler[BusinessNotificationContext, CapabilityUpdate]
+	AccountUpdateHandler            EventHandler[BusinessNotificationContext, AccountUpdate]
+	PhoneNumberQualityUpdateHandler EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
+	AccountReviewUpdateHandler      EventHandler[BusinessNotificationContext, AccountReviewUpdate]
 )
 
 func (f EventHandlerFunc[S, T]) HandleEvent(ctx context.Context, ntx *S, notification *T) error {
@@ -1014,7 +1038,7 @@ func (handler *Handler) OnFlowStatusChange(
 	handler.flowStatus = EventHandlerFunc[FlowNotificationContext, StatusChangeDetails](fn)
 }
 
-func (handler *Handler) SetFlowStatusChangeHandler(fn EventHandler[FlowNotificationContext, StatusChangeDetails]) {
+func (handler *Handler) SetFlowStatusChangeHandler(fn FlowStatusHandler) {
 	handler.flowStatus = fn
 }
 
@@ -1025,7 +1049,7 @@ func (handler *Handler) OnFlowClientErrorRate(
 }
 
 func (handler *Handler) SetFlowClientErrorRateHandler(
-	fn EventHandler[FlowNotificationContext, ClientErrorRateDetails],
+	fn FlowClientErrorRateHandler,
 ) {
 	handler.flowClientErrorRate = fn
 }
@@ -1037,7 +1061,7 @@ func (handler *Handler) OnFlowEndpointErrorRate(
 }
 
 func (handler *Handler) SetFlowEndpointErrorRateHandler(
-	fn EventHandler[FlowNotificationContext, EndpointErrorRateDetails],
+	fn FlowEndpointErrorRateHandler,
 ) {
 	handler.flowEndpointErrorRate = fn
 }
@@ -1049,7 +1073,7 @@ func (handler *Handler) OnFlowEndpointLatency(
 }
 
 func (handler *Handler) SetFlowEndpointLatencyHandler(
-	fn EventHandler[FlowNotificationContext, EndpointLatencyDetails],
+	fn FlowEndpointLatencyHandler,
 ) {
 	handler.flowEndpointLatency = fn
 }
@@ -1061,7 +1085,7 @@ func (handler *Handler) OnFlowEndpointAvailability(
 }
 
 func (handler *Handler) SetFlowEndpointAvailabilityHandler(
-	fn EventHandler[FlowNotificationContext, EndpointAvailabilityDetails],
+	fn FlowEndpointAvailabilityHandler,
 ) {
 	handler.flowEndpointAvailability = fn
 }
@@ -1332,6 +1356,22 @@ type (
 	MessageHandler[T any] interface {
 		Handle(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, message *T) error
 	}
+
+	ButtonMessageHandler         = MessageHandler[Button]
+	TextMessageHandler           = MessageHandler[Text]
+	OrderMessageHandler          = MessageHandler[Order]
+	LocationMessageHandler       = MessageHandler[message.Location]
+	ContactsMessageHandler       = MessageHandler[message.Contacts]
+	ReactionHandler              = MessageHandler[message.Reaction]
+	ProductEnquiryHandler        = MessageHandler[Text]
+	InteractiveMessageHandler    = MessageHandler[Interactive]
+	ButtonReplyMessageHandler    = MessageHandler[ButtonReply]
+	ListReplyMessageHandler      = MessageHandler[ListReply]
+	FlowCompletionMessageHandler = MessageHandler[NFMReply]
+	ReferralMessageHandler       = MessageHandler[ReferralNotification]
+	CustomerIDChangeHandler      = MessageHandler[Identity]
+	SystemMessageHandler         = MessageHandler[System]
+	RequestWelcomeMessageHandler = MessageHandler[Message]
 )
 
 func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, nctx *MessageNotificationContext,
@@ -1352,6 +1392,12 @@ type (
 	}
 
 	MessageChangeValueHandlerFunc[T any] func(ctx context.Context, nctx *MessageNotificationContext, value []*T) error
+)
+
+type (
+	UserPreferenceUpdateHandler = MessageChangeValueHandler[UserPreference]
+	NotificationErrorsHandler   = MessageChangeValueHandler[werrors.Error]
+	MessageStatusChangeHandler  = MessageChangeValueHandler[Status]
 )
 
 func (f MessageChangeValueHandlerFunc[T]) Handle(
@@ -1622,7 +1668,7 @@ func (handler *Handler) OnTextMessage(
 }
 
 func (handler *Handler) SetTextMessageHandler(
-	h MessageHandler[Text],
+	h TextMessageHandler,
 ) {
 	handler.textMessage = h
 }
@@ -1634,7 +1680,7 @@ func (handler *Handler) OnButtonMessage(
 }
 
 func (handler *Handler) SetButtonMessageHandler(
-	h MessageHandler[Button],
+	h ButtonMessageHandler,
 ) {
 	handler.buttonMessage = h
 }
@@ -1646,7 +1692,7 @@ func (handler *Handler) OnOrderMessage(
 }
 
 func (handler *Handler) SetOrderMessageHandler(
-	h MessageHandler[Order],
+	h OrderMessageHandler,
 ) {
 	handler.orderMessage = h
 }
@@ -1658,7 +1704,7 @@ func (handler *Handler) OnLocationMessage(
 }
 
 func (handler *Handler) SetLocationMessageHandler(
-	h MessageHandler[message.Location],
+	h LocationMessageHandler,
 ) {
 	handler.locationMessage = h
 }
@@ -1670,7 +1716,7 @@ func (handler *Handler) OnContactsMessage(
 }
 
 func (handler *Handler) SetContactsMessageHandler(
-	h MessageHandler[message.Contacts],
+	h ContactsMessageHandler,
 ) {
 	handler.contactsMessage = h
 }
@@ -1682,7 +1728,7 @@ func (handler *Handler) OnReactionMessage(
 }
 
 func (handler *Handler) SetReactionMessageHandler(
-	h MessageHandler[message.Reaction],
+	h ReactionHandler,
 ) {
 	handler.reactionMessage = h
 }
@@ -1694,7 +1740,7 @@ func (handler *Handler) OnProductEnquiryMessage(
 }
 
 func (handler *Handler) SetProductEnquiryMessageHandler(
-	h MessageHandler[Text],
+	h ProductEnquiryHandler,
 ) {
 	handler.productInquiry = h
 }
@@ -1706,7 +1752,7 @@ func (handler *Handler) OnInteractiveMessage(
 }
 
 func (handler *Handler) SetInteractiveMessageHandler(
-	h MessageHandler[Interactive],
+	h InteractiveMessageHandler,
 ) {
 	handler.interactiveMessage = h
 }
@@ -1718,7 +1764,7 @@ func (handler *Handler) OnButtonReplyMessage(
 }
 
 func (handler *Handler) SetButtonReplyMessageHandler(
-	h MessageHandler[ButtonReply],
+	h ButtonReplyMessageHandler,
 ) {
 	handler.buttonReplyMessage = h
 }
@@ -1730,7 +1776,7 @@ func (handler *Handler) OnListReplyMessage(
 }
 
 func (handler *Handler) SetListReplyMessageHandler(
-	h MessageHandler[ListReply],
+	h ListReplyMessageHandler,
 ) {
 	handler.listReplyMessage = h
 }
@@ -1742,7 +1788,7 @@ func (handler *Handler) OnFlowCompletionMessage(
 }
 
 func (handler *Handler) SetFlowCompletionMessageHandler(
-	h MessageHandler[NFMReply],
+	h FlowCompletionMessageHandler,
 ) {
 	handler.flowCompletionUpdate = h
 }
@@ -1754,7 +1800,7 @@ func (handler *Handler) OnReferralMessage(
 }
 
 func (handler *Handler) SetReferralMessageHandler(
-	h MessageHandler[ReferralNotification],
+	h ReferralMessageHandler,
 ) {
 	handler.referralMessage = h
 }
@@ -1766,7 +1812,7 @@ func (handler *Handler) OnCustomerIDChangeMessage(
 }
 
 func (handler *Handler) SetCustomerIDChangeMessageHandler(
-	h MessageHandler[Identity],
+	h CustomerIDChangeHandler,
 ) {
 	handler.customerIDChange = h
 }
@@ -1778,7 +1824,7 @@ func (handler *Handler) OnSystemMessage(
 }
 
 func (handler *Handler) SetSystemMessageHandler(
-	h MessageHandler[System],
+	h SystemMessageHandler,
 ) {
 	handler.systemMessage = h
 }
@@ -1790,7 +1836,7 @@ func (handler *Handler) OnAudioMessage(
 }
 
 func (handler *Handler) SetAudioMessageHandler(
-	h MessageHandler[message.MediaInfo],
+	h MediaMessageHandler,
 ) {
 	handler.audioMessage = h
 }
@@ -1802,7 +1848,7 @@ func (handler *Handler) OnVideoMessage(
 }
 
 func (handler *Handler) SetVideoMessageHandler(
-	h MessageHandler[message.MediaInfo],
+	h MediaMessageHandler,
 ) {
 	handler.videoMessage = h
 }
@@ -1814,7 +1860,7 @@ func (handler *Handler) OnImageMessage(
 }
 
 func (handler *Handler) SetImageMessageHandler(
-	h MessageHandler[message.MediaInfo],
+	h MediaMessageHandler,
 ) {
 	handler.imageMessage = h
 }
@@ -1826,7 +1872,7 @@ func (handler *Handler) OnDocumentMessage(
 }
 
 func (handler *Handler) SetDocumentMessageHandler(
-	h MessageHandler[message.MediaInfo],
+	h MediaMessageHandler,
 ) {
 	handler.documentMessage = h
 }
@@ -1838,7 +1884,7 @@ func (handler *Handler) OnStickerMessage(
 }
 
 func (handler *Handler) SetStickerMessageHandler(
-	h MessageHandler[message.MediaInfo],
+	h MediaMessageHandler,
 ) {
 	handler.stickerMessage = h
 }
@@ -1850,7 +1896,56 @@ func (handler *Handler) OnUserPreferencesUpdate(
 }
 
 func (handler *Handler) SetUserPreferencesUpdateHandler(
-	h MessageChangeValueHandler[UserPreference],
+	h UserPreferenceUpdateHandler,
 ) {
 	handler.userPreferencesUpdate = h
+}
+
+func (handler *Handler) OnRequestWelcomeMessage(
+	fn func(ctx context.Context, nctx *MessageNotificationContext,
+		mctx *MessageInfo, media *Message) error,
+) {
+	handler.requestWelcome = MessageHandlerFunc[Message](fn)
+}
+
+func (handler *Handler) SetRequestWelcomeMessageHandler(
+	fn RequestWelcomeMessageHandler,
+) {
+	handler.requestWelcome = fn
+}
+
+func (handler *Handler) OnNotificationErrors(
+	fn func(ctx context.Context, nctx *MessageNotificationContext, errors []*werrors.Error) error,
+) {
+	handler.notificationErrors = MessageChangeValueHandlerFunc[werrors.Error](fn)
+}
+
+func (handler *Handler) SetNotificationErrorsHandler(
+	fn NotificationErrorsHandler,
+) {
+	handler.notificationErrors = fn
+}
+
+func (handler *Handler) OnMessageStatusChange(
+	fn func(ctx context.Context, nctx *MessageNotificationContext, status []*Status) error,
+) {
+	handler.messageStatusChange = MessageChangeValueHandlerFunc[Status](fn)
+}
+
+func (handler *Handler) SetMessageStatusChangeHandler(
+	fn MessageStatusChangeHandler,
+) {
+	handler.messageStatusChange = fn
+}
+
+func (handler *Handler) OnMessageErrors(
+	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, errors []*werrors.Error) error,
+) {
+	handler.errorMessage = MessageErrorsHandlerFunc(fn)
+}
+
+func (handler *Handler) SetMessageErrorsHandler(
+	fn MessageErrorsHandler,
+) {
+	handler.errorMessage = fn
 }

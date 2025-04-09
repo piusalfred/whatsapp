@@ -421,6 +421,7 @@ linters:
           - wrapcheck
           - forbidigo
           - govet
+          - revive
           - gocognit
     paths:
       - '^examples/auth/.*\.go$'
