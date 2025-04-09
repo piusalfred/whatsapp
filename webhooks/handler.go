@@ -187,6 +187,7 @@ type Handler struct {
 	messageStatusChange      MessageChangeValueHandler[Status]
 	userPreferencesUpdate    MessageChangeValueHandler[UserPreference]
 	errorMessage             MessageErrorsHandler
+	unsupportedMessage       MessageErrorsHandler
 
 	errorHandlerFunc func(ctx context.Context, err error) error
 }
@@ -230,6 +231,7 @@ func NewHandler() *Handler {
 		messageStatusChange:      NewNoOpMessageChangeValueHandler[Status](),
 		userPreferencesUpdate:    NewNoOpMessageChangeValueHandler[UserPreference](),
 		errorMessage:             NewNoOpMessageErrorsHandler(),
+		unsupportedMessage:       NewNoOpMessageErrorsHandler(),
 		requestWelcome:           NewNoOpMessageHandler[Message](),
 		errorHandlerFunc: func(_ context.Context, _ error) error {
 			return nil
@@ -1511,12 +1513,15 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 
 		return nil
 
-	case MessageTypeUnknown, MessageTypeUnsupported:
+	case MessageTypeUnknown:
 		if err := handler.errorMessage.Handle(ctx, nctx, mctx, message.Errors); err != nil {
 			return err
 		}
 
 		return nil
+
+	case MessageTypeUnsupported:
+		return handler.unsupportedMessage.Handle(ctx, nctx, mctx, message.Errors)
 
 	case MessageTypeText:
 		return handler.handleTextNotification(ctx, nctx, message, mctx)
@@ -1977,4 +1982,16 @@ func (handler *Handler) SetMessageErrorsHandler(
 	fn MessageErrorsHandler,
 ) {
 	handler.errorMessage = fn
+}
+
+func (handler *Handler) OnUnsupportedMessage(
+	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, errors []*werrors.Error) error,
+) {
+	handler.unsupportedMessage = MessageErrorsHandlerFunc(fn)
+}
+
+func (handler *Handler) SetUnsupportedMessageHandler(
+	fn MessageErrorsHandler,
+) {
+	handler.unsupportedMessage = fn
 }

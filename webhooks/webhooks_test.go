@@ -1095,19 +1095,15 @@ func TestListener_HandleNotification_DeletedMessageUnsupported(t *testing.T) {
 	  }]
 	}`
 
-	// We track this to confirm the "errors" callback was triggered.
 	var messageDeletionHandled bool
 
-	// Create a new Handler and register OnMessageErrors.
 	handler := webhooks.NewHandler()
-	handler.OnMessageErrors(func(ctx context.Context,
+	handler.OnUnsupportedMessage(func(ctx context.Context,
 		nctx *webhooks.MessageNotificationContext,
 		mctx *webhooks.MessageInfo,
 		errs []*werrors.Error,
 	) error {
 		messageDeletionHandled = true
-
-		// Confirm the code matches "131051" for unsupported message type
 		if len(errs) != 1 {
 			t.Errorf("Expected 1 error, got=%d", len(errs))
 			return nil
@@ -1121,7 +1117,6 @@ func TestListener_HandleNotification_DeletedMessageUnsupported(t *testing.T) {
 		return nil
 	})
 
-	// Start test server
 	cfg := TestServerConfig{
 		Handler:              handler,
 		VerifyTokenReader:    func(ctx context.Context) (string, error) { return "", nil },
@@ -1132,7 +1127,6 @@ func TestListener_HandleNotification_DeletedMessageUnsupported(t *testing.T) {
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
 
-	// Send the POST request with the “deleted message” payload.
 	resp, err := http.Post(ts.URL+"/webhook", "application/json", strings.NewReader(payload))
 	if err != nil {
 		t.Fatalf("POST request failed: %v", err)
@@ -1141,7 +1135,6 @@ func TestListener_HandleNotification_DeletedMessageUnsupported(t *testing.T) {
 		t.Fatalf("Expected 200, got %d", resp.StatusCode)
 	}
 
-	// Confirm that the OnMessageErrors callback was invoked.
 	if !messageDeletionHandled {
 		t.Error("Deleted (unsupported) message was not handled by OnMessageErrors")
 	}
