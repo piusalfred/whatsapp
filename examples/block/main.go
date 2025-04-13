@@ -27,6 +27,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
@@ -49,26 +50,29 @@ func main() {
 		return conf, nil
 	})
 
+	ctx := context.Background()
+
 	sender := whttp.NewSender[user.BlockBaseRequest]()
 	blocker := user.NewBlockClient(reader, sender)
 
 	spammers := []string{"1234567890", "1234567891", "1234567892"}
-	resp, err := blocker.Block(context.Background(), spammers)
+	resp, err := blocker.Block(ctx, spammers)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	fmt.Println(resp)
 
 	spammers1 := []string{"1234567890", "1234567891"}
-	resp1, err1 := blocker.Unblock(context.Background(), spammers1)
+	resp1, err1 := blocker.Unblock(ctx, spammers1)
 	if err1 != nil {
 		panic(err1)
 	}
 
 	fmt.Println(resp1)
 
-	resp2, err2 := blocker.ListBlocked(context.Background(), &user.ListBlockedUsersOptions{})
+	resp2, err2 := blocker.ListBlocked(ctx, &user.ListBlockedUsersOptions{})
 	if err2 != nil {
 		panic(err2)
 	}

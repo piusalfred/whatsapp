@@ -19,8 +19,6 @@
 
 package config
 
-//go:generate go tool mockgen -destination=../mocks/config/config_mock.go -package=config -source=config.go
-
 import (
 	"context"
 )
@@ -33,6 +31,7 @@ type (
 		PhoneNumberID     string
 		BusinessAccountID string
 		AppSecret         string
+		AppID             string
 		SecureRequests    bool
 	}
 

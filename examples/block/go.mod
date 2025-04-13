@@ -2,6 +2,6 @@ module examples/block
 
 go 1.24.0
 
-require github.com/piusalfred/whatsapp v0.0.25
+require github.com/piusalfred/whatsapp v0.0.26
 
 replace github.com/piusalfred/whatsapp => ../../

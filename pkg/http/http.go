@@ -19,8 +19,6 @@
 
 package http
 
-//go:generate go tool mockgen -destination=../../mocks/http/mock_http.go -package=http -source=http.go
-
 import (
 	"bytes"
 	"context"
@@ -442,7 +440,8 @@ func WithRequestForm[T any](form *RequestForm) RequestOption[T] {
 // WithRequestAppSecret sets the app secret for the request and turns on secure requests.
 func WithRequestAppSecret[T any](appSecret string) RequestOption[T] {
 	return func(request *Request[T]) {
-		if request.AppSecret != "" {
+		if appSecret != "" {
+			request.SecureRequests = true
 			request.AppSecret = appSecret
 		}
 	}
@@ -758,12 +757,21 @@ func (e httpError) Error() string {
 	return string(e)
 }
 
-const MessageMetadataContextKey = "message-metadata-key"
+const messageMetadataContextKey = "message-metadata-key"
 
-type MessageContextKey string
+type messageContextKey string
 
 func InjectMessageMetadata(ctx context.Context, metadata types.Metadata) context.Context {
-	return context.WithValue(ctx, MessageContextKey(MessageMetadataContextKey), metadata)
+	return context.WithValue(ctx, messageContextKey(messageMetadataContextKey), metadata)
+}
+
+func RetrieveMessageMetadata(ctx context.Context) types.Metadata {
+	metadata, ok := ctx.Value(messageContextKey(messageMetadataContextKey)).(types.Metadata)
+	if !ok {
+		return nil
+	}
+
+	return metadata
 }
 
 type (

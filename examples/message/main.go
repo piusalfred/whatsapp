@@ -58,12 +58,13 @@ func LoadConfigFromFile(filepath string) (config.ReaderFunc, string) {
 		AppSecret:         os.Getenv("WHATSAPP_CLOUD_API_APP_SECRET"),
 		SecureRequests:    secureRequests,
 	}
+
 	fn := func(ctx context.Context) (*config.Config, error) {
 		return conf, nil
 	}
 
-	prrof, _ := crypto.GenerateAppSecretProof(conf.AccessToken, conf.AppSecret)
-	fmt.Println("PROOOOOF" + prrof)
+	prrof, err := crypto.GenerateAppSecretProof(conf.AccessToken, conf.AppSecret)
+	fmt.Println("PROOOOOF "+prrof, " error: ", err)
 
 	return fn, recipient
 }
@@ -80,6 +81,7 @@ func main() {
 				logger.LogAttrs(ctx, slog.LevelInfo, "request intercepted",
 					slog.String("http.request.method", req.Method),
 					slog.String("http.request.url", req.URL.String()),
+					slog.Any("headers", req.Header),
 				)
 				return nil
 			},
@@ -89,7 +91,9 @@ func main() {
 				logger.LogAttrs(ctx, slog.LevelInfo, "response intercepted",
 					slog.String("http.response.status", resp.Status),
 					slog.Int("http.response.code", resp.StatusCode),
+					slog.Any("headers", resp.Header),
 				)
+
 				return nil
 			},
 		),
@@ -98,7 +102,11 @@ func main() {
 	ctx := context.Background()
 
 	coreClient := whttp.NewSender[message.Message](clientOptions...)
-	reader, recipient := LoadConfigFromFile("api.env")
+	envFilePath := os.Getenv("WHATSAPP_ENV_FILE_PATH")
+	if envFilePath == "" {
+		envFilePath = "examples/api.env" // Default to a relative path
+	}
+	reader, recipient := LoadConfigFromFile(envFilePath)
 	baseClient, err := message.NewBaseClient(coreClient, reader)
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error creating base client", slog.String("error", err.Error()))

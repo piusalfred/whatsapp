@@ -19,8 +19,6 @@
 
 package media
 
-//go:generate go tool mockgen -destination=../mocks/media/mock_media.go -package=media -source=media.go
-
 import (
 	"context"
 	"fmt"

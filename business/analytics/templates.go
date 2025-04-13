@@ -12,8 +12,6 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-//go:generate go tool mockgen -destination=../../mocks/business/analytics/mock_templates.go -package=analytics -source=templates.go
-
 type (
 	TemplateCostMetric struct {
 		Type  string  `json:"type,omitempty"`

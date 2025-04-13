@@ -20,7 +20,6 @@
 package errors
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 )
@@ -75,13 +74,6 @@ type (
 		Details          string `json:"details,omitempty"`
 	}
 )
-
-// IsError checks if the error is a WhatsApp error.
-func IsError(err error) bool {
-	var e *Error
-
-	return errors.As(err, &e)
-}
 
 func (e *ErrorData) String() string {
 	if e.MessagingProduct == "" && e.Details == "" {

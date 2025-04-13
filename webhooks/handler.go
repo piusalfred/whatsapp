@@ -1,7 +1,5 @@
 package webhooks
 
-//go:generate go tool mockgen -destination=../mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=handler.go
-
 import (
 	"context"
 	"encoding/json"
@@ -1174,10 +1172,22 @@ func ParseMessageType(s string) MessageType {
 	return msgType
 }
 
+func (c *Contact) SenderInfo() *SenderInfo {
+	return &SenderInfo{
+		Name: c.Profile.Name,
+		WaID: c.WaID,
+	}
+}
+
 type (
 	Contact struct {
 		Profile *Profile `json:"profile,omitempty"`
 		WaID    string   `json:"wa_id,omitempty"`
+	}
+
+	SenderInfo struct {
+		Name string `json:"name,omitempty"`
+		WaID string `json:"wa_id,omitempty"`
 	}
 
 	// Message contains the information of a message. It is embedded in the Value object.
@@ -1380,12 +1390,29 @@ type (
 	}
 )
 
+// AllSendersInfo returns the sender information of all contacts in the notification context.
+func (ctx *MessageNotificationContext) AllSendersInfo() []*SenderInfo {
+	senders := make([]*SenderInfo, len(ctx.Contacts))
+	for i, contact := range ctx.Contacts {
+		senders[i] = contact.SenderInfo()
+	}
+	return senders
+}
+
+// SenderInfo returns the sender information of the first contact in the notification context.
+func (ctx *MessageNotificationContext) SenderInfo() *SenderInfo {
+	if len(ctx.Contacts) == 0 {
+		return nil
+	}
+	return ctx.Contacts[0].SenderInfo()
+}
+
 type (
 	MessageHandlerFunc[T any] func(
-		ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, message *T) error
+		ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, message *T) error
 
 	MessageHandler[T any] interface {
-		Handle(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, message *T) error
+		Handle(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, message *T) error
 	}
 
 	ButtonMessageHandler         = MessageHandler[Button]
@@ -1405,10 +1432,10 @@ type (
 	RequestWelcomeMessageHandler = MessageHandler[Message]
 )
 
-func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, nctx *MessageNotificationContext,
-	mctx *MessageInfo, message *T,
+func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, notificationCtx *MessageNotificationContext,
+	info *MessageInfo, message *T,
 ) error {
-	return fn(ctx, nctx, mctx, message)
+	return fn(ctx, notificationCtx, info, message)
 }
 
 func NewNoOpMessageHandler[T any]() MessageHandler[T] {
@@ -1419,10 +1446,10 @@ func NewNoOpMessageHandler[T any]() MessageHandler[T] {
 
 type (
 	MessageChangeValueHandler[T any] interface {
-		Handle(ctx context.Context, nctx *MessageNotificationContext, value []*T) error
+		Handle(ctx context.Context, notificationCtx *MessageNotificationContext, value []*T) error
 	}
 
-	MessageChangeValueHandlerFunc[T any] func(ctx context.Context, nctx *MessageNotificationContext, value []*T) error
+	MessageChangeValueHandlerFunc[T any] func(ctx context.Context, notificationCtx *MessageNotificationContext, value []*T) error
 )
 
 type (
@@ -1433,10 +1460,10 @@ type (
 
 func (f MessageChangeValueHandlerFunc[T]) Handle(
 	ctx context.Context,
-	nctx *MessageNotificationContext,
+	notificationCtx *MessageNotificationContext,
 	values []*T,
 ) error {
-	return f(ctx, nctx, values)
+	return f(ctx, notificationCtx, values)
 }
 
 func NewNoOpMessageChangeValueHandler[T any]() MessageChangeValueHandler[T] {
@@ -1453,16 +1480,21 @@ const (
 
 type (
 	MessageErrorsHandlerFunc func(
-		ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, errors []*werrors.Error) error
+		ctx context.Context, notificationContext *MessageNotificationContext, info *MessageInfo, errors []*werrors.Error) error
 	MessageErrorsHandler interface {
-		Handle(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, errors []*werrors.Error) error
+		Handle(
+			ctx context.Context,
+			notificationContext *MessageNotificationContext,
+			info *MessageInfo,
+			errors []*werrors.Error,
+		) error
 	}
 )
 
-func (fn MessageErrorsHandlerFunc) Handle(ctx context.Context, nctx *MessageNotificationContext,
-	mctx *MessageInfo, errors []*werrors.Error,
+func (fn MessageErrorsHandlerFunc) Handle(ctx context.Context, notificationCtx *MessageNotificationContext,
+	info *MessageInfo, errors []*werrors.Error,
 ) error {
-	return fn(ctx, nctx, mctx, errors)
+	return fn(ctx, notificationCtx, info, errors)
 }
 
 func NewNoOpMessageErrorsHandler() MessageErrorsHandler {
@@ -1474,9 +1506,9 @@ func NewNoOpMessageErrorsHandler() MessageErrorsHandler {
 }
 
 func (handler *Handler) handleNotificationMessage(ctx context.Context,
-	nctx *MessageNotificationContext, message *Message,
+	notificationCtx *MessageNotificationContext, message *Message,
 ) error {
-	mctx := &MessageInfo{
+	info := &MessageInfo{
 		From:      message.From,
 		MessageID: message.ID,
 		Timestamp: message.Timestamp,
@@ -1487,48 +1519,48 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 	messageType := ParseMessageType(message.Type)
 	switch messageType {
 	case MessageTypeOrder:
-		if err := handler.orderMessage.Handle(ctx, nctx, mctx, message.Order); err != nil {
+		if err := handler.orderMessage.Handle(ctx, notificationCtx, info, message.Order); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeButton:
-		if err := handler.buttonMessage.Handle(ctx, nctx, mctx, message.Button); err != nil {
+		if err := handler.buttonMessage.Handle(ctx, notificationCtx, info, message.Button); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeAudio, MessageTypeVideo, MessageTypeImage, MessageTypeDocument, MessageTypeSticker:
-		return handler.handleMediaMessage(ctx, nctx, message, mctx)
+		return handler.handleMediaMessage(ctx, notificationCtx, message, info)
 
 	case MessageTypeInteractive:
-		return handler.handleInteractiveNotification(ctx, nctx, message, mctx)
+		return handler.handleInteractiveNotification(ctx, notificationCtx, message, info)
 
 	case MessageTypeSystem:
-		if err := handler.systemMessage.Handle(ctx, nctx, mctx, message.System); err != nil {
+		if err := handler.systemMessage.Handle(ctx, notificationCtx, info, message.System); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeUnknown:
-		if err := handler.errorMessage.Handle(ctx, nctx, mctx, message.Errors); err != nil {
+		if err := handler.errorMessage.Handle(ctx, notificationCtx, info, message.Errors); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeUnsupported:
-		return handler.unsupportedMessage.Handle(ctx, nctx, mctx, message.Errors)
+		return handler.unsupportedMessage.Handle(ctx, notificationCtx, info, message.Errors)
 
 	case MessageTypeText:
-		return handler.handleTextNotification(ctx, nctx, message, mctx)
+		return handler.handleTextNotification(ctx, notificationCtx, message, info)
 
 	case MessageTypeRequestWelcome:
 		if handler.requestWelcome != nil {
-			if err := handler.requestWelcome.Handle(ctx, nctx, mctx, message); err != nil {
+			if err := handler.requestWelcome.Handle(ctx, notificationCtx, info, message); err != nil {
 				return err
 			}
 		}
@@ -1536,66 +1568,66 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 		return nil
 
 	case MessageTypeReaction:
-		if err := handler.reactionMessage.Handle(ctx, nctx, mctx, message.Reaction); err != nil {
+		if err := handler.reactionMessage.Handle(ctx, notificationCtx, info, message.Reaction); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeLocation:
-		if err := handler.locationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
+		if err := handler.locationMessage.Handle(ctx, notificationCtx, info, message.Location); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeContacts:
-		if err := handler.contactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
+		if err := handler.contactsMessage.Handle(ctx, notificationCtx, info, message.Contacts); err != nil {
 			return err
 		}
 
 		return nil
 
 	default:
-		return handler.handleDefaultNotificationMessage(ctx, nctx, message, mctx)
+		return handler.handleDefaultNotificationMessage(ctx, notificationCtx, message, info)
 	}
 }
 
-func (handler *Handler) handleMediaMessage(ctx context.Context, nctx *MessageNotificationContext,
-	message *Message, mctx *MessageInfo,
+func (handler *Handler) handleMediaMessage(ctx context.Context, notificationCtx *MessageNotificationContext,
+	message *Message, info *MessageInfo,
 ) error {
 	messageType := ParseMessageType(message.Type)
 	switch messageType { //nolint:exhaustive // ok
 	case MessageTypeAudio:
-		if err := handler.audioMessage.Handle(ctx, nctx, mctx, message.Audio); err != nil {
+		if err := handler.audioMessage.Handle(ctx, notificationCtx, info, message.Audio); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeVideo:
-		if err := handler.videoMessage.Handle(ctx, nctx, mctx, message.Video); err != nil {
+		if err := handler.videoMessage.Handle(ctx, notificationCtx, info, message.Video); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeImage:
-		if err := handler.imageMessage.Handle(ctx, nctx, mctx, message.Image); err != nil {
+		if err := handler.imageMessage.Handle(ctx, notificationCtx, info, message.Image); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeDocument:
-		if err := handler.documentMessage.Handle(ctx, nctx, mctx, message.Document); err != nil {
+		if err := handler.documentMessage.Handle(ctx, notificationCtx, info, message.Document); err != nil {
 			return err
 		}
 
 		return nil
 
 	case MessageTypeSticker:
-		if err := handler.stickerMessage.Handle(ctx, nctx, mctx, message.Sticker); err != nil {
+		if err := handler.stickerMessage.Handle(ctx, notificationCtx, info, message.Sticker); err != nil {
 			return err
 		}
 
@@ -1605,48 +1637,51 @@ func (handler *Handler) handleMediaMessage(ctx context.Context, nctx *MessageNot
 	return nil
 }
 
-func (handler *Handler) handleTextNotification(ctx context.Context, nctx *MessageNotificationContext,
-	message *Message, mctx *MessageInfo,
+func (handler *Handler) handleTextNotification(ctx context.Context, notificationCtx *MessageNotificationContext,
+	message *Message, info *MessageInfo,
 ) error {
 	if message.Referral != nil {
 		referral := &ReferralNotification{
 			Text:     message.Text,
 			Referral: message.Referral,
 		}
-		if err := handler.referralMessage.Handle(ctx, nctx, mctx, referral); err != nil {
+		if err := handler.referralMessage.Handle(ctx, notificationCtx, info, referral); err != nil {
 			return err
 		}
 
 		return nil
 	}
 
-	if mctx.Context != nil {
-		if err := handler.productInquiry.Handle(ctx, nctx, mctx, message.Text); err != nil {
+	if info.Context != nil {
+		if err := handler.productInquiry.Handle(ctx, notificationCtx, info, message.Text); err != nil {
 			return err
 		}
 
 		return nil
 	}
 
-	if err := handler.textMessage.Handle(ctx, nctx, mctx, message.Text); err != nil {
+	if err := handler.textMessage.Handle(ctx, notificationCtx, info, message.Text); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (handler *Handler) handleDefaultNotificationMessage(ctx context.Context, nctx *MessageNotificationContext,
-	message *Message, mctx *MessageInfo,
+func (handler *Handler) handleDefaultNotificationMessage(
+	ctx context.Context,
+	notificationCtx *MessageNotificationContext,
+	message *Message,
+	info *MessageInfo,
 ) error {
 	if message.Contacts != nil {
-		if err := handler.contactsMessage.Handle(ctx, nctx, mctx, message.Contacts); err != nil {
+		if err := handler.contactsMessage.Handle(ctx, notificationCtx, info, message.Contacts); err != nil {
 			return err
 		}
 
 		return nil
 	}
 	if message.Location != nil {
-		if err := handler.locationMessage.Handle(ctx, nctx, mctx, message.Location); err != nil {
+		if err := handler.locationMessage.Handle(ctx, notificationCtx, info, message.Location); err != nil {
 			return err
 		}
 
@@ -1654,7 +1689,7 @@ func (handler *Handler) handleDefaultNotificationMessage(ctx context.Context, nc
 	}
 
 	if message.Identity != nil {
-		if err := handler.customerIDChange.Handle(ctx, nctx, mctx, message.Identity); err != nil {
+		if err := handler.customerIDChange.Handle(ctx, notificationCtx, info, message.Identity); err != nil {
 			return err
 		}
 
@@ -1667,29 +1702,29 @@ func (handler *Handler) handleDefaultNotificationMessage(ctx context.Context, nc
 const ErrUnrecognizedMessageType = whatsapp.Error("unrecognized message type")
 
 func (handler *Handler) handleInteractiveNotification(ctx context.Context,
-	nctx *MessageNotificationContext, message *Message, mctx *MessageInfo,
+	notificationCtx *MessageNotificationContext, message *Message, info *MessageInfo,
 ) error {
 	switch message.Interactive.Type {
 	case InteractiveTypeListReply:
-		if err := handler.listReplyMessage.Handle(ctx, nctx, mctx, message.Interactive.ListReply); err != nil {
+		if err := handler.listReplyMessage.Handle(ctx, notificationCtx, info, message.Interactive.ListReply); err != nil {
 			return fmt.Errorf("handle list reply: %w", err)
 		}
 
 		return nil
 	case InteractiveTypeButtonReply:
-		if err := handler.buttonReplyMessage.Handle(ctx, nctx, mctx, message.Interactive.ButtonReply); err != nil {
+		if err := handler.buttonReplyMessage.Handle(ctx, notificationCtx, info, message.Interactive.ButtonReply); err != nil {
 			return fmt.Errorf("handle button reply: %w", err)
 		}
 
 		return nil
 	case InteractiveTypeNFMReply:
-		if err := handler.flowCompletionUpdate.Handle(ctx, nctx, mctx, message.Interactive.NFMReply); err != nil {
+		if err := handler.flowCompletionUpdate.Handle(ctx, notificationCtx, info, message.Interactive.NFMReply); err != nil {
 			return err
 		}
 
 		return nil
 	default:
-		if err := handler.interactiveMessage.Handle(ctx, nctx, mctx, message.Interactive); err != nil {
+		if err := handler.interactiveMessage.Handle(ctx, notificationCtx, info, message.Interactive); err != nil {
 			return err
 		}
 
@@ -1698,7 +1733,7 @@ func (handler *Handler) handleInteractiveNotification(ctx context.Context,
 }
 
 func (handler *Handler) OnTextMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, text *Text) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, text *Text) error,
 ) {
 	handler.textMessage = MessageHandlerFunc[Text](fn)
 }
@@ -1710,7 +1745,7 @@ func (handler *Handler) SetTextMessageHandler(
 }
 
 func (handler *Handler) OnButtonMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, button *Button) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, button *Button) error,
 ) {
 	handler.buttonMessage = MessageHandlerFunc[Button](fn)
 }
@@ -1722,7 +1757,7 @@ func (handler *Handler) SetButtonMessageHandler(
 }
 
 func (handler *Handler) OnOrderMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, order *Order) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, order *Order) error,
 ) {
 	handler.orderMessage = MessageHandlerFunc[Order](fn)
 }
@@ -1734,7 +1769,7 @@ func (handler *Handler) SetOrderMessageHandler(
 }
 
 func (handler *Handler) OnLocationMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, loc *message.Location) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, loc *message.Location) error,
 ) {
 	handler.locationMessage = MessageHandlerFunc[message.Location](fn)
 }
@@ -1746,7 +1781,7 @@ func (handler *Handler) SetLocationMessageHandler(
 }
 
 func (handler *Handler) OnContactsMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, contacts *message.Contacts) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, contacts *message.Contacts) error,
 ) {
 	handler.contactsMessage = MessageHandlerFunc[message.Contacts](fn)
 }
@@ -1758,7 +1793,7 @@ func (handler *Handler) SetContactsMessageHandler(
 }
 
 func (handler *Handler) OnReactionMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, reaction *message.Reaction) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, reaction *message.Reaction) error,
 ) {
 	handler.reactionMessage = MessageHandlerFunc[message.Reaction](fn)
 }
@@ -1770,7 +1805,7 @@ func (handler *Handler) SetReactionMessageHandler(
 }
 
 func (handler *Handler) OnProductEnquiryMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, txt *Text) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, txt *Text) error,
 ) {
 	handler.productInquiry = MessageHandlerFunc[Text](fn)
 }
@@ -1782,7 +1817,7 @@ func (handler *Handler) SetProductEnquiryMessageHandler(
 }
 
 func (handler *Handler) OnInteractiveMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, itv *Interactive) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, itv *Interactive) error,
 ) {
 	handler.interactiveMessage = MessageHandlerFunc[Interactive](fn)
 }
@@ -1794,7 +1829,7 @@ func (handler *Handler) SetInteractiveMessageHandler(
 }
 
 func (handler *Handler) OnButtonReplyMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, br *ButtonReply) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, br *ButtonReply) error,
 ) {
 	handler.buttonReplyMessage = MessageHandlerFunc[ButtonReply](fn)
 }
@@ -1806,7 +1841,7 @@ func (handler *Handler) SetButtonReplyMessageHandler(
 }
 
 func (handler *Handler) OnListReplyMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, lr *ListReply) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, lr *ListReply) error,
 ) {
 	handler.listReplyMessage = MessageHandlerFunc[ListReply](fn)
 }
@@ -1818,7 +1853,7 @@ func (handler *Handler) SetListReplyMessageHandler(
 }
 
 func (handler *Handler) OnFlowCompletionMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, nfm *NFMReply) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, nfm *NFMReply) error,
 ) {
 	handler.flowCompletionUpdate = MessageHandlerFunc[NFMReply](fn)
 }
@@ -1830,7 +1865,7 @@ func (handler *Handler) SetFlowCompletionMessageHandler(
 }
 
 func (handler *Handler) OnReferralMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, ref *ReferralNotification) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, ref *ReferralNotification) error,
 ) {
 	handler.referralMessage = MessageHandlerFunc[ReferralNotification](fn)
 }
@@ -1842,7 +1877,7 @@ func (handler *Handler) SetReferralMessageHandler(
 }
 
 func (handler *Handler) OnCustomerIDChangeMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, identity *Identity) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, identity *Identity) error,
 ) {
 	handler.customerIDChange = MessageHandlerFunc[Identity](fn)
 }
@@ -1854,7 +1889,7 @@ func (handler *Handler) SetCustomerIDChangeMessageHandler(
 }
 
 func (handler *Handler) OnSystemMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, sys *System) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, sys *System) error,
 ) {
 	handler.systemMessage = MessageHandlerFunc[System](fn)
 }
@@ -1866,7 +1901,7 @@ func (handler *Handler) SetSystemMessageHandler(
 }
 
 func (handler *Handler) OnAudioMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
 ) {
 	handler.audioMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
@@ -1878,7 +1913,7 @@ func (handler *Handler) SetAudioMessageHandler(
 }
 
 func (handler *Handler) OnVideoMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
 ) {
 	handler.videoMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
@@ -1890,7 +1925,7 @@ func (handler *Handler) SetVideoMessageHandler(
 }
 
 func (handler *Handler) OnImageMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
 ) {
 	handler.imageMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
@@ -1902,7 +1937,7 @@ func (handler *Handler) SetImageMessageHandler(
 }
 
 func (handler *Handler) OnDocumentMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
 ) {
 	handler.documentMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
@@ -1914,7 +1949,7 @@ func (handler *Handler) SetDocumentMessageHandler(
 }
 
 func (handler *Handler) OnStickerMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
 ) {
 	handler.stickerMessage = MessageHandlerFunc[message.MediaInfo](fn)
 }
@@ -1926,7 +1961,7 @@ func (handler *Handler) SetStickerMessageHandler(
 }
 
 func (handler *Handler) OnUserPreferencesUpdate(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, prefs []*UserPreference) error,
+	fn func(ctx context.Context, notificationotificationCtx *MessageNotificationContext, prefs []*UserPreference) error,
 ) {
 	handler.userPreferencesUpdate = MessageChangeValueHandlerFunc[UserPreference](fn)
 }
@@ -1938,8 +1973,8 @@ func (handler *Handler) SetUserPreferencesUpdateHandler(
 }
 
 func (handler *Handler) OnRequestWelcomeMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext,
-		mctx *MessageInfo, media *Message) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
+		info *MessageInfo, media *Message) error,
 ) {
 	handler.requestWelcome = MessageHandlerFunc[Message](fn)
 }
@@ -1951,7 +1986,7 @@ func (handler *Handler) SetRequestWelcomeMessageHandler(
 }
 
 func (handler *Handler) OnNotificationErrors(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, errors []*werrors.Error) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, errors []*werrors.Error) error,
 ) {
 	handler.notificationErrors = MessageChangeValueHandlerFunc[werrors.Error](fn)
 }
@@ -1963,7 +1998,7 @@ func (handler *Handler) SetNotificationErrorsHandler(
 }
 
 func (handler *Handler) OnMessageStatusChange(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, status []*Status) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, status []*Status) error,
 ) {
 	handler.messageStatusChange = MessageChangeValueHandlerFunc[Status](fn)
 }
@@ -1975,7 +2010,7 @@ func (handler *Handler) SetMessageStatusChangeHandler(
 }
 
 func (handler *Handler) OnMessageErrors(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, errors []*werrors.Error) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, errors []*werrors.Error) error,
 ) {
 	handler.errorMessage = MessageErrorsHandlerFunc(fn)
 }
@@ -1987,7 +2022,7 @@ func (handler *Handler) SetMessageErrorsHandler(
 }
 
 func (handler *Handler) OnUnsupportedMessage(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, mctx *MessageInfo, errors []*werrors.Error) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, errors []*werrors.Error) error,
 ) {
 	handler.unsupportedMessage = MessageErrorsHandlerFunc(fn)
 }
