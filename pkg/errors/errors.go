@@ -25,8 +25,6 @@ import (
 	"strings"
 )
 
-const DeveloperErrorDescLink = "https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes"
-
 type (
 
 	// Error represents a WhatsApp error returned by the API when a request fails.
@@ -128,6 +126,14 @@ func (e *Error) String() string {
 	}
 	if e.FBTraceID != "" {
 		b.WriteString(", FBTraceID: " + e.FBTraceID)
+	}
+
+	if e.Href != "" {
+		b.WriteString(", Href: " + e.Href)
+	}
+
+	if e.Details != "" {
+		b.WriteString(", Details: " + e.Details)
 	}
 
 	return b.String()

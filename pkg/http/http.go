@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/pkg/crypto"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 	"github.com/piusalfred/whatsapp/pkg/types"
@@ -485,7 +486,7 @@ func (req *Request[T]) URL() (*url.URL, error) {
 	return parsedURL, nil
 }
 
-var errNilRequest = errors.New("nil request provided")
+const errNilRequest = whatsapp.Error("nil request provided")
 
 func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Request, error) {
 	if req == nil {

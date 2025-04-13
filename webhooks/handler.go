@@ -5,11 +5,11 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/message"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
@@ -1661,8 +1661,10 @@ func (handler *Handler) handleDefaultNotificationMessage(ctx context.Context, nc
 		return nil
 	}
 
-	return errors.New("unsupported message type")
+	return ErrUnrecognizedMessageType
 }
+
+const ErrUnrecognizedMessageType = whatsapp.Error("unrecognized message type")
 
 func (handler *Handler) handleInteractiveNotification(ctx context.Context,
 	nctx *MessageNotificationContext, message *Message, mctx *MessageInfo,

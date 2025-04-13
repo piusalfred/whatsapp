@@ -52,3 +52,9 @@ func IsCorrectAPIVersion(apiVersion string) bool {
 
 	return minor >= 0
 }
+
+type Error string
+
+func (e Error) Error() string {
+	return string(e)
+}

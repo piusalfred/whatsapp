@@ -23,6 +23,11 @@ A highly configurable golang client for [Whatsapp Cloud API](https://www.postman
   - [Message Webhooks](./webhooks/message)
   - [Business Management Webhooks](./webhooks/business)
   - [Flow Management Webhooks](./webhooks/flow)
+- [User Management](./user)
+  - [Block Users](./user)
+  - [Unblock Users](./user)
+  - [Get Blocked Users](./user)
+- [Conversation Automation](./conversation/automation)
 
 
 ## setup
@@ -298,3 +303,4 @@ There is provision of [**mocks**](./mocks) that may come handy in testing.
 - [Conversational Components](https://developers.facebook.com/docs/whatsapp/cloud-api/phone-numbers/conversational-components)
 - [Graph API Reference](https://developers.facebook.com/docs/graph-api)
 - [Flows Webhooks](https://developers.facebook.com/docs/whatsapp/flows/reference/flowswebhooks)
+- [Whatsapp Business Platform Documentation](https://developers.facebook.com/docs/whatsapp)

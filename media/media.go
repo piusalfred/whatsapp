@@ -23,16 +23,14 @@ package media
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
-
-// https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/
 
 const (
 	TypeAudioAAC        Type = "audio/aac"
@@ -65,11 +63,11 @@ const (
 	VideoMaxSize           = 16 * 1024 * 1024
 )
 
-var (
-	ErrMediaUpload   = errors.New("media upload failed")
-	ErrMediaDownload = errors.New("media download failed")
-	ErrMediaDelete   = errors.New("media delete failed")
-	ErrMediaGetInfo  = errors.New("media get info failed")
+const (
+	ErrMediaUpload   = whatsapp.Error("media upload failed")
+	ErrMediaDownload = whatsapp.Error("media download failed")
+	ErrMediaDelete   = whatsapp.Error("media delete failed")
+	ErrMediaGetInfo  = whatsapp.Error("media get info failed")
 )
 
 type Category string

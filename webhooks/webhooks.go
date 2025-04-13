@@ -108,7 +108,7 @@ func (fn NotificationHandlerFunc) HandleNotification(ctx context.Context, notifi
 }
 
 // OnEventNotification creates an HTTP handler function for processing webhook event notifications.
-func OnEventNotification[T any](handler NotificationHandler) http.HandlerFunc {
+func OnEventNotification(handler NotificationHandler) http.HandlerFunc {
 	fn := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		body, err := io.ReadAll(request.Body)
 		if err != nil {

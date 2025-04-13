@@ -2,12 +2,12 @@ package analytics
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
@@ -157,7 +157,7 @@ type TemplateAnalyticsRequest struct {
 	MetricTypes []string `json:"metric_types,omitempty"`
 }
 
-var ErrInvalidTemplatesCount = errors.New("invalid number of templates")
+const ErrInvalidTemplatesCount = whatsapp.Error("invalid number of templates")
 
 // Fetch fetches template analytics for the specified templates within the specified date range.
 func (c *TemplatesClient) Fetch(ctx context.Context, params *TemplateAnalyticsRequest) (

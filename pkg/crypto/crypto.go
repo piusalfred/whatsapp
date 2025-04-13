@@ -4,11 +4,12 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
+
+	"github.com/piusalfred/whatsapp"
 )
 
-var ErrCreateAppSecretProof = errors.New("failed to create appsecret_proof")
+const ErrCreateAppSecretProof = whatsapp.Error("failed to create appsecret_proof")
 
 // GenerateAppSecretProof generates the app secret proof required for secure API calls.
 // It creates an HMAC-SHA-256 hash using the access token and the app secret.
