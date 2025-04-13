@@ -33,6 +33,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/piusalfred/whatsapp"
 )
 
 type (
@@ -346,18 +348,11 @@ func (reader VerifyTokenReader) VerifySubscription(writer http.ResponseWriter, r
 	_, _ = writer.Write([]byte(challenge))
 }
 
-// webhookError is a custom error type for webhook errors.
-type webhookError string
-
-func (e webhookError) Error() string {
-	return string(e)
-}
-
 const (
-	ErrInvalidSignature      = webhookError("signature is invalid")
-	ErrSignatureNotFound     = webhookError("signature not found")
-	ErrSignatureVerification = webhookError("signature verification failed")
-	ErrReadNotification      = webhookError("error reading request body")
-	ErrMessageDecode         = webhookError("error decoding message")
-	ErrBadRequest            = webhookError("could not retrieve the notification content")
+	ErrInvalidSignature      = whatsapp.Error("signature is invalid")
+	ErrSignatureNotFound     = whatsapp.Error("signature not found")
+	ErrSignatureVerification = whatsapp.Error("signature verification failed")
+	ErrReadNotification      = whatsapp.Error("error reading request body")
+	ErrMessageDecode         = whatsapp.Error("error decoding message")
+	ErrBadRequest            = whatsapp.Error("could not retrieve the notification content")
 )
