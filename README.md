@@ -6,6 +6,10 @@
 
 A highly configurable golang client for [Whatsapp Cloud API](https://www.postman.com/meta/whatsapp-business-platform/collection/wlk6lh4/whatsapp-cloud-api)
 
+> [!IMPORTANT]  
+> This is the third-party library and not the official one. Not affiliated nor maintained by Meta.
+
+
 ## Supported API
 
 - [Message](./message)

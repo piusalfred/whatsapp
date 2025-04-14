@@ -1406,9 +1406,9 @@ type (
 )
 
 func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, nctx *MessageNotificationContext,
-	mctx *MessageInfo, message *T,
+	info *MessageInfo, message *T,
 ) error {
-	return fn(ctx, nctx, mctx, message)
+	return fn(ctx, nctx, info, message)
 }
 
 func NewNoOpMessageHandler[T any]() MessageHandler[T] {
