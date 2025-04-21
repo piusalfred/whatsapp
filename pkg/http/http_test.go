@@ -18,6 +18,7 @@ import (
 	gcmp "github.com/google/go-cmp/cmp"
 
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
+	"github.com/piusalfred/whatsapp/pkg/types"
 )
 
 type TestMessage struct {
@@ -635,4 +636,23 @@ func ExampleNewSender() {
 	// Just intercepted the request and the method is: POST
 	// Just intercepted the response and status code: 200
 	// called after request send execution and the err is: <nil>
+}
+
+func TestInjectMessageMetadata(t *testing.T) {
+	ctx := t.Context()
+
+	metadata := types.Metadata(
+		map[string]any{
+			"key1":    "value1",
+			"product": "whatsapp",
+			"version": "v20",
+			"name":    "cloud-api",
+		},
+	)
+
+	ctx = whttp.InjectMessageMetadata(ctx, metadata)
+
+	if diff := gcmp.Diff(whttp.RetrieveMessageMetadata(ctx), metadata); diff != "" {
+		t.Errorf("InjectMessageMetadata() mismatch (-want +got):\n%s", diff)
+	}
 }

@@ -19,14 +19,12 @@
 
 package qrcode
 
-//go:generate go tool mockgen -destination=../mocks/qrcode/mock_qrcode.go -package=qrcode -source=qrcode.go
-
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
@@ -175,12 +173,12 @@ func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessRespon
 	return Update(ctx, c.Sender, c.Config, req)
 }
 
-var (
-	ErrCreateQRCode = errors.New("failed to create qr code")
-	ErrGetQRCode    = errors.New("failed to get qr code")
-	ErrListQRCode   = errors.New("failed to list qr codes")
-	ErrDeleteQRCode = errors.New("failed to delete qr code")
-	ErrUpdateQRCode = errors.New("failed to update qr code")
+const (
+	ErrCreateQRCode = whatsapp.Error("failed to create qr code")
+	ErrGetQRCode    = whatsapp.Error("failed to get qr code")
+	ErrListQRCode   = whatsapp.Error("failed to list qr codes")
+	ErrDeleteQRCode = whatsapp.Error("failed to delete qr code")
+	ErrUpdateQRCode = whatsapp.Error("failed to update qr code")
 )
 
 func Create(ctx context.Context, sender Sender, conf *config.Config, req *CreateRequest) (*CreateResponse, error) {

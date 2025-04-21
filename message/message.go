@@ -19,8 +19,6 @@
 
 package message
 
-//go:generate go tool mockgen -destination=../mocks/message/mock_message.go -package=message -source=message.go
-
 import (
 	"context"
 	"fmt"
@@ -187,7 +185,7 @@ func (c *BaseClient) UpdateStatus(ctx context.Context, request *StatusUpdateRequ
 
 	req := NewBaseRequest(
 		message,
-		WithBaseRequestMethod(http.MethodPut),
+		WithBaseRequestMethod(http.MethodPost),
 		WithBaseRequestEndpoints(Endpoint),
 		WithBaseRequestType(whttp.RequestTypeUpdateStatus),
 		WithBaseRequestDecodeOptions(whttp.DecodeOptions{
@@ -290,7 +288,7 @@ func (c *Client) UpdateStatus(ctx context.Context, request *StatusUpdateRequest)
 
 	req := NewBaseRequest(
 		message,
-		WithBaseRequestMethod(http.MethodPut),
+		WithBaseRequestMethod(http.MethodPost),
 		WithBaseRequestEndpoints(Endpoint),
 		WithBaseRequestType(whttp.RequestTypeUpdateStatus),
 		WithBaseRequestDecodeOptions(whttp.DecodeOptions{
@@ -348,15 +346,6 @@ var (
 	_ StatusUpdater = (*BaseClient)(nil)
 	_ StatusUpdater = (*Client)(nil)
 )
-
-func RetrieveMessageMetadata(ctx context.Context) types.Metadata {
-	metadata, ok := ctx.Value(whttp.MessageContextKey(whttp.MessageMetadataContextKey)).(types.Metadata)
-	if !ok {
-		return nil
-	}
-
-	return metadata
-}
 
 type (
 	BaseSender struct {

@@ -30,8 +30,6 @@ import (
 	"github.com/piusalfred/whatsapp/webhooks"
 )
 
-// LoggingMiddleware is an example middleware that logs
-// before and after handling a single incoming webhook request.
 func LoggingMiddleware(next webhooks.NotificationHandlerFunc) webhooks.NotificationHandlerFunc {
 	return func(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
 		fmt.Println("[LoggingMiddleware] --> Before handling notification")
@@ -68,7 +66,6 @@ func (r *ReactionHandler) Handle(
 
 	r.Logger.Info("Reaction emoji", "emoji", reaction.Emoji)
 
-	// For example, you can store the emoji in an in-memory map keyed by the message context ID.
 	if r.Store == nil {
 		r.Store = make(map[string]any)
 	}
@@ -80,18 +77,7 @@ func (r *ReactionHandler) Handle(
 }
 
 func main() {
-	// Create a Handler that can process various types of webhook notifications.
-	// This initializes no-op handlers for all message types. The no-op handlers
-	// does nothing and returns nil.
 	handler := webhooks.NewHandler()
-
-	// There are two ways to register handlers for specific message types:
-	// 1. A simple callback function for a specific message type.
-	// 2. Implementing a specific handler interface (e.g., webhooks.ReactionHandler) for more complex logic.
-
-	// Register a simple callback for text messages using OnTextMessage. This will replace the
-	// no-op handler that was initialized by called webhooks.NewHandler().
-	// This callback will be invoked whenever we receive a "type": "text" message.
 	handler.OnTextMessage(func(ctx context.Context,
 		nctx *webhooks.MessageNotificationContext,
 		mctx *webhooks.MessageInfo,
@@ -115,8 +101,6 @@ func main() {
 	// this is how you can register it with the main handler.
 	handler.SetReactionMessageHandler(reactionHandler)
 
-	// Create a Listener that wraps our handler with optional middlewares (like LoggingMiddleware).
-	// We also provide a VerifyTokenReader and ValidateOptions for optional signature verification, etc.
 	messageListener := webhooks.NewListener(
 		handler.HandleNotification, // The core Handler’s method
 		func(ctx context.Context) (string, error) { // VerifyTokenReader: returns your verify token
@@ -129,13 +113,8 @@ func main() {
 		LoggingMiddleware, // Example middleware
 	)
 
-	// Set up two HTTP endpoints: one for subscription verification ("GET")
-	// and one for receiving actual webhook notifications ("POST").
-	//
-	// In actual code, you might do http.HandleFunc("/webhooks/messages", ...) (without "POST " prefix).
-	// For clarity, here we show "POST /webhooks/messages" and "POST /webhooks/verify" in a single snippet.
 	http.HandleFunc("POST /webhooks/messages", messageListener.HandleNotification)
-	http.HandleFunc("POST /webhooks/verify", messageListener.HandleSubscriptionVerification)
+	http.HandleFunc("GET /webhooks/messages", messageListener.HandleSubscriptionVerification)
 
 	// Start an HTTP server on port :8080 to listen for incoming requests.
 	fmt.Println("[main] Starting server on :8080")

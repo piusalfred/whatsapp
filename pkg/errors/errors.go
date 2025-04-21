@@ -20,12 +20,9 @@
 package errors
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 )
-
-const DeveloperErrorDescLink = "https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes"
 
 type (
 
@@ -78,13 +75,6 @@ type (
 	}
 )
 
-// IsError checks if the error is a WhatsApp error.
-func IsError(err error) bool {
-	var e *Error
-
-	return errors.As(err, &e)
-}
-
 func (e *ErrorData) String() string {
 	if e.MessagingProduct == "" && e.Details == "" {
 		return "<nil>"
@@ -128,6 +118,14 @@ func (e *Error) String() string {
 	}
 	if e.FBTraceID != "" {
 		b.WriteString(", FBTraceID: " + e.FBTraceID)
+	}
+
+	if e.Href != "" {
+		b.WriteString(", Href: " + e.Href)
+	}
+
+	if e.Details != "" {
+		b.WriteString(", Details: " + e.Details)
 	}
 
 	return b.String()

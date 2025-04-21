@@ -19,8 +19,6 @@
 
 package flow
 
-//go:generate go tool mockgen -destination=../mocks/flow/mock_flow.go -package=flow -source=flow.go
-
 import (
 	"context"
 	"crypto/aes"

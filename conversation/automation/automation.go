@@ -34,8 +34,6 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-//go:generate go tool mockgen -destination=../../mocks/conversation/automation/mock_automation.go -package=automation -source=automation.go
-
 type (
 	Command struct {
 		CommandName        string `json:"command_name,omitempty"`

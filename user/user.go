@@ -30,8 +30,6 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-//go:generate go tool mockgen -destination=../mocks/user/mock_user.go -package=user -source=user.go
-
 const BlockEndpoint = "block_users"
 
 type BlockAction string

@@ -19,8 +19,6 @@
 
 package phonenumber
 
-//go:generate go tool mockgen -destination=../mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=phonenumber.go
-
 import (
 	"context"
 	"fmt"
