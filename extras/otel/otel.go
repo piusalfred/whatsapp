@@ -2,6 +2,7 @@ package otel
 
 import (
 	"context"
+	"net/http"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -11,6 +12,7 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
+	webhooks "github.com/piusalfred/whatsapp/webhooks"
 )
 
 const (
@@ -134,4 +136,68 @@ func (s *Sender[T]) Send(ctx context.Context, req *whttp.Request[T], decoder wht
 	span.SetStatus(codes.Ok, "OK")
 
 	return nil
+}
+
+var _ webhooks.NotificationHandler = (*OtelWebhookHandler)(nil)
+
+type OtelWebhookHandler struct {
+	Tracer trace.Tracer
+	Next   webhooks.NotificationHandler
+}
+
+func NotificationLogValues(notification *webhooks.Notification) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("webhook.notification.object", notification.Object),
+	}
+
+	var entryIDs []string
+	var changeFields []string
+	var messageTypes []string
+
+	for _, entry := range notification.Entry {
+		entryIDs = append(entryIDs, entry.ID)
+		for _, change := range entry.Changes {
+			changeFields = append(changeFields, change.Field)
+
+			for _, message := range change.Value.Messages {
+				messageTypes = append(messageTypes, message.Type)
+			}
+		}
+	}
+
+	attrs = append(attrs, normalizeAttr("webhook.notification.entries", entryIDs))
+	attrs = append(attrs, normalizeAttr("webhook.notification.changes", changeFields))
+	attrs = append(attrs, normalizeAttr("webhook.notification.message.types", messageTypes))
+
+	return attrs
+}
+
+func normalizeAttr(key string, values []string) attribute.KeyValue {
+	if len(values) == 1 {
+		return attribute.String(key, values[0])
+	}
+
+	return attribute.StringSlice(key, values)
+}
+
+func (o *OtelWebhookHandler) HandleNotification(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
+	ctx, span := o.Tracer.Start(ctx, "HandleNotification",
+		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithAttributes(
+			NotificationLogValues(notification)...,
+		))
+
+	defer span.End()
+
+	response := o.Next.HandleNotification(ctx, notification)
+
+	if response.StatusCode != http.StatusOK {
+		span.SetStatus(codes.Error, "error handling notification")
+	} else {
+		span.SetStatus(codes.Ok, "OK")
+	}
+
+	span.SetAttributes(attribute.Int("webhook.notification.response.status", response.StatusCode))
+
+	return response
 }
