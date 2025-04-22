@@ -41,7 +41,7 @@ tool (
 )
 
 require (
-	github.com/piusalfred/whatsapp v0.0.26
+	github.com/piusalfred/whatsapp v0.0.28
 	go.uber.org/mock v0.5.1
 )
 

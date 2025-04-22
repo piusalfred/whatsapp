@@ -1344,12 +1344,12 @@ type (
 	}
 
 	Context struct {
-		Forwarded           bool   `json:"forwarded,omitempty"`
-		FrequentlyForwarded bool   `json:"frequently_forwarded,omitempty"`
-		From                string `json:"from,omitempty"`
-		ID                  string `json:"id,omitempty"`
-		ReferredProduct     *ReferredProduct
-		Type                string `json:"type,omitempty"`
+		Forwarded           bool             `json:"forwarded,omitempty"`
+		FrequentlyForwarded bool             `json:"frequently_forwarded,omitempty"`
+		From                string           `json:"from,omitempty"`
+		ID                  string           `json:"id,omitempty"`
+		ReferredProduct     *ReferredProduct `json:"referred_product,omitempty"`
+		Type                string           `json:"type,omitempty"`
 	}
 
 	ReferredProduct struct {
@@ -1382,13 +1382,35 @@ type (
 	// Context The context of the message. Only included when a user replies or interacts with one
 	// of your messages.
 	MessageInfo struct {
-		From      string
-		MessageID string
-		Timestamp string
-		Type      string
-		Context   *Context
+		From             string
+		MessageID        string
+		Timestamp        string
+		Type             string
+		Context          *Context
+		IsAReply         bool
+		IsForwarded      bool
+		IsProductInquiry bool
+		IsReferral       bool
 	}
 )
+
+func (message *Message) IsAReply() bool {
+	return message.Context != nil && message.Context.ReferredProduct == nil && !message.Context.Forwarded
+}
+
+// IsForwarded checks if the message is a forwarded message returns true if.
+func (message *Message) IsForwarded() bool {
+	return message.Context != nil && message.Context.Forwarded
+}
+
+// IsProductInquiry checks if the message is a product inquiry message.
+func (message *Message) IsProductInquiry() bool {
+	return message.Context != nil && message.Context.ReferredProduct != nil
+}
+
+func (message *Message) IsReferral() bool {
+	return message.Referral != nil
+}
 
 // AllSendersInfo returns the sender information of all contacts in the notification context.
 func (ctx *MessageNotificationContext) AllSendersInfo() []*SenderInfo {
@@ -1509,11 +1531,15 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 	notificationCtx *MessageNotificationContext, message *Message,
 ) error {
 	info := &MessageInfo{
-		From:      message.From,
-		MessageID: message.ID,
-		Timestamp: message.Timestamp,
-		Type:      message.Type,
-		Context:   message.Context,
+		From:             message.From,
+		MessageID:        message.ID,
+		Timestamp:        message.Timestamp,
+		Type:             message.Type,
+		Context:          message.Context,
+		IsAReply:         message.IsAReply(),
+		IsForwarded:      message.IsForwarded(),
+		IsProductInquiry: message.IsProductInquiry(),
+		IsReferral:       message.IsReferral(),
 	}
 
 	messageType := ParseMessageType(message.Type)
@@ -1640,11 +1666,12 @@ func (handler *Handler) handleMediaMessage(ctx context.Context, notificationCtx 
 func (handler *Handler) handleTextNotification(ctx context.Context, notificationCtx *MessageNotificationContext,
 	message *Message, info *MessageInfo,
 ) error {
-	if message.Referral != nil {
+	if info.IsReferral {
 		referral := &ReferralNotification{
 			Text:     message.Text,
 			Referral: message.Referral,
 		}
+
 		if err := handler.referralMessage.Handle(ctx, notificationCtx, info, referral); err != nil {
 			return err
 		}
@@ -1652,7 +1679,7 @@ func (handler *Handler) handleTextNotification(ctx context.Context, notification
 		return nil
 	}
 
-	if info.Context != nil {
+	if info.IsProductInquiry {
 		if err := handler.productInquiry.Handle(ctx, notificationCtx, info, message.Text); err != nil {
 			return err
 		}
