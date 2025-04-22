@@ -1398,7 +1398,7 @@ func (message *Message) IsAReply() bool {
 	return message.Context != nil && message.Context.ReferredProduct == nil && !message.Context.Forwarded
 }
 
-// IsForwarded checks if the message is a forwarded message returns true if.
+// IsForwarded checks if the message is a forwarded message. It returns true if the message has a non-nil Context and the Forwarded field in the Context is true.
 func (message *Message) IsForwarded() bool {
 	return message.Context != nil && message.Context.Forwarded
 }
