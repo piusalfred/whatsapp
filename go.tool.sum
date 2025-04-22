@@ -80,6 +80,8 @@ github.com/mitchellh/hashstructure/v2 v2.0.2 h1:vGKWl0YJqUNxE8d+h8f6NJLcCJrgbhC4
 github.com/mitchellh/hashstructure/v2 v2.0.2/go.mod h1:MG3aRVU/N29oo/V/IhBX8GR/zz4kQkprJgF2EVszyDE=
 github.com/piusalfred/whatsapp v0.0.26 h1:AE7Q0jnGLPKS4UmQtKh8eqNksunezhBn6f1OM98nGHY=
 github.com/piusalfred/whatsapp v0.0.26/go.mod h1:syjmyB4u7/WohLyOAb4oMHc6WqHYHfjw2hmeJJRjKG4=
+github.com/piusalfred/whatsapp v0.0.28 h1:nJ9O7oQbPEg0w5ZxqwyQObPV2P93a5u2ASzBEWWNvz0=
+github.com/piusalfred/whatsapp v0.0.28/go.mod h1:J5D9qZ9DQDhKngtmSeTe3Ff9WXVnAzBqjXyGhWruZ/o=
 github.com/pjbgf/sha1cd v0.3.2 h1:a9wb0bp1oC2TGwStyn0Umc/IGKQnEgF0vVaZ8QF8eo4=
 github.com/pjbgf/sha1cd v0.3.2/go.mod h1:zQWigSxVmsHEZow5qaLtPYxpcKMMQpa09ixqBxuCS6A=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
