@@ -183,6 +183,10 @@ func (c *BaseClient) UpdateStatus(ctx context.Context, request *StatusUpdateRequ
 		MessageID: &request.MessageID,
 	}
 
+	if request.WithTypingIndicator {
+		message.TypingIndicator = &TypingIndicator{Type: "text"}
+	}
+
 	req := NewBaseRequest(
 		message,
 		WithBaseRequestMethod(http.MethodPost),
@@ -286,6 +290,10 @@ func (c *Client) UpdateStatus(ctx context.Context, request *StatusUpdateRequest)
 		MessageID: &request.MessageID,
 	}
 
+	if request.WithTypingIndicator {
+		message.TypingIndicator = &TypingIndicator{Type: "text"}
+	}
+
 	req := NewBaseRequest(
 		message,
 		WithBaseRequestMethod(http.MethodPost),
@@ -323,8 +331,13 @@ type (
 	}
 
 	StatusUpdateRequest struct {
-		MessageID string
-		Status    status
+		MessageID           string
+		Status              status
+		WithTypingIndicator bool
+	}
+
+	TypingIndicator struct {
+		Type string `json:"type"`
 	}
 
 	StatusUpdater interface {
@@ -575,25 +588,26 @@ type (
 	}
 
 	Message struct {
-		Product       string       `json:"messaging_product"`
-		To            string       `json:"to"`
-		RecipientType string       `json:"recipient_type"`
-		Type          string       `json:"type"`
-		PreviewURL    bool         `json:"preview_url,omitempty"`
-		Context       *Context     `json:"config,omitempty"`
-		Text          *Text        `json:"text,omitempty"`
-		Location      *Location    `json:"location,omitempty"`
-		Reaction      *Reaction    `json:"reaction,omitempty"`
-		Contacts      Contacts     `json:"contacts,omitempty"`
-		Interactive   *Interactive `json:"interactive,omitempty"`
-		Document      *Document    `json:"document,omitempty"`
-		Sticker       *Sticker     `json:"sticker,omitempty"`
-		Video         *Video       `json:"video,omitempty"`
-		Image         *Image       `json:"image,omitempty"`
-		Audio         *Audio       `json:"audio,omitempty"`
-		Status        *string      `json:"status,omitempty"`     // used to update message status
-		MessageID     *string      `json:"message_id,omitempty"` // used to update message status
-		Template      *Template    `json:"template,omitempty"`
+		Product         string           `json:"messaging_product"`
+		To              string           `json:"to"`
+		RecipientType   string           `json:"recipient_type"`
+		Type            string           `json:"type"`
+		PreviewURL      bool             `json:"preview_url,omitempty"`
+		Context         *Context         `json:"config,omitempty"`
+		Text            *Text            `json:"text,omitempty"`
+		Location        *Location        `json:"location,omitempty"`
+		Reaction        *Reaction        `json:"reaction,omitempty"`
+		Contacts        Contacts         `json:"contacts,omitempty"`
+		Interactive     *Interactive     `json:"interactive,omitempty"`
+		Document        *Document        `json:"document,omitempty"`
+		Sticker         *Sticker         `json:"sticker,omitempty"`
+		Video           *Video           `json:"video,omitempty"`
+		Image           *Image           `json:"image,omitempty"`
+		Audio           *Audio           `json:"audio,omitempty"`
+		Status          *string          `json:"status,omitempty"`     // used to update message status
+		MessageID       *string          `json:"message_id,omitempty"` // used to update message status
+		Template        *Template        `json:"template,omitempty"`
+		TypingIndicator *TypingIndicator `json:"typing_indicator,omitempty"`
 	}
 
 	Option func(message *Message)
