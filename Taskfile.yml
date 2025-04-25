@@ -8,6 +8,7 @@ tasks:
       - go build ./...
       - go get -u ./...
       - go get -tool -modfile=go.tool.mod -u ./...
+      - cd extras/otel && go get -u ./... && go mod tidy && cd ../..
       - go mod tidy
       - golangci-lint run --fix
       - go tool -modfile=go.tool.mod gofumpt -l -w .
@@ -20,6 +21,7 @@ tasks:
         cmd: go get -tool -modfile=go.tool.mod {{.ITEM}}
   update-examples:
       cmds:
+        - cd examples && go get -u ./... && go mod tidy && cd ../..
         - for: [ 'message', 'qr', 'auth', 'webhooks', 'block' ]
           cmd: cd examples/{{.ITEM}} && go mod download && go get -u ./... && go mod tidy && cd ../..
   build-examples:

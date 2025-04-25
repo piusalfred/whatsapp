@@ -71,6 +71,25 @@ func (mr *MockServiceMockRecorder) Download(ctx, request, decoder any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Download", reflect.TypeOf((*MockService)(nil).Download), ctx, request, decoder)
 }
 
+// DownloadByMediaID mocks base method.
+func (m *MockService) DownloadByMediaID(ctx context.Context, request *media.BaseRequest, decoder http.ResponseDecoder, options ...media.DownloadOptionFunc) error {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, request, decoder}
+	for _, a := range options {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DownloadByMediaID", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DownloadByMediaID indicates an expected call of DownloadByMediaID.
+func (mr *MockServiceMockRecorder) DownloadByMediaID(ctx, request, decoder any, options ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, request, decoder}, options...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadByMediaID", reflect.TypeOf((*MockService)(nil).DownloadByMediaID), varargs...)
+}
+
 // GetInfo mocks base method.
 func (m *MockService) GetInfo(ctx context.Context, request *media.BaseRequest) (*media.Information, error) {
 	m.ctrl.T.Helper()

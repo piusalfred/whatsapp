@@ -1,12 +1,15 @@
 module examples/message
 
-go 1.24
-
-toolchain go1.24.0
+go 1.24.2
 
 require (
-	github.com/joho/godotenv v1.5.1
-	github.com/piusalfred/whatsapp v0.0.28
+	github.com/piusalfred/whatsapp v0.0.29
+	github.com/piusalfred/whatsapp/examples v0.0.0-00010101000000-000000000000
 )
 
-replace github.com/piusalfred/whatsapp => ../../
+require github.com/joho/godotenv v1.5.1 // indirect
+
+replace (
+	github.com/piusalfred/whatsapp => ../../
+	github.com/piusalfred/whatsapp/examples => ../
+)

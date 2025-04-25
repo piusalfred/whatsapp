@@ -250,7 +250,7 @@ func main() {
     )
     
     http.HandleFunc("POST /webhooks/messages", messageListener.HandleNotification)
-    http.HandleFunc("POST /webhooks/verify", messageListener.HandleSubscriptionVerification)
+    http.HandleFunc("GET /webhooks/messages", messageListener.HandleSubscriptionVerification)
     
     // Start an HTTP server on port :8080 to listen for incoming requests.
     fmt.Println("[main] Starting server on :8080")
@@ -273,8 +273,12 @@ func main() {
 
 See more in [examples](./examples/)
 
+
 ## Testing
 There is provision of [**mocks**](./mocks) that may come handy in testing.
+
+## extras
+The extras package contains some useful utilities for working with this library. It is experimental and may change in future releases.
 
 ## Links
 - [Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started)
@@ -303,3 +307,4 @@ There is provision of [**mocks**](./mocks) that may come handy in testing.
 - [Flows Webhooks](https://developers.facebook.com/docs/whatsapp/flows/reference/flowswebhooks)
 - [Whatsapp Business Platform Documentation](https://developers.facebook.com/docs/whatsapp)
 - [Flow Encryption](https://developers.facebook.com/docs/whatsapp/cloud-api/reference/whatsapp-business-encryption)
+- [Whatsapp Business Account Graph API Reference](https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/)

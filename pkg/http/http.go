@@ -28,6 +28,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -340,6 +341,7 @@ type (
 		Form           *RequestForm
 		AppSecret      string
 		SecureRequests bool
+		DownloadURL    string // this is used for downloading media (it is taken as is)
 	}
 
 	RequestForm struct {
@@ -350,6 +352,7 @@ type (
 	FormFile struct {
 		Name string
 		Path string
+		Type string
 	}
 
 	RequestOption[T any] func(request *Request[T])
@@ -360,6 +363,24 @@ func MakeRequest[T any](method, baseURL string, options ...RequestOption[T]) *Re
 	req := &Request[T]{
 		Method:      method,
 		BaseURL:     baseURL,
+		Headers:     make(map[string]string),
+		QueryParams: make(map[string]string),
+	}
+
+	for _, option := range options {
+		if option != nil {
+			option(req)
+		}
+	}
+
+	return req
+}
+
+// MakeDownloadRequest creates a new request for downloading media.
+func MakeDownloadRequest[T any](downloadURL string, options ...RequestOption[T]) *Request[T] {
+	req := &Request[T]{
+		Method:      http.MethodGet,
+		DownloadURL: downloadURL,
 		Headers:     make(map[string]string),
 		QueryParams: make(map[string]string),
 	}
@@ -455,15 +476,19 @@ func WithRequestSecured[T any](secured bool) RequestOption[T] {
 }
 
 // URL returns the formatted URL for the request.
-func (req *Request[T]) URL() (*url.URL, error) {
+func (req *Request[T]) URL() (string, error) {
+	if req.DownloadURL != "" {
+		return req.DownloadURL, nil
+	}
+
 	fmtURL, err := url.JoinPath(req.BaseURL, req.Endpoints...)
 	if err != nil {
-		return nil, fmt.Errorf("format url: %w", err)
+		return "", fmt.Errorf("format url: %w", err)
 	}
 
 	parsedURL, err := url.Parse(fmtURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse url: %w", err)
+		return "", fmt.Errorf("parse url: %w", err)
 	}
 
 	q := parsedURL.Query()
@@ -475,14 +500,14 @@ func (req *Request[T]) URL() (*url.URL, error) {
 	if req.SecureRequests {
 		proof, proofErr := crypto.GenerateAppSecretProof(req.Bearer, req.AppSecret)
 		if proofErr != nil {
-			return nil, fmt.Errorf("failed to generate app secret proof: %w", proofErr)
+			return "", fmt.Errorf("failed to generate app secret proof: %w", proofErr)
 		}
 		q.Set("appsecret_proof", proof)
 	}
 
 	parsedURL.RawQuery = q.Encode()
 
-	return parsedURL, nil
+	return parsedURL.String(), nil
 }
 
 const errNilRequest = whatsapp.Error("nil request provided")
@@ -510,7 +535,16 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Requ
 		contentType = encodeResp.ContentType
 	}
 
-	r, err := http.NewRequestWithContext(ctx, req.Method, parsedURL.String(), body)
+	if req.Form != nil {
+		encodeResp, encodeErr := EncodePayload(req.Form)
+		if encodeErr != nil {
+			return nil, fmt.Errorf("failed to encode request payload: %w", encodeErr)
+		}
+		body = encodeResp.Body
+		contentType = encodeResp.ContentType
+	}
+
+	r, err := http.NewRequestWithContext(ctx, req.Method, parsedURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("create http request: %w", err)
 	}
@@ -579,45 +613,59 @@ func EncodePayload(payload any) (*EncodeResponse, error) {
 	}
 }
 
+var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"") //nolint:gochecknoglobals // this is a global variable
+
+func escapeQuotes(s string) string {
+	return quoteEscaper.Replace(s)
+}
+
 // encodeFormData encodes form fields and file data into multipart/form-data.
-func encodeFormData(formData *RequestForm) (io.Reader, string, error) {
-	var payload bytes.Buffer
-	writer := multipart.NewWriter(&payload)
+func encodeFormData(form *RequestForm) (io.Reader, string, error) {
+	var requestBody bytes.Buffer
+	multipartWriter := multipart.NewWriter(&requestBody)
 
-	for key, value := range formData.Fields {
-		err := writer.WriteField(key, value)
+	for key, value := range form.Fields {
+		err := multipartWriter.WriteField(key, value)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to write form field %s: %w", key, err)
+			return nil, "", fmt.Errorf("error writing field '%s': %w", key, err)
 		}
 	}
 
-	if formData.FormFile != nil {
-		file, err := os.Open(formData.FormFile.Path)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to open file %s: %w", formData.FormFile.Path, err)
-		}
-
-		defer func(file *os.File) {
-			_ = file.Close()
-		}(file)
-
-		part, err := writer.CreateFormFile(formData.FormFile.Name, filepath.Base(formData.FormFile.Path))
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to create form file part: %w", err)
-		}
-
-		_, err = io.Copy(part, file)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to copy file content: %w", err)
-		}
-	}
-
-	err := writer.Close()
+	file, err := os.Open(form.FormFile.Path)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to close multipart writer: %w", err)
+		return nil, "", fmt.Errorf("error opening file '%s': %w", form.FormFile.Path, err)
+	}
+	defer file.Close()
+
+	h := make(textproto.MIMEHeader)
+	actualFileName := filepath.Base(form.FormFile.Path)
+
+	h.Set("Content-Disposition",
+		fmt.Sprintf(`form-data; name="%s"; filename="%s"`,
+			escapeQuotes(form.FormFile.Name), escapeQuotes(actualFileName)))
+
+	if form.FormFile.Type != "" {
+		h.Set("Content-Type", form.FormFile.Type)
+	} else {
+		h.Set("Content-Type", "application/octet-stream")
 	}
 
-	return &payload, writer.FormDataContentType(), nil
+	partWriter, err := multipartWriter.CreatePart(h)
+	if err != nil {
+		return nil, "", fmt.Errorf("error creating form file part for field '%s': %w", form.FormFile.Name, err)
+	}
+
+	_, err = io.Copy(partWriter, file)
+	if err != nil {
+		return nil, "", fmt.Errorf("error copying file content for field '%s': %w", form.FormFile.Name, err)
+	}
+
+	err = multipartWriter.Close()
+	if err != nil {
+		return nil, "", fmt.Errorf("error closing multipart writer: %w", err)
+	}
+
+	return &requestBody, multipartWriter.FormDataContentType(), nil
 }
 
 type DecodeOptions struct {

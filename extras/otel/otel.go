@@ -2,6 +2,7 @@ package otel
 
 import (
 	"context"
+	"iter"
 	"net/http"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -112,7 +113,7 @@ func (s *Sender[T]) Send(ctx context.Context, req *whttp.Request[T], decoder wht
 
 	reqURL, err := req.URL()
 	if err == nil {
-		attrs = append(attrs, WhatsappRequestURLKey.String(reqURL.String()))
+		attrs = append(attrs, WhatsappRequestURLKey.String(reqURL))
 	}
 
 	ctx, span := s.tracer.Start(ctx, req.Type.Name(),
@@ -138,11 +139,18 @@ func (s *Sender[T]) Send(ctx context.Context, req *whttp.Request[T], decoder wht
 	return nil
 }
 
-var _ webhooks.NotificationHandler = (*OtelWebhookHandler)(nil)
+var _ webhooks.NotificationHandler = (*WebhookHandler)(nil)
 
-type OtelWebhookHandler struct {
-	Tracer trace.Tracer
-	Next   webhooks.NotificationHandler
+type WebhookHandler struct {
+	tracer trace.Tracer
+	next   webhooks.NotificationHandler
+}
+
+func NewWebhookHandler(tracer trace.Tracer, next webhooks.NotificationHandler) *WebhookHandler {
+	return &WebhookHandler{
+		tracer: tracer,
+		next:   next,
+	}
 }
 
 func NotificationLogValues(notification *webhooks.Notification) []attribute.KeyValue {
@@ -152,22 +160,21 @@ func NotificationLogValues(notification *webhooks.Notification) []attribute.KeyV
 
 	var entryIDs []string
 	var changeFields []string
-	var messageTypes []string
 
 	for _, entry := range notification.Entry {
 		entryIDs = append(entryIDs, entry.ID)
 		for _, change := range entry.Changes {
 			changeFields = append(changeFields, change.Field)
-
-			for _, message := range change.Value.Messages {
-				messageTypes = append(messageTypes, message.Type)
-			}
 		}
 	}
 
-	attrs = append(attrs, normalizeAttr("webhook.notification.entries", entryIDs))
-	attrs = append(attrs, normalizeAttr("webhook.notification.changes", changeFields))
-	attrs = append(attrs, normalizeAttr("webhook.notification.message.types", messageTypes))
+	if len(entryIDs) > 0 {
+		attrs = append(attrs, normalizeAttr("webhook.notification.entries", entryIDs))
+	}
+
+	if len(changeFields) > 0 {
+		attrs = append(attrs, normalizeAttr("webhook.notification.changes", changeFields))
+	}
 
 	return attrs
 }
@@ -180,8 +187,18 @@ func normalizeAttr(key string, values []string) attribute.KeyValue {
 	return attribute.StringSlice(key, values)
 }
 
-func (o *OtelWebhookHandler) HandleNotification(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
-	ctx, span := o.Tracer.Start(ctx, "HandleNotification",
+const (
+	WebhookMessageIDKey        = attribute.Key("webhook.notification.message.id")
+	WebhookMessageTypeKey      = attribute.Key("webhook.notification.message.type")
+	WebhookMessageStatusKey    = attribute.Key("webhook.notification.message.status")
+	WebhookMessageTimestampKey = attribute.Key("webhook.notification.message.timestamp")
+	WebhookMessageReplyKey     = attribute.Key("webhook.notification.message.reply")
+	WebhookMessageSenderKey    = attribute.Key("webhook.notification.message.sender")
+	WebhookMessageForwardedKey = attribute.Key("webhook.notification.message.forwarded")
+)
+
+func (o *WebhookHandler) HandleNotification(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
+	ctx, span := o.tracer.Start(ctx, "HandleNotification",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
 			NotificationLogValues(notification)...,
@@ -189,7 +206,30 @@ func (o *OtelWebhookHandler) HandleNotification(ctx context.Context, notificatio
 
 	defer span.End()
 
-	response := o.Next.HandleNotification(ctx, notification)
+	for status := range statusValueIter(notification) {
+		span.AddEvent("message status updated",
+			trace.WithAttributes(
+				WebhookMessageIDKey.String(status.ID),
+				WebhookMessageStatusKey.String(status.StatusValue),
+				WebhookMessageTimestampKey.String(status.Timestamp),
+			),
+		)
+	}
+
+	for message := range messageValueIter(notification) {
+		span.AddEvent("message received",
+			trace.WithAttributes(
+				WebhookMessageIDKey.String(message.ID),
+				WebhookMessageTypeKey.String(message.Type),
+				WebhookMessageTimestampKey.String(message.Timestamp),
+				WebhookMessageReplyKey.Bool(message.IsAReply()),
+				WebhookMessageSenderKey.String(message.From),
+				WebhookMessageForwardedKey.Bool(message.IsForwarded()),
+			),
+		)
+	}
+
+	response := o.next.HandleNotification(ctx, notification)
 
 	if response.StatusCode != http.StatusOK {
 		span.SetStatus(codes.Error, "error handling notification")
@@ -200,4 +240,63 @@ func (o *OtelWebhookHandler) HandleNotification(ctx context.Context, notificatio
 	span.SetAttributes(attribute.Int("webhook.notification.response.status", response.StatusCode))
 
 	return response
+}
+
+func statusValueIter(n *webhooks.Notification) iter.Seq[webhooks.Status] {
+	return func(yield func(webhooks.Status) bool) {
+		statuses := make([]webhooks.Status, 0)
+		for _, entry := range n.Entry {
+			for _, change := range entry.Changes {
+				if change.Value != nil {
+					statusValues := PtrToValueList(change.Value.Statuses)
+					statuses = append(statuses, statusValues...)
+				}
+			}
+		}
+
+		for _, status := range statuses {
+			if !yield(status) {
+				return
+			}
+		}
+	}
+}
+
+func messageValueIter(n *webhooks.Notification) iter.Seq[webhooks.Message] {
+	return func(yield func(webhooks.Message) bool) {
+		messages := make([]webhooks.Message, 0)
+		for _, entry := range n.Entry {
+			for _, change := range entry.Changes {
+				if change.Value != nil {
+					messageValues := PtrToValueList(change.Value.Messages)
+					messages = append(messages, messageValues...)
+				}
+			}
+		}
+
+		for _, message := range messages {
+			if !yield(message) {
+				return
+			}
+		}
+	}
+}
+
+func PtrToValue[T any](ptr *T) T {
+	if ptr == nil {
+		var zeroValue T
+		return zeroValue
+	}
+	return *ptr
+}
+
+func PtrToValueList[T any](ptr []*T) []T {
+	if ptr == nil {
+		return nil
+	}
+	values := make([]T, len(ptr))
+	for i, v := range ptr {
+		values[i] = PtrToValue(v)
+	}
+	return values
 }
