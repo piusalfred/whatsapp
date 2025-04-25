@@ -105,10 +105,10 @@ func (s *BaseSender) Send(ctx context.Context, config *config.Config, request *B
 	}
 
 	if request.Payload != nil {
-		opts = append(opts, whttp.WithRequestMessage[any](&request.Payload))
+		opts = append(opts, whttp.WithRequestMessage(&request.Payload))
 	}
 
-	req := whttp.MakeRequest[any](request.Method, config.BaseURL, opts...)
+	req := whttp.MakeRequest(request.Method, config.BaseURL, opts...)
 
 	response := &Response{}
 

@@ -270,6 +270,9 @@ const (
 	RequestTypeEnableWelcomeMessage
 	RequestTypeGetConversationAutomationComponents
 	RequestTypeUpdateConversationAutomationComponents
+	RequestTypeInitResumableUploadSession
+	RequestTypeGetResumableUploadSessionStatus
+	RequestTypePerformResumableUpload
 )
 
 // String returns the string representation of the request type.
@@ -318,6 +321,9 @@ func (r RequestType) String() string {
 		"enable_welcome_message",
 		"get_conversation_automation_components",
 		"update_conversation_automation_components",
+		"init_resumable_upload_session",
+		"get_resumable_upload_session_status",
+		"perform_resumable_upload",
 	}[r]
 }
 
@@ -342,6 +348,7 @@ type (
 		AppSecret      string
 		SecureRequests bool
 		DownloadURL    string // this is used for downloading media (it is taken as is)
+		BodyReader     io.Reader
 	}
 
 	RequestForm struct {
@@ -398,7 +405,7 @@ func MakeDownloadRequest[T any](downloadURL string, options ...RequestOption[T])
 func NewRequestWithContext[T any](ctx context.Context, method, baseURL string,
 	options ...RequestOption[T],
 ) (*http.Request, error) {
-	req := MakeRequest[T](method, baseURL, options...)
+	req := MakeRequest(method, baseURL, options...)
 
 	return RequestWithContext(ctx, req)
 }
@@ -475,6 +482,12 @@ func WithRequestSecured[T any](secured bool) RequestOption[T] {
 	}
 }
 
+func WithRequestBodyReader[T any](bodyReader io.Reader) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.BodyReader = bodyReader
+	}
+}
+
 // URL returns the formatted URL for the request.
 func (req *Request[T]) URL() (string, error) {
 	if req.DownloadURL != "" {
@@ -542,6 +555,11 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Requ
 		}
 		body = encodeResp.Body
 		contentType = encodeResp.ContentType
+	}
+
+	if req.BodyReader != nil {
+		body = req.BodyReader
+		contentType = "application/octet-stream"
 	}
 
 	r, err := http.NewRequestWithContext(ctx, req.Method, parsedURL, body)

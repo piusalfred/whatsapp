@@ -83,7 +83,7 @@ func (client *BaseClient) GetFlowMetrics(ctx context.Context, request *MetricsRe
 		whttp.WithRequestEndpoints[any](conf.APIVersion, request.FlowID),
 	}
 
-	req := whttp.MakeRequest[any](http.MethodGet, conf.BaseURL, opts...)
+	req := whttp.MakeRequest(http.MethodGet, conf.BaseURL, opts...)
 
 	var resp MetricsAPIResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{

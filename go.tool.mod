@@ -34,6 +34,7 @@ tool (
 	github.com/piusalfred/whatsapp/tools/pkg/http
 	github.com/piusalfred/whatsapp/tools/pkg/types
 	github.com/piusalfred/whatsapp/tools/qrcode
+	github.com/piusalfred/whatsapp/tools/uploads
 	github.com/piusalfred/whatsapp/tools/user
 	github.com/piusalfred/whatsapp/tools/webhooks
 	go.uber.org/mock/mockgen
@@ -41,7 +42,7 @@ tool (
 )
 
 require (
-	github.com/piusalfred/whatsapp v0.0.29
+	github.com/piusalfred/whatsapp v0.0.30
 	go.uber.org/mock v0.5.1
 )
 

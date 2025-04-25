@@ -410,7 +410,7 @@ func (client *BaseClient) UpdateFlowJSON(ctx context.Context,
 		whttp.WithRequestSecured[any](conf.SecureRequests),
 	}
 
-	req := whttp.MakeRequest[any](http.MethodPost, conf.BaseURL, opts...)
+	req := whttp.MakeRequest(http.MethodPost, conf.BaseURL, opts...)
 
 	var resp UpdateFlowJSONResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{

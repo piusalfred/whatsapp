@@ -89,7 +89,7 @@ func (c *TemplatesClient) DisableButtonClickTracking(ctx context.Context,
 		whttp.WithRequestQueryParams[any](queryParams),
 	}
 
-	request := whttp.MakeRequest[any](http.MethodPost, conf.BaseURL, options...)
+	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
 
 	response := &DisableButtonClickTrackingResponse{}
 
@@ -131,7 +131,7 @@ func (c *TemplatesClient) Enable(ctx context.Context) (string, error) {
 		whttp.WithRequestQueryParams[any](queryParams),
 	}
 
-	req := whttp.MakeRequest[any](http.MethodPost, conf.BaseURL, options...)
+	req := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
 
 	response := &EnableTemplateAnalyticsResponse{}
 
@@ -189,7 +189,7 @@ func (c *TemplatesClient) Fetch(ctx context.Context, params *TemplateAnalyticsRe
 		whttp.WithRequestQueryParams[any](queryParams),
 	}
 
-	req := whttp.MakeRequest[any](http.MethodGet, conf.BaseURL,
+	req := whttp.MakeRequest(http.MethodGet, conf.BaseURL,
 		options...,
 	)
 

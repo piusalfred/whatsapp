@@ -268,12 +268,12 @@ func (b *BlockBaseClient) Send(ctx context.Context, reader config.Reader, reques
 	switch request.BlockAction {
 	case BlockActionBlock:
 		method = http.MethodPost
-		options = append(options, whttp.WithRequestMessage[BlockBaseRequest](request))
+		options = append(options, whttp.WithRequestMessage(request))
 		options = append(options, whttp.WithRequestType[BlockBaseRequest](whttp.RequestTypeBlockUsers))
 	case BlockActionUnblock:
 		method = http.MethodDelete
 		options = append(options, whttp.WithRequestType[BlockBaseRequest](whttp.RequestTypeUnblockUsers))
-		options = append(options, whttp.WithRequestMessage[BlockBaseRequest](request))
+		options = append(options, whttp.WithRequestMessage(request))
 	case BlockActionListBlocked:
 		method = http.MethodGet
 		options = append(options, whttp.WithRequestType[BlockBaseRequest](whttp.RequestTypeListBlockedUsers))
@@ -298,7 +298,7 @@ func (b *BlockBaseClient) Send(ctx context.Context, reader config.Reader, reques
 	}
 
 	var (
-		req      = whttp.MakeRequest[BlockBaseRequest](method, conf.BaseURL, options...)
+		req      = whttp.MakeRequest(method, conf.BaseURL, options...)
 		decoder  whttp.ResponseDecoderFunc
 		response = &BlockBaseResponse{}
 	)

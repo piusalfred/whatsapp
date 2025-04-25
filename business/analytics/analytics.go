@@ -111,7 +111,7 @@ func (b *BaseClient) Send(ctx context.Context, conf *config.Config, request *Req
 		"access_token": conf.AccessToken,
 	}
 
-	req := whttp.MakeRequest[Request](http.MethodGet, conf.BaseURL,
+	req := whttp.MakeRequest(http.MethodGet, conf.BaseURL,
 		whttp.WithRequestType[Request](request.requestType),
 		whttp.WithRequestAppSecret[Request](conf.AppSecret),
 		whttp.WithRequestSecured[Request](conf.SecureRequests),
@@ -120,7 +120,7 @@ func (b *BaseClient) Send(ctx context.Context, conf *config.Config, request *Req
 	)
 
 	response := &Response{}
-	err := b.Sender.Send(ctx, req, whttp.ResponseDecoderJSON[Response](response, whttp.DecodeOptions{
+	err := b.Sender.Send(ctx, req, whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
 		DisallowEmptyResponse: true,
 		InspectResponseError:  true,
 	}))
