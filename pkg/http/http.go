@@ -561,7 +561,7 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http.Requ
 		body = req.BodyReader
 		contentType = "application/octet-stream"
 	}
-  
+
 	r, err := http.NewRequestWithContext(ctx, req.Method, parsedURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("create http request: %w", err)
