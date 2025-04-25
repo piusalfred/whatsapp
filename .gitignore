@@ -4,5 +4,5 @@ playground
 bin
 play.go
 coverage.out
-examples/bin
-examples/api.env
+./examples/bin
+./examples/api.env
