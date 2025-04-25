@@ -385,11 +385,11 @@ func (c *BaseSender) Send(ctx context.Context, conf *config.Config, request *Bas
 		whttp.WithRequestType[Message](request.Type),
 		whttp.WithRequestAppSecret[Message](conf.AppSecret),
 		whttp.WithRequestSecured[Message](conf.SecureRequests),
-		whttp.WithRequestMessage[Message](request.Message),
+		whttp.WithRequestMessage(request.Message),
 		whttp.WithRequestMetadata[Message](request.Metadata),
 	}
 
-	req := whttp.MakeRequest[Message](request.Method, conf.BaseURL, options...)
+	req := whttp.MakeRequest(request.Method, conf.BaseURL, options...)
 
 	response := &Response{}
 

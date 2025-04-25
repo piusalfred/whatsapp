@@ -297,7 +297,7 @@ func (s *BaseClient) Download(ctx context.Context, request *DownloadRequest, dec
 		whttp.WithRequestType[any](whttp.RequestTypeDownloadMedia),
 	}
 
-	req := whttp.MakeDownloadRequest[any](request.URL, opts...)
+	req := whttp.MakeDownloadRequest(request.URL, opts...)
 
 	for i := 0; i <= request.Retries; i++ {
 		if err = s.Sender.Send(ctx, req, decoder); err != nil {
@@ -339,7 +339,7 @@ func (s *BaseClient) Delete(ctx context.Context, req *BaseRequest) (*DeleteMedia
 		whttp.WithRequestEndpoints[any](conf.APIVersion, req.MediaID),
 	}
 
-	request := whttp.MakeRequest[any](http.MethodDelete, conf.BaseURL, opts...)
+	request := whttp.MakeRequest(http.MethodDelete, conf.BaseURL, opts...)
 
 	var resp DeleteMediaResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
@@ -380,7 +380,7 @@ func (s *BaseClient) GetInfo(ctx context.Context, req *BaseRequest) (*Informatio
 		whttp.WithRequestEndpoints[any](conf.APIVersion, req.MediaID),
 	}
 
-	request := whttp.MakeRequest[any](http.MethodGet, conf.BaseURL, opts...)
+	request := whttp.MakeRequest(http.MethodGet, conf.BaseURL, opts...)
 
 	var info Information
 	decoder := whttp.ResponseDecoderJSON(&info, whttp.DecodeOptions{
@@ -434,7 +434,7 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 		whttp.WithRequestForm[any](form),
 	}
 
-	request := whttp.MakeRequest[any](http.MethodPost, conf.BaseURL, opts...)
+	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, opts...)
 
 	var resp UploadMediaResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{

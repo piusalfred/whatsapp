@@ -64,7 +64,7 @@ func main() {
 
 	ctx := context.Background()
 
-	coreClient := whttp.NewSender[message.Message](clientOptions...)
+	coreClient := whttp.NewSender(clientOptions...)
 
 	reader := examples.LoadConfigFromFile("../api.env")
 	baseClient, err := message.NewBaseClient(coreClient, reader)

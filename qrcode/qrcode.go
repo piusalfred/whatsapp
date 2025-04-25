@@ -347,7 +347,7 @@ func (sender *BaseSender) Send(ctx context.Context, conf *config.Config, req *Ba
 		whttp.WithRequestSecured[any](conf.SecureRequests),
 	}
 
-	request := whttp.MakeRequest[any](req.Method, conf.BaseURL, opts...)
+	request := whttp.MakeRequest(req.Method, conf.BaseURL, opts...)
 
 	response := &Response{}
 
