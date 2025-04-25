@@ -22,8 +22,8 @@ package media
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
+	"path/filepath"
 
 	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
@@ -215,6 +215,10 @@ var InfoMap = map[Type]Info{ //nolint:gochecknoglobals // ok
 	},
 }
 
+func (mt Type) String() string {
+	return string(mt)
+}
+
 type (
 	Type    string
 	Service interface {
@@ -222,6 +226,12 @@ type (
 		GetInfo(ctx context.Context, request *BaseRequest) (*Information, error)
 		Delete(ctx context.Context, request *BaseRequest) (*DeleteMediaResponse, error)
 		Download(ctx context.Context, request *DownloadRequest, decoder whttp.ResponseDecoder) error
+		DownloadByMediaID(
+			ctx context.Context,
+			request *BaseRequest,
+			decoder whttp.ResponseDecoder,
+			options ...DownloadOptionFunc,
+		) error
 	}
 
 	DownloadRequest struct {
@@ -231,8 +241,7 @@ type (
 
 	UploadRequest struct {
 		MediaType Type
-		Filename  string
-		Reader    io.Reader
+		Filepath  string
 	}
 
 	UploadMediaResponse struct {
@@ -269,6 +278,13 @@ type (
 	}
 )
 
+func NewBaseClient(confReader config.Reader, sender whttp.AnySender) *BaseClient {
+	return &BaseClient{
+		ConfReader: confReader,
+		Sender:     sender,
+	}
+}
+
 func (s *BaseClient) Download(ctx context.Context, request *DownloadRequest, decoder whttp.ResponseDecoder) error {
 	conf, err := s.ConfReader.Read(ctx)
 	if err != nil {
@@ -276,13 +292,12 @@ func (s *BaseClient) Download(ctx context.Context, request *DownloadRequest, dec
 	}
 
 	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestSecured[any](false),
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestType[any](whttp.RequestTypeDownloadMedia),
 	}
 
-	req := whttp.MakeRequest[any](http.MethodGet, request.URL, opts...)
+	req := whttp.MakeDownloadRequest[any](request.URL, opts...)
 
 	for i := 0; i <= request.Retries; i++ {
 		if err = s.Sender.Send(ctx, req, decoder); err != nil {
@@ -330,6 +345,7 @@ func (s *BaseClient) Delete(ctx context.Context, req *BaseRequest) (*DeleteMedia
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
 		DisallowUnknownFields: true,
 		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
 	})
 
 	if err = s.Sender.Send(ctx, request, decoder); err != nil {
@@ -360,6 +376,7 @@ func (s *BaseClient) GetInfo(ctx context.Context, req *BaseRequest) (*Informatio
 		whttp.WithRequestSecured[any](conf.SecureRequests),
 		whttp.WithRequestType[any](whttp.RequestTypeGetMedia),
 		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, req.MediaID),
 	}
 
@@ -369,6 +386,7 @@ func (s *BaseClient) GetInfo(ctx context.Context, req *BaseRequest) (*Informatio
 	decoder := whttp.ResponseDecoderJSON(&info, whttp.DecodeOptions{
 		DisallowUnknownFields: true,
 		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
 	})
 
 	if err = s.Sender.Send(ctx, request, decoder); err != nil {
@@ -390,6 +408,11 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 		return nil, fmt.Errorf("%w: media type not supported", ErrMediaUpload)
 	}
 
+	fp, err := filepath.Abs(req.Filepath)
+	if err != nil {
+		return nil, fmt.Errorf("determine absolute filepath for %s: %w: %w", req.Filepath, ErrMediaUpload, err)
+	}
+
 	form := &whttp.RequestForm{
 		Fields: map[string]string{
 			"type":              string(req.MediaType),
@@ -397,7 +420,8 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 		},
 		FormFile: &whttp.FormFile{
 			Name: "file",
-			Path: req.Filename,
+			Path: fp,
+			Type: req.MediaType.String(),
 		},
 	}
 
@@ -414,8 +438,9 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 
 	var resp UploadMediaResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
+		DisallowUnknownFields: false,
 		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
 	})
 
 	if err = s.Sender.Send(ctx, request, decoder); err != nil {
@@ -423,4 +448,49 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 	}
 
 	return &resp, nil
+}
+
+type downloadOption struct {
+	Retries int
+}
+
+type DownloadOptionFunc func(*downloadOption)
+
+func WithDownloadRetries(retries int) DownloadOptionFunc {
+	return func(opt *downloadOption) {
+		opt.Retries = retries
+	}
+}
+
+const DefaultRetries = 2
+
+// DownloadByMediaID downloads media by its ID.
+func (s *BaseClient) DownloadByMediaID(
+	ctx context.Context,
+	request *BaseRequest,
+	decoder whttp.ResponseDecoder,
+	options ...DownloadOptionFunc,
+) error {
+	dOptions := &downloadOption{
+		Retries: DefaultRetries,
+	}
+	for _, opt := range options {
+		opt(dOptions)
+	}
+
+	info, err := s.GetInfo(ctx, request)
+	if err != nil {
+		return fmt.Errorf("retrieve info for media(id: %s) %w: %w", request.MediaID, ErrMediaDownload, err)
+	}
+
+	downloadRequest := &DownloadRequest{
+		URL:     info.URL,
+		Retries: dOptions.Retries,
+	}
+
+	if err = s.Download(ctx, downloadRequest, decoder); err != nil {
+		return fmt.Errorf("download media(id: %s) %w: %w", request.MediaID, ErrMediaDownload, err)
+	}
+
+	return nil
 }
