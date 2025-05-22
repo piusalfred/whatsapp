@@ -86,6 +86,8 @@ github.com/piusalfred/whatsapp v0.0.29 h1:03stXOECnvEeupseurgJkMVLiKOtHa8XVnAt4w
 github.com/piusalfred/whatsapp v0.0.29/go.mod h1:J5D9qZ9DQDhKngtmSeTe3Ff9WXVnAzBqjXyGhWruZ/o=
 github.com/piusalfred/whatsapp v0.0.30 h1:NrDAjd88scvSXRIoii8kKcDbjWwZshySk0HqLkPz50w=
 github.com/piusalfred/whatsapp v0.0.30/go.mod h1:J5D9qZ9DQDhKngtmSeTe3Ff9WXVnAzBqjXyGhWruZ/o=
+github.com/piusalfred/whatsapp v0.0.32 h1:JJxPNVHuY58SWQhrfiLUVsfgYNHmH6kJ/uVmX2oh9f0=
+github.com/piusalfred/whatsapp v0.0.32/go.mod h1:Xt+Rgdr9SlVVh0XTd6DfBJJn8sDAH8vx1YdyR32RGX8=
 github.com/pjbgf/sha1cd v0.3.2 h1:a9wb0bp1oC2TGwStyn0Umc/IGKQnEgF0vVaZ8QF8eo4=
 github.com/pjbgf/sha1cd v0.3.2/go.mod h1:zQWigSxVmsHEZow5qaLtPYxpcKMMQpa09ixqBxuCS6A=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
@@ -119,6 +121,8 @@ go.uber.org/atomic v1.7.0 h1:ADUqmZGgLDDfbSL9ZmPxKTybcoEYHgpYfELNoN+7hsw=
 go.uber.org/atomic v1.7.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
 go.uber.org/mock v0.5.1 h1:ASgazW/qBmR+A32MYFDB6E2POoTgOwT509VP0CT/fjs=
 go.uber.org/mock v0.5.1/go.mod h1:ge71pBPLYDk7QIi1LupWxdAykm7KIEFchiOqd6z7qMM=
+go.uber.org/mock v0.5.2 h1:LbtPTcP8A5k9WPXj54PPPbjcI4Y6lhyOZXn+VS7wNko=
+go.uber.org/mock v0.5.2/go.mod h1:wLlUxC2vVTPTaE3UD51E0BGOAElKrILxhVSDYQLld5o=
 go.uber.org/multierr v1.6.0 h1:y6IPFStTAIT5Ytl7/XYmHvzXQ7S3g/IeZW9hyZ5thw4=
 go.uber.org/multierr v1.6.0/go.mod h1:cdWPpRnG4AhwMwsgIHip0KRBQjJy5kYEpYjJxpXp9iU=
 go.uber.org/zap v1.24.0 h1:FiJd5l1UOLj0wCgbSE0rwwXHzEdAZS6hiiSnxJN/D60=
