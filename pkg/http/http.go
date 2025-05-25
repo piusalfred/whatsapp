@@ -510,12 +510,12 @@ func WithRequestBodyReader[T any](bodyReader io.Reader) RequestOption[T] {
 }
 
 // URL returns the formatted URL for the request.
-func (req *Request[T]) URL() (string, error) {
-	if req.DownloadURL != "" {
-		return req.DownloadURL, nil
+func (request *Request[T]) URL() (string, error) {
+	if request.DownloadURL != "" {
+		return request.DownloadURL, nil
 	}
 
-	fmtURL, err := url.JoinPath(req.BaseURL, req.Endpoints...)
+	fmtURL, err := url.JoinPath(request.BaseURL, request.Endpoints...)
 	if err != nil {
 		return "", fmt.Errorf("format url: %w", err)
 	}
@@ -527,12 +527,12 @@ func (req *Request[T]) URL() (string, error) {
 
 	q := parsedURL.Query()
 
-	for key, value := range req.QueryParams {
+	for key, value := range request.QueryParams {
 		q.Set(key, value)
 	}
 
-	if req.SecureRequests {
-		proof, proofErr := crypto.GenerateAppSecretProof(req.Bearer, req.AppSecret)
+	if request.SecureRequests {
+		proof, proofErr := crypto.GenerateAppSecretProof(request.Bearer, request.AppSecret)
 		if proofErr != nil {
 			return "", fmt.Errorf("failed to generate app secret proof: %w", proofErr)
 		}

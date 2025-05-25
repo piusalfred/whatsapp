@@ -48,7 +48,7 @@ type (
 
 	DataItem struct {
 		OverrideCallbackURI     string                  `json:"override_callback_uri"`
-		WhatsappBusinessApiData WhatsappBusinessAPIData `json:"whatsapp_business_api_data"`
+		WhatsappBusinessAPIData WhatsappBusinessAPIData `json:"whatsapp_business_api_data"`
 	}
 
 	BaseResponse struct {
@@ -69,7 +69,7 @@ type (
 
 func (bs *BaseClient) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*BaseResponse, error) {
 	req := &whttp.Request[BaseRequest]{}
-	switch request.RequestType {
+	switch request.RequestType { //nolint: exhaustive // we have only 4 request types
 	case whttp.RequestTypeSetWABAAlternateCallbackURI:
 		req = whttp.MakeRequest(http.MethodPost, conf.BaseURL,
 			whttp.WithRequestType[BaseRequest](request.RequestType),
@@ -82,7 +82,8 @@ func (bs *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 			whttp.WithRequestMessage(&BaseRequest{
 				WebhookConfiguration: &WebhookConfiguration{
 					OverrideCallbackURI: request.OverrideCallbackURI,
-					VerifyToken:         request.VerifyToken},
+					VerifyToken:         request.VerifyToken,
+				},
 			}),
 		)
 
