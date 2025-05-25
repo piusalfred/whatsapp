@@ -37,6 +37,7 @@ tool (
 	github.com/piusalfred/whatsapp/tools/uploads
 	github.com/piusalfred/whatsapp/tools/user
 	github.com/piusalfred/whatsapp/tools/webhooks
+	github.com/piusalfred/whatsapp/tools/webhooks/callbacks
 	go.uber.org/mock/mockgen
 	mvdan.cc/gofumpt
 )
