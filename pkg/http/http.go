@@ -273,6 +273,12 @@ const (
 	RequestTypeInitResumableUploadSession
 	RequestTypeGetResumableUploadSessionStatus
 	RequestTypePerformResumableUpload
+	RequestTypeSetWABAAlternateCallbackURI
+	RequestTypeGetWABAAlternateCallbackURI
+	RequestTypeDeleteWABAAlternateCallbackURI
+	RequestTypeSetPhoneNumberAlternateCallbackURI
+	RequestTypeGetPhoneNumberAlternateCallbackURI
+	RequestTypeDeletePhoneNumberAlternateCallbackURI
 )
 
 // String returns the string representation of the request type.
@@ -324,6 +330,12 @@ func (r RequestType) String() string {
 		"init_resumable_upload_session",
 		"get_resumable_upload_session_status",
 		"perform_resumable_upload",
+		"set_waba_alternate_callback_uri",
+		"get_waba_alternate_callback_uri",
+		"delete_waba_alternate_callback_uri",
+		"set_phonenumber_alternate_callback_uri",
+		"get_phonenumber_alternate_callback_uri",
+		"delete_phonenumber_alternate_callback_uri",
 	}[r]
 }
 
@@ -431,6 +443,10 @@ func WithRequestEndpoints[T any](endpoints ...string) RequestOption[T] {
 	}
 }
 
+func (request *Request[T]) SetEndpoints(endpoints ...string) {
+	request.Endpoints = endpoints
+}
+
 // WithRequestMetadata sets the metadata for the request.
 func WithRequestMetadata[T any](metadata types.Metadata) RequestOption[T] {
 	return func(request *Request[T]) {
@@ -457,6 +473,11 @@ func WithRequestMessage[T any](message *T) RequestOption[T] {
 	return func(request *Request[T]) {
 		request.Message = message
 	}
+}
+
+// SetRequestMessage sets the body of the request.
+func (request *Request[T]) SetRequestMessage(message *T) {
+	request.Message = message
 }
 
 func WithRequestForm[T any](form *RequestForm) RequestOption[T] {
