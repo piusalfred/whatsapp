@@ -26,17 +26,22 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/piusalfred/whatsapp/message"
 	"github.com/piusalfred/whatsapp/webhooks"
+	"github.com/piusalfred/whatsapp/webhooks/router"
 )
 
-func LoggingMiddleware(next webhooks.NotificationHandlerFunc) webhooks.NotificationHandlerFunc {
-	return func(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
-		fmt.Println("[LoggingMiddleware] --> Before handling notification")
-		response := next(ctx, notification)
-		fmt.Println("[LoggingMiddleware] <-- After handling notification")
+func LoggingMiddleware(next webhooks.NotificationHandler) webhooks.NotificationHandler {
+	handler := webhooks.NotificationHandlerFunc(func(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
+		log.Println("[LoggingMiddleware] --> Before handling notification")
+		response := next.HandleNotification(ctx, notification)
+		log.Printf("response is %+v", response)
+		log.Println("[LoggingMiddleware] <-- After handling notification")
 		return response
-	}
+	})
+	return handler
 }
 
 // ReactionHandler is an example of a more advanced handler type
@@ -101,22 +106,35 @@ func main() {
 	// this is how you can register it with the main handler.
 	handler.SetReactionMessageHandler(reactionHandler)
 
-	messageListener := webhooks.NewListener(
-		handler.HandleNotification, // The core Handler’s method
-		func(ctx context.Context) (string, error) { // VerifyTokenReader: returns your verify token
-			return "TOKEN", nil
-		},
-		&webhooks.ValidateOptions{
-			Validate:  false, // Skip signature validation for simplicity
+	conf := webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+		value := &webhooks.Config{
+			Token:     "TOKEN",
+			Validate:  true,
 			AppSecret: "SUPERSECRET",
-		},
-		LoggingMiddleware, // Example middleware
+		}
+
+		return value, nil
+	})
+
+	messageListener := webhooks.NewListener(
+		handler,
+		conf,
+		LoggingMiddleware,
 	)
 
-	http.HandleFunc("POST /webhooks/messages", messageListener.HandleNotification)
-	http.HandleFunc("GET /webhooks/messages", messageListener.HandleSubscriptionVerification)
+	muxOptions := []router.SimpleRouterOption{
+		router.WithSimpleRouterEndpoints(router.Endpoints{
+			Webhook:                  "/webhooks/messages",
+			SubscriptionVerification: "/webhooks/messages",
+		}),
+		router.WithSimpleRouterMux(chi.NewMux()),
+	}
 
-	// Start an HTTP server on port :8080 to listen for incoming requests.
-	fmt.Println("[main] Starting server on :8080")
+	mux, err := router.NewSimpleRouter(messageListener, muxOptions...)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	http.Handle("/", mux)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
