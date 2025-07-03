@@ -37,13 +37,15 @@ tool (
 	github.com/piusalfred/whatsapp/tools/uploads
 	github.com/piusalfred/whatsapp/tools/user
 	github.com/piusalfred/whatsapp/tools/webhooks
+	github.com/piusalfred/whatsapp/tools/webhooks/callbacks
+	github.com/piusalfred/whatsapp/tools/webhooks/router
 	go.uber.org/mock/mockgen
 	mvdan.cc/gofumpt
 )
 
 require (
-	github.com/piusalfred/whatsapp v0.0.30
-	go.uber.org/mock v0.5.1
+	github.com/piusalfred/whatsapp v0.0.32
+	go.uber.org/mock v0.5.2
 )
 
 require (

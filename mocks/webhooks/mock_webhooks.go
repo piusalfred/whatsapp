@@ -11,11 +11,51 @@ package webhooks
 
 import (
 	context "context"
+	http "net/http"
 	reflect "reflect"
 
 	webhooks "github.com/piusalfred/whatsapp/webhooks"
 	gomock "go.uber.org/mock/gomock"
 )
+
+// MockConfigReader is a mock of ConfigReader interface.
+type MockConfigReader struct {
+	ctrl     *gomock.Controller
+	recorder *MockConfigReaderMockRecorder
+	isgomock struct{}
+}
+
+// MockConfigReaderMockRecorder is the mock recorder for MockConfigReader.
+type MockConfigReaderMockRecorder struct {
+	mock *MockConfigReader
+}
+
+// NewMockConfigReader creates a new mock instance.
+func NewMockConfigReader(ctrl *gomock.Controller) *MockConfigReader {
+	mock := &MockConfigReader{ctrl: ctrl}
+	mock.recorder = &MockConfigReaderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockConfigReader) EXPECT() *MockConfigReaderMockRecorder {
+	return m.recorder
+}
+
+// ReadConfig mocks base method.
+func (m *MockConfigReader) ReadConfig(request *http.Request) (*webhooks.Config, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadConfig", request)
+	ret0, _ := ret[0].(*webhooks.Config)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadConfig indicates an expected call of ReadConfig.
+func (mr *MockConfigReaderMockRecorder) ReadConfig(request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConfig", reflect.TypeOf((*MockConfigReader)(nil).ReadConfig), request)
+}
 
 // MockNotificationHandler is a mock of NotificationHandler interface.
 type MockNotificationHandler struct {

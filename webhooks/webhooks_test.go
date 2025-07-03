@@ -2,8 +2,12 @@ package webhooks_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -12,29 +16,173 @@ import (
 	"github.com/piusalfred/whatsapp/webhooks"
 )
 
+type (
+	TestConfigMap map[string]*webhooks.Config
+	TestEnvConfig struct {
+		Dev  TestConfigMap
+		Stg  TestConfigMap
+		Prod TestConfigMap
+	}
+)
+
+type TestMultiClientConfigReader struct {
+	envConfig TestEnvConfig
+	ids       map[string]string
+}
+
+func (r *TestMultiClientConfigReader) ReadConfig(request *http.Request) (*webhooks.Config, error) {
+	// from URL path we expect something like /webhooks/clients/256535634/whatsapp
+	// so we can extract the client ID from the path
+	clientID := strings.TrimPrefix(request.URL.Path, "/webhooks/clients/")
+	clientID = strings.TrimSuffix(clientID, "/whatsapp")
+
+	if clientID == "" {
+		return nil, errors.New("client ID is required")
+	}
+
+	clientName, ok := r.ids[clientID]
+	if !ok {
+		return nil, errors.New("client ID is not registered")
+	}
+
+	env := request.Header.Get("X-Client-Env")
+	if env == "" {
+		return nil, errors.New("client environment is required")
+	}
+
+	switch env {
+	case "dev":
+		cfg, ok := r.envConfig.Dev[clientName]
+		if !ok {
+			return nil, fmt.Errorf("client %s is not registered in dev environment", clientName)
+		}
+		return cfg, nil
+	case "stg":
+		cfg, ok := r.envConfig.Stg[clientName]
+		if !ok {
+			return nil, fmt.Errorf("client %s is not registered in stg environment", clientName)
+		}
+		return cfg, nil
+	default:
+		cfg, ok := r.envConfig.Prod[clientName]
+		if !ok {
+			return nil, fmt.Errorf("client %s is not registered in prod environment", clientName)
+		}
+		return cfg, nil
+	}
+}
+
+func ExampleConfigReader_ReadConfig() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	envConfig := TestEnvConfig{
+		Dev: TestConfigMap{
+			"acme": {
+				Token:     "acme-dev-token",
+				Validate:  false,
+				AppSecret: "acme-dev-app-secret",
+			},
+			"shield": {
+				Token:     "shield-dev-token",
+				Validate:  false,
+				AppSecret: "shield-dev-app-secret",
+			},
+		},
+		Stg: TestConfigMap{
+			"acme": {
+				Token:     "acme-stg-token",
+				Validate:  false,
+				AppSecret: "acme-stg-app-secret",
+			},
+			"shield": {
+				Token:     "shield-stg-token",
+				Validate:  false,
+				AppSecret: "shield-stg-app-secret",
+			},
+		},
+		Prod: TestConfigMap{
+			"acme": {
+				Token:     "acme-prod-token",
+				Validate:  true,
+				AppSecret: "acme-prod-app-secret",
+			},
+			"shield": {
+				Token:     "shield-prod-token",
+				Validate:  true,
+				AppSecret: "shield-prod-app-secret",
+			},
+		},
+	}
+
+	reader := &TestMultiClientConfigReader{
+		envConfig: envConfig,
+		ids: map[string]string{
+			"256535634": "acme",
+			"030877308": "shield",
+		},
+	}
+
+	// First request - Acme in dev
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"https://api.localhost.com/webhooks/clients/256535634/whatsapp",
+		nil,
+	)
+	request.Header.Set("X-Client-Env", "dev")
+
+	cfg, err := reader.ReadConfig(request)
+	if err != nil {
+		logger.Error("Error reading config", "error", err)
+		return
+	}
+
+	printFn := func(cfg *webhooks.Config) {
+		fmt.Printf("Token: %s\n", cfg.Token)
+		fmt.Printf("Validate: %t\n", cfg.Validate)
+		fmt.Printf("AppSecret: %s\n", cfg.AppSecret)
+	}
+
+	printFn(cfg)
+
+	// Second request - Shield in prod
+	request = httptest.NewRequest(http.MethodPost, "https://api.localhost.com/webhooks/clients/030877308/whatsapp", nil)
+	request.Header.Set("X-Client-Env", "prod")
+
+	cfg, err = reader.ReadConfig(request)
+	if err != nil {
+		logger.Error("Error reading config", "error", err)
+		return
+	}
+	printFn(cfg)
+
+	// Output:
+	// Token: acme-dev-token
+	// Validate: false
+	// AppSecret: acme-dev-app-secret
+	// Token: shield-prod-token
+	// Validate: true
+	// AppSecret: shield-prod-app-secret
+}
+
 type TestServerConfig struct {
-	Handler              webhooks.NotificationHandler
-	VerifyTokenReader    webhooks.VerifyTokenReader
-	ValidateOptions      *webhooks.ValidateOptions
-	Middlewares          []webhooks.Middleware
-	VerifyEndpoint       string
-	NotificationEndpoint string
+	Handler      webhooks.NotificationHandler
+	Middlewares  []webhooks.Middleware
+	ConfigReader webhooks.ConfigReader
 }
 
 func NewTestWebhookServer(t *testing.T, cfg TestServerConfig) *httptest.Server {
 	t.Helper()
 	listener := webhooks.NewListener(
-		cfg.Handler.HandleNotification,
-		cfg.VerifyTokenReader,
-		cfg.ValidateOptions,
+		cfg.Handler,
+		cfg.ConfigReader,
 		cfg.Middlewares...,
 	)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case cfg.VerifyEndpoint:
+		switch r.Method {
+		case http.MethodGet:
 			listener.HandleSubscriptionVerification(w, r)
-		case cfg.NotificationEndpoint:
+		case http.MethodPost:
 			listener.HandleNotification(w, r)
 		default:
 			http.Error(w, "not found", http.StatusNotFound)
@@ -124,13 +272,12 @@ func TestListener_HandleNotification_MultipleMessages(t *testing.T) {
 
 	cfg := TestServerConfig{
 		Handler: handler,
-		VerifyTokenReader: func(ctx context.Context) (string, error) {
-			return "dummy-verify-token", nil
-		},
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false}, // no HMAC signature validation
-		Middlewares:          nil,
-		VerifyEndpoint:       "/verify",
-		NotificationEndpoint: "/webhook",
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{
+				Token:    "dummy-verify-token",
+				Validate: false,
+			}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
@@ -256,13 +403,12 @@ func TestListener_HandleNotification_MultipleChangeValues(t *testing.T) {
 	// Build the test server
 	cfg := TestServerConfig{
 		Handler: handler,
-		VerifyTokenReader: func(ctx context.Context) (string, error) {
-			return "dummy-verify-token", nil
-		},
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false}, // Disabling signature validation
-		Middlewares:          nil,
-		VerifyEndpoint:       "/verify",
-		NotificationEndpoint: "/webhook",
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{
+				Token:    "dummy-verify-token",
+				Validate: false,
+			}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
@@ -472,12 +618,12 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 
 	cfg := TestServerConfig{
 		Handler: handler,
-		VerifyTokenReader: func(ctx context.Context) (string, error) {
-			return "", nil
-		},
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false}, // Disabling signature validation
-		NotificationEndpoint: "/webhook",
-		VerifyEndpoint:       "/webhook/verify",
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{
+				Token:    "dummy-verify-token",
+				Validate: false,
+			}, nil
+		}),
 	}
 
 	ts := NewTestWebhookServer(t, cfg)
@@ -554,12 +700,11 @@ func TestListener_HandleNotification_ButtonMessage(t *testing.T) {
 
 	cfg := TestServerConfig{
 		Handler: handler,
-		VerifyTokenReader: func(ctx context.Context) (string, error) {
-			return "test-token", nil
-		},
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false},
-		NotificationEndpoint: "/webhook",
-		VerifyEndpoint:       "/webhook/verify",
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{
+				Token: "test-token",
+			}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
@@ -641,11 +786,10 @@ func TestListener_HandleNotification_ListReply(t *testing.T) {
 	})
 
 	cfg := TestServerConfig{
-		Handler:              handler,
-		VerifyTokenReader:    func(ctx context.Context) (string, error) { return "", nil },
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false},
-		NotificationEndpoint: "/webhook",
-		VerifyEndpoint:       "/webhook/verify",
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
@@ -725,11 +869,12 @@ func TestListener_HandleNotification_ButtonReply(t *testing.T) {
 	})
 
 	cfg := TestServerConfig{
-		Handler:              handler,
-		VerifyTokenReader:    func(ctx context.Context) (string, error) { return "dummy", nil },
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false},
-		NotificationEndpoint: "/webhook",
-		VerifyEndpoint:       "/webhook/verify",
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{
+				Token: "dummy",
+			}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
@@ -814,10 +959,10 @@ func TestListener_HandleNotification_ReferralMessage(t *testing.T) {
 	})
 
 	cfg := TestServerConfig{
-		Handler:              handler,
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false},
-		NotificationEndpoint: "/webhook",
-		VerifyEndpoint:       "/webhook/verify",
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
@@ -893,10 +1038,10 @@ func TestListener_HandleNotification_ProductInquiry(t *testing.T) {
 	})
 
 	cfg := TestServerConfig{
-		Handler:              handler,
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false},
-		NotificationEndpoint: "/webhook",
-		VerifyEndpoint:       "/webhook/verify",
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
@@ -959,10 +1104,10 @@ func TestListener_HandleNotification_UserChangedNumber(t *testing.T) {
 	})
 
 	cfg := TestServerConfig{
-		Handler:              handler,
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false},
-		NotificationEndpoint: "/webhook",
-		VerifyEndpoint:       "/webhook/verify",
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
@@ -1041,10 +1186,10 @@ func TestListener_HandleNotification_StatusSent(t *testing.T) {
 	)
 
 	cfg := TestServerConfig{
-		Handler:              handler,
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false},
-		NotificationEndpoint: "/webhook",
-		VerifyEndpoint:       "/webhook/verify",
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
@@ -1118,11 +1263,10 @@ func TestListener_HandleNotification_DeletedMessageUnsupported(t *testing.T) {
 	})
 
 	cfg := TestServerConfig{
-		Handler:              handler,
-		VerifyTokenReader:    func(ctx context.Context) (string, error) { return "", nil },
-		ValidateOptions:      &webhooks.ValidateOptions{Validate: false},
-		NotificationEndpoint: "/webhook",
-		VerifyEndpoint:       "/webhook/verify",
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
 	}
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()

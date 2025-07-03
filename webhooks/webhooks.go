@@ -36,21 +36,44 @@ import (
 )
 
 type (
-	Middleware func(NotificationHandlerFunc) NotificationHandlerFunc
+	Middleware func(NotificationHandler) NotificationHandler
 
 	Listener struct {
-		middlewares       []Middleware
-		originalHandler   NotificationHandlerFunc
-		Handler           NotificationHandlerFunc
-		VerifyTokenReader VerifyTokenReader
-		ValidateOptions   *ValidateOptions
+		middlewares     []Middleware
+		originalHandler NotificationHandler
+		handler         NotificationHandler
+		configReader    ConfigReader
 	}
 )
 
+type (
+	Config struct {
+		Token     string
+		Validate  bool
+		AppSecret string
+	}
+
+	// ConfigReaderFunc implements the ConfigReader interface.
+	ConfigReaderFunc func(request *http.Request) (*Config, error)
+
+	// ConfigReader is the interface that have a method that returns the configuration for the webhook
+	// handler. It accepts the http.Request mainly to extract detials that will help determine the right
+	// configuration to use. This may happen when the Listener is used to handle webhooks from multiple
+	// sources and for multiple clients.
+	// Forexample you may decide to return different configurations when the http request have a header
+	// that indicates the request is from test environment.
+	ConfigReader interface {
+		ReadConfig(request *http.Request) (*Config, error)
+	}
+)
+
+func (fn ConfigReaderFunc) ReadConfig(request *http.Request) (*Config, error) {
+	return fn(request)
+}
+
 func NewListener(
-	handler NotificationHandlerFunc,
-	reader VerifyTokenReader,
-	validateOpts *ValidateOptions,
+	handler NotificationHandler,
+	reader ConfigReader,
 	middlewares ...Middleware,
 ) *Listener {
 	wrapped := handler
@@ -60,16 +83,29 @@ func NewListener(
 	}
 
 	return &Listener{
-		middlewares:       middlewares,
-		originalHandler:   handler,
-		Handler:           wrapped,
-		VerifyTokenReader: reader,
-		ValidateOptions:   validateOpts,
+		middlewares:     middlewares,
+		originalHandler: handler,
+		handler:         wrapped,
+		configReader:    reader,
 	}
 }
 
 func (listener *Listener) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
-	listener.VerifyTokenReader.VerifySubscription(writer, request)
+	config, err := listener.configReader.ReadConfig(request)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+	challenge, err := verifySubscriptionRequest(request, config.Token)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write([]byte(challenge))
 }
 
 func (listener *Listener) HandleNotification(writer http.ResponseWriter, request *http.Request) {
@@ -79,14 +115,24 @@ func (listener *Listener) HandleNotification(writer http.ResponseWriter, request
 		err          error
 	)
 
-	notification, err = ExtractAndValidatePayload(request, listener.ValidateOptions)
+	config, err := listener.configReader.ReadConfig(request)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	response := listener.Handler.HandleNotification(ctx, notification)
+	notification, err = ExtractAndValidatePayload(request, &ValidateOptions{
+		Validate:  config.Validate,
+		AppSecret: config.AppSecret,
+	})
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	response := listener.handler.HandleNotification(ctx, notification)
 
 	writer.WriteHeader(response.StatusCode)
 }
@@ -105,36 +151,6 @@ type (
 
 func (fn NotificationHandlerFunc) HandleNotification(ctx context.Context, notification *Notification) *Response {
 	return fn(ctx, notification)
-}
-
-// OnEventNotification creates an HTTP handler function for processing webhook event notifications.
-func OnEventNotification(handler NotificationHandler) http.HandlerFunc {
-	fn := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		body, err := io.ReadAll(request.Body)
-		if err != nil {
-			msgErr := fmt.Errorf("%w: %w", ErrReadNotification, err)
-			http.Error(writer, msgErr.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		request.Body = io.NopCloser(bytes.NewBuffer(body))
-
-		var payload Notification
-
-		if err = json.Unmarshal(body, &payload); err != nil {
-			msgErr := fmt.Errorf("%w: %w", ErrMessageDecode, err)
-			http.Error(writer, msgErr.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		response := handler.HandleNotification(request.Context(), &payload)
-
-		writer.WriteHeader(response.StatusCode)
-	})
-
-	return fn
 }
 
 type ValidateOptions struct {
@@ -285,65 +301,17 @@ func ValidateRequestPayloadSignature(request *http.Request, secret string) error
 	return nil
 }
 
-// SubscriptionVerificationHandlerFunc returns an http.HandlerFunc that handles the verification of webhook
-// subscriptions using a fixed verification token.
-//
-// This function verifies a subscription request sent by the Webhooks product. It uses a fixed verification
-// token provided as an argument (`verifyToken`). If the provided token matches and the `hub.mode` is "subscribe",
-// it responds with the `hub.challenge` value, completing the verification process.
-//
-// Use this function if you do not require dynamic token lookup. For that use VerifyTokenReader.VerifySubscription.
-func SubscriptionVerificationHandlerFunc(verifyToken string) http.HandlerFunc {
-	return func(writer http.ResponseWriter, request *http.Request) {
-		q := request.URL.Query()
-		mode := q.Get("hub.mode")
-		challenge := q.Get("hub.challenge")
-		token := q.Get("hub.verify_token")
-
-		if token != verifyToken || mode != "subscribe" {
-			writer.WriteHeader(http.StatusBadRequest)
-
-			return
-		}
-
-		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write([]byte(challenge))
-	}
-}
-
-// VerifyTokenReader is a function signature that retrieves the verification token.
-// It takes a context and returns the token string and any error encountered.
-type VerifyTokenReader func(ctx context.Context) (string, error)
-
-// VerifySubscription handles the verification of webhook subscriptions using a dynamic token retrieved
-// by the VerifyTokenReader.
-//
-// This function verifies a subscription request sent by the Webhooks product. It dynamically obtains the
-// verification token by calling the VerifyTokenReader. If the provided token matches and the `hub.mode`
-// is "subscribe", it responds with the `hub.challenge` value, completing the verification process.
-//
-// if you don't want dynamic token lookup use SubscriptionVerificationHandlerFunc.
-func (reader VerifyTokenReader) VerifySubscription(writer http.ResponseWriter, request *http.Request) {
-	token, err := reader(request.Context())
-	if err != nil {
-		writer.WriteHeader(http.StatusInternalServerError)
-
-		return
-	}
-
+func verifySubscriptionRequest(request *http.Request, token string) (string, error) {
 	q := request.URL.Query()
 	mode := q.Get("hub.mode")
 	challenge := q.Get("hub.challenge")
 	providedToken := q.Get("hub.verify_token")
 
 	if providedToken != token || mode != "subscribe" {
-		writer.WriteHeader(http.StatusBadRequest)
-
-		return
+		return "", ErrInvalidSignature
 	}
 
-	writer.WriteHeader(http.StatusOK)
-	_, _ = writer.Write([]byte(challenge))
+	return challenge, nil
 }
 
 const (
