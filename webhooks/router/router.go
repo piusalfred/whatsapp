@@ -18,7 +18,17 @@ type Endpoints struct {
 	SubscriptionVerification string
 }
 
-// SimpleRouter wires a webhooks.Listener into an HTTP mux.
+// SimpleRouter wires a webhooks.Listener into an HTTP mux with configurable endpoints and middleware support.
+//
+// The SimpleMux interface is intentionally thin, requiring only Handle() and ServeHTTP() methods.
+// This means most popular HTTP routers (like chi, gorilla/mux, etc.) satisfy this interface
+// without any adaptation, allowing you to use your preferred router seamlessly.
+//
+// Middlewares are applied in the following order:
+//  1. Route-specific middlewares (webhookMiddlewares or subscriptionVerificationMiddlewares)
+//  2. Global middlewares (applied to all routes including custom ones added via Handle())
+//
+// All defaults can be customized using the provided SimpleRouterOption functions.
 type SimpleRouter struct {
 	listener                            *webhooks.Listener
 	mux                                 SimpleMux
@@ -66,6 +76,42 @@ func WithSimpleRouterEndpoints(e Endpoints) SimpleRouterOption {
 	return SimpleRouterOptionFunc(func(r *SimpleRouter) { r.endpoints = e })
 }
 
+// NewSimpleRouter creates a new SimpleRouter with the given listener and options.
+//
+// Defaults (if not modified by options):
+//   - Mux: http.NewServeMux()
+//   - Webhook endpoint: "/webhooks" (POST)
+//   - Subscription verification endpoint: "/webhooks" (GET)
+//   - No middlewares applied
+//
+// Example usage:
+//
+//	// Basic usage with defaults
+//	router, err := NewSimpleRouter(listener)
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//
+//	// With custom endpoints
+//	router, err := NewSimpleRouter(listener,
+//		WithSimpleRouterEndpoints(Endpoints{
+//			Webhook:                  "/whatsapp/webhook",
+//			SubscriptionVerification: "/whatsapp/verify",
+//		}),
+//	)
+//
+//	// With middlewares
+//	router, err := NewSimpleRouter(listener,
+//		WithSimpleRouterGlobalMiddlewares(loggingMiddleware, authMiddleware),
+//		WithSimpleRouterWebhookMiddlewares(rateLimitMiddleware),
+//	)
+//
+//	// With custom mux (e.g., chi router)
+//	chiRouter := chi.NewRouter()
+//	router, err := NewSimpleRouter(listener,
+//		WithSimpleRouterMux(chiRouter),
+//		WithSimpleRouterGlobalMiddlewares(middleware.Logger),
+//	)
 func NewSimpleRouter(listener *webhooks.Listener, opts ...SimpleRouterOption) (*SimpleRouter, error) {
 	r := &SimpleRouter{
 		listener: listener,
