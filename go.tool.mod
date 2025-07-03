@@ -6,6 +6,7 @@ tool (
 	github.com/daixiang0/gci
 	github.com/fatih/color
 	github.com/go-task/task/v3/cmd/task
+	github.com/google/addlicense
 	github.com/piusalfred/whatsapp/tools
 	github.com/piusalfred/whatsapp/tools/auth
 	github.com/piusalfred/whatsapp/tools/business
@@ -44,7 +45,7 @@ tool (
 )
 
 require (
-	github.com/piusalfred/whatsapp v0.0.33
+	github.com/piusalfred/whatsapp v0.0.34
 	go.uber.org/mock v0.5.2
 )
 
@@ -55,6 +56,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.1.5 // indirect
 	github.com/alecthomas/chroma/v2 v2.15.0 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.0.2 // indirect
 	github.com/chainguard-dev/git-urls v1.0.2 // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
@@ -72,6 +74,7 @@ require (
 	github.com/go-task/task/v3 v3.42.1 // indirect
 	github.com/go-task/template v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
+	github.com/google/addlicense v1.1.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

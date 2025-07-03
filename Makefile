@@ -23,3 +23,10 @@ tools-init:
 	@go get -tool -modfile=go.tool.mod github.com/go-task/task/v3/cmd/task@latest
 	@echo "✅ task installed, running 'task tools'..."
 	@$(TASK_BIN) tools
+
+install-tool:
+	@if [ -z "$(tool)" ]; then \
+		echo "No tool specified. Use: make install-tool tool=your-tool"; \
+	else \
+		$(TASK_BIN) tool-install:$(tool); \
+	fi
