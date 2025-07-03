@@ -36,12 +36,12 @@ import (
 )
 
 type (
-	Middleware func(NotificationHandlerFunc) NotificationHandlerFunc
+	Middleware func(NotificationHandler) NotificationHandler
 
 	Listener struct {
 		middlewares     []Middleware
-		originalHandler NotificationHandlerFunc
-		Handler         NotificationHandlerFunc
+		originalHandler NotificationHandler
+		handler         NotificationHandler
 		configReader    ConfigReader
 	}
 )
@@ -53,8 +53,15 @@ type (
 		AppSecret string
 	}
 
+	// ConfigReaderFunc implements the ConfigReader interface.
 	ConfigReaderFunc func(request *http.Request) (*Config, error)
 
+	// ConfigReader is the interface that have a method that returns the configuration for the webhook
+	// handler. It accepts the http.Request mainly to extract detials that will help determine the right
+	// configuration to use. This may happen when the Listener is used to handle webhooks from multiple
+	// sources and for multiple clients.
+	// Forexample you may decide to return different configurations when the http request have a header
+	// that indicates the request is from test environment.
 	ConfigReader interface {
 		ReadConfig(request *http.Request) (*Config, error)
 	}
@@ -65,7 +72,7 @@ func (fn ConfigReaderFunc) ReadConfig(request *http.Request) (*Config, error) {
 }
 
 func NewListener(
-	handler NotificationHandlerFunc,
+	handler NotificationHandler,
 	reader ConfigReader,
 	middlewares ...Middleware,
 ) *Listener {
@@ -78,7 +85,7 @@ func NewListener(
 	return &Listener{
 		middlewares:     middlewares,
 		originalHandler: handler,
-		Handler:         wrapped,
+		handler:         wrapped,
 		configReader:    reader,
 	}
 }
@@ -125,7 +132,7 @@ func (listener *Listener) HandleNotification(writer http.ResponseWriter, request
 		return
 	}
 
-	response := listener.Handler.HandleNotification(ctx, notification)
+	response := listener.handler.HandleNotification(ctx, notification)
 
 	writer.WriteHeader(response.StatusCode)
 }
