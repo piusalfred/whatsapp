@@ -2,7 +2,7 @@ version: "3"
 
 tasks:
     all:
-        deps: [mocks, fmt, update-examples, test]
+        deps: [mocks, fmt, update-examples, build-examples, test, add-license]
     fmt:
         cmds:
             - go build ./...
@@ -24,10 +24,16 @@ tasks:
                       "go.uber.org/mock/mockgen@latest",
                   ]
               cmd: go get -tool -modfile=go.tool.mod {{.ITEM}}
+    tool-install:*:
+        vars:
+            TOOL: "{{index .MATCH 0}}"
+        cmds:
+            - echo "Installing {{.TOOL}} to tools"
+            - go get -tool -modfile=go.tool.mod {{.TOOL}}
     update-examples:
         cmds:
             - cd examples && go get -u ./... && go mod tidy && cd ../..
-            - for: ["message", "qr", "auth", "webhooks", "block"]
+            - for: ["message", "qr", "auth", "media", "webhooks", "block"]
               cmd: cd examples/{{.ITEM}} && go mod download && go get -u ./... && go mod tidy && cd ../..
     build-examples:
         deps: [update-examples]
@@ -58,4 +64,4 @@ tasks:
             - go tool -modfile=go.tool.mod mockgen -destination=./mocks/business/analytics/mock_analytics.go -package=analytics -source=./business/analytics/analytics.go
     add-license:
         cmds:
-            - go tool addlicense -f LICENCE ./**/*.go
+            - go tool -modfile=go.tool.mod addlicense -f LICENCE **/*.go
