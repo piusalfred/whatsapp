@@ -73,6 +73,7 @@ type (
 	TemplateParameter struct {
 		Type             string            `json:"type"`
 		Text             string            `json:"text"`
+		Name             string            `json:"parameter_name,omitempty"`
 		Payload          string            `json:"payload,omitempty"`
 		Currency         *TemplateCurrency `json:"currency"`
 		DateTime         *TemplateDateTime `json:"date_time"`
