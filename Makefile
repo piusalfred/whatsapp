@@ -1,8 +1,8 @@
-TASK_BIN := go tool -modfile=go.tool.mod task
+TASK_BIN := go tool -modfile=./tools/go.mod task
 
 .PHONY: mocks tools all task tools-init
 
-mocks tools clean:
+mocks tools clean fmt add-license test:
 	@$(TASK_BIN) $@
 
 task:
@@ -10,23 +10,4 @@ task:
 		echo "No task specified. Use: make task cmd=your-task"; \
 	else \
 		$(TASK_BIN) $(cmd); \
-	fi
-
-tools-init:
-	@if [ -f go.tool.mod ]; then \
-		echo "⚠️  go.tool.mod already exists. Skipping init..."; \
-	else \
-		echo "🔧 initializing tools module..."; \
-		go mod init -modfile=go.tool.mod github.com/piusalfred/whatsapp/tools; \
-	fi
-	@echo "📦 installing task tool..."
-	@go get -tool -modfile=go.tool.mod github.com/go-task/task/v3/cmd/task@latest
-	@echo "✅ task installed, running 'task tools'..."
-	@$(TASK_BIN) tools
-
-install-tool:
-	@if [ -z "$(tool)" ]; then \
-		echo "No tool specified. Use: make install-tool tool=your-tool"; \
-	else \
-		$(TASK_BIN) tool-install:$(tool); \
 	fi

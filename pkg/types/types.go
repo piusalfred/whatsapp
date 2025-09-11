@@ -17,6 +17,6 @@
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package types
+package types //nolint:revive // keep package name as types
 
 type Metadata map[string]any

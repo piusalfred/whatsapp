@@ -7,37 +7,21 @@ tasks:
         cmds:
             - go build ./...
             - go get -u ./...
-            - go get -tool -modfile=go.tool.mod -u ./...
             - cd extras/otel && go get -u ./... && go mod tidy && cd ../..
             - go mod tidy
-            - golangci-lint run --fix
-            - go tool -modfile=go.tool.mod gofumpt -l -w .
-            - go tool -modfile=go.tool.mod gci write --skip-generated -s standard -s default -s "prefix(github.com/piusalfred/whatsapp)" .
+            - go tool -modfile=tools/go.mod golangci-lint run --fix
+            - go tool -modfile=tools/go.mod gofumpt -l -w .
+            - go tool -modfile=tools/go.mod gci write --skip-generated -s standard -s default -s "prefix(github.com/piusalfred/whatsapp)" .
     test:
         cmd: go test -v -race -coverpkg=./... -parallel=4 ./...
-    tools:
-        cmds:
-            - for:
-                  [
-                      "mvdan.cc/gofumpt@latest",
-                      "github.com/daixiang0/gci@latest",
-                      "go.uber.org/mock/mockgen@latest",
-                  ]
-              cmd: go get -tool -modfile=go.tool.mod {{.ITEM}}
-    tool-install:*:
-        vars:
-            TOOL: "{{index .MATCH 0}}"
-        cmds:
-            - echo "Installing {{.TOOL}} to tools"
-            - go get -tool -modfile=go.tool.mod {{.TOOL}}
     update-examples:
         cmds:
-            - cd examples && go get -u ./... && go mod tidy && cd ../..
+            - cd _examples && go get -u ./... && go mod tidy && cd ../..
             - for: ["message", "qr", "auth", "media", "webhooks", "block"]
-              cmd: cd examples/{{.ITEM}} && go mod download && go get -u ./... && go mod tidy && cd ../..
+              cmd: cd _examples/{{.ITEM}} && go mod download && go get -u ./... && go mod tidy && cd ../..
     build-examples:
         deps: [update-examples]
-        dir: examples
+        dir: _examples
         cmds:
             - mkdir -p bin
             - cd message && go build -trimpath -race -o ../bin/message main.go
@@ -47,21 +31,21 @@ tasks:
             - cd block && go build -trimpath -race -o ../bin/block main.go
     mocks:
         cmds:
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/media/mock_media.go -package=media -source=./media/media.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/user/mock_user.go -package=user -source=./user/user.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=./phonenumber/phonenumber.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/qrcode/mock_qrcode.go -package=qrcode -source=./qrcode/qrcode.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/auth/mock_auth.go -package=auth -source=./auth/auth.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/message/mock_message.go -package=message -source=./message/message.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/flow/mock_flow.go -package=flow -source=./flow/flow.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/business/mock_business.go -package=business -source=./business/business.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/business/analytics/mock_templates.go -package=analytics -source=./business/analytics/templates.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/config/config_mock.go -package=config -source=./config/config.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/http/mock_http.go -package=http -source=./pkg/http/http.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/webhooks/mock_webhooks.go -package=webhooks -source=./webhooks/webhooks.go
-            - go tool -modfile=go.tool.mod mockgen -destination=./mocks/business/analytics/mock_analytics.go -package=analytics -source=./business/analytics/analytics.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/media/mock_media.go -package=media -source=./media/media.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/user/mock_user.go -package=user -source=./user/user.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=./phonenumber/phonenumber.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/qrcode/mock_qrcode.go -package=qrcode -source=./qrcode/qrcode.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/auth/mock_auth.go -package=auth -source=./auth/auth.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/message/mock_message.go -package=message -source=./message/message.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/flow/mock_flow.go -package=flow -source=./flow/flow.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/mock_business.go -package=business -source=./business/business.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/analytics/mock_templates.go -package=analytics -source=./business/analytics/templates.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/config/config_mock.go -package=config -source=./config/config.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/http/mock_http.go -package=http -source=./pkg/http/http.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/webhooks/mock_webhooks.go -package=webhooks -source=./webhooks/webhooks.go
+            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/analytics/mock_analytics.go -package=analytics -source=./business/analytics/analytics.go
     add-license:
         cmds:
-            - go tool -modfile=go.tool.mod addlicense -f LICENCE **/*.go
+            - go tool -modfile=tools/go.mod addlicense -f LICENCE **/*.go
