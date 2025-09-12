@@ -279,6 +279,8 @@ const (
 	RequestTypeSetPhoneNumberAlternateCallbackURI
 	RequestTypeGetPhoneNumberAlternateCallbackURI
 	RequestTypeDeletePhoneNumberAlternateCallbackURI
+	RequestTypeGetSettings
+	RequestTypeUpdateSettings
 )
 
 // String returns the string representation of the request type.
@@ -336,6 +338,8 @@ func (r RequestType) String() string {
 		"set_phonenumber_alternate_callback_uri",
 		"get_phonenumber_alternate_callback_uri",
 		"delete_phonenumber_alternate_callback_uri",
+		"get_settings",
+		"update_settings",
 	}[r]
 }
 

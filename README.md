@@ -309,3 +309,4 @@ The extras package contains some useful utilities for working with this library.
 - [Flow Encryption](https://developers.facebook.com/docs/whatsapp/cloud-api/reference/whatsapp-business-encryption)
 - [Whatsapp Business Account Graph API Reference](https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/)
 - [Webhooks Override](https://developers.facebook.com/docs/whatsapp/embedded-signup/webhooks/override)
+- [calling Api Settings](https://developers.facebook.com/docs/whatsapp/cloud-api/calling/call-settings)
