@@ -29,7 +29,7 @@ func NewMediaService(configFilePath string) *MediaService {
 
 	ms := &MediaService{
 		logger: slog.New(lh),
-		reader: examples.LoadConfigFromFile(configFilePath),
+		reader: examples.LoadConfigFromFile(),
 	}
 
 	clientOptions := []whttp.CoreClientOption[any]{

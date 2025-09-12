@@ -1,51 +1,75 @@
 version: "3"
 
 tasks:
-    all:
-        deps: [mocks, fmt, update-examples, build-examples, test, add-license]
-    fmt:
-        cmds:
-            - go build ./...
-            - go get -u ./...
-            - cd extras/otel && go get -u ./... && go mod tidy && cd ../..
-            - go mod tidy
-            - go tool -modfile=tools/go.mod golangci-lint run --fix
-            - go tool -modfile=tools/go.mod gofumpt -l -w .
-            - go tool -modfile=tools/go.mod gci write --skip-generated -s standard -s default -s "prefix(github.com/piusalfred/whatsapp)" .
-    test:
-        cmd: go test -v -race -coverpkg=./... -parallel=4 ./...
-    update-examples:
-        cmds:
-            - cd _examples && go get -u ./... && go mod tidy && cd ../..
-            - for: ["message", "qr", "auth", "media", "webhooks", "block"]
-              cmd: cd _examples/{{.ITEM}} && go mod download && go get -u ./... && go mod tidy && cd ../..
-    build-examples:
-        deps: [update-examples]
-        dir: _examples
-        cmds:
-            - mkdir -p bin
-            - cd message && go build -trimpath -race -o ../bin/message main.go
-            - cd qr && go build -trimpath -race -o ../bin/qr main.go
-            - cd auth && go build -trimpath -race -o ../bin/auth main.go
-            - cd webhooks && go build -trimpath -race -o ../bin/webhooks main.go
-            - cd block && go build -trimpath -race -o ../bin/block main.go
-    mocks:
-        cmds:
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/media/mock_media.go -package=media -source=./media/media.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/user/mock_user.go -package=user -source=./user/user.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=./phonenumber/phonenumber.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/qrcode/mock_qrcode.go -package=qrcode -source=./qrcode/qrcode.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/auth/mock_auth.go -package=auth -source=./auth/auth.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/message/mock_message.go -package=message -source=./message/message.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/flow/mock_flow.go -package=flow -source=./flow/flow.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/mock_business.go -package=business -source=./business/business.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/analytics/mock_templates.go -package=analytics -source=./business/analytics/templates.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/config/config_mock.go -package=config -source=./config/config.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/http/mock_http.go -package=http -source=./pkg/http/http.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/webhooks/mock_webhooks.go -package=webhooks -source=./webhooks/webhooks.go
-            - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/analytics/mock_analytics.go -package=analytics -source=./business/analytics/analytics.go
-    add-license:
-        cmds:
-            - go tool -modfile=tools/go.mod addlicense -f LICENCE **/*.go
+  all:
+    desc: 'run add-license -> mocks -> fmt -> test -> fmt-examples'
+    deps: [ add-license,mocks,fmt, test, fmt-examples ]
+  fmt:
+    desc: "updates go deps and format the code"
+    cmds:
+      - go build ./...
+      - go get -u ./...
+      - cd extras/otel && go get -u ./... && go mod tidy && cd ../..
+      - go mod tidy
+      - go tool -modfile=tools/go.mod golangci-lint run --fix
+      - go tool -modfile=tools/go.mod gofumpt -l -w .
+      - go tool -modfile=tools/go.mod gci write --skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .
+  test:
+    desc: "run tests"
+    cmd: go test -v -race -coverpkg=./... -parallel=4 ./...
+  fmt-examples:
+    desc: "update dependencies for examples and format the code"
+    cmds:
+      - cd _examples && go build ./... && go get -u ./... && go mod tidy
+      - go tool -modfile=tools/go.mod golangci-lint run --fix
+      - go tool -modfile=tools/go.mod gofumpt -l -w .
+      - go tool -modfile=tools/go.mod gci write --skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .
+  mocks:
+    desc: "generates mocks"
+    cmds:
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/media/mock_media.go -package=media -source=./media/media.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/user/mock_user.go -package=user -source=./user/user.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=./phonenumber/phonenumber.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/qrcode/mock_qrcode.go -package=qrcode -source=./qrcode/qrcode.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/auth/mock_auth.go -package=auth -source=./auth/auth.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/message/mock_message.go -package=message -source=./message/message.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/flow/mock_flow.go -package=flow -source=./flow/flow.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/mock_business.go -package=business -source=./business/business.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/analytics/mock_templates.go -package=analytics -source=./business/analytics/templates.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/config/config_mock.go -package=config -source=./config/config.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/http/mock_http.go -package=http -source=./pkg/http/http.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/webhooks/mock_webhooks.go -package=webhooks -source=./webhooks/webhooks.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/analytics/mock_analytics.go -package=analytics -source=./business/analytics/analytics.go
+  add-license:
+    desc: "adds license header to all the go files"
+    cmds:
+      - go tool -modfile=tools/go.mod addlicense -f LICENCE **/*.go
+
+  run:
+    desc: 'run example program'
+    dir: _examples
+    vars:
+      program: '{{.program | default "message"}}'
+      PROGRAMS:
+        sh: bash -lc 'find . -maxdepth 1 -type d ! -name "." | sed "s|^\./||" | sort | paste -sd " " -'
+    preconditions:
+      - sh: |
+          bash -lc '
+            set -e
+            examples="{{.PROGRAMS}}"
+            example="{{.program}}"
+            case " $examples " in
+              *" $example "*) exit 0 ;;
+              *)
+                echo "invalid program: \"$example\""
+                echo "available programs: $examples"
+                exit 1
+              ;;
+            esac
+          '
+        msg: 'provided example program is not available try any of {{.PROGRAMS}}'
+    cmds:
+      - go run {{.program}}/main.go
+

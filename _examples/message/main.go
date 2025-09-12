@@ -66,7 +66,7 @@ func main() {
 
 	coreClient := whttp.NewSender(clientOptions...)
 
-	reader := examples.LoadConfigFromFile("../api.env")
+	reader := examples.LoadConfigFromFile()
 	baseClient, err := message.NewBaseClient(coreClient, reader)
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error creating base client", slog.String("error", err.Error()))

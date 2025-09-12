@@ -27,11 +27,16 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/piusalfred/whatsapp/config"
+
+	_ "embed"
 )
 
-func LoadConfigFromFile(filepath string) config.ReaderFunc {
+//go:embed api.env
+var apiEnvContent []byte
+
+func LoadConfigFromFile() config.ReaderFunc {
 	fn := func(ctx context.Context) (*config.Config, error) {
-		values, err := godotenv.Read(filepath)
+		values, err := godotenv.UnmarshalBytes(apiEnvContent)
 		if err != nil {
 			return nil, err
 		}
