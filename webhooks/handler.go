@@ -305,7 +305,8 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 	change Change,
 	entry Entry,
 ) error {
-	if change.Field == ChangeFieldFlows.String() {
+	switch change.Field {
+	case ChangeFieldFlows.String():
 		notificationCtx := &FlowNotificationContext{
 			NotificationObject: notification.Object,
 			EntryID:            entry.ID,
@@ -315,39 +316,33 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 			EventMessage:       change.Value.Message,
 			FlowID:             change.Value.FlowID,
 		}
-
 		if err := handler.handleFlowNotification(ctx, notificationCtx, change.Value); err != nil {
 			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 				return handlerErr
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldAccountAlerts.String() {
+	case ChangeFieldAccountAlerts.String():
 		if err := handler.handleAccountAlerts(ctx, notification, change, entry); err != nil {
 			return err
 		}
-	}
 
-	if change.Field == ChangeFieldTemplateStatusUpdate.String() {
+	case ChangeFieldTemplateStatusUpdate.String():
 		if err := handler.handleTemplateStatusUpdate(ctx, notification, change, entry); err != nil {
 			return err
 		}
-	}
 
-	if change.Field == ChangeFieldTemplateCategoryUpdate.String() {
+	case ChangeFieldTemplateCategoryUpdate.String():
 		if err := handler.handleTemplateCategoryUpdate(ctx, notification, change, entry); err != nil {
 			return err
 		}
-	}
 
-	if change.Field == ChangeFieldTemplateQualityUpdate.String() {
+	case ChangeFieldTemplateQualityUpdate.String():
 		if err := handler.handleTemplateQualityUpdate(ctx, notification, change, entry); err != nil {
 			return err
 		}
-	}
 
-	if change.Field == ChangeFieldPhoneNumberNameUpdate.String() {
+	case ChangeFieldPhoneNumberNameUpdate.String():
 		if handler.phoneNumberNameUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -355,16 +350,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.phoneNumberNameUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberNameUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldPhoneNumberQualityUpdate.String() {
+	case ChangeFieldPhoneNumberQualityUpdate.String():
 		if handler.phoneNumberQualityUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -372,16 +365,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.phoneNumberQualityUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberQualityUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldAccountUpdate.String() {
+	case ChangeFieldAccountUpdate.String():
 		if handler.accountUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -389,16 +380,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.accountUpdate.HandleEvent(ctx, notificationCtx, change.Value.AccountUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldAccountReviewUpdate.String() {
+	case ChangeFieldAccountReviewUpdate.String():
 		if handler.accountReviewUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -406,16 +395,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.accountReviewUpdate.HandleEvent(ctx, notificationCtx, change.Value.AccountReviewUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldBusinessCapabilityUpdate.String() {
+	case ChangeFieldBusinessCapabilityUpdate.String():
 		if handler.capabilityUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -423,16 +410,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.capabilityUpdate.HandleEvent(ctx, notificationCtx, change.Value.CapabilityUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldUserPreferences.String() {
+	case ChangeFieldUserPreferences.String():
 		if handler.userPreferencesUpdate != nil {
 			notificationCtx := &MessageNotificationContext{
 				EntryID:          entry.ID,
@@ -440,16 +425,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				Contacts:         change.Value.Contacts,
 				Metadata:         change.Value.Metadata,
 			}
-
 			if err := handler.userPreferencesUpdate.Handle(ctx, notificationCtx, change.Value.UserPreferences); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldAccountSettingsUpdate.String() {
+	case ChangeFieldAccountSettingsUpdate.String():
 		if handler.accountUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -457,16 +440,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.phoneSettingsUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberSettings); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldMessages.String() {
+	case ChangeFieldMessages.String():
 		return handler.handleNotificationMessageItem(ctx, entry, change)
 	}
 
