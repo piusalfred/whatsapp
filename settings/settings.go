@@ -34,65 +34,6 @@ const (
 )
 
 type (
-	baseSender struct {
-		sender whttp.AnySender
-	}
-
-	baseRequest struct {
-		Method  string
-		Type    whttp.RequestType
-		Params  map[string]string
-		Payload any
-	}
-
-	baseResponse struct {
-		Success bool     `json:"success,omitempty"`
-		Calling *Calling `json:"calling,omitempty"`
-	}
-)
-
-func (s *baseSender) send(ctx context.Context, config *config.Config, request *baseRequest) (*baseResponse, error) {
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestEndpoints[any](config.APIVersion, config.PhoneNumberID, settingsEndpoint),
-		whttp.WithRequestQueryParams[any](request.Params),
-		whttp.WithRequestBearer[any](config.AccessToken),
-		whttp.WithRequestType[any](request.Type),
-		whttp.WithRequestAppSecret[any](config.AppSecret),
-		whttp.WithRequestSecured[any](config.SecureRequests),
-	}
-
-	if request.Payload != nil {
-		opts = append(opts,
-			whttp.WithRequestMessage(&request.Payload),
-		)
-	}
-
-	req := whttp.MakeRequest(request.Method, config.BaseURL, opts...)
-
-	response := &baseResponse{}
-
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
-
-	if err := s.sender.Send(ctx, req, decoder); err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-
-	return response, nil
-}
-
-func (r *baseResponse) settings() *Settings {
-	return &Settings{Calling: r.Calling}
-}
-
-func (r *baseResponse) successResponse() *SuccessResponse {
-	return &SuccessResponse{Success: r.Success}
-}
-
-type (
 	GetSettingsRequest struct {
 		Params map[string]string
 	}
@@ -100,9 +41,13 @@ type (
 	Settings struct {
 		Calling *Calling `json:"calling,omitempty"`
 	}
-	BaseClient struct {
+	Client struct {
 		configReader config.Reader
-		base         *baseSender
+		base         *BaseClient
+	}
+
+	BaseClient struct {
+		sender whttp.AnySender
 	}
 
 	SuccessResponse struct {
@@ -147,26 +92,57 @@ type (
 	}
 )
 
-func NewBaseClient(configReader config.Reader, sender whttp.AnySender) *BaseClient {
-	return &BaseClient{
+func NewClient(configReader config.Reader, base *BaseClient) *Client {
+	return &Client{
 		configReader: configReader,
-		base:         &baseSender{sender: sender},
+		base:         base,
 	}
 }
 
-func (bc *BaseClient) GetSettings(ctx context.Context, request *GetSettingsRequest) (*Settings, error) {
+func (bc *Client) GetSettings(ctx context.Context, request *GetSettingsRequest) (*Settings, error) {
 	conf, err := bc.configReader.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: config read: %w", ErrUpdateSettings, err)
 	}
 
+	response, err := bc.base.GetSettings(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: send request: %w", ErrGetSettings, err)
+	}
+
+	return response, nil
+}
+
+func (bc *Client) UpdateSettings(ctx context.Context, settings *Settings) (*SuccessResponse, error) {
+	conf, err := bc.configReader.Read(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: config read: %w", ErrUpdateSettings, err)
+	}
+
+	response, err := bc.base.UpdateSettings(ctx, conf, settings)
+	if err != nil {
+		return nil, fmt.Errorf("%w: send request: %w", ErrUpdateSettings, err)
+	}
+
+	return response, nil
+}
+
+func NewBaseClient(sender whttp.AnySender) *BaseClient {
+	return &BaseClient{sender: sender}
+}
+
+func (bc *BaseClient) GetSettings(
+	ctx context.Context,
+	conf *config.Config,
+	request *GetSettingsRequest,
+) (*Settings, error) {
 	req := &baseRequest{
 		Method: http.MethodGet,
 		Type:   whttp.RequestTypeGetSettings,
 		Params: request.Params,
 	}
 
-	response, err := bc.base.send(ctx, conf, req)
+	response, err := bc.send(ctx, conf, req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: send request: %w", ErrGetSettings, err)
 	}
@@ -174,22 +150,76 @@ func (bc *BaseClient) GetSettings(ctx context.Context, request *GetSettingsReque
 	return response.settings(), nil
 }
 
-func (bc *BaseClient) UpdateSettings(ctx context.Context, settings *Settings) (*SuccessResponse, error) {
-	conf, err := bc.configReader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: config read: %w", ErrUpdateSettings, err)
-	}
-
+func (bc *BaseClient) UpdateSettings(
+	ctx context.Context,
+	conf *config.Config,
+	settings *Settings,
+) (*SuccessResponse, error) {
 	req := &baseRequest{
 		Method:  http.MethodPost,
 		Type:    whttp.RequestTypeUpdateSettings,
 		Payload: settings,
 	}
 
-	response, err := bc.base.send(ctx, conf, req)
+	response, err := bc.send(ctx, conf, req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: send request: %w", ErrUpdateSettings, err)
 	}
 
 	return response.successResponse(), nil
+}
+
+func (bc *BaseClient) send(ctx context.Context, config *config.Config, request *baseRequest) (*baseResponse, error) {
+	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestEndpoints[any](config.APIVersion, config.PhoneNumberID, settingsEndpoint),
+		whttp.WithRequestQueryParams[any](request.Params),
+		whttp.WithRequestBearer[any](config.AccessToken),
+		whttp.WithRequestType[any](request.Type),
+		whttp.WithRequestAppSecret[any](config.AppSecret),
+		whttp.WithRequestSecured[any](config.SecureRequests),
+	}
+
+	if request.Payload != nil {
+		opts = append(opts,
+			whttp.WithRequestMessage(&request.Payload),
+		)
+	}
+
+	req := whttp.MakeRequest(request.Method, config.BaseURL, opts...)
+
+	response := &baseResponse{}
+
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	})
+
+	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	return response, nil
+}
+
+type (
+	baseRequest struct {
+		Method  string
+		Type    whttp.RequestType
+		Params  map[string]string
+		Payload any
+	}
+
+	baseResponse struct {
+		Success bool     `json:"success,omitempty"`
+		Calling *Calling `json:"calling,omitempty"`
+	}
+)
+
+func (r *baseResponse) settings() *Settings {
+	return &Settings{Calling: r.Calling}
+}
+
+func (r *baseResponse) successResponse() *SuccessResponse {
+	return &SuccessResponse{Success: r.Success}
 }
