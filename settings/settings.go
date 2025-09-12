@@ -72,7 +72,7 @@ func (s *baseSender) send(ctx context.Context, config *config.Config, request *b
 	response := &baseResponse{}
 
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
+		DisallowUnknownFields: false,
 		DisallowEmptyResponse: true,
 		InspectResponseError:  true,
 	})
