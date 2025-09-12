@@ -423,9 +423,3 @@ linters:
           - govet
           - revive
           - gocognit
-    paths:
-      - '^examples/auth/.*\.go$'
-      - '^examples/qr/.*\.go$'
-      - '^examples/message/.*\.go$'
-      - '^examples/block/.*\.go$'
-      - '^examples/webhooks/.*\.go$'

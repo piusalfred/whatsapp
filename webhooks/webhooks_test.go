@@ -430,7 +430,7 @@ func TestListener_HandleNotification_MultipleChangeValues(t *testing.T) {
 	ts := NewTestWebhookServer(t, cfg)
 	defer ts.Close()
 
-	// Send the POST request
+	// send the POST request
 	resp, err := http.Post(ts.URL+"/webhook", "application/json", strings.NewReader(payload))
 	if err != nil {
 		t.Fatalf("POST request failed: %v", err)
@@ -1298,5 +1298,102 @@ func TestListener_HandleNotification_DeletedMessageUnsupported(t *testing.T) {
 
 	if !messageDeletionHandled {
 		t.Error("Deleted (unsupported) message was not handled by OnMessageErrors")
+	}
+}
+
+func TestListener_HandleNotification_PhoneNumberSettingsUpdate(t *testing.T) {
+	payload := `{
+    "object": "whatsapp_business_account",
+    "entry": [
+        {
+            "id": "whatsapp-business-account-id",
+            "changes": [
+                {
+                    "value": {
+                        "messaging_product": "whatsapp",
+                        "timestamp": "1671644824",
+                        "type": "[phone_number_settings]",
+                        "phone_number_settings": {
+                            "phone_number_id": "TEST987654321",
+                            "calling": {
+                                "status": "ENABLED",
+                                "call_icon_visibility": "DEFAULT",
+                                "callback_permission_status": "ENABLED",
+                                "call_hours": {
+                                    "status": "ENABLED",
+                                    "timezone_id": "[REDACTED]",
+                                    "weekly_operating_hours": [
+                                        {
+                                            "day_of_week": "MONDAY",
+                                            "open_time": "0400",
+                                            "close_time": "1020"
+                                        },
+                                        {
+                                            "day_of_week": "TUESDAY",
+                                            "open_time": "0108",
+                                            "close_time": "1020"
+                                        }
+                                    ],
+                                    "holiday_schedule": [
+                                        {
+                                            "date": "2026-01-01",
+                                            "start_time": "0000",
+                                            "end_time": "2359"
+                                        }
+                                    ]
+                                },
+                                "sip": {
+                                    "status": "ENABLED",
+                                    "servers": [
+                                        {
+                                            "hostname": "example.com",
+                                            "port": 9000
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "field": "account_settings_update"
+                }
+            ]
+        }
+    ]
+}`
+
+	var eventHandled bool
+	handler := webhooks.NewHandler()
+
+	handler.OnPhoneSettingsUpdate(
+		func(ctx context.Context, notificationContext *webhooks.BusinessNotificationContext, details *webhooks.PhoneNumberSettings) error {
+			eventHandled = true
+
+			if details.PhoneNumberID != "TEST987654321" {
+				t.Errorf("PhoneNumberID mismatch, got=%s", details.PhoneNumberID)
+			}
+
+			return nil
+		},
+	)
+
+	cfg := TestServerConfig{
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
+	}
+	ts := NewTestWebhookServer(t, cfg)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/webhook", "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST request failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", resp.StatusCode)
+	}
+
+	if !eventHandled {
+		t.Error("phone settings update was not handled by OnPhoneSettingsUpdate")
 	}
 }

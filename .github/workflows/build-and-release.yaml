@@ -2,7 +2,7 @@ name: build and release
 
 env:
   GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
-  GO_VERSION: "1.23"
+  GO_VERSION: "1.25"
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '>=1.24.0'
+          go-version: '>=1.25.0'
       - name: Install dependencies
         run: go mod tidy
 
@@ -57,7 +57,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.0.2
+          version: v2.4.0
 
   tag-and-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

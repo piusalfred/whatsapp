@@ -47,53 +47,54 @@ type (
 	}
 
 	Value struct {
-		Event                        string            `json:"event,omitempty"`
-		MessageTemplateID            int64             `json:"message_template_id,omitempty"`
-		MessageTemplateName          string            `json:"message_template_name,omitempty"`
-		MessageTemplateLanguage      string            `json:"message_template_language,omitempty"`
-		Reason                       *string           `json:"reason,omitempty"`
-		PreviousCategory             string            `json:"previous_category,omitempty"`
-		PreviousQualityScore         string            `json:"previous_quality_score,omitempty"`
-		NewQualityScore              string            `json:"new_quality_score,omitempty"`
-		NewCategory                  string            `json:"new_category,omitempty"`
-		DisplayPhoneNumber           string            `json:"display_phone_number,omitempty"`
-		PhoneNumber                  string            `json:"phone_number,omitempty"`
-		CurrentLimit                 string            `json:"current_limit,omitempty"`
-		MaxDailyConversationPerPhone int               `json:"max_daily_conversation_per_phone,omitempty"`
-		MaxPhoneNumbersPerBusiness   int               `json:"max_phone_numbers_per_business,omitempty"`
-		MaxPhoneNumbersPerWABA       int               `json:"max_phone_numbers_per_waba,omitempty"`
-		RejectionReason              string            `json:"rejection_reason,omitempty"`
-		RequestedVerifiedName        string            `json:"requested_verified_name,omitempty"`
-		RestrictionInfo              []RestrictionInfo `json:"restriction_info,omitempty"`
-		BanInfo                      *BanInfo          `json:"ban_info,omitempty"`
-		Decision                     string            `json:"decision,omitempty"`
-		DisableInfo                  *DisableInfo      `json:"disable_info,omitempty"`
-		OtherInfo                    *OtherInfo        `json:"other_info,omitempty"`
-		ViolationInfo                *ViolationInfo    `json:"violation_info,omitempty"`
-		EntityType                   string            `json:"entity_type,omitempty"`
-		EntityID                     string            `json:"entity_id,omitempty"`
-		AlertSeverity                string            `json:"alert_severity,omitempty"`
-		AlertStatus                  string            `json:"alert_status,omitempty"`
-		AlertType                    string            `json:"alert_type,omitempty"`
-		AlertDescription             string            `json:"alert_description,omitempty"`
-		Message                      string            `json:"message"`                  // Descriptive message of the event
-		FlowID                       string            `json:"flow_id"`                  // ID of the flow
-		OldStatus                    string            `json:"old_status,omitempty"`     // Previous status of the flow (optional)
-		NewStatus                    string            `json:"new_status,omitempty"`     // New status of the flow (optional)
-		ErrorRate                    float64           `json:"error_rate,omitempty"`     // Overall error rate for the alert (optional)
-		Threshold                    int               `json:"threshold,omitempty"`      // Alert threshold that was reached or recovered from
-		AlertState                   string            `json:"alert_state,omitempty"`    // Status of the alert, e.g., "ACTIVATED" or "DEACTIVATED"
-		Errors                       []ErrorInfo       `json:"errors,omitempty"`         // List of errors describing the alert (optional)
-		P50Latency                   int               `json:"p50_latency,omitempty"`    // P50 latency of the endpoint requests (optional)
-		P90Latency                   int               `json:"p90_latency,omitempty"`    // P90 latency of the endpoint requests (optional)
-		RequestsCount                int               `json:"requests_count,omitempty"` // Number of requests used to calculate metric (optional)
-		Availability                 int               `json:"availability"`
-		MessagingProduct             string            `json:"messaging_product,omitempty"`
-		Metadata                     *Metadata         `json:"metadata,omitempty"`
-		Contacts                     []*Contact        `json:"contacts,omitempty"`
-		UserPreferences              []*UserPreference `json:"user_preferences,omitempty"`
-		Messages                     []*Message        `json:"messages,omitempty"`
-		Statuses                     []*Status         `json:"statuses,omitempty"`
+		Event                        string               `json:"event,omitempty"`
+		MessageTemplateID            int64                `json:"message_template_id,omitempty"`
+		MessageTemplateName          string               `json:"message_template_name,omitempty"`
+		MessageTemplateLanguage      string               `json:"message_template_language,omitempty"`
+		Reason                       *string              `json:"reason,omitempty"`
+		PreviousCategory             string               `json:"previous_category,omitempty"`
+		PreviousQualityScore         string               `json:"previous_quality_score,omitempty"`
+		NewQualityScore              string               `json:"new_quality_score,omitempty"`
+		NewCategory                  string               `json:"new_category,omitempty"`
+		DisplayPhoneNumber           string               `json:"display_phone_number,omitempty"`
+		PhoneNumber                  string               `json:"phone_number,omitempty"`
+		CurrentLimit                 string               `json:"current_limit,omitempty"`
+		MaxDailyConversationPerPhone int                  `json:"max_daily_conversation_per_phone,omitempty"`
+		MaxPhoneNumbersPerBusiness   int                  `json:"max_phone_numbers_per_business,omitempty"`
+		MaxPhoneNumbersPerWABA       int                  `json:"max_phone_numbers_per_waba,omitempty"`
+		RejectionReason              string               `json:"rejection_reason,omitempty"`
+		RequestedVerifiedName        string               `json:"requested_verified_name,omitempty"`
+		RestrictionInfo              []RestrictionInfo    `json:"restriction_info,omitempty"`
+		BanInfo                      *BanInfo             `json:"ban_info,omitempty"`
+		Decision                     string               `json:"decision,omitempty"`
+		DisableInfo                  *DisableInfo         `json:"disable_info,omitempty"`
+		OtherInfo                    *OtherInfo           `json:"other_info,omitempty"`
+		ViolationInfo                *ViolationInfo       `json:"violation_info,omitempty"`
+		EntityType                   string               `json:"entity_type,omitempty"`
+		EntityID                     string               `json:"entity_id,omitempty"`
+		AlertSeverity                string               `json:"alert_severity,omitempty"`
+		AlertStatus                  string               `json:"alert_status,omitempty"`
+		AlertType                    string               `json:"alert_type,omitempty"`
+		AlertDescription             string               `json:"alert_description,omitempty"`
+		Message                      string               `json:"message"`                  // Descriptive message of the event
+		FlowID                       string               `json:"flow_id"`                  // ID of the flow
+		OldStatus                    string               `json:"old_status,omitempty"`     // Previous status of the flow (optional)
+		NewStatus                    string               `json:"new_status,omitempty"`     // New status of the flow (optional)
+		ErrorRate                    float64              `json:"error_rate,omitempty"`     // Overall error rate for the alert (optional)
+		Threshold                    int                  `json:"threshold,omitempty"`      // Alert threshold that was reached or recovered from
+		AlertState                   string               `json:"alert_state,omitempty"`    // Status of the alert, e.g., "ACTIVATED" or "DEACTIVATED"
+		Errors                       []ErrorInfo          `json:"errors,omitempty"`         // List of errors describing the alert (optional)
+		P50Latency                   int                  `json:"p50_latency,omitempty"`    // P50 latency of the endpoint requests (optional)
+		P90Latency                   int                  `json:"p90_latency,omitempty"`    // P90 latency of the endpoint requests (optional)
+		RequestsCount                int                  `json:"requests_count,omitempty"` // Number of requests used to calculate metric (optional)
+		Availability                 int                  `json:"availability"`
+		MessagingProduct             string               `json:"messaging_product,omitempty"`
+		Metadata                     *Metadata            `json:"metadata,omitempty"`
+		Contacts                     []*Contact           `json:"contacts,omitempty"`
+		UserPreferences              []*UserPreference    `json:"user_preferences,omitempty"`
+		Messages                     []*Message           `json:"messages,omitempty"`
+		Statuses                     []*Status            `json:"statuses,omitempty"`
+		PhoneNumberSettings          *PhoneNumberSettings `json:"phone_number_settings,omitempty"`
 	}
 
 	ErrorInfo struct {
@@ -176,6 +177,7 @@ type Handler struct {
 	phoneNumberNameUpdate    EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
 	capabilityUpdate         EventHandler[BusinessNotificationContext, CapabilityUpdate]
 	accountUpdate            EventHandler[BusinessNotificationContext, AccountUpdate]
+	phoneSettingsUpdate      EventHandler[BusinessNotificationContext, PhoneNumberSettings]
 	phoneNumberQualityUpdate EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
 	accountReviewUpdate      EventHandler[BusinessNotificationContext, AccountReviewUpdate]
 	buttonMessage            MessageHandler[Button]
@@ -221,6 +223,7 @@ func NewHandler() *Handler {
 		phoneNumberNameUpdate:    NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberNameUpdate](),
 		capabilityUpdate:         NewNoOpEventHandler[BusinessNotificationContext, CapabilityUpdate](),
 		accountUpdate:            NewNoOpEventHandler[BusinessNotificationContext, AccountUpdate](),
+		phoneSettingsUpdate:      NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberSettings](),
 		phoneNumberQualityUpdate: NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate](),
 		accountReviewUpdate:      NewNoOpEventHandler[BusinessNotificationContext, AccountReviewUpdate](),
 		buttonMessage:            NewNoOpMessageHandler[Button](),
@@ -302,7 +305,8 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 	change Change,
 	entry Entry,
 ) error {
-	if change.Field == ChangeFieldFlows.String() {
+	switch change.Field {
+	case ChangeFieldFlows.String():
 		notificationCtx := &FlowNotificationContext{
 			NotificationObject: notification.Object,
 			EntryID:            entry.ID,
@@ -312,39 +316,33 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 			EventMessage:       change.Value.Message,
 			FlowID:             change.Value.FlowID,
 		}
-
 		if err := handler.handleFlowNotification(ctx, notificationCtx, change.Value); err != nil {
 			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 				return handlerErr
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldAccountAlerts.String() {
+	case ChangeFieldAccountAlerts.String():
 		if err := handler.handleAccountAlerts(ctx, notification, change, entry); err != nil {
 			return err
 		}
-	}
 
-	if change.Field == ChangeFieldTemplateStatusUpdate.String() {
+	case ChangeFieldTemplateStatusUpdate.String():
 		if err := handler.handleTemplateStatusUpdate(ctx, notification, change, entry); err != nil {
 			return err
 		}
-	}
 
-	if change.Field == ChangeFieldTemplateCategoryUpdate.String() {
+	case ChangeFieldTemplateCategoryUpdate.String():
 		if err := handler.handleTemplateCategoryUpdate(ctx, notification, change, entry); err != nil {
 			return err
 		}
-	}
 
-	if change.Field == ChangeFieldTemplateQualityUpdate.String() {
+	case ChangeFieldTemplateQualityUpdate.String():
 		if err := handler.handleTemplateQualityUpdate(ctx, notification, change, entry); err != nil {
 			return err
 		}
-	}
 
-	if change.Field == ChangeFieldPhoneNumberNameUpdate.String() {
+	case ChangeFieldPhoneNumberNameUpdate.String():
 		if handler.phoneNumberNameUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -352,16 +350,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.phoneNumberNameUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberNameUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldPhoneNumberQualityUpdate.String() {
+	case ChangeFieldPhoneNumberQualityUpdate.String():
 		if handler.phoneNumberQualityUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -369,16 +365,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.phoneNumberQualityUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberQualityUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldAccountUpdate.String() {
+	case ChangeFieldAccountUpdate.String():
 		if handler.accountUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -386,16 +380,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.accountUpdate.HandleEvent(ctx, notificationCtx, change.Value.AccountUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldAccountReviewUpdate.String() {
+	case ChangeFieldAccountReviewUpdate.String():
 		if handler.accountReviewUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -403,16 +395,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.accountReviewUpdate.HandleEvent(ctx, notificationCtx, change.Value.AccountReviewUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldBusinessCapabilityUpdate.String() {
+	case ChangeFieldBusinessCapabilityUpdate.String():
 		if handler.capabilityUpdate != nil {
 			notificationCtx := &BusinessNotificationContext{
 				Object:      notification.Object,
@@ -420,16 +410,14 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				EntryTime:   entry.Time,
 				ChangeField: change.Field,
 			}
-
 			if err := handler.capabilityUpdate.HandleEvent(ctx, notificationCtx, change.Value.CapabilityUpdate()); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldUserPreferences.String() {
+	case ChangeFieldUserPreferences.String():
 		if handler.userPreferencesUpdate != nil {
 			notificationCtx := &MessageNotificationContext{
 				EntryID:          entry.ID,
@@ -437,16 +425,29 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 				Contacts:         change.Value.Contacts,
 				Metadata:         change.Value.Metadata,
 			}
-
 			if err := handler.userPreferencesUpdate.Handle(ctx, notificationCtx, change.Value.UserPreferences); err != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
 				}
 			}
 		}
-	}
 
-	if change.Field == ChangeFieldMessages.String() {
+	case ChangeFieldAccountSettingsUpdate.String():
+		if handler.accountUpdate != nil {
+			notificationCtx := &BusinessNotificationContext{
+				Object:      notification.Object,
+				EntryID:     entry.ID,
+				EntryTime:   entry.Time,
+				ChangeField: change.Field,
+			}
+			if err := handler.phoneSettingsUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberSettings); err != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+					return handlerErr
+				}
+			}
+		}
+
+	case ChangeFieldMessages.String():
 		return handler.handleNotificationMessageItem(ctx, entry, change)
 	}
 
@@ -616,6 +617,7 @@ const (
 	ChangeFieldPhoneNumberQualityUpdate ChangeField = "phone_number_quality_update"
 	ChangeFieldMessages                 ChangeField = "messages"
 	ChangeFieldUserPreferences          ChangeField = "user_preferences"
+	ChangeFieldAccountSettingsUpdate    ChangeField = "account_settings_update"
 )
 
 const (
@@ -743,6 +745,48 @@ type (
 		RestrictionInfo []RestrictionInfo `json:"restriction_info,omitempty"`
 		BanInfo         *BanInfo          `json:"ban_info,omitempty"`
 		ViolationInfo   *ViolationInfo    `json:"violation_info,omitempty"`
+	}
+
+	PhoneNumberSettings struct {
+		PhoneNumberID string                      `json:"phone_number_id,omitempty"`
+		Callings      *PhoneNumberSettingsCalling `json:"callings,omitempty"`
+	}
+
+	PhoneNumberSettingsCalling struct {
+		Status                   string     `json:"status,omitempty"`
+		CallIconVisibility       string     `json:"call_icon_visibility,omitempty"`
+		CallbackPermissionStatus string     `json:"callback_permission_status,omitempty"`
+		CallHours                *CallHours `json:"call_hours,omitempty"`
+		SIP                      *SIP       `json:"sip,omitempty"`
+	}
+
+	CallHours struct {
+		Status               string               `json:"status,omitempty"`
+		TimezoneID           string               `json:"timezone_id,omitempty"` // e.g. "Europe/Berlin" or provider’s TZ id
+		WeeklyOperatingHours []WeeklyOperatingDay `json:"weekly_operating_hours,omitempty"`
+		HolidaySchedule      []Holiday            `json:"holiday_schedule,omitempty"`
+	}
+
+	WeeklyOperatingDay struct {
+		DayOfWeek string `json:"day_of_week,omitempty"` // "MONDAY", ...
+		OpenTime  string `json:"open_time,omitempty"`   // "HHMM" e.g., "0400"
+		CloseTime string `json:"close_time,omitempty"`  // "HHMM" e.g., "1020"
+	}
+
+	Holiday struct {
+		Date      string `json:"date,omitempty"`       // "YYYY-MM-DD"
+		StartTime string `json:"start_time,omitempty"` // "HHMM"
+		EndTime   string `json:"end_time,omitempty"`   // "HHMM"
+	}
+
+	SIP struct {
+		Status  string      `json:"status,omitempty"`
+		Servers []SIPServer `json:"servers,omitempty"`
+	}
+
+	SIPServer struct {
+		Hostname        string `json:"hostname,omitempty"`
+		SIPUserPassword string `json:"sip_user_password,omitempty"`
 	}
 
 	CapabilityUpdate struct {
@@ -928,6 +972,12 @@ func (handler *Handler) OnBusinessAccountUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *AccountUpdate) error,
 ) {
 	handler.accountUpdate = EventHandlerFunc[BusinessNotificationContext, AccountUpdate](fn)
+}
+
+func (handler *Handler) OnPhoneSettingsUpdate(
+	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *PhoneNumberSettings) error,
+) {
+	handler.phoneSettingsUpdate = EventHandlerFunc[BusinessNotificationContext, PhoneNumberSettings](fn)
 }
 
 func (handler *Handler) SetBusinessAccountUpdateHandler(
@@ -2005,7 +2055,7 @@ func (handler *Handler) SetStickerMessageHandler(
 }
 
 func (handler *Handler) OnUserPreferencesUpdate(
-	fn func(ctx context.Context, notificationotificationCtx *MessageNotificationContext, prefs []*UserPreference) error,
+	fn func(ctx context.Context, notificationContext *MessageNotificationContext, prefs []*UserPreference) error,
 ) {
 	handler.userPreferencesUpdate = MessageChangeValueHandlerFunc[UserPreference](fn)
 }

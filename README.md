@@ -280,6 +280,9 @@ There is provision of [**mocks**](./mocks) that may come handy in testing.
 ## extras
 The extras package contains some useful utilities for working with this library. It is experimental and may change in future releases.
 
+## development
+After making some changes run `make all` to format and test the code. You can also run `make help` to see other available commands
+
 ## Links
 - [Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started)
 - [Postman Collection](https://www.postman.com/meta/whatsapp-business-platform/collection/wlk6lh4/whatsapp-cloud-api)
@@ -309,3 +312,4 @@ The extras package contains some useful utilities for working with this library.
 - [Flow Encryption](https://developers.facebook.com/docs/whatsapp/cloud-api/reference/whatsapp-business-encryption)
 - [Whatsapp Business Account Graph API Reference](https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/)
 - [Webhooks Override](https://developers.facebook.com/docs/whatsapp/embedded-signup/webhooks/override)
+- [calling API Settings](https://developers.facebook.com/docs/whatsapp/cloud-api/calling/call-settings)
