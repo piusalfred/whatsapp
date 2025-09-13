@@ -277,10 +277,10 @@ See more in [examples](./examples/)
 ## Testing
 There is provision of [**mocks**](./mocks) that may come handy in testing.
 
-## extras
+## Extras
 The extras package contains some useful utilities for working with this library. It is experimental and may change in future releases.
 
-## development
+## Development
 After making some changes run `make all` to format and test the code. You can also run `make help` to see other available commands
 
 ## Links
