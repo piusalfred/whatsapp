@@ -2,9 +2,13 @@ package message
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -15,7 +19,7 @@ import (
 
 type (
 	Server struct {
-		whatsapp           message.Service
+		whatsapp           WhatsappService
 		http               *http.Server
 		mcp                *mcp.Server
 		config             *Config
@@ -23,7 +27,6 @@ type (
 		logger             *slog.Logger
 		httpServerInitHook func(server *http.Server) error
 		mcpServerInitHook  func(server *mcp.Server) error
-		sessionIDGetter    func() string
 	}
 
 	SendTextRequest struct {
@@ -45,6 +48,10 @@ type (
 		SendText(ctx context.Context, input *SendTextRequest) (*SendTextResponse, error)
 	}
 
+	WhatsappService interface {
+		SendText(ctx context.Context, request *message.Request[message.Text]) (*message.Response, error)
+	}
+
 	Config struct {
 		HTTPAddress                      string
 		HTTPDisableGeneralOptionsHandler bool
@@ -53,6 +60,7 @@ type (
 		HTTPWriteTimeout                 time.Duration
 		HTTPIdleTimeout                  time.Duration
 		HTTPMaxHeaderBytes               int
+		HTTPServerShutdownTimeout        time.Duration
 		LogLevel                         slog.Level
 		LogHandler                       slog.Handler
 		MCPServerName                    string
@@ -99,7 +107,7 @@ func WithServerHTTPServerInitHook(hook func(server *http.Server) error) ServerOp
 	})
 }
 
-func NewServer(config *Config, client message.Service, options ...ServerOption) (*Server, error) {
+func NewServer(config *Config, client WhatsappService, options ...ServerOption) (*Server, error) {
 	s := &Server{
 		config:   config,
 		whatsapp: client,
@@ -111,10 +119,9 @@ func NewServer(config *Config, client message.Service, options ...ServerOption) 
 		Version: s.config.MCPServerVersion,
 	}, s.config.MCPOptions)
 
-	s.handler = mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
+	s.handler = mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
 		return s.mcp
 	}, &mcp.StreamableHTTPOptions{
-		GetSessionID: s.sessionIDGetter,
 		Stateless:    true,
 		JSONResponse: true,
 	})
@@ -137,7 +144,7 @@ func NewServer(config *Config, client message.Service, options ...ServerOption) 
 		ErrorLog:                     slog.NewLogLogger(s.config.LogHandler, s.config.LogLevel),
 	}
 
-	if httpHookErr := s.onHttpServerInitHook(s.httpServerInitHook); httpHookErr != nil {
+	if httpHookErr := s.onHTTPServerInitHook(s.httpServerInitHook); httpHookErr != nil {
 		return nil, fmt.Errorf("init server: %w", httpHookErr)
 	}
 
@@ -145,9 +152,71 @@ func NewServer(config *Config, client message.Service, options ...ServerOption) 
 		return nil, fmt.Errorf("init mcp server: %w", mcpHookErr)
 	}
 
+	sendTextPrompt := &mcp.Prompt{
+		Description: "send whatsapp text message to whatsapp prompt given a number and a message," +
+			"with the option to specify if URL preview is allowed",
+		Name:  "whatsapp-send-text",
+		Title: "WhatsApp Send Text Message Prompt",
+	}
+
+	s.mcp.AddPrompt(sendTextPrompt, func(_ context.Context,
+		_ *mcp.GetPromptRequest,
+	) (*mcp.GetPromptResult, error) {
+		result := &mcp.GetPromptResult{
+			Description: sendTextPrompt.Description,
+			Messages: []*mcp.PromptMessage{
+				{
+					Role: mcp.Role("user"),
+					Content: &mcp.TextContent{
+						Text:        "",
+						Meta:        nil,
+						Annotations: nil,
+					},
+				},
+			},
+		}
+
+		return result, nil
+	})
+
 	s.addSendTextTool()
 
 	return s, nil
+}
+
+func (server *Server) Run(ctx context.Context) error {
+	sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		server.logger.LogAttrs(ctx, slog.LevelInfo, "starting http server",
+			slog.String("address", server.config.HTTPAddress))
+		if err := server.http.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("listen and serve: %w", err)
+			return
+		}
+		errCh <- nil
+	}()
+
+	select {
+	case <-sigCtx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), server.config.HTTPServerShutdownTimeout)
+		defer cancel()
+
+		if err := server.http.Shutdown(shutdownCtx); err != nil {
+			server.logger.LogAttrs(shutdownCtx, slog.LevelError, "shutdown http server",
+				slog.String("error", err.Error()))
+
+			return fmt.Errorf("shutdown server failed: %w", err)
+		}
+		return <-errCh
+
+	case err := <-errCh:
+		server.logger.LogAttrs(ctx, slog.LevelError,
+			"http server error", slog.String("error", err.Error()))
+		return err
+	}
 }
 
 func (server *Server) SendText(ctx context.Context, request *SendTextRequest) (*SendTextResponse, error) {
@@ -170,7 +239,7 @@ func (server *Server) SendText(ctx context.Context, request *SendTextRequest) (*
 	}, nil
 }
 
-func (server *Server) onHttpServerInitHook(hook func(s *http.Server) error) error {
+func (server *Server) onHTTPServerInitHook(hook func(s *http.Server) error) error {
 	if hook != nil {
 		if hookErr := hook(server.http); hookErr != nil {
 			return fmt.Errorf("on http server init hook: %w", hookErr)
@@ -243,31 +312,42 @@ func (server *Server) addSendTextTool() {
 		Description: "Response returned after sending a WhatsApp text message.",
 	}
 
-	toolHandlerFunc := mcp.ToolHandlerFor[*SendTextRequest, *SendTextResponse](
-		func(ctx context.Context, request *mcp.CallToolRequest, input *SendTextRequest) (
-			result *mcp.CallToolResult, output *SendTextResponse, err error,
-		) {
-			output, err = server.SendText(ctx, input)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			result = &mcp.CallToolResult{
-				IsError: false,
-			}
-
-			return result, output, nil
-		})
+	toolHandlerFunc := mcp.ToolHandlerFor[*SendTextRequest, *SendTextResponse](server.HandleSendText)
 
 	tool := &mcp.Tool{
 		Meta:         nil,
 		Annotations:  nil,
-		Description:  "send text to whatsapp number",
+		Description:  "send text message to whatsapp number, with the option to specify previewing URL if message content contains one",
 		InputSchema:  inputSchema,
 		Name:         "whatsapp-send-text",
 		OutputSchema: outputSchema,
-		Title:        "send text to whatsapp number",
+		Title:        "send text message to whatsapp number",
 	}
 
 	mcp.AddTool(server.mcp, tool, toolHandlerFunc)
+}
+
+func (server *Server) HandleSendText(ctx context.Context, request *mcp.CallToolRequest, input *SendTextRequest) (
+	*mcp.CallToolResult, *SendTextResponse, error,
+) {
+	sessionID := request.GetSession().ID()
+	server.logger.LogAttrs(ctx, slog.LevelInfo, "handle send text request", slog.String("sessionID", sessionID))
+
+	result := &mcp.CallToolResult{}
+	output, err := server.SendText(ctx, input)
+	if err != nil {
+		result.IsError = true
+		return result, nil, err
+	}
+
+	result.Content = []mcp.Content{
+		&mcp.TextContent{Text: fmt.Sprintf(
+			"The whatsapp message to number %s has been sent with the response being %s",
+			input.Recipient,
+			output.MessageID,
+		)},
+	}
+	result.IsError = false
+
+	return result, output, nil
 }

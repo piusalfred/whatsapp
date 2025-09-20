@@ -30,7 +30,7 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-const recipient = "+491734276411" // Placeholder for recipient number
+const recipient = "+1234567890" // replace with a valid whatsapp number
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
