@@ -6,14 +6,7 @@ tasks:
     deps: [ add-license,mocks,fmt, test, fmt-examples ]
   fmt:
     desc: "updates go deps and format the code"
-    cmds:
-      - go build ./...
-      - go get -u ./...
-      - cd extras/otel && go get -u ./... && go mod tidy && cd ../..
-      - go mod tidy
-      - go tool -modfile=tools/go.mod golangci-lint run --fix
-      - go tool -modfile=tools/go.mod gofumpt -l -w .
-      - go tool -modfile=tools/go.mod gci write --skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .
+    deps: [ fmt-lib, fmt-examples]
   test:
     desc: "run tests"
     cmd: go test -v -race -coverpkg=./... -parallel=4 ./...
@@ -21,6 +14,13 @@ tasks:
     desc: "update dependencies for examples and format the code"
     cmds:
       - cd _examples && go build ./... && go get -u ./... && go mod tidy
+      - go tool -modfile=tools/go.mod golangci-lint run --fix .
+      - go tool -modfile=tools/go.mod gofumpt -l -w .
+      - go tool -modfile=tools/go.mod gci write --skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .
+  fmt-lib:
+    desc: "update dependencies for library and format the code"
+    cmds:
+      - go build ./... && go get -u ./... && go mod tidy
       - go tool -modfile=tools/go.mod golangci-lint run --fix
       - go tool -modfile=tools/go.mod gofumpt -l -w .
       - go tool -modfile=tools/go.mod gci write --skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .

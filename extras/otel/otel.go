@@ -197,7 +197,10 @@ const (
 	WebhookMessageForwardedKey = attribute.Key("webhook.notification.message.forwarded")
 )
 
-func (o *WebhookHandler) HandleNotification(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
+func (o *WebhookHandler) HandleNotification(
+	ctx context.Context,
+	notification *webhooks.Notification,
+) *webhooks.Response {
 	ctx, span := o.tracer.Start(ctx, "HandleNotification",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
