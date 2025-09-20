@@ -33,23 +33,9 @@ A highly configurable golang client for [Whatsapp Cloud API](https://www.postman
 - [Call Settings](./settings)
 
 
-## Setup
-
-- Go to [apps](https://developers.facebook.com/apps) you have registered click on the one you want to develop API for and go to `API setup` if not create one.
-- Get these details `access token`,`phone number id`,`business account id` and make sure you have authorized one or more whatsapp phone numbers to receive these messages
-- While on the root directory of the project run `task build-examples` to build all the examples that will be in  [examples/bin](./examples/bin) directory
-- Then run `cp examples/api.env examples/bin/api.env`
-- And populate the values you have got to this `api.env` file, The given values here are not valid
-```dotenv
-WHATSAPP_CLOUD_API_BASE_URL=https://graph.facebook.com
-WHATSAPP_CLOUD_API_API_VERSION=v20.0
-WHATSAPP_CLOUD_API_ACCESS_TOKEN=EAALLrT0ok6UBJZB0ZB3gvzk9hJaEjGM8ISZAxPR5e3ZAFn4RmBIThoeK0XOdbKv8y2zB3YQ7uaijShZBjVIcZD
-WHATSAPP_CLOUD_API_PHONE_NUMBER_ID=111112271552333
-WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID=222222508300000
-WHATSAPP_CLOUD_API_TEST_RECIPIENT=+XXXX7374665453
-```
-- now you can navigate to the  [examples/bin](./examples/bin) directory and run the examples. But before that make sure you have sent the hello world
-template message to the recipient and **replied** and this should be within *24 hrs window*
+## Initial Steps
+Start by reading the official [WhatsApp Cloud API Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started) then go to [Get Started Guide](./docs/README.md) 
+for initial steps in setting up your developing environment.
 
 > [!NOTE]
 > You will find `BaseClient` and `Client`.
