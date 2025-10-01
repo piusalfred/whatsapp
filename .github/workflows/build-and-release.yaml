@@ -59,9 +59,30 @@ jobs:
         with:
           version: v2.4.0
 
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      # Expose the output of the 'filter' step to other jobs
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for changes in relevant source files
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            src:
+              - '!_examples/**'
+              - '!extras/**'
+              - '!.github/**'
+
   tag-and-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, golangci]
+    # This job now depends on the 'changes' job
+    needs: [test, golangci, changes]
+    # The 'if' condition checks the output from the 'changes' job
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.src == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Auto-tag with version

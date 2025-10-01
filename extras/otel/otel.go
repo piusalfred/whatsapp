@@ -13,7 +13,7 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
-	webhooks "github.com/piusalfred/whatsapp/webhooks"
+	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 const (
