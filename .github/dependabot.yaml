@@ -30,3 +30,13 @@ updates:
     labels:
       - maintenance
       - dependencies
+  - package-ecosystem: gomod
+    directory: /extras/mcp
+    schedule:
+      interval: daily
+    commit-message:
+      prefix: "extras mcp "
+      include: scope
+    labels:
+      - maintenance
+      - dependencies

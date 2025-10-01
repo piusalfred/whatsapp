@@ -1,91 +1,122 @@
 name: build and release
 
 env:
-  GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
-  GO_VERSION: "1.25"
+    GO_VERSION: "1.25"
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
+    push:
+        branches:
+            - main
+    pull_request:
 
 permissions:
-  contents: write
-  pull-requests: write
-  packages: read
+    contents: write
+    pull-requests: write
+    packages: read
 
 jobs:
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        arch: [amd64, arm64]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    changes:
+        runs-on: ubuntu-latest
+        outputs:
+            lib: ${{ steps.filter.outputs.lib }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '>=1.25.0'
-      - name: Install dependencies
-        run: go mod tidy
+            - name: Filter paths (Go + go.mod/go.sum only)
+              id: filter
+              uses: dorny/paths-filter@v3
+              with:
+                  filters: |
+                      lib:
+                        - '**/*.go'
+                        - '**/go.mod'
+                        - '**/go.sum'
+                        - '!_examples/**'
+                        - '!extras/**'
+                        - '!.github/**'
+            - name: Log change status
+              run: |
+                  if [ "${{ steps.filter.outputs.lib }}" = "true" ]; then
+                      echo "✅ Changes detected in library files. Version should be updated."
+                  else
+                      echo "🟡 No library changes. Skipping version update."
+                  fi
 
-      - name: Run tests
-        run: go test -v -race ./... && go build -race ./...
+    build:
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                os: [ubuntu-latest, macos-latest]
+                arch: [amd64, arm64]
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
 
-  golangci:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ">=1.25.0"
 
-      - name: Install Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
+            - name: Cache Go build
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cache/go-build
+                      ~/go/pkg/mod
+                  key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+                  restore-keys: |
+                      ${{ runner.os }}-go-${{ env.GO_VERSION }}-
 
-      - name: Setup dependencies
-        run: |
-          go mod tidy
-          go mod download
+            - name: Tidy + download
+              run: |
+                  go mod tidy
+                  go mod download
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.4.0
+            - name: Run tests (race)
+              run: |
+                  go test -v -race ./...
+                  go build -race ./...
 
-  tag-and-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, golangci]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Auto-tag with version
-        id: tagger
-        uses: phish108/autotag-action@v1.1.55
-        with:
-          with-v: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Lint (golangci-lint)
+              uses: golangci/golangci-lint-action@v7
+              with:
+                  version: v2.4.0
+    release:
+        needs: [build, changes]
+        if: >
+            github.event_name == 'push' &&
+            github.ref == 'refs/heads/main' &&
+            needs.changes.outputs.lib == 'true'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout (full history for tags)
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-      - name: Verify tag creation
-        run: |
-          if [ -z "${{ steps.tagger.outputs.new-tag}}" ]; then
-            echo "Error: No tag was created. Exiting."
-            exit 1
-          fi
-        env:
-          TAG: ${{ steps.tagger.outputs.new-tag }}
+            - name: Auto-tag with version
+              id: tagger
+              uses: phish108/autotag-action@v1.1.55
+              with:
+                  with-v: true
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.tagger.outputs.new-tag }}
-        run: |
-          gh release create "${TAG}" \
-              --repo="$GITHUB_REPOSITORY" \
-              --title="${TAG#v}" \
-              --generate-notes
+            - name: Verify tag creation
+              run: |
+                  if [ -z "${{ steps.tagger.outputs.new-tag }}" ]; then
+                    echo "Error: No tag was created. Exiting."
+                    exit 1
+                  fi
+
+            - name: Create GitHub Release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAG: ${{ steps.tagger.outputs.new-tag }}
+              run: |
+                  gh release create "${TAG}" \
+                    --repo="$GITHUB_REPOSITORY" \
+                    --title="${TAG#v}" \
+                    --generate-notes
