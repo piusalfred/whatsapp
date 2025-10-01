@@ -7,7 +7,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/modelcontextprotocol/go-sdk v1.0.0
 	github.com/piusalfred/whatsapp v1.0.0
-	github.com/piusalfred/whatsapp/extras/mcp v0.0.0-00010101000000-000000000000
+	github.com/piusalfred/whatsapp/extras/mcp v0.0.0-20250926133252-af4372717978
 )
 
 require (
