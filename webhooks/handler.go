@@ -276,7 +276,7 @@ func (handler *Handler) OnError(f func(ctx context.Context, err error) error) {
 	handler.errorHandlerFunc = f
 }
 
-// HandleNotification processes a single Notification containing one or more
+// HandleNotification processes with a single Notification containing one or more
 // Entry objects. Each Entry can have multiple Changes, and each Change can
 // contain multiple messages or event objects.
 //
@@ -1203,10 +1203,10 @@ const (
 	MessageTypeRequestWelcome MessageType = "request_welcome"
 )
 
-// MessageType is type of message that has been received by the business that has subscribed
-// to Webhooks. Possible value can be one of the following: audio,button,document,text,image,
-// interactive,order,sticker,system – for customer number change messages,unknown and video
-// The documentation is not clear in case of location,reaction and contacts. They will be included
+// MessageType is a type of message that has been received by the business that has subscribed
+// to Webhooks. Possible value can be one of the following: audio,button, document, text,image,
+// interactive, order,sticker, system – for customer number change messages, unknown and video
+// The documentation is not clear in case of location, reaction and contacts. They will be included
 // just in case.
 type MessageType string
 
@@ -1440,7 +1440,7 @@ type (
 
 	// MessageInfo is the context of a message contains information about the
 	// message and the business that is subscribed to the Webhooks.
-	// these are common fields to all type of messages.
+	// these are common fields to all types of messages.
 	// From The customer's phone number who sent the message to the business.
 	// MessageID The MessageID for the message that was received by the business. You could use messages
 	// endpoint to mark this specific message as read.
