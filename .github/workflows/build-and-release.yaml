@@ -37,6 +37,13 @@ jobs:
                         - '!_examples/**'
                         - '!extras/**'
                         - '!.github/**'
+            - name: Log change status
+              run: |
+                  if [ "${{ steps.filter.outputs.lib }}" = "true" ]; then
+                      echo "✅ Changes detected in library files. Version should be updated."
+                  else
+                      echo "🟡 No library changes. Skipping version update."
+                  fi
 
     build:
         runs-on: ${{ matrix.os }}
