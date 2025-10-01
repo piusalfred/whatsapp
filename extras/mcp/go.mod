@@ -3,8 +3,8 @@ module github.com/piusalfred/whatsapp/extras/mcp
 go 1.25.1
 
 require (
-	github.com/google/jsonschema-go v0.2.3
-	github.com/modelcontextprotocol/go-sdk v0.6.0
+	github.com/google/jsonschema-go v0.3.0
+	github.com/modelcontextprotocol/go-sdk v1.0.0
 	github.com/piusalfred/whatsapp v0.0.38
 )
 
