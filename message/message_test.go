@@ -157,19 +157,19 @@ func TestBaseSender_Send(t *testing.T) {
 			).DoAndReturn(tt.mock).Times(1)
 
 			sender := &message.BaseSender{Sender: mockSender}
-			response, err := sender.Send(t.Context(), conf, request)
+			response, err := sender.SendRequest(t.Context(), conf, request)
 			if err != nil {
 				return
 			}
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("BaseSender.Send() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("BaseSender.SendRequest() error = %v, wantErr %v", err, tt.wantErr)
 
 				return
 			}
 
 			if !gcmp.Equal(response, tt.want) {
-				t.Errorf("BaseSender.Send() response = %v, want %v", response, tt.want)
+				t.Errorf("BaseSender.SendRequest() response = %v, want %v", response, tt.want)
 
 				return
 			}

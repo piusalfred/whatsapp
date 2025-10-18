@@ -15,7 +15,14 @@ import (
 	"github.com/piusalfred/whatsapp/message"
 )
 
+var _ mcpmessage.Sender = (*fakeClient)(nil)
+
 type fakeClient struct{}
+
+func (f fakeClient) SendMessage(ctx context.Context, message *message.Message) (*message.Response, error) {
+	// TODO implement me
+	panic("implement me")
+}
 
 func (f fakeClient) SendText(ctx context.Context, request *message.Request[message.Text]) (
 	*message.Response, error,
@@ -38,8 +45,6 @@ func (f fakeClient) SendText(ctx context.Context, request *message.Request[messa
 
 	return resp, nil
 }
-
-var _ mcpmessage.WhatsappService = (*fakeClient)(nil)
 
 func main() {
 	// Structured logging (adjust handler as you like)

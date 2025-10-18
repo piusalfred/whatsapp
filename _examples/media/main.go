@@ -95,7 +95,7 @@ func main() {
 	)
 
 	decoder := whttp.ResponseDecoderFunc(func(ctx context.Context, response *http.Response) error {
-		// read body an dump it to current doirectory as hahahahah-madeit.jpg
+		// read body an dump it to the current directory as hahahahah-madeit.jpg
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read response body: %w", err)

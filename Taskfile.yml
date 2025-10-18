@@ -35,6 +35,7 @@ tasks:
       - go tool -modfile=tools/go.mod mockgen -destination=./mocks/auth/mock_auth.go -package=auth -source=./auth/auth.go
       - go tool -modfile=tools/go.mod mockgen -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
       - go tool -modfile=tools/go.mod mockgen -destination=./mocks/message/mock_message.go -package=message -source=./message/message.go
+      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/message/mock_status_update.go -package=message -source=./message/status.go
       - go tool -modfile=tools/go.mod mockgen -destination=./mocks/flow/mock_flow.go -package=flow -source=./flow/flow.go
       - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/mock_business.go -package=business -source=./business/business.go
       - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/analytics/mock_templates.go -package=analytics -source=./business/analytics/templates.go
@@ -46,6 +47,8 @@ tasks:
     desc: "adds license header to all the go files"
     cmds:
       - go tool -modfile=tools/go.mod addlicense -f LICENCE **/*.go
+      - go tool -modfile=tools/go.mod addlicense -f LICENCE extras/mcp/**/*.go
+      - go tool -modfile=tools/go.mod addlicense -f LICENCE extras/otel/*.go
 
   run:
     desc: 'run example program'

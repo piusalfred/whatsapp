@@ -190,7 +190,8 @@ type Handler struct {
 	interactiveMessage       MessageHandler[Interactive]
 	buttonReplyMessage       MessageHandler[ButtonReply]
 	listReplyMessage         MessageHandler[ListReply]
-	flowCompletionUpdate     MessageHandler[NFMReply]
+	flowCompletionUpdate     NativeFlowCompletionHandler
+	addressSubmission        NativeFlowCompletionHandler
 	referralMessage          MessageHandler[ReferralNotification]
 	customerIDChange         MessageHandler[Identity]
 	systemMessage            MessageHandler[System]
@@ -237,6 +238,7 @@ func NewHandler() *Handler {
 		buttonReplyMessage:       NewNoOpMessageHandler[ButtonReply](),
 		listReplyMessage:         NewNoOpMessageHandler[ListReply](),
 		flowCompletionUpdate:     NewNoOpMessageHandler[NFMReply](),
+		addressSubmission:        NewNoOpMessageHandler[NFMReply](),
 		referralMessage:          NewNoOpMessageHandler[ReferralNotification](),
 		customerIDChange:         NewNoOpMessageHandler[Identity](),
 		systemMessage:            NewNoOpMessageHandler[System](),
@@ -257,7 +259,7 @@ func NewHandler() *Handler {
 	}
 }
 
-// OnError configures a callback that is invoked whenever an error occurs
+// OnError configures a callback which is invoked whenever an error occurs
 // while processing the webhook payload. The callback can decide whether the
 // error is "fatal" or "non-fatal":
 //
@@ -1283,14 +1285,20 @@ type (
 	}
 
 	Status struct {
-		ID                    string           `json:"id,omitempty"`
-		RecipientID           string           `json:"recipient_id,omitempty"`
-		StatusValue           string           `json:"status,omitempty"`
-		Timestamp             string           `json:"timestamp,omitempty"`
-		Conversation          *Conversation    `json:"conversation,omitempty"`
-		Pricing               *Pricing         `json:"pricing,omitempty"`
-		Errors                []*werrors.Error `json:"errors,omitempty"`
-		BizOpaqueCallbackData string           `json:"biz_opaque_callback_data,omitempty"`
+		ID                    string             `json:"id,omitempty"`
+		RecipientID           string             `json:"recipient_id,omitempty"`
+		StatusValue           string             `json:"status,omitempty"`
+		Timestamp             string             `json:"timestamp,omitempty"`
+		Conversation          *Conversation      `json:"conversation,omitempty"`
+		Pricing               *Pricing           `json:"pricing,omitempty"`
+		Errors                []*werrors.Error   `json:"errors,omitempty"`
+		BizOpaqueCallbackData string             `json:"biz_opaque_callback_data,omitempty"`
+		Message               *StatusMessageInfo `json:"message,omitempty"`
+		Type                  string             `json:"type,omitempty"`
+	}
+
+	StatusMessageInfo struct {
+		RecipientID string `json:"recipient_id,omitempty"`
 	}
 
 	UserPreference struct {
@@ -1352,9 +1360,9 @@ type (
 	}
 
 	NFMReply struct {
-		Name         string          `json:"name"`          // Always "flow"
-		Body         string          `json:"body"`          // Always "Sent"
-		ResponseJSON json.RawMessage `json:"response_json"` // Flow-specific data (JSON string)
+		Name         string          `json:"name"`
+		Body         string          `json:"body"`
+		ResponseJSON json.RawMessage `json:"response_json"`
 	}
 
 	InteractiveType struct {
@@ -1519,6 +1527,7 @@ type (
 	CustomerIDChangeHandler      = MessageHandler[Identity]
 	SystemMessageHandler         = MessageHandler[System]
 	RequestWelcomeMessageHandler = MessageHandler[Message]
+	NativeFlowCompletionHandler  = MessageHandler[NFMReply] // Handles Native Flow Response
 )
 
 func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, notificationCtx *MessageNotificationContext,
@@ -1562,9 +1571,10 @@ func NewNoOpMessageChangeValueHandler[T any]() MessageChangeValueHandler[T] {
 }
 
 const (
-	InteractiveTypeListReply   = "list_reply"
-	InteractiveTypeButtonReply = "button_reply"
-	InteractiveTypeNFMReply    = "nfm_reply"
+	InteractiveTypeListReply     = "list_reply"
+	InteractiveTypeButtonReply   = "button_reply"
+	InteractiveTypeNFMReply      = "nfm_reply"
+	InteractiveAddressSubmission = "address_message"
 )
 
 type (
@@ -1813,9 +1823,15 @@ func (handler *Handler) handleInteractiveNotification(ctx context.Context,
 		return nil
 	case InteractiveTypeNFMReply:
 		if err := handler.flowCompletionUpdate.Handle(ctx, notificationCtx, info, message.Interactive.NFMReply); err != nil {
-			return err
+			return fmt.Errorf("handle flow completion update: %w", err)
 		}
 
+		return nil
+
+	case InteractiveAddressSubmission:
+		if err := handler.addressSubmission.Handle(ctx, notificationCtx, info, message.Interactive.NFMReply); err != nil {
+			return fmt.Errorf("handle address submission: %w", err)
+		}
 		return nil
 	default:
 		if err := handler.interactiveMessage.Handle(ctx, notificationCtx, info, message.Interactive); err != nil {
@@ -1956,6 +1972,18 @@ func (handler *Handler) SetFlowCompletionMessageHandler(
 	h FlowCompletionMessageHandler,
 ) {
 	handler.flowCompletionUpdate = h
+}
+
+func (handler *Handler) OnAddressSubmissionMessage(
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, nfm *NFMReply) error,
+) {
+	handler.addressSubmission = MessageHandlerFunc[NFMReply](fn)
+}
+
+func (handler *Handler) SetAddressSubmissionHandler(
+	h FlowCompletionMessageHandler,
+) {
+	handler.addressSubmission = h
 }
 
 func (handler *Handler) OnReferralMessage(
