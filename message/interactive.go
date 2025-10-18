@@ -458,7 +458,7 @@ func NewInteractiveVideoCarousel(message string, cards []InteractiveProductCarou
 			Type:      "cta_url",
 			Header: &InteractiveCardHeader{
 				Type: "video",
-				Image: &InteractiveCardHeaderImage{
+				Video: &InteractiveCardHeaderVideo{
 					Link: card.HeaderMediaLink,
 				},
 			},
