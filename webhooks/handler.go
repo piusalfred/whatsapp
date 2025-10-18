@@ -1521,13 +1521,12 @@ type (
 	ProductEnquiryHandler        = MessageHandler[Text]
 	InteractiveMessageHandler    = MessageHandler[Interactive]
 	ButtonReplyMessageHandler    = MessageHandler[ButtonReply]
-	ListReplyMessageHandler      = MessageHandler[ListReply]
-	FlowCompletionMessageHandler = MessageHandler[NFMReply]
-	ReferralMessageHandler       = MessageHandler[ReferralNotification]
+	ListReplyMessageHandler     = MessageHandler[ListReply]
+	NativeFlowCompletionHandler = MessageHandler[NFMReply]
+	ReferralMessageHandler      = MessageHandler[ReferralNotification]
 	CustomerIDChangeHandler      = MessageHandler[Identity]
 	SystemMessageHandler         = MessageHandler[System]
 	RequestWelcomeMessageHandler = MessageHandler[Message]
-	NativeFlowCompletionHandler  = MessageHandler[NFMReply] // Handles Native Flow Response
 )
 
 func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, notificationCtx *MessageNotificationContext,
@@ -1969,7 +1968,7 @@ func (handler *Handler) OnFlowCompletionMessage(
 }
 
 func (handler *Handler) SetFlowCompletionMessageHandler(
-	h FlowCompletionMessageHandler,
+	h NativeFlowCompletionHandler,
 ) {
 	handler.flowCompletionUpdate = h
 }
@@ -1981,7 +1980,7 @@ func (handler *Handler) OnAddressSubmissionMessage(
 }
 
 func (handler *Handler) SetAddressSubmissionHandler(
-	h FlowCompletionMessageHandler,
+	h NativeFlowCompletionHandler,
 ) {
 	handler.addressSubmission = h
 }
