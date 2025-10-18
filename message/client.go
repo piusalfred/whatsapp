@@ -170,7 +170,7 @@ func (c *Client) UpdateStatus(ctx context.Context, request *StatusUpdateRequest)
 
 	response, err := c.sender.SendRequest(ctx, c.config, req)
 	if err != nil {
-		return nil, fmt.Errorf("update message status: %w", err)
+		return nil, fmt.Errorf("update message Status: %w", err)
 	}
 
 	return &StatusUpdateResponse{Success: response.Success}, nil

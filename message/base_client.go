@@ -152,12 +152,12 @@ func (c *BaseClient) UpdateStatus(ctx context.Context, request *StatusUpdateRequ
 
 	conf, err := c.config.Read(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("base client: update message status: read config: %w", err)
+		return nil, fmt.Errorf("base client: update message Status: read config: %w", err)
 	}
 
 	response, err := c.sender.SendRequest(ctx, conf, req)
 	if err != nil {
-		return nil, fmt.Errorf("base client: update message status: %w", err)
+		return nil, fmt.Errorf("base client: update message Status: %w", err)
 	}
 
 	return &StatusUpdateResponse{Success: response.Success}, nil

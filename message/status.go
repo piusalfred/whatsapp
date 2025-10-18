@@ -20,16 +20,16 @@ package message
 import "context"
 
 const (
-	StatusSent      status = "sent"
-	StatusDelivered status = "delivered"
-	StatusRead      status = "read"
-	StatusFailed    status = "failed"
-	StatusDeleted   status = "deleted"
-	StatusWarning   status = "warning"
+	StatusSent      Status = "sent"
+	StatusDelivered Status = "delivered"
+	StatusRead      Status = "read"
+	StatusFailed    Status = "failed"
+	StatusDeleted   Status = "deleted"
+	StatusWarning   Status = "warning"
 )
 
 type (
-	status string
+	Status string
 
 	StatusUpdateResponse struct {
 		Success bool `json:"success"`
@@ -37,7 +37,7 @@ type (
 
 	StatusUpdateRequest struct {
 		MessageID           string
-		Status              status
+		Status              Status
 		WithTypingIndicator bool
 	}
 

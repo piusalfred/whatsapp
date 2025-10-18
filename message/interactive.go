@@ -494,7 +494,6 @@ func NewInteractiveVideoCarousel(message string, cards []InteractiveProductCarou
 //   - PinCode: required, exactly 6 numeric digits.
 //   - City: required, non-empty.
 //   - State: required, non-empty.
-//   - All other fields are optional free text.
 type AddressDetails struct {
 	Name         string `json:"name"`
 	PhoneNumber  string `json:"phone_number"`

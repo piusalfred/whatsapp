@@ -2,11 +2,19 @@ version: "3"
 
 tasks:
   all:
-    desc: 'run add-license -> mocks -> fmt -> test -> fmt-examples'
-    deps: [ add-license,mocks,fmt, test, fmt-examples ]
+    desc: 'run all tasks'
+    cmds:
+      - task: fmt
+      - task: test
   fmt:
     desc: "updates go deps and format the code"
-    deps: [ fmt-lib, fmt-examples,fmt-extras,add-license]
+    cmds:
+      - task: add-license
+      - task: fmt-lib
+      - task: fmt-examples
+      - task: fmt-extras
+      - task: mocks
+
   test:
     desc: "run tests"
     cmd: go test -v -race -coverpkg=./... -parallel=4 ./...
