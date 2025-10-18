@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-TASK_BIN := go tool -modfile=./tools/go.mod task
+TASK_BIN := go tool -modfile=./tools/go.mod task --silent
 
 
 .DEFAULT_GOAL := all

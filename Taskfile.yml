@@ -14,10 +14,9 @@ tasks:
       - task: fmt-examples
       - task: fmt-extras
       - task: mocks
-
   test:
     desc: "run tests"
-    cmd: go test -v -race -coverpkg=./... -parallel=4 ./...
+    cmd: go test -race -json -coverpkg ./... -parallel=4 ./... | go tool -modfile=tools/go.mod tparse --all
   fmt-examples:
     desc: "update dependencies for examples and format the code"
     cmds:
@@ -65,7 +64,6 @@ tasks:
       - go tool -modfile=tools/go.mod addlicense -f LICENCE extras/mcp/**/*.go
       - go tool -modfile=tools/go.mod addlicense -f LICENCE extras/otel/*.go
       - go tool -modfile=tools/go.mod addlicense -f LICENCE _examples/**/*.go
-
   run:
     desc: 'run example program'
     dir: _examples
