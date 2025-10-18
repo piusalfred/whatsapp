@@ -378,7 +378,11 @@ func (s *Server) addSendInteractiveTool() {
 	mcp.AddTool(s.mcp, tool, toolHandler)
 }
 
-func (s *Server) HandleSendText(ctx context.Context, request *mcp.CallToolRequest, input *SendTextRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendText(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendTextRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send text request", slog.String("sessionID", sessionID))
 
@@ -400,7 +404,11 @@ func (s *Server) HandleSendText(ctx context.Context, request *mcp.CallToolReques
 	return result, output, nil
 }
 
-func (s *Server) HandleRequestLocation(ctx context.Context, request *mcp.CallToolRequest, input *RequestLocationRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleRequestLocation(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *RequestLocationRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling request location request", slog.String("sessionID", sessionID))
 
@@ -422,7 +430,11 @@ func (s *Server) HandleRequestLocation(ctx context.Context, request *mcp.CallToo
 	return result, output, nil
 }
 
-func (s *Server) HandleSendLocation(ctx context.Context, request *mcp.CallToolRequest, input *SendLocationRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendLocation(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendLocationRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send location request", slog.String("sessionID", sessionID))
 
@@ -444,7 +456,11 @@ func (s *Server) HandleSendLocation(ctx context.Context, request *mcp.CallToolRe
 	return result, output, nil
 }
 
-func (s *Server) HandleSendImage(ctx context.Context, request *mcp.CallToolRequest, input *SendImageRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendImage(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendImageRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send image request", slog.String("sessionID", sessionID))
 
@@ -466,7 +482,11 @@ func (s *Server) HandleSendImage(ctx context.Context, request *mcp.CallToolReque
 	return result, output, nil
 }
 
-func (s *Server) HandleSendDocument(ctx context.Context, request *mcp.CallToolRequest, input *SendDocumentRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendDocument(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendDocumentRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send document request", slog.String("sessionID", sessionID))
 
@@ -488,7 +508,11 @@ func (s *Server) HandleSendDocument(ctx context.Context, request *mcp.CallToolRe
 	return result, output, nil
 }
 
-func (s *Server) HandleSendAudio(ctx context.Context, request *mcp.CallToolRequest, input *SendAudioRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendAudio(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendAudioRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send audio request", slog.String("sessionID", sessionID))
 
@@ -510,7 +534,11 @@ func (s *Server) HandleSendAudio(ctx context.Context, request *mcp.CallToolReque
 	return result, output, nil
 }
 
-func (s *Server) HandleSendVideo(ctx context.Context, request *mcp.CallToolRequest, input *SendVideoRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendVideo(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendVideoRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send video request", slog.String("sessionID", sessionID))
 
@@ -532,7 +560,11 @@ func (s *Server) HandleSendVideo(ctx context.Context, request *mcp.CallToolReque
 	return result, output, nil
 }
 
-func (s *Server) HandleSendReaction(ctx context.Context, request *mcp.CallToolRequest, input *SendReactionRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendReaction(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendReactionRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send reaction request", slog.String("sessionID", sessionID))
 
@@ -554,7 +586,11 @@ func (s *Server) HandleSendReaction(ctx context.Context, request *mcp.CallToolRe
 	return result, output, nil
 }
 
-func (s *Server) HandleSendTemplate(ctx context.Context, request *mcp.CallToolRequest, input *SendTemplateRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendTemplate(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendTemplateRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send template request", slog.String("sessionID", sessionID))
 
@@ -576,7 +612,11 @@ func (s *Server) HandleSendTemplate(ctx context.Context, request *mcp.CallToolRe
 	return result, output, nil
 }
 
-func (s *Server) HandleSendSticker(ctx context.Context, request *mcp.CallToolRequest, input *SendStickerRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendSticker(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendStickerRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send sticker request", slog.String("sessionID", sessionID))
 
@@ -598,7 +638,11 @@ func (s *Server) HandleSendSticker(ctx context.Context, request *mcp.CallToolReq
 	return result, output, nil
 }
 
-func (s *Server) HandleSendContacts(ctx context.Context, request *mcp.CallToolRequest, input *SendContactsRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendContacts(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendContactsRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send contacts request", slog.String("sessionID", sessionID))
 
@@ -620,7 +664,11 @@ func (s *Server) HandleSendContacts(ctx context.Context, request *mcp.CallToolRe
 	return result, output, nil
 }
 
-func (s *Server) HandleSendInteractive(ctx context.Context, request *mcp.CallToolRequest, input *SendInteractiveRequest) (*mcp.CallToolResult, *Response, error) {
+func (s *Server) HandleSendInteractive(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendInteractiveRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
 	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send interactive request", slog.String("sessionID", sessionID))
 

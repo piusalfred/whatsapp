@@ -192,7 +192,7 @@ type (
 )
 
 func (s *Server) SendText(ctx context.Context, request *SendTextRequest) (*Response, error) {
-	text, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithTextMessage(&message.Text{
 			PreviewURL: request.PreviewURL,
 			Body:       request.Text,
@@ -200,74 +200,43 @@ func (s *Server) SendText(ctx context.Context, request *SendTextRequest) (*Respo
 		message.WithMessageAsReplyTo(request.ReplyTo),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create text message: %w", err)
-	}
-
-	output, err := s.whatsapp.SendMessage(ctx, text)
-	if err != nil {
 		return nil, fmt.Errorf("send text: %w", err)
 	}
 
-	return &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
-	}, nil
+	return response, nil
 }
 
 func (s *Server) RequestLocation(ctx context.Context, request *RequestLocationRequest) (*Response, error) {
-	locRequestMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithMessageAsReplyTo(request.ReplyTo),
 		message.WithRequestLocationMessage(&request.Message),
 	)
-
-	output, err := s.whatsapp.SendMessage(ctx, locRequestMessage)
 	if err != nil {
-		return nil, fmt.Errorf("request location: %w", err)
+		return nil, fmt.Errorf("send location request: %w", err)
 	}
 
-	return &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
-	}, nil
+	return response, nil
 }
 
 func (s *Server) SendLocation(ctx context.Context, request *SendLocationRequest) (*Response, error) {
-	locationMessage, err := message.New(request.Recipient, message.WithLocationMessage(&message.Location{
-		Longitude: request.Longitude,
-		Latitude:  request.Latitude,
-		Name:      request.LocationName,
-		Address:   request.Address,
-	}),
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithMessageAsReplyTo(request.ReplyTo),
+		message.WithLocationMessage(&message.Location{
+			Longitude: request.Longitude,
+			Latitude:  request.Latitude,
+			Name:      request.LocationName,
+			Address:   request.Address,
+		}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create location message: %w", err)
-	}
-
-	output, err := s.whatsapp.SendMessage(ctx, locationMessage)
-	if err != nil {
 		return nil, fmt.Errorf("send location: %w", err)
-	}
-
-	response := &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
 	}
 
 	return response, nil
 }
 
 func (s *Server) SendImage(ctx context.Context, request *SendImageRequest) (*Response, error) {
-	imageMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithImage(&message.Image{
 			ID:       request.ImageID,
 			Link:     request.Link,
@@ -276,25 +245,15 @@ func (s *Server) SendImage(ctx context.Context, request *SendImageRequest) (*Res
 		}),
 		message.WithMessageAsReplyTo(request.ReplyTo),
 	)
-
-	output, err := s.whatsapp.SendMessage(ctx, imageMessage)
 	if err != nil {
 		return nil, fmt.Errorf("send image: %w", err)
-	}
-
-	response := &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
 	}
 
 	return response, nil
 }
 
 func (s *Server) SendDocument(ctx context.Context, request *SendDocumentRequest) (*Response, error) {
-	documentMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithDocument(&message.Document{
 			ID:       request.DocumentID,
 			Link:     request.Link,
@@ -304,52 +263,26 @@ func (s *Server) SendDocument(ctx context.Context, request *SendDocumentRequest)
 		message.WithMessageAsReplyTo(request.ReplyTo),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create document message: %w", err)
-	}
-
-	output, err := s.whatsapp.SendMessage(ctx, documentMessage)
-	if err != nil {
 		return nil, fmt.Errorf("send document: %w", err)
-	}
-
-	response := &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
 	}
 
 	return response, nil
 }
 
 func (s *Server) SendAudio(ctx context.Context, request *SendAudioRequest) (*Response, error) {
-	documentMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithAudio(&message.Audio{ID: request.AudioID}),
 		message.WithMessageAsReplyTo(request.ReplyTo),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create audio message: %w", err)
-	}
-
-	output, err := s.whatsapp.SendMessage(ctx, documentMessage)
-	if err != nil {
 		return nil, fmt.Errorf("send audio: %w", err)
-	}
-
-	response := &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
 	}
 
 	return response, nil
 }
 
 func (s *Server) SendVideo(ctx context.Context, request *SendVideoRequest) (*Response, error) {
-	videoMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithVideo(&message.Video{
 			ID:      request.VideoID,
 			Link:    request.Link,
@@ -358,47 +291,21 @@ func (s *Server) SendVideo(ctx context.Context, request *SendVideoRequest) (*Res
 		message.WithMessageAsReplyTo(request.ReplyTo),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create video message: %w", err)
-	}
-
-	output, err := s.whatsapp.SendMessage(ctx, videoMessage)
-	if err != nil {
 		return nil, fmt.Errorf("send video: %w", err)
-	}
-
-	response := &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
 	}
 
 	return response, nil
 }
 
 func (s *Server) SendReaction(ctx context.Context, request *SendReactionRequest) (*Response, error) {
-	reactionMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithReaction(&message.Reaction{
 			MessageID: request.MessageID,
 			Emoji:     request.Emoji,
 		}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create reaction message: %w", err)
-	}
-
-	output, err := s.whatsapp.SendMessage(ctx, reactionMessage)
-	if err != nil {
 		return nil, fmt.Errorf("send reaction: %w", err)
-	}
-
-	response := &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
 	}
 
 	return response, nil
@@ -420,7 +327,7 @@ func (s *Server) SendTemplate(ctx context.Context, request *SendTemplateRequest)
 		}
 	}
 
-	templateMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithTemplateMessage(&message.Template{
 			Name:       request.Name,
 			Language:   &message.TemplateLanguage{Code: request.Language},
@@ -429,47 +336,21 @@ func (s *Server) SendTemplate(ctx context.Context, request *SendTemplateRequest)
 		message.WithMessageAsReplyTo(request.ReplyTo),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create template message: %w", err)
-	}
-
-	output, err := s.whatsapp.SendMessage(ctx, templateMessage)
-	if err != nil {
 		return nil, fmt.Errorf("send template: %w", err)
-	}
-
-	response := &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
 	}
 
 	return response, nil
 }
 
 func (s *Server) SendSticker(ctx context.Context, request *SendStickerRequest) (*Response, error) {
-	stickerMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithSticker(&message.Sticker{
 			ID: request.StickerID,
 		}),
 		message.WithMessageAsReplyTo(request.ReplyTo),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create sticker message: %w", err)
-	}
-
-	output, err := s.whatsapp.SendMessage(ctx, stickerMessage)
-	if err != nil {
 		return nil, fmt.Errorf("send sticker: %w", err)
-	}
-
-	response := &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
 	}
 
 	return response, nil
@@ -538,25 +419,12 @@ func (s *Server) SendContacts(ctx context.Context, request *SendContactsRequest)
 		}
 	}
 
-	contactsMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithContacts((*message.Contacts)(&contacts)),
 		message.WithMessageAsReplyTo(request.ReplyTo),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create contacts message: %w", err)
-	}
-
-	output, err := s.whatsapp.SendMessage(ctx, contactsMessage)
-	if err != nil {
 		return nil, fmt.Errorf("send contacts: %w", err)
-	}
-
-	response := &Response{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
 	}
 
 	return response, nil
@@ -602,17 +470,26 @@ func (s *Server) SendInteractiveMessage(ctx context.Context, request *SendIntera
 		return nil, fmt.Errorf("unsupported interactive message type: %s", request.Type)
 	}
 
-	interactiveMessage, err := message.New(request.Recipient,
+	response, err := s.SendRequest(ctx, request.Recipient,
 		message.WithInteractiveMessage(interactive),
 		message.WithMessageAsReplyTo(request.ReplyTo),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create interactive message: %w", err)
+		return nil, fmt.Errorf("send interactive message: %w", err)
 	}
 
-	output, err := s.whatsapp.SendMessage(ctx, interactiveMessage)
+	return response, nil
+}
+
+func (s *Server) SendRequest(ctx context.Context, recipient string, options ...message.Option) (*Response, error) {
+	msg, err := message.New(recipient, options...)
 	if err != nil {
-		return nil, fmt.Errorf("send interactive message: %w", err)
+		return nil, fmt.Errorf("create message: %w", err)
+	}
+
+	output, err := s.whatsapp.SendMessage(ctx, msg)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
 	}
 
 	response := &Response{
@@ -642,7 +519,7 @@ type Schemas struct {
 	sendInteractiveRequest *jsonschema.Schema
 }
 
-func (s *Server) initSchemas() {
+func (s *Server) initSchemas() { //nolint:funlen // it's OK
 	s.schemas = &Schemas{
 		response: &jsonschema.Schema{
 			Type: "object",
@@ -789,7 +666,10 @@ func (s *Server) initSchemas() {
 				"footer":    {Type: "string", Description: "Footer text of the interactive message."},
 				"header":    {Type: "string", Description: "Header text of the interactive message."},
 				"action":    {Type: "string", Description: "Action for the interactive message."},
-				"reply_to":  {Type: "string", Description: "Optional message ID this interactive message is replying to."},
+				"reply_to": {
+					Type:        "string",
+					Description: "Optional message ID this interactive message is replying to.",
+				},
 			},
 			Required:    []string{"recipient", "type", "body"},
 			Description: "Input for sending a WhatsApp interactive message.",
