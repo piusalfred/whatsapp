@@ -623,7 +623,7 @@ func ExampleNewSender() {
 	// Response decoder to handle the response
 	decoder := whttp.ResponseDecoderJSON(&TestMessage{}, whttp.DecodeOptions{})
 
-	// SendRequest the request using the sender
+	// Send the request using the sender
 	err := sender.Send(context.Background(), req, decoder)
 	if err != nil {
 		fmt.Println("Error sending request:", err)
