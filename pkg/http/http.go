@@ -281,6 +281,7 @@ const (
 	RequestTypeDeletePhoneNumberAlternateCallbackURI
 	RequestTypeGetSettings
 	RequestTypeUpdateSettings
+	RequestTypeUpdateCallStatus
 )
 
 // String returns the string representation of the request type.

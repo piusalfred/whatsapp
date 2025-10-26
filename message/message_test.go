@@ -20,6 +20,7 @@ package message_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -172,6 +173,59 @@ func TestBaseSender_Send(t *testing.T) {
 				t.Errorf("BaseSender.SendRequest() response = %v, want %v", response, tt.want)
 
 				return
+			}
+		})
+	}
+}
+
+func TestNew(t *testing.T) {
+	type testCase struct {
+		name         string
+		recipient    string
+		options      []message.Option
+		expectedJSON string
+		wantErr      bool
+	}
+	tests := []testCase{
+		{
+			name:      "create text message for individual",
+			recipient: "1234567",
+			options: []message.Option{
+				message.WithTextMessage(&message.Text{
+					PreviewURL: false,
+					Body:       "Hello there",
+				}),
+			},
+			expectedJSON: `{"messaging_product": "whatsapp","recipient_type": "individual","to": "1234567","type": "text","text": {"preview_url": false,"body": "Hello there"}}`,
+		},
+		{
+			name:      "create text message for group",
+			recipient: "1234567",
+			options: []message.Option{
+				message.WithTextMessage(&message.Text{
+					PreviewURL: false,
+					Body:       "Hello there",
+				}),
+				message.WithRecipientType(message.RecipientTypeGroup),
+			},
+			expectedJSON: `{"messaging_product": "whatsapp","recipient_type": "group","to": "1234567","type": "text","text": {"preview_url": false,"body": "Hello there"}}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := message.New(tt.recipient, tt.options...)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				expected := &message.Message{}
+				unmarshalErr := json.Unmarshal([]byte(tt.expectedJSON), expected)
+				if unmarshalErr != nil {
+					return
+				}
+
+				gcmp.Equal(got, expected)
 			}
 		})
 	}

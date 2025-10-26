@@ -30,7 +30,7 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-const recipient = "+1234567890" // replace with a valid whatsapp number
+const recipient = "+1234567890" // replace it with a valid WhatsApp number
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
@@ -109,7 +109,7 @@ func main() {
 		Body:       "Visit the repo at https://github.com/piusalfred/whatsapp",
 	}
 
-	response, err = baseClient.SendText(ctx, message.NewRequest(recipient, textMessage, ""))
+	response, err = baseClient.SendText(ctx, message.NewRequest(recipient, textMessage))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error sending text message", slog.String("error", err.Error()))
 		return
@@ -128,9 +128,9 @@ func main() {
 		Footer: "Frequently updated",
 	})
 
-	ir := message.NewRequest(recipient, interactiveMessage, "")
+	ir := message.NewRequest(recipient, interactiveMessage)
 
-	// use dedicated method
+	// use a dedicated method
 	response, err = baseClient.SendInteractiveMessage(ctx, ir)
 	if err != nil {
 		logger.LogAttrs(
@@ -177,7 +177,7 @@ func main() {
 		Address:   "Av. de Concha Espina, 1, Chamartín, 28036 Madrid, Spain",
 	}
 
-	response, err = baseClient.SendLocation(ctx, message.NewRequest(recipient, location, ""))
+	response, err = baseClient.SendLocation(ctx, message.NewRequest(recipient, location))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error sending location message", slog.String("error", err.Error()))
 		return
@@ -229,7 +229,7 @@ func main() {
 		Emoji:     "🤝",
 	}
 
-	response, err = baseClient.SendReaction(ctx, message.NewRequest(recipient, reaction, ""))
+	response, err = baseClient.SendReaction(ctx, message.NewRequest(recipient, reaction))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error reacting to message", slog.String("error", err.Error()))
 		return

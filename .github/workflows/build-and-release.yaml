@@ -81,43 +81,6 @@ jobs:
                   go test -v -race ./...
                   go build -race ./...
 
-            - name: Lint (golangci-lint)
-              uses: golangci/golangci-lint-action@v7
-              with:
-                  version: v2.4.0
-    release:
-        needs: [build, changes]
-        if: >
-            github.event_name == 'push' &&
-            github.ref == 'refs/heads/main' &&
-            needs.changes.outputs.lib == 'true'
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout (full history for tags)
-              uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
+            - name: Lint and format check
+            run: task lint-check
 
-            - name: Auto-tag with version
-              id: tagger
-              uses: phish108/autotag-action@v1.1.55
-              with:
-                  with-v: true
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Verify tag creation
-              run: |
-                  if [ -z "${{ steps.tagger.outputs.new-tag }}" ]; then
-                    echo "Error: No tag was created. Exiting."
-                    exit 1
-                  fi
-
-            - name: Create GitHub Release
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  TAG: ${{ steps.tagger.outputs.new-tag }}
-              run: |
-                  gh release create "${TAG}" \
-                    --repo="$GITHUB_REPOSITORY" \
-                    --title="${TAG#v}" \
-                    --generate-notes

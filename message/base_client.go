@@ -28,51 +28,51 @@ import (
 )
 
 func (c *BaseClient) SendText(ctx context.Context, request *Request[Text]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithTextMessage)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithTextMessage)
 }
 
 func (c *BaseClient) SendLocation(ctx context.Context, request *Request[Location]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithLocationMessage)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithLocationMessage)
 }
 
 func (c *BaseClient) SendVideo(ctx context.Context, request *Request[Video]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithVideo)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithVideo)
 }
 
 func (c *BaseClient) SendReaction(ctx context.Context, request *Request[Reaction]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithReaction)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithReaction)
 }
 
 func (c *BaseClient) SendTemplate(ctx context.Context, request *Request[Template]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithTemplateMessage)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithTemplateMessage)
 }
 
 func (c *BaseClient) SendImage(ctx context.Context, request *Request[Image]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithImage)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithImage)
 }
 
 func (c *BaseClient) SendAudio(ctx context.Context, request *Request[Audio]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithAudio)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithAudio)
 }
 
 func (c *BaseClient) RequestLocation(ctx context.Context, request *Request[string]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithRequestLocationMessage)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithRequestLocationMessage)
 }
 
 func (c *BaseClient) SendDocument(ctx context.Context, request *Request[Document]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithDocument)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithDocument)
 }
 
 func (c *BaseClient) SendSticker(ctx context.Context, request *Request[Sticker]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithSticker)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithSticker)
 }
 
 func (c *BaseClient) SendContacts(ctx context.Context, request *Request[Contacts]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithContacts)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithContacts)
 }
 
 func (c *BaseClient) SendInteractiveMessage(ctx context.Context, request *Request[Interactive]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.Message, WithInteractiveMessage)
+	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithInteractiveMessage)
 }
 
 func NewBaseClient(sender whttp.Sender[Message], reader config.Reader,
@@ -213,10 +213,11 @@ func sendMessage[T any](
 	ctx context.Context,
 	sender Sender,
 	recipient, reply string,
+	recType recipientType,
 	message *T,
 	fn func(*T) Option,
 ) (*Response, error) {
-	options := buildOptions(message, reply, fn)
+	options := buildOptions(message, recType, reply, fn)
 
 	m, err := New(recipient, options...)
 	if err != nil {
@@ -230,21 +231,24 @@ func sendMessage[T any](
 	return response, nil
 }
 
-func buildOptions[T any](message *T, replyTo string, createMessageFunc func(*T) Option) []Option {
-	options := make([]Option, 1, 2) //nolint: mnd // ok
+func buildOptions[T any](message *T, recType recipientType, replyTo string, createMessageFunc func(*T) Option) []Option {
+	options := make([]Option, 2, 3) //nolint: mnd // ok
 	options[0] = createMessageFunc(message)
 	if replyTo != "" {
 		options = append(options, WithMessageAsReplyTo(replyTo))
 	}
+
+	options = append(options, WithRecipientType(recType))
 
 	return options
 }
 
 type (
 	Request[T any] struct {
-		Recipient string
-		ReplyTo   string
-		Message   *T
+		Recipient     string
+		ReplyTo       string
+		RecipientType recipientType
+		Message       *T
 	}
 
 	BaseClient struct {
@@ -317,6 +321,30 @@ func WithBaseRequestType(reqType whttp.RequestType) BaseRequestOption {
 	}
 }
 
-func NewRequest[T any](recipient string, message *T, replyTo string) *Request[T] {
-	return &Request[T]{Recipient: recipient, Message: message, ReplyTo: replyTo}
+type RequestOption[T any] func(request *Request[T])
+
+func WithRequestAsReplyTo[T any](replyTo string) RequestOption[T] {
+	return func(request *Request[T]) {
+		request.ReplyTo = replyTo
+	}
+}
+
+func WithRequestRecipientType(recType recipientType) RequestOption[string] {
+	return func(request *Request[string]) {
+		request.RecipientType = recType
+	}
+}
+
+func NewRequest[T any](recipient string, message *T, options ...RequestOption[T]) *Request[T] {
+	r := &Request[T]{
+		Recipient:     recipient,
+		Message:       message,
+		RecipientType: RecipientTypeIndividual,
+	}
+	for _, option := range options {
+		if option != nil {
+			option(r)
+		}
+	}
+	return r
 }

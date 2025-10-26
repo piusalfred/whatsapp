@@ -87,12 +87,15 @@ func TestParseAPIVersion(t *testing.T) {
 				t.Errorf("ParseAPIVersion() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			want := &whatsapp.APIVersion{
-				Major: tt.wantMajor,
-				Minor: tt.wantMinor,
-			}
-			if !reflect.DeepEqual(got, want) {
-				t.Errorf("ParseAPIVersion() got = %v, want %v", got, want)
+
+			if !tt.wantErr {
+				want := &whatsapp.APIVersion{
+					Major: tt.wantMajor,
+					Minor: tt.wantMinor,
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("ParseAPIVersion() got = %v, want %v", got, want)
+				}
 			}
 		})
 	}

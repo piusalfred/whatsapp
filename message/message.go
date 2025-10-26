@@ -32,6 +32,11 @@ var (
 	_ Sender  = (*BaseClient)(nil)
 )
 
+const (
+	PinOperationPinMessage   PinOperation = "pin"
+	PinOperationUnpinMessage PinOperation = "unpin"
+)
+
 type (
 	Service interface {
 		SendText(ctx context.Context, request *Request[Text]) (*Response, error)
@@ -60,20 +65,19 @@ func (fn SenderFunc) SendMessage(ctx context.Context, message *Message) (*Respon
 }
 
 const (
-	Endpoint                = "/messages"
-	MessagingProduct        = "whatsapp"
-	RecipientTypeIndividual = "individual"
-	TypeText                = "text"
-	TypeVideo               = "video"
-	TypeAudio               = "audio"
-	TypeSticker             = "sticker"
-	TypeDocument            = "document"
-	TypeImage               = "image"
-	TypeLocation            = "location"
-	TypeReaction            = "reaction"
-	TypeContacts            = "contacts"
-	TypeInteractive         = "interactive"
-	TypeTemplate            = "template"
+	Endpoint         = "/messages"
+	MessagingProduct = "whatsapp"
+	TypeText         = "text"
+	TypeVideo        = "video"
+	TypeAudio        = "audio"
+	TypeSticker      = "sticker"
+	TypeDocument     = "document"
+	TypeImage        = "image"
+	TypeLocation     = "location"
+	TypeReaction     = "reaction"
+	TypeContacts     = "contacts"
+	TypeInteractive  = "interactive"
+	TypeTemplate     = "template"
 )
 
 type (
@@ -119,7 +123,16 @@ type (
 		MessageID       *string          `json:"message_id,omitempty"` // used to update message Status
 		Template        *Template        `json:"template,omitempty"`
 		TypingIndicator *TypingIndicator `json:"typing_indicator,omitempty"`
+		Pin             *Pin             `json:"pin,omitempty"`
 	}
+
+	Pin struct {
+		Type           PinOperation `json:"type,omitempty"`
+		MessageID      string       `json:"message_id,omitempty"`
+		ExpirationDays int          `json:"expiration_days,omitempty"`
+	}
+
+	PinOperation string
 
 	Option func(message *Message)
 
@@ -151,7 +164,7 @@ func New(recipient string, options ...Option) (*Message, error) {
 	msg := &Message{
 		Product:       MessagingProduct,
 		To:            recipient,
-		RecipientType: RecipientTypeIndividual,
+		RecipientType: string(RecipientTypeIndividual),
 	}
 
 	for _, option := range options {
@@ -161,6 +174,19 @@ func New(recipient string, options ...Option) (*Message, error) {
 	}
 
 	return msg, nil
+}
+
+type recipientType string
+
+const (
+	RecipientTypeIndividual recipientType = "individual"
+	RecipientTypeGroup      recipientType = "group"
+)
+
+func WithRecipientType(recipientType recipientType) Option {
+	return func(message *Message) {
+		message.RecipientType = string(recipientType)
+	}
 }
 
 func WithImage(image *Image) Option {
@@ -310,7 +336,7 @@ func NewRequestLocationMessage(params RequestLocationMessageParams) *Message {
 	message := &Message{
 		Product:       MessagingProduct,
 		To:            params.Recipient,
-		RecipientType: RecipientTypeIndividual,
+		RecipientType: string(RecipientTypeIndividual),
 		Type:          TypeInteractive,
 		Context:       &Context{MessageID: params.ReplyTo},
 		Interactive:   content,

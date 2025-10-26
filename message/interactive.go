@@ -18,16 +18,17 @@
 package message
 
 const (
-	TypeInteractiveLocationRequest = "location_request_message"
-	TypeInteractiveCTAURL          = "cta_url"
-	TypeInteractiveButton          = "button"
-	TypeInteractiveFlow            = "flow"
-	TypeInteractiveAddressMessage  = "address_message"
-	TypeInteractiveCarousel        = "carousel"
-	InteractionActionSendLocation  = "send_location"
-	InteractiveActionCTAURL        = "cta_url"
-	InteractiveActionButtonReply   = "reply"
-	InteractiveActionFlow          = "flow"
+	TypeInteractiveLocationRequest       = "location_request_message"
+	TypeInteractiveCTAURL                = "cta_url"
+	TypeInteractiveButton                = "button"
+	TypeInteractiveFlow                  = "flow"
+	TypeInteractiveAddressMessage        = "address_message"
+	TypeInteractiveCarousel              = "carousel"
+	TypeInteractiveCallPermissionRequest = "call_permission_request"
+	InteractionActionSendLocation        = "send_location"
+	InteractiveActionCTAURL              = "cta_url"
+	InteractiveActionButtonReply         = "reply"
+	InteractiveActionFlow                = "flow"
 )
 
 type (
@@ -484,6 +485,14 @@ func NewInteractiveVideoCarousel(message string, cards []InteractiveProductCarou
 			Cards: productCards,
 		}),
 	)
+}
+
+func NewInteractiveCallPermissionRequest(message string) *Interactive {
+	return &Interactive{
+		Type:   TypeInteractiveCallPermissionRequest,
+		Action: &InteractiveAction{Name: "call_permission_request"},
+		Body:   &InteractiveBody{Text: message},
+	}
 }
 
 // AddressDetails represents a structured address

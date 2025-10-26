@@ -20,149 +20,11 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
 
-	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/message"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
-
-type (
-	Notification struct {
-		Object string  `json:"object"`
-		Entry  []Entry `json:"entry"`
-	}
-
-	Entry struct {
-		ID      string   `json:"id"`
-		Time    int64    `json:"time"`
-		Changes []Change `json:"changes"`
-	}
-
-	Change struct {
-		Field string `json:"field"`
-		Value *Value `json:"value"`
-	}
-
-	Value struct {
-		Event                        string               `json:"event,omitempty"`
-		MessageTemplateID            int64                `json:"message_template_id,omitempty"`
-		MessageTemplateName          string               `json:"message_template_name,omitempty"`
-		MessageTemplateLanguage      string               `json:"message_template_language,omitempty"`
-		Reason                       *string              `json:"reason,omitempty"`
-		PreviousCategory             string               `json:"previous_category,omitempty"`
-		PreviousQualityScore         string               `json:"previous_quality_score,omitempty"`
-		NewQualityScore              string               `json:"new_quality_score,omitempty"`
-		NewCategory                  string               `json:"new_category,omitempty"`
-		DisplayPhoneNumber           string               `json:"display_phone_number,omitempty"`
-		PhoneNumber                  string               `json:"phone_number,omitempty"`
-		CurrentLimit                 string               `json:"current_limit,omitempty"`
-		MaxDailyConversationPerPhone int                  `json:"max_daily_conversation_per_phone,omitempty"`
-		MaxPhoneNumbersPerBusiness   int                  `json:"max_phone_numbers_per_business,omitempty"`
-		MaxPhoneNumbersPerWABA       int                  `json:"max_phone_numbers_per_waba,omitempty"`
-		RejectionReason              string               `json:"rejection_reason,omitempty"`
-		RequestedVerifiedName        string               `json:"requested_verified_name,omitempty"`
-		RestrictionInfo              []RestrictionInfo    `json:"restriction_info,omitempty"`
-		BanInfo                      *BanInfo             `json:"ban_info,omitempty"`
-		Decision                     string               `json:"decision,omitempty"`
-		DisableInfo                  *DisableInfo         `json:"disable_info,omitempty"`
-		OtherInfo                    *OtherInfo           `json:"other_info,omitempty"`
-		ViolationInfo                *ViolationInfo       `json:"violation_info,omitempty"`
-		EntityType                   string               `json:"entity_type,omitempty"`
-		EntityID                     string               `json:"entity_id,omitempty"`
-		AlertSeverity                string               `json:"alert_severity,omitempty"`
-		AlertStatus                  string               `json:"alert_status,omitempty"`
-		AlertType                    string               `json:"alert_type,omitempty"`
-		AlertDescription             string               `json:"alert_description,omitempty"`
-		Message                      string               `json:"message"`                  // Descriptive message of the event
-		FlowID                       string               `json:"flow_id"`                  // ID of the flow
-		OldStatus                    string               `json:"old_status,omitempty"`     // Previous status of the flow (optional)
-		NewStatus                    string               `json:"new_status,omitempty"`     // New status of the flow (optional)
-		ErrorRate                    float64              `json:"error_rate,omitempty"`     // Overall error rate for the alert (optional)
-		Threshold                    int                  `json:"threshold,omitempty"`      // Alert threshold that was reached or recovered from
-		AlertState                   string               `json:"alert_state,omitempty"`    // Status of the alert, e.g., "ACTIVATED" or "DEACTIVATED"
-		Errors                       []ErrorInfo          `json:"errors,omitempty"`         // List of errors describing the alert (optional)
-		P50Latency                   int                  `json:"p50_latency,omitempty"`    // P50 latency of the endpoint requests (optional)
-		P90Latency                   int                  `json:"p90_latency,omitempty"`    // P90 latency of the endpoint requests (optional)
-		RequestsCount                int                  `json:"requests_count,omitempty"` // Number of requests used to calculate metric (optional)
-		Availability                 int                  `json:"availability"`
-		MessagingProduct             string               `json:"messaging_product,omitempty"`
-		Metadata                     *Metadata            `json:"metadata,omitempty"`
-		Contacts                     []*Contact           `json:"contacts,omitempty"`
-		UserPreferences              []*UserPreference    `json:"user_preferences,omitempty"`
-		Messages                     []*Message           `json:"messages,omitempty"`
-		Statuses                     []*Status            `json:"statuses,omitempty"`
-		PhoneNumberSettings          *PhoneNumberSettings `json:"phone_number_settings,omitempty"`
-	}
-
-	ErrorInfo struct {
-		ErrorType  string             `json:"error_type,omitempty"`
-		ErrorRate  float64            `json:"error_rate,omitempty"`
-		ErrorCount int64              `json:"error_count,omitempty"`
-		Message    string             `json:"message,omitempty"`
-		Type       string             `json:"type,omitempty"`
-		Code       int                `json:"code,omitempty"`
-		Data       *werrors.ErrorData `json:"error_data,omitempty"`
-		Subcode    int                `json:"error_subcode,omitempty"`
-		UserTitle  string             `json:"error_user_title,omitempty"`
-		UserMsg    string             `json:"error_user_msg,omitempty"`
-		FBTraceID  string             `json:"fbtrace_id,omitempty"`
-		Details    string             `json:"details,omitempty"`
-		Href       string             `json:"href,omitempty"`
-	}
-
-	BanInfo struct {
-		WABABanState WABABanState `json:"waba_ban_state"` // e.g., DISABLE, REINSTATE, SCHEDULE_FOR_DISABLE
-		WABABanDate  string       `json:"waba_ban_date"`  // Date of the ban
-		CurrentLimit string       `json:"current_limit"`  // Current tier limit of the account
-	}
-
-	DisableInfo struct {
-		DisableDate string `json:"disable_date"` // Date when the template was disabled
-	}
-
-	OtherInfo struct {
-		Title       string `json:"title,omitempty"`
-		Description string `json:"description,omitempty"`
-	}
-
-	ViolationInfo struct {
-		ViolationType string `json:"violation_type"` // e.g., "ACCOUNT_VIOLATION"
-	}
-
-	RestrictionInfo struct {
-		RestrictionType RestrictionType `json:"restriction_type"` // e.g., "RESTRICTED_BIZ_INITIATED_MESSAGING"
-		Expiration      string          `json:"expiration"`       // Expiration date of the restriction
-	}
-)
-
-func (info ErrorInfo) Error() *werrors.Error {
-	return &werrors.Error{
-		Message:   info.Message,
-		Type:      info.Type,
-		Code:      info.Code,
-		Data:      info.Data,
-		Subcode:   info.Subcode,
-		UserTitle: info.UserTitle,
-		UserMsg:   info.UserMsg,
-		FBTraceID: info.FBTraceID,
-		Details:   info.Details,
-		Href:      info.Href,
-	}
-}
-
-func ErrorInfosAsErrors(infos []ErrorInfo) []*werrors.Error {
-	errs := make([]*werrors.Error, len(infos))
-	for i, info := range infos {
-		errs[i] = info.Error()
-	}
-
-	return errs
-}
-
-type MediaMessageHandler MessageHandler[message.MediaInfo]
 
 type Handler struct {
 	flowStatus               EventHandler[FlowNotificationContext, StatusChangeDetails]
@@ -180,6 +42,7 @@ type Handler struct {
 	phoneSettingsUpdate      EventHandler[BusinessNotificationContext, PhoneNumberSettings]
 	phoneNumberQualityUpdate EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
 	accountReviewUpdate      EventHandler[BusinessNotificationContext, AccountReviewUpdate]
+	callStatusUpdate         EventHandler[BusinessNotificationContext, CallStatusUpdate]
 	buttonMessage            MessageHandler[Button]
 	textMessage              MessageHandler[Text]
 	orderMessage             MessageHandler[Order]
@@ -204,6 +67,8 @@ type Handler struct {
 	notificationErrors       MessageChangeValueHandler[werrors.Error]
 	messageStatusChange      MessageChangeValueHandler[Status]
 	userPreferencesUpdate    MessageChangeValueHandler[UserPreference]
+	groupLifecycleUpdate     MessageChangeValueHandler[Group]
+	groupParticipantsUpdate  MessageChangeValueHandler[Group]
 	errorMessage             MessageErrorsHandler
 	unsupportedMessage       MessageErrorsHandler
 
@@ -227,6 +92,7 @@ func NewHandler() *Handler {
 		phoneSettingsUpdate:      NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberSettings](),
 		phoneNumberQualityUpdate: NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate](),
 		accountReviewUpdate:      NewNoOpEventHandler[BusinessNotificationContext, AccountReviewUpdate](),
+		callStatusUpdate:         NewNoOpEventHandler[BusinessNotificationContext, CallStatusUpdate](),
 		buttonMessage:            NewNoOpMessageHandler[Button](),
 		textMessage:              NewNoOpMessageHandler[Text](),
 		orderMessage:             NewNoOpMessageHandler[Order](),
@@ -250,6 +116,8 @@ func NewHandler() *Handler {
 		notificationErrors:       NewNoOpMessageChangeValueHandler[werrors.Error](),
 		messageStatusChange:      NewNoOpMessageChangeValueHandler[Status](),
 		userPreferencesUpdate:    NewNoOpMessageChangeValueHandler[UserPreference](),
+		groupLifecycleUpdate:     NewNoOpMessageChangeValueHandler[Group](),
+		groupParticipantsUpdate:  NewNoOpMessageChangeValueHandler[Group](),
 		errorMessage:             NewNoOpMessageErrorsHandler(),
 		unsupportedMessage:       NewNoOpMessageErrorsHandler(),
 		requestWelcome:           NewNoOpMessageHandler[Message](),
@@ -330,127 +198,149 @@ func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cy
 		}
 
 	case ChangeFieldTemplateStatusUpdate.String():
-		if err := handler.handleTemplateStatusUpdate(ctx, notification, change, entry); err != nil {
+		if err := handler.handleTemplateStatusUpdate(ctx,
+			notification, change, entry); err != nil {
 			return err
 		}
 
 	case ChangeFieldTemplateCategoryUpdate.String():
-		if err := handler.handleTemplateCategoryUpdate(ctx, notification, change, entry); err != nil {
+		if err := handler.handleTemplateCategoryUpdate(ctx,
+			notification, change, entry); err != nil {
 			return err
 		}
 
 	case ChangeFieldTemplateQualityUpdate.String():
-		if err := handler.handleTemplateQualityUpdate(ctx, notification, change, entry); err != nil {
+		if err := handler.handleTemplateQualityUpdate(
+			ctx, notification, change, entry); err != nil {
 			return err
 		}
 
 	case ChangeFieldPhoneNumberNameUpdate.String():
-		if handler.phoneNumberNameUpdate != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-			if err := handler.phoneNumberNameUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberNameUpdate()); err != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
-				}
-			}
-		}
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.phoneNumberNameUpdate, change.Value.PhoneNumberNameUpdate(),
+		)
 
 	case ChangeFieldPhoneNumberQualityUpdate.String():
-		if handler.phoneNumberQualityUpdate != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-			if err := handler.phoneNumberQualityUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberQualityUpdate()); err != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
-				}
-			}
-		}
+		return handleBusinessNotification(
+			ctx, handler, notification,
+			change, entry, handler.phoneNumberQualityUpdate,
+			change.Value.PhoneNumberQualityUpdate(),
+		)
 
 	case ChangeFieldAccountUpdate.String():
-		if handler.accountUpdate != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-			if err := handler.accountUpdate.HandleEvent(ctx, notificationCtx, change.Value.AccountUpdate()); err != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
-				}
-			}
-		}
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.accountUpdate, change.Value.AccountUpdate(),
+		)
 
 	case ChangeFieldAccountReviewUpdate.String():
-		if handler.accountReviewUpdate != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-			if err := handler.accountReviewUpdate.HandleEvent(ctx, notificationCtx, change.Value.AccountReviewUpdate()); err != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
-				}
-			}
-		}
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.accountReviewUpdate, change.Value.AccountReviewUpdate(),
+		)
+
+	case ChangeFieldCalls.String():
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.callStatusUpdate, change.Value.CallStatusUpdate(),
+		)
 
 	case ChangeFieldBusinessCapabilityUpdate.String():
-		if handler.capabilityUpdate != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-			if err := handler.capabilityUpdate.HandleEvent(ctx, notificationCtx, change.Value.CapabilityUpdate()); err != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
-				}
-			}
-		}
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.capabilityUpdate, change.Value.CapabilityUpdate(),
+		)
 
 	case ChangeFieldUserPreferences.String():
-		if handler.userPreferencesUpdate != nil {
-			notificationCtx := &MessageNotificationContext{
-				EntryID:          entry.ID,
-				MessagingProduct: change.Value.MessagingProduct,
-				Contacts:         change.Value.Contacts,
-				Metadata:         change.Value.Metadata,
-			}
-			if err := handler.userPreferencesUpdate.Handle(ctx, notificationCtx, change.Value.UserPreferences); err != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
-				}
-			}
-		}
+		return handleMessageChangeNotification(
+			ctx, handler, handler.userPreferencesUpdate, change,
+			entry, change.Value.UserPreferences,
+		)
 
 	case ChangeFieldAccountSettingsUpdate.String():
-		if handler.accountUpdate != nil {
-			notificationCtx := &BusinessNotificationContext{
-				Object:      notification.Object,
-				EntryID:     entry.ID,
-				EntryTime:   entry.Time,
-				ChangeField: change.Field,
-			}
-			if err := handler.phoneSettingsUpdate.HandleEvent(ctx, notificationCtx, change.Value.PhoneNumberSettings); err != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
-				}
-			}
-		}
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.phoneSettingsUpdate, change.Value.PhoneNumberSettings,
+		)
 
 	case ChangeFieldMessages.String():
 		return handler.handleNotificationMessageItem(ctx, entry, change)
+
+	case ChangeFieldGroupLifecycleUpdate.String(),
+		ChangeFieldGroupParticipantsUpdate.String():
+		return handler.handleGroupWebhooks(ctx, change, entry)
+	}
+
+	return nil
+}
+
+func handleBusinessNotification[T any](
+	ctx context.Context,
+	handler *Handler,
+	notification *Notification,
+	change Change,
+	entry Entry,
+	eventHandler EventHandler[BusinessNotificationContext, T],
+	eventData *T,
+) error {
+	if eventHandler == nil {
+		return nil
+	}
+
+	notificationCtx := &BusinessNotificationContext{
+		Object:      notification.Object,
+		EntryID:     entry.ID,
+		EntryTime:   entry.Time,
+		ChangeField: change.Field,
+	}
+
+	if err := eventHandler.HandleEvent(ctx, notificationCtx, eventData); err != nil {
+		if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+			return handlerErr
+		}
+	}
+
+	return nil
+}
+
+func (handler *Handler) handleGroupWebhooks(ctx context.Context, change Change, entry Entry) error {
+	switch change.Field {
+	case ChangeFieldGroupLifecycleUpdate.String():
+		return handleMessageChangeNotification(
+			ctx, handler, handler.groupLifecycleUpdate, change, entry, change.Value.Groups,
+		)
+	case ChangeFieldGroupParticipantsUpdate.String():
+		return handleMessageChangeNotification(
+			ctx, handler, handler.groupParticipantsUpdate, change, entry, change.Value.Groups,
+		)
+	}
+	return nil
+}
+
+func handleMessageChangeNotification[T any](
+	ctx context.Context,
+	handler *Handler,
+	eventHandler MessageChangeValueHandler[T],
+	change Change,
+	entry Entry,
+	events []*T,
+) error {
+	if eventHandler == nil {
+		return nil
+	}
+
+	notificationCtx := &MessageNotificationContext{
+		EntryID:          entry.ID,
+		MessagingProduct: change.Value.MessagingProduct,
+		Contacts:         change.Value.Contacts,
+		Metadata:         change.Value.Metadata,
+	}
+
+	if err := eventHandler.Handle(ctx, notificationCtx, events); err != nil {
+		if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+			return handlerErr
+		}
 	}
 
 	return nil
@@ -564,7 +454,7 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 		Metadata:         change.Value.Metadata,
 	}
 
-	// handle notification errors do not terminate of its success or if the error is not fatal
+	// handle notification errors do not terminate of its success, or if the error is not fatal
 	if handler.notificationErrors != nil {
 		if err := handler.notificationErrors.Handle(
 			ctx, notificationCtx, ErrorInfosAsErrors(change.Value.Errors),
@@ -620,6 +510,11 @@ const (
 	ChangeFieldMessages                 ChangeField = "messages"
 	ChangeFieldUserPreferences          ChangeField = "user_preferences"
 	ChangeFieldAccountSettingsUpdate    ChangeField = "account_settings_update"
+	ChangeFieldCalls                    ChangeField = "calls"
+	ChangeFieldGroupLifecycleUpdate     ChangeField = "group_lifecycle_update"
+	ChangeFieldGroupParticipantsUpdate  ChangeField = "group_participants_update"
+	ChangeFieldGroupSettingsUpdate      ChangeField = "group_settings_update"
+	ChangeFieldGroupStatusUpdate        ChangeField = "group_status_update"
 )
 
 const (
@@ -640,21 +535,6 @@ type (
 	}
 
 	EventHandlerFunc[S any, T any] func(ctx context.Context, ntx *S, notification *T) error
-
-	FlowStatusHandler               EventHandler[FlowNotificationContext, StatusChangeDetails]
-	FlowClientErrorRateHandler      EventHandler[FlowNotificationContext, ClientErrorRateDetails]
-	FlowEndpointErrorRateHandler    EventHandler[FlowNotificationContext, EndpointErrorRateDetails]
-	FlowEndpointLatencyHandler      EventHandler[FlowNotificationContext, EndpointLatencyDetails]
-	FlowEndpointAvailabilityHandler EventHandler[FlowNotificationContext, EndpointAvailabilityDetails]
-	AlertsHandler                   EventHandler[BusinessNotificationContext, AlertNotification]
-	TemplateStatusHandler           EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
-	TemplateCategoryHandler         EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
-	TemplateQualityHandler          EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]
-	PhoneNumberNameUpdateHandler    EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
-	CapabilityUpdateHandler         EventHandler[BusinessNotificationContext, CapabilityUpdate]
-	AccountUpdateHandler            EventHandler[BusinessNotificationContext, AccountUpdate]
-	PhoneNumberQualityUpdateHandler EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
-	AccountReviewUpdateHandler      EventHandler[BusinessNotificationContext, AccountReviewUpdate]
 )
 
 func (f EventHandlerFunc[S, T]) HandleEvent(ctx context.Context, ntx *S, notification *T) error {
@@ -668,86 +548,13 @@ func NewNoOpEventHandler[S any, T any]() EventHandler[S, T] {
 }
 
 const (
-	RestrictionTypeRestrictedAddPhoneNumber    RestrictionType = "RESTRICTED_ADD_PHONE_NUMBER_ACTION"
-	RestrictionTypeRestrictedBizInitiated      RestrictionType = "RESTRICTED_BIZ_INITIATED_MESSAGING"
-	RestrictionTypeRestrictedCustomerInitiated RestrictionType = "RESTRICTED_CUSTOMER_INITIATED_MESSAGING"
-
 	WABABanStateDisable            WABABanState = "DISABLE"
 	WABABanStateReinstate          WABABanState = "REINSTATE"
 	WABABanStateScheduleForDisable WABABanState = "SCHEDULE_FOR_DISABLE"
 )
 
 type (
-	BusinessNotificationContext struct {
-		Object      string
-		EntryID     string
-		EntryTime   int64
-		ChangeField string
-	}
-
 	WABABanState string
-
-	RestrictionType string
-
-	AlertNotification struct {
-		EntityType       string `json:"entity_type,omitempty"`
-		EntityID         string `json:"entity_id,omitempty"`
-		AlertSeverity    string `json:"alert_severity,omitempty"`
-		AlertStatus      string `json:"alert_status,omitempty"`
-		AlertType        string `json:"alert_type,omitempty"`
-		AlertDescription string `json:"alert_description,omitempty"`
-	}
-
-	TemplateStatusUpdateNotification struct {
-		Event                   string       `json:"event,omitempty"`
-		MessageTemplateID       int64        `json:"message_template_id,omitempty"`
-		MessageTemplateName     string       `json:"message_template_name,omitempty"`
-		MessageTemplateLanguage string       `json:"message_template_language,omitempty"`
-		Reason                  string       `json:"reason,omitempty"`
-		DisableInfo             *DisableInfo `json:"disable_info,omitempty"`
-		OtherInfo               *OtherInfo   `json:"other_info,omitempty"`
-	}
-
-	TemplateCategoryUpdateNotification struct {
-		MessageTemplateID       int64  `json:"message_template_id,omitempty"`
-		MessageTemplateName     string `json:"message_template_name,omitempty"`
-		MessageTemplateLanguage string `json:"message_template_language,omitempty"`
-		PreviousCategory        string `json:"previous_category,omitempty"`
-		NewCategory             string `json:"new_category,omitempty"`
-	}
-
-	TemplateQualityUpdateNotification struct {
-		PreviousQualityScore    string `json:"previous_quality_score,omitempty"`
-		NewQualityScore         string `json:"new_quality_score,omitempty"`
-		MessageTemplateID       int64  `json:"message_template_id,omitempty"`
-		MessageTemplateName     string `json:"message_template_name,omitempty"`
-		MessageTemplateLanguage string `json:"message_template_language,omitempty"`
-	}
-
-	PhoneNumberNameUpdate struct {
-		PhoneNumber           string `json:"display_phone_number"`
-		Decision              string `json:"decision"`
-		RequestedVerifiedName string `json:"requested_verified_name"`
-		RejectionReason       string `json:"rejection_reason"`
-	}
-
-	PhoneNumberQualityUpdate struct {
-		DisplayPhoneNumber string `json:"display_phone_number,omitempty"`
-		Event              string `json:"event,omitempty"`
-		CurrentLimit       string `json:"current_limit,omitempty"`
-	}
-
-	AccountReviewUpdate struct {
-		Decision string `json:"decision,omitempty"`
-	}
-
-	AccountUpdate struct {
-		PhoneNumber     string            `json:"phone_number,omitempty"`
-		Event           string            `json:"event,omitempty"`
-		RestrictionInfo []RestrictionInfo `json:"restriction_info,omitempty"`
-		BanInfo         *BanInfo          `json:"ban_info,omitempty"`
-		ViolationInfo   *ViolationInfo    `json:"violation_info,omitempty"`
-	}
 
 	PhoneNumberSettings struct {
 		PhoneNumberID string                      `json:"phone_number_id,omitempty"`
@@ -789,11 +596,6 @@ type (
 	SIPServer struct {
 		Hostname        string `json:"hostname,omitempty"`
 		SIPUserPassword string `json:"sip_user_password,omitempty"`
-	}
-
-	CapabilityUpdate struct {
-		MaxDailyConversationPerPhone int `json:"max_daily_conversation_per_phone,omitempty"`
-		MaxPhoneNumbersPerBusiness   int `json:"max_phone_numbers_per_business,omitempty"`
 	}
 )
 
@@ -1001,16 +803,6 @@ func (handler *Handler) SetBusinessCapabilityUpdateHandler(
 }
 
 type (
-	FlowNotificationContext struct {
-		NotificationObject string // Corresponds to the 'object' field
-		EntryID            string // Corresponds to the 'id' field in Entry
-		EntryTime          int64  // Corresponds to the 'time' field in Entry
-		ChangeField        string // Corresponds to the 'field' in Changes
-		EventName          string // Corresponds to 'event' field in Value
-		EventMessage       string // Corresponds to 'message' field in Value
-		FlowID             string // Corresponds to 'flow_id' field in Value
-	}
-
 	StatusChangeDetails struct {
 		OldStatus string `json:"old_status,omitempty"`
 		NewStatus string `json:"new_status,omitempty"`
@@ -1045,202 +837,6 @@ type (
 	}
 )
 
-func (value *Value) FlowStatusChange() *StatusChangeDetails {
-	return &StatusChangeDetails{
-		OldStatus: value.OldStatus,
-		NewStatus: value.NewStatus,
-	}
-}
-
-func (value *Value) FlowClientErrorRate() *ClientErrorRateDetails {
-	return &ClientErrorRateDetails{
-		ErrorRate:  value.ErrorRate,
-		Threshold:  value.Threshold,
-		AlertState: value.AlertState,
-		Errors:     value.Errors,
-	}
-}
-
-func (value *Value) FlowEndpointErrorRate() *EndpointErrorRateDetails {
-	return &EndpointErrorRateDetails{
-		ErrorRate:  value.ErrorRate,
-		Threshold:  value.Threshold,
-		AlertState: value.AlertState,
-		Errors:     value.Errors,
-	}
-}
-
-func (value *Value) FlowEndpointLatency() *EndpointLatencyDetails {
-	return &EndpointLatencyDetails{
-		P50Latency:    value.P50Latency,
-		P90Latency:    value.P90Latency,
-		RequestsCount: value.RequestsCount,
-		Threshold:     value.Threshold,
-		AlertState:    value.AlertState,
-	}
-}
-
-func (value *Value) FlowEndpointAvailability() *EndpointAvailabilityDetails {
-	return &EndpointAvailabilityDetails{
-		Availability: value.Availability,
-		Threshold:    value.Threshold,
-		AlertState:   value.AlertState,
-	}
-}
-
-func (handler *Handler) handleFlowNotification(
-	ctx context.Context,
-	notificationContext *FlowNotificationContext,
-	value *Value,
-) error {
-	switch value.Event {
-	case EventFlowStatusChange:
-		details := value.FlowStatusChange()
-		if err := handler.flowStatus.HandleEvent(ctx, notificationContext, details); err != nil {
-			return fmt.Errorf("handle flow status change event: %w", err)
-		}
-
-	case EventClientErrorRate:
-		details := value.FlowClientErrorRate()
-		if err := handler.flowClientErrorRate.HandleEvent(ctx, notificationContext, details); err != nil {
-			return fmt.Errorf("handle client error rate event: %w", err)
-		}
-
-	case EventEndpointErrorRate:
-		details := value.FlowEndpointErrorRate()
-		if err := handler.flowEndpointErrorRate.HandleEvent(ctx, notificationContext, details); err != nil {
-			return fmt.Errorf("handle endpoint error rate event: %w", err)
-		}
-
-	case EventEndpointLatency:
-		details := value.FlowEndpointLatency()
-		if err := handler.flowEndpointLatency.HandleEvent(ctx, notificationContext, details); err != nil {
-			return fmt.Errorf("handle endpoint latency event: %w", err)
-		}
-
-	case EventEndpointAvailability:
-		details := value.FlowEndpointAvailability()
-		if err := handler.flowEndpointAvailability.HandleEvent(ctx, notificationContext, details); err != nil {
-			return fmt.Errorf("handle endpoint availability event: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func (handler *Handler) OnFlowStatusChange(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *StatusChangeDetails) error,
-) {
-	handler.flowStatus = EventHandlerFunc[FlowNotificationContext, StatusChangeDetails](fn)
-}
-
-func (handler *Handler) SetFlowStatusChangeHandler(fn FlowStatusHandler) {
-	handler.flowStatus = fn
-}
-
-func (handler *Handler) OnFlowClientErrorRate(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *ClientErrorRateDetails) error,
-) {
-	handler.flowClientErrorRate = EventHandlerFunc[FlowNotificationContext, ClientErrorRateDetails](fn)
-}
-
-func (handler *Handler) SetFlowClientErrorRateHandler(
-	fn FlowClientErrorRateHandler,
-) {
-	handler.flowClientErrorRate = fn
-}
-
-func (handler *Handler) OnFlowEndpointErrorRate(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointErrorRateDetails) error,
-) {
-	handler.flowEndpointErrorRate = EventHandlerFunc[FlowNotificationContext, EndpointErrorRateDetails](fn)
-}
-
-func (handler *Handler) SetFlowEndpointErrorRateHandler(
-	fn FlowEndpointErrorRateHandler,
-) {
-	handler.flowEndpointErrorRate = fn
-}
-
-func (handler *Handler) OnFlowEndpointLatency(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointLatencyDetails) error,
-) {
-	handler.flowEndpointLatency = EventHandlerFunc[FlowNotificationContext, EndpointLatencyDetails](fn)
-}
-
-func (handler *Handler) SetFlowEndpointLatencyHandler(
-	fn FlowEndpointLatencyHandler,
-) {
-	handler.flowEndpointLatency = fn
-}
-
-func (handler *Handler) OnFlowEndpointAvailability(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointAvailabilityDetails) error,
-) {
-	handler.flowEndpointAvailability = EventHandlerFunc[FlowNotificationContext, EndpointAvailabilityDetails](fn)
-}
-
-func (handler *Handler) SetFlowEndpointAvailabilityHandler(
-	fn FlowEndpointAvailabilityHandler,
-) {
-	handler.flowEndpointAvailability = fn
-}
-
-const (
-	MessageTypeAudio          MessageType = "audio"
-	MessageTypeButton         MessageType = "button"
-	MessageTypeDocument       MessageType = "document"
-	MessageTypeText           MessageType = "text"
-	MessageTypeImage          MessageType = "image"
-	MessageTypeInteractive    MessageType = "interactive"
-	MessageTypeOrder          MessageType = "order"
-	MessageTypeSticker        MessageType = "sticker"
-	MessageTypeSystem         MessageType = "system"
-	MessageTypeUnknown        MessageType = "unknown"
-	MessageTypeUnsupported    MessageType = "unsupported"
-	MessageTypeVideo          MessageType = "video"
-	MessageTypeLocation       MessageType = "location"
-	MessageTypeReaction       MessageType = "reaction"
-	MessageTypeContacts       MessageType = "contacts"
-	MessageTypeRequestWelcome MessageType = "request_welcome"
-)
-
-// MessageType is a type of message that has been received by the business that has subscribed
-// to Webhooks. Possible value can be one of the following: audio,button, document, text,image,
-// interactive, order,sticker, system – for customer number change messages, unknown and video
-// The documentation is not clear in case of location, reaction and contacts. They will be included
-// just in case.
-type MessageType string
-
-// ParseMessageType parses the message type from a string.
-func ParseMessageType(s string) MessageType {
-	msgMap := map[string]MessageType{
-		"audio":           MessageTypeAudio,
-		"button":          MessageTypeButton,
-		"document":        MessageTypeDocument,
-		"text":            MessageTypeText,
-		"image":           MessageTypeImage,
-		"interactive":     MessageTypeInteractive,
-		"order":           MessageTypeOrder,
-		"sticker":         MessageTypeSticker,
-		"system":          MessageTypeSystem,
-		"unknown":         MessageTypeUnknown,
-		"unsupported":     MessageTypeUnsupported,
-		"video":           MessageTypeVideo,
-		"location":        MessageTypeLocation,
-		"reaction":        MessageTypeReaction,
-		"contacts":        MessageTypeContacts,
-		"request_welcome": MessageTypeRequestWelcome,
-	}
-
-	msgType, ok := msgMap[strings.TrimSpace(strings.ToLower(s))]
-	if !ok {
-		return ""
-	}
-
-	return msgType
-}
-
 func (c *Contact) SenderInfo() *SenderInfo {
 	return &SenderInfo{
 		Name: c.Profile.Name,
@@ -1268,6 +864,7 @@ type (
 		Errors      []*werrors.Error   `json:"errors,omitempty"`
 		From        string             `json:"from,omitempty"`
 		ID          string             `json:"id,omitempty"`
+		GroupID     string             `json:"group_id,omitempty"`
 		Identity    *Identity          `json:"identity,omitempty"`
 		Image       *message.MediaInfo `json:"image,omitempty"`
 		Interactive *Interactive       `json:"interactive,omitempty"`
@@ -1285,16 +882,19 @@ type (
 	}
 
 	Status struct {
-		ID                    string             `json:"id,omitempty"`
-		RecipientID           string             `json:"recipient_id,omitempty"`
-		StatusValue           string             `json:"status,omitempty"`
-		Timestamp             string             `json:"timestamp,omitempty"`
-		Conversation          *Conversation      `json:"conversation,omitempty"`
-		Pricing               *Pricing           `json:"pricing,omitempty"`
-		Errors                []*werrors.Error   `json:"errors,omitempty"`
-		BizOpaqueCallbackData string             `json:"biz_opaque_callback_data,omitempty"`
-		Message               *StatusMessageInfo `json:"message,omitempty"`
-		Type                  string             `json:"type,omitempty"`
+		ID                     string             `json:"id,omitempty"`
+		RecipientID            string             `json:"recipient_id,omitempty"`
+		RecipientType          string             `json:"recipient_type,omitempty"`
+		RecipientParticipantID string             `json:"recipient_participant_id,omitempty"`
+		ParticipantRecipientID string             `json:"participant_recipient_id,omitempty"`
+		StatusValue            string             `json:"status,omitempty"`
+		Timestamp              string             `json:"timestamp,omitempty"`
+		Conversation           *Conversation      `json:"conversation,omitempty"`
+		Pricing                *Pricing           `json:"pricing,omitempty"`
+		Errors                 []*werrors.Error   `json:"errors,omitempty"`
+		BizOpaqueCallbackData  string             `json:"biz_opaque_callback_data,omitempty"`
+		Message                *StatusMessageInfo `json:"message,omitempty"`
+		Type                   string             `json:"type,omitempty"`
 	}
 
 	StatusMessageInfo struct {
@@ -1505,54 +1105,18 @@ func (ctx *MessageNotificationContext) SenderInfo() *SenderInfo {
 }
 
 type (
-	MessageHandlerFunc[T any] func(
-		ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, message *T) error
-
-	MessageHandler[T any] interface {
-		Handle(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, message *T) error
-	}
-
-	ButtonMessageHandler         = MessageHandler[Button]
-	TextMessageHandler           = MessageHandler[Text]
-	OrderMessageHandler          = MessageHandler[Order]
-	LocationMessageHandler       = MessageHandler[message.Location]
-	ContactsMessageHandler       = MessageHandler[message.Contacts]
-	ReactionHandler              = MessageHandler[message.Reaction]
-	ProductEnquiryHandler        = MessageHandler[Text]
-	InteractiveMessageHandler    = MessageHandler[Interactive]
-	ButtonReplyMessageHandler    = MessageHandler[ButtonReply]
-	ListReplyMessageHandler      = MessageHandler[ListReply]
-	NativeFlowCompletionHandler  = MessageHandler[NFMReply]
-	ReferralMessageHandler       = MessageHandler[ReferralNotification]
-	CustomerIDChangeHandler      = MessageHandler[Identity]
-	SystemMessageHandler         = MessageHandler[System]
-	RequestWelcomeMessageHandler = MessageHandler[Message]
-)
-
-func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, notificationCtx *MessageNotificationContext,
-	info *MessageInfo, message *T,
-) error {
-	return fn(ctx, notificationCtx, info, message)
-}
-
-func NewNoOpMessageHandler[T any]() MessageHandler[T] {
-	return MessageHandlerFunc[T](func(_ context.Context, _ *MessageNotificationContext, _ *MessageInfo, _ *T) error {
-		return nil
-	})
-}
-
-type (
 	MessageChangeValueHandler[T any] interface {
 		Handle(ctx context.Context, notificationCtx *MessageNotificationContext, value []*T) error
 	}
-
 	MessageChangeValueHandlerFunc[T any] func(ctx context.Context, notificationCtx *MessageNotificationContext, value []*T) error
 )
 
 type (
-	UserPreferenceUpdateHandler = MessageChangeValueHandler[UserPreference]
-	NotificationErrorsHandler   = MessageChangeValueHandler[werrors.Error]
-	MessageStatusChangeHandler  = MessageChangeValueHandler[Status]
+	UserPreferenceUpdateHandler    = MessageChangeValueHandler[UserPreference]
+	NotificationErrorsHandler      = MessageChangeValueHandler[werrors.Error]
+	MessageStatusChangeHandler     = MessageChangeValueHandler[Status]
+	GroupLifecycleUpdateHandler    = MessageChangeValueHandler[Group]
+	GroupParticipantsUpdateHandler = MessageChangeValueHandler[Group]
 )
 
 func (f MessageChangeValueHandlerFunc[T]) Handle(
@@ -1567,518 +1131,6 @@ func NewNoOpMessageChangeValueHandler[T any]() MessageChangeValueHandler[T] {
 	return MessageChangeValueHandlerFunc[T](func(_ context.Context, _ *MessageNotificationContext, _ []*T) error {
 		return nil
 	})
-}
-
-const (
-	InteractiveTypeListReply     = "list_reply"
-	InteractiveTypeButtonReply   = "button_reply"
-	InteractiveTypeNFMReply      = "nfm_reply"
-	InteractiveAddressSubmission = "address_message"
-)
-
-type (
-	MessageErrorsHandlerFunc func(
-		ctx context.Context, notificationContext *MessageNotificationContext, info *MessageInfo, errors []*werrors.Error) error
-	MessageErrorsHandler interface {
-		Handle(
-			ctx context.Context,
-			notificationContext *MessageNotificationContext,
-			info *MessageInfo,
-			errors []*werrors.Error,
-		) error
-	}
-)
-
-func (fn MessageErrorsHandlerFunc) Handle(ctx context.Context, notificationCtx *MessageNotificationContext,
-	info *MessageInfo, errors []*werrors.Error,
-) error {
-	return fn(ctx, notificationCtx, info, errors)
-}
-
-func NewNoOpMessageErrorsHandler() MessageErrorsHandler {
-	return MessageErrorsHandlerFunc(
-		func(_ context.Context, _ *MessageNotificationContext, _ *MessageInfo, _ []*werrors.Error) error {
-			return nil
-		},
-	)
-}
-
-func (handler *Handler) handleNotificationMessage(ctx context.Context,
-	notificationCtx *MessageNotificationContext, message *Message,
-) error {
-	info := &MessageInfo{
-		From:             message.From,
-		MessageID:        message.ID,
-		Timestamp:        message.Timestamp,
-		Type:             message.Type,
-		Context:          message.Context,
-		IsAReply:         message.IsAReply(),
-		IsForwarded:      message.IsForwarded(),
-		IsProductInquiry: message.IsProductInquiry(),
-		IsReferral:       message.IsReferral(),
-	}
-
-	messageType := ParseMessageType(message.Type)
-	switch messageType {
-	case MessageTypeOrder:
-		if err := handler.orderMessage.Handle(ctx, notificationCtx, info, message.Order); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeButton:
-		if err := handler.buttonMessage.Handle(ctx, notificationCtx, info, message.Button); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeAudio, MessageTypeVideo, MessageTypeImage, MessageTypeDocument, MessageTypeSticker:
-		return handler.handleMediaMessage(ctx, notificationCtx, message, info)
-
-	case MessageTypeInteractive:
-		return handler.handleInteractiveNotification(ctx, notificationCtx, message, info)
-
-	case MessageTypeSystem:
-		if err := handler.systemMessage.Handle(ctx, notificationCtx, info, message.System); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeUnknown:
-		if err := handler.errorMessage.Handle(ctx, notificationCtx, info, message.Errors); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeUnsupported:
-		return handler.unsupportedMessage.Handle(ctx, notificationCtx, info, message.Errors)
-
-	case MessageTypeText:
-		return handler.handleTextNotification(ctx, notificationCtx, message, info)
-
-	case MessageTypeRequestWelcome:
-		if handler.requestWelcome != nil {
-			if err := handler.requestWelcome.Handle(ctx, notificationCtx, info, message); err != nil {
-				return err
-			}
-		}
-
-		return nil
-
-	case MessageTypeReaction:
-		if err := handler.reactionMessage.Handle(ctx, notificationCtx, info, message.Reaction); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeLocation:
-		if err := handler.locationMessage.Handle(ctx, notificationCtx, info, message.Location); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeContacts:
-		if err := handler.contactsMessage.Handle(ctx, notificationCtx, info, message.Contacts); err != nil {
-			return err
-		}
-
-		return nil
-
-	default:
-		return handler.handleDefaultNotificationMessage(ctx, notificationCtx, message, info)
-	}
-}
-
-func (handler *Handler) handleMediaMessage(ctx context.Context, notificationCtx *MessageNotificationContext,
-	message *Message, info *MessageInfo,
-) error {
-	messageType := ParseMessageType(message.Type)
-	switch messageType { //nolint:exhaustive // ok
-	case MessageTypeAudio:
-		if err := handler.audioMessage.Handle(ctx, notificationCtx, info, message.Audio); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeVideo:
-		if err := handler.videoMessage.Handle(ctx, notificationCtx, info, message.Video); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeImage:
-		if err := handler.imageMessage.Handle(ctx, notificationCtx, info, message.Image); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeDocument:
-		if err := handler.documentMessage.Handle(ctx, notificationCtx, info, message.Document); err != nil {
-			return err
-		}
-
-		return nil
-
-	case MessageTypeSticker:
-		if err := handler.stickerMessage.Handle(ctx, notificationCtx, info, message.Sticker); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	return nil
-}
-
-func (handler *Handler) handleTextNotification(ctx context.Context, notificationCtx *MessageNotificationContext,
-	message *Message, info *MessageInfo,
-) error {
-	if info.IsReferral {
-		referral := &ReferralNotification{
-			Text:     message.Text,
-			Referral: message.Referral,
-		}
-
-		if err := handler.referralMessage.Handle(ctx, notificationCtx, info, referral); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	if info.IsProductInquiry {
-		if err := handler.productInquiry.Handle(ctx, notificationCtx, info, message.Text); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	if err := handler.textMessage.Handle(ctx, notificationCtx, info, message.Text); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (handler *Handler) handleDefaultNotificationMessage(
-	ctx context.Context,
-	notificationCtx *MessageNotificationContext,
-	message *Message,
-	info *MessageInfo,
-) error {
-	if message.Contacts != nil {
-		if err := handler.contactsMessage.Handle(ctx, notificationCtx, info, message.Contacts); err != nil {
-			return err
-		}
-
-		return nil
-	}
-	if message.Location != nil {
-		if err := handler.locationMessage.Handle(ctx, notificationCtx, info, message.Location); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	if message.Identity != nil {
-		if err := handler.customerIDChange.Handle(ctx, notificationCtx, info, message.Identity); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	return ErrUnrecognizedMessageType
-}
-
-const ErrUnrecognizedMessageType = whatsapp.Error("unrecognized message type")
-
-func (handler *Handler) handleInteractiveNotification(ctx context.Context,
-	notificationCtx *MessageNotificationContext, message *Message, info *MessageInfo,
-) error {
-	switch message.Interactive.Type {
-	case InteractiveTypeListReply:
-		if err := handler.listReplyMessage.Handle(ctx, notificationCtx, info, message.Interactive.ListReply); err != nil {
-			return fmt.Errorf("handle list reply: %w", err)
-		}
-
-		return nil
-	case InteractiveTypeButtonReply:
-		if err := handler.buttonReplyMessage.Handle(ctx, notificationCtx, info, message.Interactive.ButtonReply); err != nil {
-			return fmt.Errorf("handle button reply: %w", err)
-		}
-
-		return nil
-	case InteractiveTypeNFMReply:
-		if err := handler.flowCompletionUpdate.Handle(ctx, notificationCtx, info, message.Interactive.NFMReply); err != nil {
-			return fmt.Errorf("handle flow completion update: %w", err)
-		}
-
-		return nil
-
-	case InteractiveAddressSubmission:
-		if err := handler.addressSubmission.Handle(ctx, notificationCtx, info, message.Interactive.NFMReply); err != nil {
-			return fmt.Errorf("handle address submission: %w", err)
-		}
-		return nil
-	default:
-		if err := handler.interactiveMessage.Handle(ctx, notificationCtx, info, message.Interactive); err != nil {
-			return err
-		}
-
-		return nil
-	}
-}
-
-func (handler *Handler) OnTextMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, text *Text) error,
-) {
-	handler.textMessage = MessageHandlerFunc[Text](fn)
-}
-
-func (handler *Handler) SetTextMessageHandler(
-	h TextMessageHandler,
-) {
-	handler.textMessage = h
-}
-
-func (handler *Handler) OnButtonMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, button *Button) error,
-) {
-	handler.buttonMessage = MessageHandlerFunc[Button](fn)
-}
-
-func (handler *Handler) SetButtonMessageHandler(
-	h ButtonMessageHandler,
-) {
-	handler.buttonMessage = h
-}
-
-func (handler *Handler) OnOrderMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, order *Order) error,
-) {
-	handler.orderMessage = MessageHandlerFunc[Order](fn)
-}
-
-func (handler *Handler) SetOrderMessageHandler(
-	h OrderMessageHandler,
-) {
-	handler.orderMessage = h
-}
-
-func (handler *Handler) OnLocationMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, loc *message.Location) error,
-) {
-	handler.locationMessage = MessageHandlerFunc[message.Location](fn)
-}
-
-func (handler *Handler) SetLocationMessageHandler(
-	h LocationMessageHandler,
-) {
-	handler.locationMessage = h
-}
-
-func (handler *Handler) OnContactsMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, contacts *message.Contacts) error,
-) {
-	handler.contactsMessage = MessageHandlerFunc[message.Contacts](fn)
-}
-
-func (handler *Handler) SetContactsMessageHandler(
-	h ContactsMessageHandler,
-) {
-	handler.contactsMessage = h
-}
-
-func (handler *Handler) OnReactionMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, reaction *message.Reaction) error,
-) {
-	handler.reactionMessage = MessageHandlerFunc[message.Reaction](fn)
-}
-
-func (handler *Handler) SetReactionMessageHandler(
-	h ReactionHandler,
-) {
-	handler.reactionMessage = h
-}
-
-func (handler *Handler) OnProductEnquiryMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, txt *Text) error,
-) {
-	handler.productInquiry = MessageHandlerFunc[Text](fn)
-}
-
-func (handler *Handler) SetProductEnquiryMessageHandler(
-	h ProductEnquiryHandler,
-) {
-	handler.productInquiry = h
-}
-
-func (handler *Handler) OnInteractiveMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, itv *Interactive) error,
-) {
-	handler.interactiveMessage = MessageHandlerFunc[Interactive](fn)
-}
-
-func (handler *Handler) SetInteractiveMessageHandler(
-	h InteractiveMessageHandler,
-) {
-	handler.interactiveMessage = h
-}
-
-func (handler *Handler) OnButtonReplyMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, br *ButtonReply) error,
-) {
-	handler.buttonReplyMessage = MessageHandlerFunc[ButtonReply](fn)
-}
-
-func (handler *Handler) SetButtonReplyMessageHandler(
-	h ButtonReplyMessageHandler,
-) {
-	handler.buttonReplyMessage = h
-}
-
-func (handler *Handler) OnListReplyMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, lr *ListReply) error,
-) {
-	handler.listReplyMessage = MessageHandlerFunc[ListReply](fn)
-}
-
-func (handler *Handler) SetListReplyMessageHandler(
-	h ListReplyMessageHandler,
-) {
-	handler.listReplyMessage = h
-}
-
-func (handler *Handler) OnFlowCompletionMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, nfm *NFMReply) error,
-) {
-	handler.flowCompletionUpdate = MessageHandlerFunc[NFMReply](fn)
-}
-
-func (handler *Handler) SetFlowCompletionMessageHandler(
-	h NativeFlowCompletionHandler,
-) {
-	handler.flowCompletionUpdate = h
-}
-
-func (handler *Handler) OnAddressSubmissionMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, nfm *NFMReply) error,
-) {
-	handler.addressSubmission = MessageHandlerFunc[NFMReply](fn)
-}
-
-func (handler *Handler) SetAddressSubmissionHandler(
-	h NativeFlowCompletionHandler,
-) {
-	handler.addressSubmission = h
-}
-
-func (handler *Handler) OnReferralMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, ref *ReferralNotification) error,
-) {
-	handler.referralMessage = MessageHandlerFunc[ReferralNotification](fn)
-}
-
-func (handler *Handler) SetReferralMessageHandler(
-	h ReferralMessageHandler,
-) {
-	handler.referralMessage = h
-}
-
-func (handler *Handler) OnCustomerIDChangeMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, identity *Identity) error,
-) {
-	handler.customerIDChange = MessageHandlerFunc[Identity](fn)
-}
-
-func (handler *Handler) SetCustomerIDChangeMessageHandler(
-	h CustomerIDChangeHandler,
-) {
-	handler.customerIDChange = h
-}
-
-func (handler *Handler) OnSystemMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, sys *System) error,
-) {
-	handler.systemMessage = MessageHandlerFunc[System](fn)
-}
-
-func (handler *Handler) SetSystemMessageHandler(
-	h SystemMessageHandler,
-) {
-	handler.systemMessage = h
-}
-
-func (handler *Handler) OnAudioMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
-) {
-	handler.audioMessage = MessageHandlerFunc[message.MediaInfo](fn)
-}
-
-func (handler *Handler) SetAudioMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.audioMessage = h
-}
-
-func (handler *Handler) OnVideoMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
-) {
-	handler.videoMessage = MessageHandlerFunc[message.MediaInfo](fn)
-}
-
-func (handler *Handler) SetVideoMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.videoMessage = h
-}
-
-func (handler *Handler) OnImageMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
-) {
-	handler.imageMessage = MessageHandlerFunc[message.MediaInfo](fn)
-}
-
-func (handler *Handler) SetImageMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.imageMessage = h
-}
-
-func (handler *Handler) OnDocumentMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
-) {
-	handler.documentMessage = MessageHandlerFunc[message.MediaInfo](fn)
-}
-
-func (handler *Handler) SetDocumentMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.documentMessage = h
-}
-
-func (handler *Handler) OnStickerMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
-) {
-	handler.stickerMessage = MessageHandlerFunc[message.MediaInfo](fn)
-}
-
-func (handler *Handler) SetStickerMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.stickerMessage = h
 }
 
 func (handler *Handler) OnUserPreferencesUpdate(

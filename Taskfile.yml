@@ -1,5 +1,10 @@
 version: "3"
 
+vars:
+  TOOLS_MOD_FILE: tools/go.mod
+  PROJECT_DIR:
+    sh: pwd
+
 tasks:
   all:
     desc: 'run all tasks'
@@ -14,23 +19,44 @@ tasks:
       - task: fmt-examples
       - task: fmt-extras
       - task: mocks
+  lint-fix:
+    desc: "lints and fixes the code"
+    cmds:
+    - go tool -modfile={{.TOOLS_MOD_FILE}} golangci-lint run --fix .
+    - go tool -modfile={{.TOOLS_MOD_FILE}} gofumpt -l -w .
+    - go tool -modfile={{.TOOLS_MOD_FILE}} gci write --skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .
+  lint-check:
+    desc: "lints and checks the code for issues without fixing"
+    cmds:
+       - go tool -modfile=tools/go.mod golangci-lint run .
+       - go tool -modfile=tools/go.mod gofumpt -l .
+       - sh -c 'if [ -n "$(go tool -modfile=tools/go.mod gci list -skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .)" ]; then echo "gci formatting issues found"; exit 1; fi'
+  lint:
+    desc: "lints the code based on env (local/ci) and directory"
+    vars:
+       ENV: '{{.ENV | default "local"}}'
+       DIR: '{{.DIR | default "."}}'
+    dir: '{{.DIR}}'
+    cmd: |
+       if [ "{{.ENV}}" = "ci" ]; then
+         task lint-check
+       else
+         task lint-fix
+       fi
   test:
     desc: "run tests"
     cmd: go test -race -json -coverpkg ./... -parallel=4 ./... | go tool -modfile=tools/go.mod tparse --all
   fmt-examples:
     desc: "update dependencies for examples and format the code"
     cmds:
-      - cd _examples && go build ./... && go get -u ./... && go mod tidy
-      - go tool -modfile=tools/go.mod golangci-lint run --fix .
-      - go tool -modfile=tools/go.mod gofumpt -l -w .
-      - go tool -modfile=tools/go.mod gci write --skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .
+      - cd _examples
+      - task: go-build
+      - task: lint-fix
   fmt-lib:
     desc: "update dependencies for library and format the code"
     cmds:
-      - go build ./... && go get -u ./... && go mod tidy
-      - go tool -modfile=tools/go.mod golangci-lint run --fix
-      - go tool -modfile=tools/go.mod gofumpt -l -w .
-      - go tool -modfile=tools/go.mod gci write --skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .
+      - task: go-build
+      - task: lint-fix
   fmt-extras:
     desc: "update dependencies for extras and format the code"
     cmds:
@@ -41,29 +67,29 @@ tasks:
   mocks:
     desc: "generates mocks"
     cmds:
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/media/mock_media.go -package=media -source=./media/media.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/user/mock_user.go -package=user -source=./user/user.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=./phonenumber/phonenumber.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/qrcode/mock_qrcode.go -package=qrcode -source=./qrcode/qrcode.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/auth/mock_auth.go -package=auth -source=./auth/auth.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/message/mock_message.go -package=message -source=./message/message.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/message/mock_status_update.go -package=message -source=./message/status.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/flow/mock_flow.go -package=flow -source=./flow/flow.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/mock_business.go -package=business -source=./business/business.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/analytics/mock_templates.go -package=analytics -source=./business/analytics/templates.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/config/config_mock.go -package=config -source=./config/config.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/http/mock_http.go -package=http -source=./pkg/http/http.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/webhooks/mock_webhooks.go -package=webhooks -source=./webhooks/webhooks.go
-      - go tool -modfile=tools/go.mod mockgen -destination=./mocks/business/analytics/mock_analytics.go -package=analytics -source=./business/analytics/analytics.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/media/mock_media.go -package=media -source=./media/media.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/user/mock_user.go -package=user -source=./user/user.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=./phonenumber/phonenumber.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/qrcode/mock_qrcode.go -package=qrcode -source=./qrcode/qrcode.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/auth/mock_auth.go -package=auth -source=./auth/auth.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/message/mock_message.go -package=message -source=./message/message.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/message/mock_status_update.go -package=message -source=./message/status.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/flow/mock_flow.go -package=flow -source=./flow/flow.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/business/mock_business.go -package=business -source=./business/business.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/business/analytics/mock_templates.go -package=analytics -source=./business/analytics/templates.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/config/config_mock.go -package=config -source=./config/config.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/http/mock_http.go -package=http -source=./pkg/http/http.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/webhooks/mock_webhooks.go -package=webhooks -source=./webhooks/webhooks.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} mockgen -destination=./mocks/business/analytics/mock_analytics.go -package=analytics -source=./business/analytics/analytics.go
   add-license:
     desc: "adds license header to all the go files"
     cmds:
-      - go tool -modfile=tools/go.mod addlicense -f LICENCE **/*.go
-      - go tool -modfile=tools/go.mod addlicense -f LICENCE extras/mcp/**/*.go
-      - go tool -modfile=tools/go.mod addlicense -f LICENCE extras/otel/*.go
-      - go tool -modfile=tools/go.mod addlicense -f LICENCE _examples/**/*.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} addlicense -f LICENCE **/*.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} addlicense -f LICENCE extras/mcp/**/*.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} addlicense -f LICENCE extras/otel/*.go
+      - go tool -modfile={{.TOOLS_MOD_FILE}} addlicense -f LICENCE _examples/**/*.go
   run:
     desc: 'run example program'
     dir: _examples
@@ -89,4 +115,34 @@ tasks:
         msg: 'provided example program is not available try any of {{.PROGRAMS}}'
     cmds:
       - go run {{.program}}/main.go
+  go-build:
+    desc: "update deps, tidy and build the code in a specific directory"
+    vars:
+      DIR: '{{.DIR | default "$PROJECT_DIR"}}'
+    dir: '{{.DIR}}'
+    cmds:
+      - echo "building $DIR"
+      - go get -u ./... && go mod tidy && go build ./...
+  go-test:
+    desc: "run tests in a specific directory"
+    vars:
+      DIR: '{{.DIR | default "$PROJECT_DIR"}}'
+    dir: '{{.DIR}}'
+    cmds:
+      - echo "running tests in $DIR"
+      - go test -race -json -coverpkg ./... -parallel=4 ./... | go tool -modfile=$TOOLS_MOD_FILE tparse --all
+  fmt-one:
+    desc: "format code in a specific directory"
+    vars:
+      DIR: '{{.DIR | default "./_examples"}}'
+      ENV: '{{.ENV | default "local"}}'
+    dir: '{{.DIR}}'
+    cmds:
+      - task: go-build
+        vars:
+          DIR: '{{.DIR}}'
+      - task: go-test
+        vars:
+          DIR: '{{.DIR}}'
+
 
