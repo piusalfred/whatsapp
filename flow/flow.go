@@ -301,6 +301,8 @@ func (client *BaseClient) Send(ctx context.Context, conf *config.Config, req *Ba
 		Message:     &req.Payload,
 	}
 
+	request.SetDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
 	response := &BaseResponse{}
 
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
@@ -408,6 +410,7 @@ func (client *BaseClient) UpdateFlowJSON(ctx context.Context,
 		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.PhoneNumberID, "media"),
 		whttp.WithRequestAppSecret[any](conf.AppSecret),
 		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	req := whttp.MakeRequest(http.MethodPost, conf.BaseURL, opts...)
@@ -745,8 +748,8 @@ func CreateErrorAcknowledgmentResponse(acknowledged bool) *Response {
 func (h *DataExchangeHandlerImpl) Handle(w http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
-	var req *Request
-	if err := whttp.DecodeRequestJSON(request, req, whttp.DecodeOptions{
+	var req Request
+	if err := whttp.DecodeRequestJSON(request, &req, whttp.DecodeOptions{
 		DisallowUnknownFields: false,
 		DisallowEmptyResponse: false,
 		InspectResponseError:  false,
@@ -756,7 +759,7 @@ func (h *DataExchangeHandlerImpl) Handle(w http.ResponseWriter, request *http.Re
 		return
 	}
 
-	decryptedRequest, err := h.DecryptRequest(ctx, req)
+	decryptedRequest, err := h.DecryptRequest(ctx, &req)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 
@@ -858,12 +861,12 @@ func aesGCMDecrypt(ciphertext, key, iv, tag []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create new cipher: %w", err)
 	}
 
-	aesgcm, err := cipher.NewGCM(block)
+	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new GCM: %w", err)
 	}
 
-	bb, err := aesgcm.Open(nil, iv, append(ciphertext, tag...), nil)
+	bb, err := aesGCM.Open(nil, iv, append(ciphertext, tag...), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt: %w", err)
 	}
@@ -877,13 +880,13 @@ func aesGCMEncrypt(plaintext, key, iv []byte) ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("failed to create new cipher: %w", err)
 	}
 
-	aesgcm, err := cipher.NewGCM(block)
+	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create new GCM: %w", err)
 	}
 
-	ciphertext := aesgcm.Seal(nil, iv, plaintext, nil)
-	tag := ciphertext[len(ciphertext)-aesgcm.Overhead():]
+	ciphertext := aesGCM.Seal(nil, iv, plaintext, nil)
+	tag := ciphertext[len(ciphertext)-aesGCM.Overhead():]
 
-	return ciphertext[:len(ciphertext)-aesgcm.Overhead()], tag, nil
+	return ciphertext[:len(ciphertext)-aesGCM.Overhead()], tag, nil
 }

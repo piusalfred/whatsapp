@@ -44,6 +44,7 @@ type Config struct {
 	ClientToken       string // Client token
 	ClientID          string // Client ID
 	SystemUserID      string // System user ID
+	DebugLogLevel     string
 }
 
 // LoadConfigFromFile loads configuration parameters from the provided .env file.
@@ -68,6 +69,7 @@ func LoadConfigFromFile(filepath string) (*Config, error) {
 		ClientToken:       os.Getenv("WHATSAPP_CLOUD_API_CLIENT_TOKEN"),
 		ClientID:          os.Getenv("WHATSAPP_CLOUD_API_CLIENT_ID"),
 		SystemUserID:      os.Getenv("WHATSAPP_CLOUD_API_SYSTEM_USER_ID"),
+		DebugLogLevel:     os.Getenv("WHATSAPP_CLOUD_API_DEBUG_LOG_LEVEL"),
 	}
 
 	return conf, nil
@@ -113,6 +115,7 @@ func main() {
 	}
 
 	client := auth.NewClient(conf.BaseURL, conf.APIVersion, coreClient)
+	client.SetDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
 
 	response, err := client.GenerateAccessToken(ctx, auth.GenerateAccessTokenParams{
 		AccessToken:  conf.AccessToken,

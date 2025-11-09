@@ -98,6 +98,7 @@ func (client *BaseClient) GetFlowMetrics(ctx context.Context, request *MetricsRe
 		whttp.WithRequestSecured[any](conf.SecureRequests),
 		whttp.WithRequestAppSecret[any](conf.AppSecret),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, request.FlowID),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	req := whttp.MakeRequest(http.MethodGet, conf.BaseURL, opts...)

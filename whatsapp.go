@@ -27,7 +27,7 @@ import (
 
 const (
 	BaseURL                   = "https://graph.facebook.com"
-	LowestSupportedAPIVersion = "v20.0" // This is the lowest version of the API that is supported
+	LowestSupportedAPIVersion = "v24.0" // This is the lowest version of the API that is supported
 	MessageProduct            = "whatsapp"
 	lowestMajorVersion        = 20
 )

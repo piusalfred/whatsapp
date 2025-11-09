@@ -345,6 +345,7 @@ func (sender *BaseSender) Send(ctx context.Context, conf *config.Config, req *Ba
 		whttp.WithRequestQueryParams[any](req.QueryParams),
 		whttp.WithRequestAppSecret[any](conf.AppSecret),
 		whttp.WithRequestSecured[any](conf.SecureRequests),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	request := whttp.MakeRequest(req.Method, conf.BaseURL, opts...)

@@ -33,6 +33,7 @@ type (
 		AppSecret         string
 		AppID             string
 		SecureRequests    bool
+		DebugLogLevel     string
 	}
 
 	Reader interface {

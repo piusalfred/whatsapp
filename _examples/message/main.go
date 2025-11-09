@@ -30,8 +30,6 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-const recipient = "+1234567890" // replace it with a valid WhatsApp number
-
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
@@ -52,9 +50,10 @@ func main() {
 		whttp.WithCoreClientResponseInterceptor[message.Message](
 			func(ctx context.Context, resp *http.Response) error {
 				logger.LogAttrs(ctx, slog.LevelInfo, "response intercepted",
-					slog.String("http.response.status", resp.Status),
-					slog.Int("http.response.code", resp.StatusCode),
-					slog.Any("headers", resp.Header),
+					// slog.String("http.response.status", resp.Status),
+					// slog.Int("http.response.code", resp.StatusCode),
+					// slog.Any("headers", resp.Header),
+					slog.Any("body", resp.Body),
 				)
 
 				return nil
@@ -66,12 +65,14 @@ func main() {
 
 	coreClient := whttp.NewSender(clientOptions...)
 
-	reader := examples.LoadConfigFromFile()
-	baseClient, err := message.NewBaseClient(coreClient, reader)
+	exampleConfig, err := examples.LoadConfigFromFile()
+	baseClient, err := message.NewBaseClient(coreClient, exampleConfig.Reader)
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error creating base client", slog.String("error", err.Error()))
 		return
 	}
+
+	recipient := exampleConfig.TestNumber
 
 	initTmpl := message.WithTemplateMessage(&message.Template{
 		Name: "hello_world",

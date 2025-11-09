@@ -102,6 +102,7 @@ func (s *BaseSender) Send(ctx context.Context, config *config.Config, request *B
 		whttp.WithRequestType[any](request.Type),
 		whttp.WithRequestAppSecret[any](config.AppSecret),
 		whttp.WithRequestSecured[any](config.SecureRequests),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(config.DebugLogLevel)),
 	}
 
 	if request.Payload != nil {

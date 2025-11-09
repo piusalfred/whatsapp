@@ -22,6 +22,7 @@ package message
 import (
 	"context"
 
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/pkg/types"
 )
 
@@ -137,11 +138,12 @@ type (
 	Option func(message *Message)
 
 	Response struct {
-		Product         string             `json:"messaging_product,omitempty"`
-		Contacts        []*ResponseContact `json:"contacts,omitempty"`
-		Messages        []*ID              `json:"messages,omitempty"`
-		MessageMetadata types.Metadata     `json:"-"`
-		Success         bool               `json:"success"`
+		Product         string              `json:"messaging_product,omitempty"`
+		Contacts        []*ResponseContact  `json:"contacts,omitempty"`
+		Messages        []*ID               `json:"messages,omitempty"`
+		MessageMetadata types.Metadata      `json:"-"`
+		Success         bool                `json:"success"`
+		Debug           *whttp.DebugDetails `json:"__debug__,omitempty"`
 	}
 
 	ID struct {

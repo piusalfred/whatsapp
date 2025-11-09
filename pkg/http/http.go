@@ -366,6 +366,7 @@ type (
 		SecureRequests bool
 		DownloadURL    string // this is used for downloading media (it is taken as is)
 		BodyReader     io.Reader
+		debugLogLevel  DebugLogLevel
 	}
 
 	RequestForm struct {
@@ -382,13 +383,19 @@ type (
 	RequestOption[T any] func(request *Request[T])
 )
 
+// SetDebugLogLevel sets the debug log level for the request.
+func (request *Request[T]) SetDebugLogLevel(level DebugLogLevel) {
+	request.debugLogLevel = level
+}
+
 // MakeRequest creates a new request with the provided options.
 func MakeRequest[T any](method, baseURL string, options ...RequestOption[T]) *Request[T] {
 	req := &Request[T]{
-		Method:      method,
-		BaseURL:     baseURL,
-		Headers:     make(map[string]string),
-		QueryParams: make(map[string]string),
+		Method:        method,
+		BaseURL:       baseURL,
+		Headers:       make(map[string]string),
+		QueryParams:   make(map[string]string),
+		debugLogLevel: DebugLogLevelNone,
 	}
 
 	for _, option := range options {
@@ -403,10 +410,11 @@ func MakeRequest[T any](method, baseURL string, options ...RequestOption[T]) *Re
 // MakeDownloadRequest creates a new request for downloading media.
 func MakeDownloadRequest[T any](downloadURL string, options ...RequestOption[T]) *Request[T] {
 	req := &Request[T]{
-		Method:      http.MethodGet,
-		DownloadURL: downloadURL,
-		Headers:     make(map[string]string),
-		QueryParams: make(map[string]string),
+		Method:        http.MethodGet,
+		DownloadURL:   downloadURL,
+		Headers:       make(map[string]string),
+		QueryParams:   make(map[string]string),
+		debugLogLevel: DebugLogLevelNone,
 	}
 
 	for _, option := range options {
@@ -534,6 +542,11 @@ func (request *Request[T]) URL() (string, error) {
 
 	for key, value := range request.QueryParams {
 		q.Set(key, value)
+	}
+
+	shouldEnableDebugLogging := request.debugLogLevel != DebugLogLevelNone && request.debugLogLevel != ""
+	if shouldEnableDebugLogging {
+		q.Set("debug", string(request.debugLogLevel))
 	}
 
 	if request.SecureRequests {

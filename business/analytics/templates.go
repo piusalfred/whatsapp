@@ -87,6 +87,7 @@ func (c *TemplatesClient) DisableButtonClickTracking(ctx context.Context,
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, req.TemplateID),
 		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
@@ -129,6 +130,7 @@ func (c *TemplatesClient) Enable(ctx context.Context) (string, error) {
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.BusinessAccountID),
 		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	req := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
@@ -187,6 +189,7 @@ func (c *TemplatesClient) Fetch(ctx context.Context, params *TemplateAnalyticsRe
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.BusinessAccountID, string(TypeTemplateAnalytics)),
 		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	req := whttp.MakeRequest(http.MethodGet, conf.BaseURL,

@@ -36,12 +36,11 @@ const (
 
 type (
 	Request struct {
-		MessagingProduct string       `json:"messaging_product,omitempty"`
-		CallID           string       `json:"call_id,omitempty"`
-		Action           CallAction   `json:"action,omitempty"`
-		Session          *SessionInfo `json:"session,omitempty"`
-		// An arbitrary string you can pass in that is useful for tracking and logging purposes
-		BizOpaqueCallbackData string `json:"biz_opaque_callback_data,omitempty"`
+		MessagingProduct      string       `json:"messaging_product,omitempty"`
+		CallID                string       `json:"call_id,omitempty"`
+		Action                CallAction   `json:"action,omitempty"`
+		Session               *SessionInfo `json:"session,omitempty"`
+		BizOpaqueCallbackData string       `json:"biz_opaque_callback_data,omitempty"`
 	}
 
 	Response struct {
@@ -61,7 +60,7 @@ type (
 	}
 )
 
-func (sender *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*Response, error) {
+func (base *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*Response, error) {
 	// TODO: determine if this uses access token or bearer token
 	req := &whttp.Request[Request]{
 		Type:      whttp.RequestTypeUpdateCallStatus,
@@ -75,13 +74,14 @@ func (sender *BaseClient) Send(ctx context.Context, conf *config.Config, request
 		Bearer: conf.AccessToken,
 	}
 
+	req.SetDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
 	res := &Response{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		InspectResponseError: true,
 	})
 
-	err := sender.Sender.Send(ctx, req, decoder)
-	if err != nil {
+	if err := base.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 

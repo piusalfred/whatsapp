@@ -656,3 +656,75 @@ func TestInjectMessageMetadata(t *testing.T) {
 		t.Errorf("InjectMessageMetadata() mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestRequest_URL(t *testing.T) {
+	t.Parallel()
+	testBaseURL := "https://api.example.com"
+
+	type testCase[T any] struct {
+		name    string
+		method  string
+		baseURL string
+		want    string
+		wantErr bool
+		options []whttp.RequestOption[T]
+	}
+	tests := []testCase[any]{
+		{
+			name:    "base only",
+			method:  http.MethodGet,
+			baseURL: testBaseURL,
+			want:    "https://api.example.com/",
+		},
+		{
+			name:    "with endpoints",
+			method:  http.MethodGet,
+			baseURL: "https://api.example.com",
+			want:    "https://api.example.com/v1/users",
+			options: []whttp.RequestOption[any]{
+				whttp.WithRequestEndpoints[any]("v1", "users"),
+			},
+		},
+		{
+			name:    "with query params",
+			method:  http.MethodGet,
+			baseURL: "https://api.example.com",
+			want:    "https://api.example.com/v1/users?age=30&name=John",
+			options: []whttp.RequestOption[any]{
+				whttp.WithRequestEndpoints[any]("v1", "users"),
+				whttp.WithRequestQueryParams[any](map[string]string{
+					"name": "John",
+					"age":  "30",
+				}),
+			},
+		},
+		{
+			name:    "with query params and headers",
+			method:  http.MethodGet,
+			baseURL: "https://api.example.com",
+			want:    "https://api.example.com/v1/users?age=30&debug=warning&name=John",
+			options: []whttp.RequestOption[any]{
+				whttp.WithRequestEndpoints[any]("v1", "users"),
+				whttp.WithRequestQueryParams[any](map[string]string{
+					"name": "John",
+					"age":  "30",
+				}),
+				whttp.WithRequestDebugLogLevel[any](whttp.DebugLogLevelWarning),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			request := whttp.MakeRequest(tt.method, tt.baseURL, tt.options...)
+			got, err := request.URL()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("URL() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("URL() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
