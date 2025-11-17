@@ -593,7 +593,7 @@ type (
 		RecipientType   string           `json:"recipient_type"`
 		Type            string           `json:"type"`
 		PreviewURL      bool             `json:"preview_url,omitempty"`
-		Context         *Context         `json:"config,omitempty"`
+		Context         *Context         `json:"context,omitempty"`
 		Text            *Text            `json:"text,omitempty"`
 		Location        *Location        `json:"location,omitempty"`
 		Reaction        *Reaction        `json:"reaction,omitempty"`
