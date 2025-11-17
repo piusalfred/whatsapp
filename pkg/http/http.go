@@ -49,8 +49,22 @@ type (
 		sender      Sender[T]
 	}
 
-	CoreClientOption[T any] func(client *CoreClient[T])
+	CoreClientOption[T any] interface {
+		apply(client *CoreClient[T])
+	}
+
+	CoreClientOptionFunc[T any] func(client *CoreClient[T])
+
+	Options struct {
+		HTTPClient   *http.Client
+		RequestHook  RequestInterceptorFunc
+		ResponseHook ResponseInterceptorFunc
+	}
 )
+
+func (fn CoreClientOptionFunc[T]) apply(client *CoreClient[T]) {
+	fn(client)
+}
 
 func (core *CoreClient[T]) SetHTTPClient(httpClient *http.Client) {
 	if httpClient != nil {
@@ -79,27 +93,27 @@ func (core *CoreClient[T]) PrependMiddlewares(mws ...Middleware[T]) {
 }
 
 func WithCoreClientHTTPClient[T any](httpClient *http.Client) CoreClientOption[T] {
-	return func(client *CoreClient[T]) {
+	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
 		client.http = httpClient
-	}
+	})
 }
 
 func WithCoreClientRequestInterceptor[T any](hook RequestInterceptorFunc) CoreClientOption[T] {
-	return func(client *CoreClient[T]) {
+	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
 		client.reqHook = hook
-	}
+	})
 }
 
 func WithCoreClientResponseInterceptor[T any](hook ResponseInterceptorFunc) CoreClientOption[T] {
-	return func(client *CoreClient[T]) {
+	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
 		client.resHook = hook
-	}
+	})
 }
 
 func WithCoreClientMiddlewares[T any](mws ...Middleware[T]) CoreClientOption[T] {
-	return func(client *CoreClient[T]) {
+	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
 		client.middlewares = mws
-	}
+	})
 }
 
 func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
@@ -111,7 +125,7 @@ func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
 
 	for _, option := range options {
 		if option != nil {
-			option(core)
+			option.apply(core)
 		}
 	}
 
@@ -127,7 +141,7 @@ func NewAnySender(options ...CoreClientOption[any]) *CoreClient[any] {
 
 	for _, option := range options {
 		if option != nil {
-			option(core)
+			option.apply(core)
 		}
 	}
 
@@ -282,6 +296,24 @@ const (
 	RequestTypeGetSettings
 	RequestTypeUpdateSettings
 	RequestTypeUpdateCallStatus
+	// Create and delete group
+	// Groups with join requests enabled
+	// Get and reset group invite link
+	// Send group invite link template message
+	// Remove group participants
+	// Get group info
+	// Get active groups
+	// Update group settings
+	RequestTypeCreateGroup
+	RequestTypeDeleteGroup
+	RequestTypeGetGroupInviteLink
+	RequestTypeResetGroupInviteLink
+	RequestTypeSendGroupInviteLinkTemplateMessage
+	RequestTypeRemoveGroupParticipants
+	RequestTypeGetGroupInfo
+	RequestTypeGetActiveGroups
+	RequestTypeUpdateGroupSettings
+	RequestTypeUpdateGroupCallStatus
 )
 
 // String returns the string representation of the request type.

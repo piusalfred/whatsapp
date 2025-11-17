@@ -202,7 +202,7 @@ package main
 //	// Initialize with default values.
 //	h := &CallHandler{
 //		MessageClientConfig: cfg,
-//		MessageClient:       &calls.BaseClient{Sender: whttp.NewSender[calls.Request]()},
+//		MessageClient:       &calls.BaseClient{sender: whttp.NewSender[calls.Request]()},
 //		RecordingsDir:       ".recordings/",
 //		PromptWAV:           "beep.wav",
 //		MaxRecordDuration:   2 * time.Minute,

@@ -17,7 +17,14 @@
 
 package groups
 
-import "context"
+import (
+	"context"
+	"net/http"
+	"strings"
+
+	"github.com/piusalfred/whatsapp/config"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
+)
 
 //{
 //  "messaging_product": "whatsapp",
@@ -35,12 +42,128 @@ const (
 type (
 	JoinApprovalMode  string
 	CreateGroupParams struct {
+		MessagingProduct string           `json:"messaging_product"`
 		Subject          string           `json:"subject,omitempty"`
 		Description      string           `json:"description,omitempty"`
 		JoinApprovalMode JoinApprovalMode `json:"join_approval_mode,omitempty"`
 	}
 
-	Service interface {
-		CreateGroup(ctx context.Context, params *CreateGroupParams) error
+	Request struct {
+		MessagingProduct string            `json:"messaging_product"`
+		Subject          string            `json:"subject,omitempty"`
+		GroupID          string            `json:"group_id,omitempty"`
+		Description      string            `json:"description,omitempty"`
+		JoinApprovalMode JoinApprovalMode  `json:"join_approval_mode,omitempty"`
+		RequestType      whttp.RequestType `json:"-"`
+		Participants     []*Participants   `json:"participants,omitempty"`
+		GroupInfoFields  []string          `json:"group_info_fields,omitempty"`
+	}
+
+	//{
+	//  "data": [
+	//    {
+	//      "join_request_id": "<JOIN_REQUEST_ID>",
+	//      "wa_id": "<WHATSAPP_USER_ID>",
+	//      "creation_timestamp": "<JOIN_REQUEST_CREATION_TIMESTAMP">
+	//    },
+	//    //Additional join request objects would follow, if any
+	//  ],
+	//  "paging": {
+	//    "cursors": {
+	//      "before": "<BEFORE_CURSOR>",
+	//      "after": "<AFTER_CURSOR>"
+	//    }
+	//  }
+	//}
+	//
+	//DELETE /<GROUP_ID>/participants
+	//
+	//Request Body
+	//
+	//{
+	//  "messaging_product": "whatsapp",
+	//  "participants": [
+	//    { "user": "<WHATSAPP_USER_PHONE_NUMBER> or <WHATSAPP_USER_ID>" },
+	//    { "user": "<WHATSAPP_USER_PHONE_NUMBER> or <WHATSAPP_USER_ID>"" },
+	//    ...
+	//  ]
+	//}
+
+	//"messaging_product": "whatsapp",
+	//  "id": "<GROUP_ID>",
+	//  "subject": "<SUBJECT>",
+	//  "creation_timestamp": "<TIMESTAMP>",
+	//  "suspended": "<SUSPENDED>",
+	//  "description": "<DESCRIPTION>",
+	//  "total_participant_count": "<TOTAL_PARTICIPANT_COUNT>",
+	//  "participants": [
+	//    {
+	//      "wa_id": "<WA_ID>"
+	//    },
+	//    {
+	//      "wa_id": "<WA_ID>"
+	//    }
+	//  ],
+	//  "join_approval_mode": "<JOIN_APPROVAL_MODE>"
+
+	Participants struct {
+		User string `json:"user"`
+		WaID string `json:"wa_id"`
+	}
+	ResponseDataItem struct {
+		JoinRequestID     string `json:"join_request_id"`
+		WhatsappID        string `json:"wa_id"`
+		CreationTimestamp string `json:"creation_timestamp"`
+	}
+
+	Response struct {
+		MessagingProduct      string              `json:"messaging_product"`
+		Subject               string              `json:"subject,omitempty"`
+		CreationTimestamp     string              `json:"creation_timestamp,omitempty"`
+		Suspended             bool                `json:"suspended,omitempty"`
+		Description           string              `json:"description,omitempty"`
+		TotalParticipantCount int                 `json:"total_participant_count,omitempty"`
+		Participants          []*Participants     `json:"participants,omitempty"`
+		JoinApprovalMode      JoinApprovalMode    `json:"join_approval_mode,omitempty"`
+		Data                  []*ResponseDataItem `json:"data,omitempty"`
+		Paging                whttp.Paging        `json:"paging,omitempty"`
+	}
+
+	BaseClient struct {
+		sender whttp.Sender[Request]
 	}
 )
+
+func createRequest(conf *config.Config, request *Request) *whttp.Request[Request] {
+	var (
+		method    string
+		endpoints []string
+		params    = map[string]string{}
+	)
+	switch request.RequestType {
+	case whttp.RequestTypeRemoveGroupParticipants:
+		method = http.MethodDelete
+		endpoints = []string{
+			conf.APIVersion,
+			request.GroupID,
+			"participants",
+		}
+
+	case whttp.RequestTypeGetGroupInfo:
+		method = http.MethodGet
+		endpoints = []string{
+			conf.APIVersion,
+			request.GroupID,
+		}
+		params["fields"] = strings.Join(request.GroupInfoFields, ",")
+	default:
+	}
+	return whttp.MakeRequest[Request](method, conf.BaseURL,
+		whttp.WithRequestType[Request](request.RequestType),
+		whttp.WithRequestEndpoints[Request](endpoints...),
+	)
+}
+
+func (client *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*Response, error) {
+	return nil, nil
+}
