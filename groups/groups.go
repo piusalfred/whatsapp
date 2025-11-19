@@ -26,14 +26,6 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-//{
-//  "messaging_product": "whatsapp",
-//  "subject": "<GROUP_SUBJECT>",
-//  "description": "<GROUP_DESCRIPTION>",
-//  "join_approval_mode": "<JOIN_APPROVAL_MODE>"
-//}
-//
-
 const (
 	JoinApprovalModeRequired JoinApprovalMode = "approval_required"
 	JoinApprovalModeAuto     JoinApprovalMode = "auto_approve"
@@ -58,53 +50,6 @@ type (
 		Participants     []*Participants   `json:"participants,omitempty"`
 		GroupInfoFields  []string          `json:"group_info_fields,omitempty"`
 	}
-
-	//{
-	//  "data": [
-	//    {
-	//      "join_request_id": "<JOIN_REQUEST_ID>",
-	//      "wa_id": "<WHATSAPP_USER_ID>",
-	//      "creation_timestamp": "<JOIN_REQUEST_CREATION_TIMESTAMP">
-	//    },
-	//    //Additional join request objects would follow, if any
-	//  ],
-	//  "paging": {
-	//    "cursors": {
-	//      "before": "<BEFORE_CURSOR>",
-	//      "after": "<AFTER_CURSOR>"
-	//    }
-	//  }
-	//}
-	//
-	//DELETE /<GROUP_ID>/participants
-	//
-	//Request Body
-	//
-	//{
-	//  "messaging_product": "whatsapp",
-	//  "participants": [
-	//    { "user": "<WHATSAPP_USER_PHONE_NUMBER> or <WHATSAPP_USER_ID>" },
-	//    { "user": "<WHATSAPP_USER_PHONE_NUMBER> or <WHATSAPP_USER_ID>"" },
-	//    ...
-	//  ]
-	//}
-
-	//"messaging_product": "whatsapp",
-	//  "id": "<GROUP_ID>",
-	//  "subject": "<SUBJECT>",
-	//  "creation_timestamp": "<TIMESTAMP>",
-	//  "suspended": "<SUSPENDED>",
-	//  "description": "<DESCRIPTION>",
-	//  "total_participant_count": "<TOTAL_PARTICIPANT_COUNT>",
-	//  "participants": [
-	//    {
-	//      "wa_id": "<WA_ID>"
-	//    },
-	//    {
-	//      "wa_id": "<WA_ID>"
-	//    }
-	//  ],
-	//  "join_approval_mode": "<JOIN_APPROVAL_MODE>"
 
 	Participants struct {
 		User string `json:"user"`
