@@ -96,6 +96,7 @@ func (client *BaseClient) AddComponents(ctx context.Context, reader config.Reade
 		whttp.WithRequestSecured[Request](conf.SecureRequests),
 		whttp.WithRequestMessage(message),
 		whttp.WithRequestType[Request](whttp.RequestTypeUpdateConversationAutomationComponents),
+		whttp.WithRequestDebugLogLevel[Request](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
@@ -137,6 +138,7 @@ func (client *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, reader
 		whttp.WithRequestQueryParams[Request](map[string]string{
 			"enable_welcome_message": strconv.FormatBool(shouldEnable),
 		}),
+		whttp.WithRequestDebugLogLevel[Request](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 		requestTypeOption,
 	}
 
@@ -166,6 +168,7 @@ func (client *BaseClient) ListComponents(ctx context.Context, reader config.Read
 		whttp.WithRequestBearer[Request](conf.AccessToken),
 		whttp.WithRequestAppSecret[Request](conf.AppSecret),
 		whttp.WithRequestSecured[Request](conf.SecureRequests),
+		whttp.WithRequestDebugLogLevel[Request](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 		whttp.WithRequestType[Request](whttp.RequestTypeGetConversationAutomationComponents),
 	}
 

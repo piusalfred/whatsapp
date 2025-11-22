@@ -30,8 +30,6 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-const recipient = "+1234567890" // replace with a valid whatsapp number
-
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
@@ -52,9 +50,10 @@ func main() {
 		whttp.WithCoreClientResponseInterceptor[message.Message](
 			func(ctx context.Context, resp *http.Response) error {
 				logger.LogAttrs(ctx, slog.LevelInfo, "response intercepted",
-					slog.String("http.response.status", resp.Status),
-					slog.Int("http.response.code", resp.StatusCode),
-					slog.Any("headers", resp.Header),
+					// slog.String("http.response.status", resp.Status),
+					// slog.Int("http.response.code", resp.StatusCode),
+					// slog.Any("headers", resp.Header),
+					slog.Any("body", resp.Body),
 				)
 
 				return nil
@@ -66,12 +65,14 @@ func main() {
 
 	coreClient := whttp.NewSender(clientOptions...)
 
-	reader := examples.LoadConfigFromFile()
-	baseClient, err := message.NewBaseClient(coreClient, reader)
+	exampleConfig, err := examples.LoadConfigFromFile()
+	baseClient, err := message.NewBaseClient(coreClient, exampleConfig.Reader)
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error creating base client", slog.String("error", err.Error()))
 		return
 	}
+
+	recipient := exampleConfig.TestNumber
 
 	initTmpl := message.WithTemplateMessage(&message.Template{
 		Name: "hello_world",
@@ -109,7 +110,7 @@ func main() {
 		Body:       "Visit the repo at https://github.com/piusalfred/whatsapp",
 	}
 
-	response, err = baseClient.SendText(ctx, message.NewRequest(recipient, textMessage, ""))
+	response, err = baseClient.SendText(ctx, message.NewRequest(recipient, textMessage))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error sending text message", slog.String("error", err.Error()))
 		return
@@ -128,9 +129,9 @@ func main() {
 		Footer: "Frequently updated",
 	})
 
-	ir := message.NewRequest(recipient, interactiveMessage, "")
+	ir := message.NewRequest(recipient, interactiveMessage)
 
-	// use dedicated method
+	// use a dedicated method
 	response, err = baseClient.SendInteractiveMessage(ctx, ir)
 	if err != nil {
 		logger.LogAttrs(
@@ -177,7 +178,7 @@ func main() {
 		Address:   "Av. de Concha Espina, 1, Chamartín, 28036 Madrid, Spain",
 	}
 
-	response, err = baseClient.SendLocation(ctx, message.NewRequest(recipient, location, ""))
+	response, err = baseClient.SendLocation(ctx, message.NewRequest(recipient, location))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error sending location message", slog.String("error", err.Error()))
 		return
@@ -229,7 +230,7 @@ func main() {
 		Emoji:     "🤝",
 	}
 
-	response, err = baseClient.SendReaction(ctx, message.NewRequest(recipient, reaction, ""))
+	response, err = baseClient.SendReaction(ctx, message.NewRequest(recipient, reaction))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error reacting to message", slog.String("error", err.Error()))
 		return

@@ -21,6 +21,10 @@ package config
 
 import (
 	"context"
+	"errors"
+	"fmt"
+
+	"github.com/piusalfred/whatsapp"
 )
 
 type (
@@ -33,6 +37,7 @@ type (
 		AppSecret         string
 		AppID             string
 		SecureRequests    bool
+		DebugLogLevel     string
 	}
 
 	Reader interface {
@@ -44,4 +49,31 @@ type (
 
 func (fn ReaderFunc) Read(ctx context.Context) (*Config, error) {
 	return fn(ctx)
+}
+
+const ErrInvalidConfig = whatsapp.Error("invalid config")
+
+func Validate(conf *Config) error {
+	errs := make([]error, 0)
+	if !whatsapp.IsCorrectAPIVersion(conf.APIVersion) {
+		errVersion := fmt.Errorf("invalid API version: %s,lowest supported version is :%s",
+			conf.APIVersion, whatsapp.LowestSupportedAPIVersion)
+
+		errs = append(errs, errVersion)
+	}
+
+	if conf.SecureRequests && conf.AppSecret == "" {
+		errs = append(errs, errors.New("app secret is required for secure requests"))
+	}
+
+	return errors.Join(errs...)
+}
+
+func ReadValidate(ctx context.Context, reader Reader) (*Config, error) {
+	conf, err := reader.Read(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: read config: %w", ErrInvalidConfig, err)
+	}
+
+	return conf, Validate(conf)
 }

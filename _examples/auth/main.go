@@ -1,3 +1,20 @@
+//  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+//  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+//  subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in all copies or substantial
+//  portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+//  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package main
 
 import (
@@ -27,6 +44,7 @@ type Config struct {
 	ClientToken       string // Client token
 	ClientID          string // Client ID
 	SystemUserID      string // System user ID
+	DebugLogLevel     string
 }
 
 // LoadConfigFromFile loads configuration parameters from the provided .env file.
@@ -51,6 +69,7 @@ func LoadConfigFromFile(filepath string) (*Config, error) {
 		ClientToken:       os.Getenv("WHATSAPP_CLOUD_API_CLIENT_TOKEN"),
 		ClientID:          os.Getenv("WHATSAPP_CLOUD_API_CLIENT_ID"),
 		SystemUserID:      os.Getenv("WHATSAPP_CLOUD_API_SYSTEM_USER_ID"),
+		DebugLogLevel:     os.Getenv("WHATSAPP_CLOUD_API_DEBUG_LOG_LEVEL"),
 	}
 
 	return conf, nil
@@ -96,6 +115,7 @@ func main() {
 	}
 
 	client := auth.NewClient(conf.BaseURL, conf.APIVersion, coreClient)
+	client.SetDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
 
 	response, err := client.GenerateAccessToken(ctx, auth.GenerateAccessTokenParams{
 		AccessToken:  conf.AccessToken,

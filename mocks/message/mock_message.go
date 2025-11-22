@@ -13,7 +13,6 @@ import (
 	context "context"
 	reflect "reflect"
 
-	config "github.com/piusalfred/whatsapp/config"
 	message "github.com/piusalfred/whatsapp/message"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -222,45 +221,6 @@ func (mr *MockServiceMockRecorder) SendVideo(ctx, request any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendVideo", reflect.TypeOf((*MockService)(nil).SendVideo), ctx, request)
 }
 
-// MockStatusUpdater is a mock of StatusUpdater interface.
-type MockStatusUpdater struct {
-	ctrl     *gomock.Controller
-	recorder *MockStatusUpdaterMockRecorder
-	isgomock struct{}
-}
-
-// MockStatusUpdaterMockRecorder is the mock recorder for MockStatusUpdater.
-type MockStatusUpdaterMockRecorder struct {
-	mock *MockStatusUpdater
-}
-
-// NewMockStatusUpdater creates a new mock instance.
-func NewMockStatusUpdater(ctrl *gomock.Controller) *MockStatusUpdater {
-	mock := &MockStatusUpdater{ctrl: ctrl}
-	mock.recorder = &MockStatusUpdaterMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockStatusUpdater) EXPECT() *MockStatusUpdaterMockRecorder {
-	return m.recorder
-}
-
-// UpdateStatus mocks base method.
-func (m *MockStatusUpdater) UpdateStatus(ctx context.Context, request *message.StatusUpdateRequest) (*message.StatusUpdateResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateStatus", ctx, request)
-	ret0, _ := ret[0].(*message.StatusUpdateResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateStatus indicates an expected call of UpdateStatus.
-func (mr *MockStatusUpdaterMockRecorder) UpdateStatus(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatus", reflect.TypeOf((*MockStatusUpdater)(nil).UpdateStatus), ctx, request)
-}
-
 // MockSender is a mock of Sender interface.
 type MockSender struct {
 	ctrl     *gomock.Controller
@@ -285,17 +245,17 @@ func (m *MockSender) EXPECT() *MockSenderMockRecorder {
 	return m.recorder
 }
 
-// Send mocks base method.
-func (m *MockSender) Send(ctx context.Context, conf *config.Config, request *message.BaseRequest) (*message.Response, error) {
+// SendMessage mocks base method.
+func (m *MockSender) SendMessage(ctx context.Context, arg1 *message.Message) (*message.Response, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Send", ctx, conf, request)
+	ret := m.ctrl.Call(m, "SendMessage", ctx, arg1)
 	ret0, _ := ret[0].(*message.Response)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Send indicates an expected call of Send.
-func (mr *MockSenderMockRecorder) Send(ctx, conf, request any) *gomock.Call {
+// SendMessage indicates an expected call of SendMessage.
+func (mr *MockSenderMockRecorder) SendMessage(ctx, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockSender)(nil).Send), ctx, conf, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMessage", reflect.TypeOf((*MockSender)(nil).SendMessage), ctx, arg1)
 }

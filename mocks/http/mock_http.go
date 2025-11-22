@@ -18,6 +18,42 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
+// MockCoreClientOption is a mock of CoreClientOption interface.
+type MockCoreClientOption[T any] struct {
+	ctrl     *gomock.Controller
+	recorder *MockCoreClientOptionMockRecorder[T]
+	isgomock struct{}
+}
+
+// MockCoreClientOptionMockRecorder is the mock recorder for MockCoreClientOption.
+type MockCoreClientOptionMockRecorder[T any] struct {
+	mock *MockCoreClientOption[T]
+}
+
+// NewMockCoreClientOption creates a new mock instance.
+func NewMockCoreClientOption[T any](ctrl *gomock.Controller) *MockCoreClientOption[T] {
+	mock := &MockCoreClientOption[T]{ctrl: ctrl}
+	mock.recorder = &MockCoreClientOptionMockRecorder[T]{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockCoreClientOption[T]) EXPECT() *MockCoreClientOptionMockRecorder[T] {
+	return m.recorder
+}
+
+// apply mocks base method.
+func (m *MockCoreClientOption[T]) apply(client *http.CoreClient[T]) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "apply", client)
+}
+
+// apply indicates an expected call of apply.
+func (mr *MockCoreClientOptionMockRecorder[T]) apply(client any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "apply", reflect.TypeOf((*MockCoreClientOption[T])(nil).apply), client)
+}
+
 // MockSender is a mock of Sender interface.
 type MockSender[T any] struct {
 	ctrl     *gomock.Controller

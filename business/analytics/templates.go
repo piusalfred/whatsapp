@@ -1,3 +1,20 @@
+//  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+//  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+//  subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in all copies or substantial
+//  portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+//  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package analytics
 
 import (
@@ -87,6 +104,7 @@ func (c *TemplatesClient) DisableButtonClickTracking(ctx context.Context,
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, req.TemplateID),
 		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
@@ -129,6 +147,7 @@ func (c *TemplatesClient) Enable(ctx context.Context) (string, error) {
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.BusinessAccountID),
 		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	req := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
@@ -187,6 +206,7 @@ func (c *TemplatesClient) Fetch(ctx context.Context, params *TemplateAnalyticsRe
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.BusinessAccountID, string(TypeTemplateAnalytics)),
 		whttp.WithRequestQueryParams[any](queryParams),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	req := whttp.MakeRequest(http.MethodGet, conf.BaseURL,

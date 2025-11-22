@@ -34,13 +34,18 @@ import (
 //go:embed api.env
 var apiEnvContent []byte
 
-func LoadConfigFromFile() config.ReaderFunc {
-	fn := func(ctx context.Context) (*config.Config, error) {
-		values, err := godotenv.UnmarshalBytes(apiEnvContent)
-		if err != nil {
-			return nil, err
-		}
+type Config struct {
+	Reader     config.ReaderFunc
+	TestNumber string
+}
 
+func LoadConfigFromFile() (*Config, error) {
+	values, err := godotenv.UnmarshalBytes(apiEnvContent)
+	if err != nil {
+		return nil, err
+	}
+
+	fn := func(ctx context.Context) (*config.Config, error) {
 		conf := &config.Config{
 			BaseURL:           values["WHATSAPP_CLOUD_API_BASE_URL"],
 			APIVersion:        values["WHATSAPP_CLOUD_API_API_VERSION"],
@@ -50,12 +55,20 @@ func LoadConfigFromFile() config.ReaderFunc {
 			AppSecret:         values["WHATSAPP_CLOUD_API_APP_SECRET"],
 			AppID:             values["WHATSAPP_CLOUD_API_APP_ID"],
 			SecureRequests:    values["WHATSAPP_CLOUD_API_SECURE_REQUESTS"] == "true",
+			DebugLogLevel:     values["WHATSAPP_CLOUD_API_DEBUG_LOG_LEVEL"],
 		}
 
 		return conf, nil
 	}
 
-	return fn
+	number := values["WHATSAPP_CLOUD_API_TEST_NUMBER"]
+
+	conf := &Config{
+		Reader:     fn,
+		TestNumber: number,
+	}
+
+	return conf, nil
 }
 
 func HttpClient() *http.Client {
