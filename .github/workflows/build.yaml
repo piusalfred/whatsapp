@@ -54,3 +54,5 @@ jobs:
       - name: Build Verification
         # Ensures the binary compiles without running it
         run: go build -v ./...
+      - name: License Headers Check
+        run: task license-check
