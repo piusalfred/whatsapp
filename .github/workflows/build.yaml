@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['stable'] # Uses the latest stable Go version
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          # Cache dependencies for both the app and the build tools
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Dependencies
+        run: |
+          go mod download
+          # Ensure build tools are downloaded
+          cd tools && go mod download
+
+      - name: Lint Check
+        # Uses your Taskfile definition: runs golangci-lint, gofumpt, and gci
+        run: task lint-check
+
+      - name: Run Tests
+        # Uses your Taskfile definition: runs race detection and tparse
+        run: task test
+
+      - name: Build Verification
+        # Ensures the binary compiles without running it
+        run: go build -v ./...
