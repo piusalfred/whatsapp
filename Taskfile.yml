@@ -30,7 +30,7 @@ tasks:
     cmds:
        - go tool -modfile=tools/go.mod golangci-lint run .
        - go tool -modfile=tools/go.mod gofumpt -l .
-       - sh -c 'if [ -n "$(go tool -modfile=tools/go.mod gci list -skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .)" ]; then echo "gci formatting issues found"; exit 1; fi'
+       - sh -c 'if [ -n "$(go tool -modfile=tools/go.mod gci list --skip-generated -s standard -s blank -s default -s "prefix(github.com/piusalfred/whatsapp)" .)" ]; then echo "gci formatting issues found"; exit 1; fi'
   lint:
     desc: "lints the code based on env (local/ci) and directory"
     vars:
@@ -90,6 +90,25 @@ tasks:
       - go tool -modfile={{.TOOLS_MOD_FILE}} addlicense -f LICENCE extras/mcp/**/*.go
       - go tool -modfile={{.TOOLS_MOD_FILE}} addlicense -f LICENCE extras/otel/*.go
       - go tool -modfile={{.TOOLS_MOD_FILE}} addlicense -f LICENCE _examples/**/*.go
+  license-check:
+    desc: "fails if any go file is missing the license header"
+    vars:
+      # 1. Define a dynamic variable that captures the output of the check.
+      #    We use 'find' to recursively get all .go files (fixing the glob issue).
+      #    We use '2>&1' to ensure we capture the output even if it goes to stderr.
+      #    We add '|| true' so the variable assignment itself doesn't fail the build immediately.
+      MISSING_HEADERS:
+        sh: go tool -modfile={{.TOOLS_MOD_FILE}} addlicense -check -f LICENCE $(find . -type f -name "*.go") 2>&1 || true
+
+    cmds:
+      # 2. Check if the variable is empty or not.
+      - |
+        if [ -n "{{.MISSING_HEADERS}}" ]; then
+          echo "❌ License headers missing in the following files:"
+          echo "{{.MISSING_HEADERS}}"
+          exit 1
+        fi
+        echo "✅ All files have license headers."
   run:
     desc: 'run example program'
     dir: _examples

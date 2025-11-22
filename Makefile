@@ -56,3 +56,12 @@ task: ## run arbitrary Taskfile task (usage: make task cmd=<name> [program=...] 
 
 run-example: ## run example program (usage: make run-example program=block [args="..."])
 	@$(TASK_BIN) run $(if $(program),program=$(program)) $(if $(args),args=$(args))
+
+lint-check:
+	@$(TASK_BIN) lint-check
+
+lint-fix:
+	@$(TASK_BIN) lint-fix
+
+license-check:
+	@$(TASK_BIN) license-check
