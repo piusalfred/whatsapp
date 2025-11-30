@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        go-version: ['stable'] # Uses the latest stable Go version
+        go-version: ['stable']
 
     steps:
       - name: Checkout Repository
@@ -26,7 +26,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
-          # Cache dependencies for both the app and the build tools
           cache-dependency-path: |
             go.sum
             tools/go.sum
@@ -44,15 +43,12 @@ jobs:
           cd tools && go mod download
 
       - name: Lint Check
-        # Uses your Taskfile definition: runs golangci-lint, gofumpt, and gci
         run: task lint-check
 
       - name: Run Tests
-        # Uses your Taskfile definition: runs race detection and tparse
         run: task test
 
       - name: Build Verification
-        # Ensures the binary compiles without running it
         run: go build -v ./...
       - name: License Headers Check
         run: task license-check

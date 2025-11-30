@@ -66,6 +66,11 @@ func main() {
 	coreClient := whttp.NewSender(clientOptions...)
 
 	exampleConfig, err := examples.LoadConfigFromFile()
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelError, "error loading configs", slog.String("error", err.Error()))
+		return
+	}
+
 	baseClient, err := message.NewBaseClient(coreClient, exampleConfig.Reader)
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error creating base client", slog.String("error", err.Error()))
@@ -235,6 +240,8 @@ func main() {
 		logger.LogAttrs(ctx, slog.LevelError, "error reacting to message", slog.String("error", err.Error()))
 		return
 	}
+
+	// sendAsGroupMessageOption := message.WithRequestRecipientType(message.RecipientTypeGroup)
 
 	logger.LogAttrs(ctx, slog.LevelInfo, "response from reaction message", slog.Any("response", response))
 }
