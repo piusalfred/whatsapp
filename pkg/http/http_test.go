@@ -1,3 +1,20 @@
+//  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+//  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+//  subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in all copies or substantial
+//  portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+//  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package http_test
 
 import (
@@ -654,5 +671,77 @@ func TestInjectMessageMetadata(t *testing.T) {
 
 	if diff := gcmp.Diff(whttp.RetrieveMessageMetadata(ctx), metadata); diff != "" {
 		t.Errorf("InjectMessageMetadata() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestRequest_URL(t *testing.T) {
+	t.Parallel()
+	testBaseURL := "https://api.example.com"
+
+	type testCase[T any] struct {
+		name    string
+		method  string
+		baseURL string
+		want    string
+		wantErr bool
+		options []whttp.RequestOption[T]
+	}
+	tests := []testCase[any]{
+		{
+			name:    "base only",
+			method:  http.MethodGet,
+			baseURL: testBaseURL,
+			want:    "https://api.example.com/",
+		},
+		{
+			name:    "with endpoints",
+			method:  http.MethodGet,
+			baseURL: "https://api.example.com",
+			want:    "https://api.example.com/v1/users",
+			options: []whttp.RequestOption[any]{
+				whttp.WithRequestEndpoints[any]("v1", "users"),
+			},
+		},
+		{
+			name:    "with query params",
+			method:  http.MethodGet,
+			baseURL: "https://api.example.com",
+			want:    "https://api.example.com/v1/users?age=30&name=John",
+			options: []whttp.RequestOption[any]{
+				whttp.WithRequestEndpoints[any]("v1", "users"),
+				whttp.WithRequestQueryParams[any](map[string]string{
+					"name": "John",
+					"age":  "30",
+				}),
+			},
+		},
+		{
+			name:    "with query params and headers",
+			method:  http.MethodGet,
+			baseURL: "https://api.example.com",
+			want:    "https://api.example.com/v1/users?age=30&debug=warning&name=John",
+			options: []whttp.RequestOption[any]{
+				whttp.WithRequestEndpoints[any]("v1", "users"),
+				whttp.WithRequestQueryParams[any](map[string]string{
+					"name": "John",
+					"age":  "30",
+				}),
+				whttp.WithRequestDebugLogLevel[any](whttp.DebugLogLevelWarning),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			request := whttp.MakeRequest(tt.method, tt.baseURL, tt.options...)
+			got, err := request.URL()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("URL() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("URL() got = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

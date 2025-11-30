@@ -56,12 +56,12 @@ type (
 	// ConfigReaderFunc implements the ConfigReader interface.
 	ConfigReaderFunc func(request *http.Request) (*Config, error)
 
-	// ConfigReader is the interface that have a method that returns the configuration for the webhook
-	// handler. It accepts the http.Request mainly to extract detials that will help determine the right
+	// ConfigReader is the interface that has a method that returns the configuration for the webhook
+	// handler. It accepts the http.Request mainly to extract details that will help determine the right
 	// configuration to use. This may happen when the Listener is used to handle webhooks from multiple
 	// sources and for multiple clients.
-	// Forexample you may decide to return different configurations when the http request have a header
-	// that indicates the request is from test environment.
+	// For example, you may decide to return different configurations when the http request has a header
+	// that indicates the request is from the test environment.
 	ConfigReader interface {
 		ReadConfig(request *http.Request) (*Config, error)
 	}
@@ -162,7 +162,7 @@ func ExtractAndValidatePayload(request *http.Request, options *ValidateOptions) 
 	var buff bytes.Buffer
 	_, err := io.Copy(&buff, request.Body)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err)
+		return nil, fmt.Errorf("%w: %w", ErrReadNotification, err)
 	}
 
 	request.Body = io.NopCloser(&buff)
@@ -175,7 +175,7 @@ func ExtractAndValidatePayload(request *http.Request, options *ValidateOptions) 
 
 	var notification Notification
 	if err = json.NewDecoder(&buff).Decode(&notification); err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err)
+		return nil, fmt.Errorf("%w: %w", ErrMessageDecode, err)
 	}
 
 	return &notification, nil
@@ -231,7 +231,7 @@ func ValidateSignature(payload []byte, params ValidateSignatureOptions) error {
 // The X-Hub-Signature-256 header contains the signature as a SHA256 hash of the payload,
 // prefixed with "sha256=". This function strips that prefix and returns the actual signature.
 //
-// Returns the signature string without the prefix, or an error if the header is missing
+// Returns the signature string without the prefix or an error if the header is missing
 // or improperly formatted.
 func ExtractSignatureFromHeader(header http.Header) (string, error) {
 	signature := header.Get(SignatureHeaderKey)
@@ -275,6 +275,11 @@ func ValidatePayloadSignature(header http.Header, payload []byte, secret string)
 	return nil
 }
 
+// ValidateRequestPayloadSignature extracts and validates the signature from the HTTP request header.
+//
+// It performs the following steps:
+//  1. Extracts the signature from the "X-Hub-Signature-256" header using ExtractSignatureFromHeader.
+//  2. Validates the extracted signature against the payload using ValidateSignature.
 func ValidateRequestPayloadSignature(request *http.Request, secret string) error {
 	signature, err := ExtractSignatureFromHeader(request.Header)
 	if err != nil {

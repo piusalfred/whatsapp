@@ -56,16 +56,21 @@ type (
 	//	        "fbtrace_id": "AI5Ob2z72R0JAUB5zOF-nao"
 	//	}
 	Error struct {
-		Message   string     `json:"message,omitempty"`
-		Type      string     `json:"type,omitempty"`
-		Details   string     `json:"details,omitempty"`
-		Code      int        `json:"code,omitempty"`
-		Data      *ErrorData `json:"error_data,omitempty"`
-		Subcode   int        `json:"error_subcode,omitempty"`
-		UserTitle string     `json:"error_user_title,omitempty"`
-		UserMsg   string     `json:"error_user_msg,omitempty"`
-		FBTraceID string     `json:"fbtrace_id,omitempty"`
-		Href      string     `json:"href,omitempty"`
+		Message          string            `json:"message,omitempty"`
+		Type             string            `json:"type,omitempty"`
+		Details          string            `json:"details,omitempty"`
+		Code             int               `json:"code,omitempty"`
+		Data             *ErrorData        `json:"error_data,omitempty"`
+		Subcode          int               `json:"error_subcode,omitempty"`
+		UserTitle        string            `json:"error_user_title,omitempty"`
+		UserMsg          string            `json:"error_user_msg,omitempty"`
+		FBTraceID        string            `json:"fbtrace_id,omitempty"`
+		Href             string            `json:"href,omitempty"`
+		OriginalResponse *OriginalResponse `json:"original_response,omitempty"`
+	}
+
+	OriginalResponse struct {
+		Success bool `json:"success"`
 	}
 
 	// ErrorData represents additional information about the error.

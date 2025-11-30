@@ -263,6 +263,7 @@ func (b *BlockBaseClient) Send(ctx context.Context, reader config.Reader, reques
 		whttp.WithRequestBearer[BlockBaseRequest](conf.AccessToken),
 		whttp.WithRequestAppSecret[BlockBaseRequest](conf.AppSecret),
 		whttp.WithRequestSecured[BlockBaseRequest](conf.SecureRequests),
+		whttp.WithRequestDebugLogLevel[BlockBaseRequest](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	switch request.BlockAction {

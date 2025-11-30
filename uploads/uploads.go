@@ -94,6 +94,7 @@ func (c *BaseClient) InitUploadSession(
 		whttp.WithRequestType[any](whttp.RequestTypeInitResumableUploadSession),
 		whttp.WithRequestQueryParams[any](queryParams),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.AppID, "uploads"),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, opts...)
@@ -131,6 +132,7 @@ func (c *BaseClient) UploadChunk(ctx context.Context, req *UploadChunkRequest) (
 		}),
 		whttp.WithRequestType[any](whttp.RequestTypePerformResumableUpload),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, req.UploadSessionID),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, opts...)
@@ -159,6 +161,7 @@ func (c *BaseClient) GetUploadStatus(ctx context.Context, uploadSessionID string
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestType[any](whttp.RequestTypeGetResumableUploadSessionStatus),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, uploadSessionID),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	request := whttp.MakeRequest(http.MethodGet, conf.BaseURL, opts...)

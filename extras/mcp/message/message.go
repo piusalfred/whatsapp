@@ -1,3 +1,20 @@
+//  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+//  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+//  subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in all copies or substantial
+//  portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+//  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package message
 
 import (
@@ -11,15 +28,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"github.com/piusalfred/whatsapp/message"
 )
 
 type (
 	Server struct {
-		whatsapp           WhatsappService
+		whatsapp           Sender
 		http               *http.Server
 		mcp                *mcp.Server
 		config             *Config
@@ -27,29 +41,7 @@ type (
 		logger             *slog.Logger
 		httpServerInitHook func(server *http.Server) error
 		mcpServerInitHook  func(server *mcp.Server) error
-	}
-
-	SendTextRequest struct {
-		Text       string `json:"text"`
-		PreviewURL bool   `json:"preview_url"`
-		Recipient  string `json:"recipient"`
-		ReplyTo    string `json:"reply_to"`
-	}
-
-	SendTextResponse struct {
-		Product       string `json:"product"`
-		Input         string `json:"input"`
-		WhatsappID    string `json:"whatsapp_id"`
-		MessageID     string `json:"message_id"`
-		MessageStatus string `json:"message_status"`
-	}
-
-	Service interface {
-		SendText(ctx context.Context, input *SendTextRequest) (*SendTextResponse, error)
-	}
-
-	WhatsappService interface {
-		SendText(ctx context.Context, request *message.Request[message.Text]) (*message.Response, error)
+		schemas            *Schemas
 	}
 
 	Config struct {
@@ -83,12 +75,12 @@ func (fn serverOption) apply(server *Server) error {
 func WithServerHTTPMiddlewares(middlewares ...func(http.Handler) http.Handler) ServerOption {
 	return serverOption(func(server *Server) error {
 		finalHandler := server.handler
-		for _, m := range middlewares {
-			finalHandler = m(finalHandler)
+
+		for i := len(middlewares) - 1; i >= 0; i-- {
+			finalHandler = middlewares[i](finalHandler)
 		}
 
 		server.handler = finalHandler
-
 		return nil
 	})
 }
@@ -107,12 +99,31 @@ func WithServerHTTPServerInitHook(hook func(server *http.Server) error) ServerOp
 	})
 }
 
-func NewServer(config *Config, client WhatsappService, options ...ServerOption) (*Server, error) {
+func NewServer(config *Config, client Sender, options ...ServerOption) (*Server, error) {
 	s := &Server{
 		config:   config,
 		whatsapp: client,
 		logger:   slog.New(config.LogHandler.WithGroup("whatsapp.mcp")),
 	}
+	s.initSchemas()
+	s.initMCP()
+	s.initTools()
+	for _, option := range options {
+		if err := option.apply(s); err != nil {
+			return nil, fmt.Errorf("init server: failed to apply option: %w", err)
+		}
+	}
+	s.initHTTP()
+	if httpHookErr := s.onHTTPServerInitHook(); httpHookErr != nil {
+		return nil, fmt.Errorf("init server: %w", httpHookErr)
+	}
+	if mcpHookErr := s.onMCPServerInitHook(); mcpHookErr != nil {
+		return nil, fmt.Errorf("init mcp server: %w", mcpHookErr)
+	}
+	return s, nil
+}
+
+func (s *Server) initMCP() {
 	s.mcp = mcp.NewServer(&mcp.Implementation{
 		Name:    s.config.MCPServerName,
 		Title:   s.config.MCPServerTitle,
@@ -126,12 +137,41 @@ func NewServer(config *Config, client WhatsappService, options ...ServerOption) 
 		JSONResponse: true,
 	})
 
-	for _, option := range options {
-		if err := option.apply(s); err != nil {
-			return nil, fmt.Errorf("init server apply option: %w", err)
-		}
+	prompt := &mcp.Prompt{
+		Description: "A prompt for interacting with a user via WhatsApp.",
+		Name:        "whatsapp-interaction-prompt",
+		Title:       "WhatsApp Interaction Prompt",
 	}
 
+	s.mcp.AddPrompt(prompt, func(_ context.Context, _ *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		return &mcp.GetPromptResult{
+			Description: prompt.Description,
+			Messages: []*mcp.PromptMessage{{
+				Role: mcp.Role("user"),
+				Content: &mcp.TextContent{
+					Text: "",
+				},
+			}},
+		}, nil
+	})
+}
+
+func (s *Server) initTools() {
+	s.addSendTextTool()
+	s.addRequestLocationTool()
+	s.addSendLocationTool()
+	s.addSendImageTool()
+	s.addSendDocumentTool()
+	s.addSendAudioTool()
+	s.addSendVideoTool()
+	s.addSendReactionTool()
+	s.addSendTemplateTool()
+	s.addSendStickerTool()
+	s.addSendContactsTool()
+	s.addSendInteractiveTool()
+}
+
+func (s *Server) initHTTP() {
 	s.http = &http.Server{
 		Addr:                         s.config.HTTPAddress,
 		Handler:                      s.handler,
@@ -143,211 +183,509 @@ func NewServer(config *Config, client WhatsappService, options ...ServerOption) 
 		MaxHeaderBytes:               s.config.HTTPMaxHeaderBytes,
 		ErrorLog:                     slog.NewLogLogger(s.config.LogHandler, s.config.LogLevel),
 	}
-
-	if httpHookErr := s.onHTTPServerInitHook(s.httpServerInitHook); httpHookErr != nil {
-		return nil, fmt.Errorf("init server: %w", httpHookErr)
-	}
-
-	if mcpHookErr := s.onMCPServerInitHook(s.mcpServerInitHook); mcpHookErr != nil {
-		return nil, fmt.Errorf("init mcp server: %w", mcpHookErr)
-	}
-
-	sendTextPrompt := &mcp.Prompt{
-		Description: "send whatsapp text message to whatsapp prompt given a number and a message," +
-			"with the option to specify if URL preview is allowed",
-		Name:  "whatsapp-send-text",
-		Title: "WhatsApp Send Text Message Prompt",
-	}
-
-	s.mcp.AddPrompt(sendTextPrompt, func(_ context.Context,
-		_ *mcp.GetPromptRequest,
-	) (*mcp.GetPromptResult, error) {
-		result := &mcp.GetPromptResult{
-			Description: sendTextPrompt.Description,
-			Messages: []*mcp.PromptMessage{
-				{
-					Role: mcp.Role("user"),
-					Content: &mcp.TextContent{
-						Text:        "",
-						Meta:        nil,
-						Annotations: nil,
-					},
-				},
-			},
-		}
-
-		return result, nil
-	})
-
-	s.addSendTextTool()
-
-	return s, nil
 }
 
-func (server *Server) Run(ctx context.Context) error {
+func (s *Server) Run(ctx context.Context) error {
 	sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	errCh := make(chan error, 1)
 	go func() {
-		server.logger.LogAttrs(ctx, slog.LevelInfo, "starting http server",
-			slog.String("address", server.config.HTTPAddress))
-		if err := server.http.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- fmt.Errorf("listen and serve: %w", err)
-			return
+		s.logger.LogAttrs(ctx, slog.LevelInfo, "starting http server", slog.String("address", s.config.HTTPAddress))
+		if err := s.http.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("listen and serve failed: %w", err)
+		} else {
+			errCh <- nil
 		}
-		errCh <- nil
 	}()
 
 	select {
 	case <-sigCtx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), server.config.HTTPServerShutdownTimeout)
+		s.logger.LogAttrs(ctx, slog.LevelInfo, "shutdown signal received")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), s.config.HTTPServerShutdownTimeout)
 		defer cancel()
-
-		if err := server.http.Shutdown(shutdownCtx); err != nil {
-			server.logger.LogAttrs(shutdownCtx, slog.LevelError, "shutdown http server",
-				slog.String("error", err.Error()))
-
-			return fmt.Errorf("shutdown server failed: %w", err)
+		if err := s.http.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("http server shutdown failed: %w", err)
 		}
 		return <-errCh
-
 	case err := <-errCh:
-		server.logger.LogAttrs(ctx, slog.LevelError,
-			"http server error", slog.String("error", err.Error()))
+		if err != nil {
+			s.logger.LogAttrs(ctx, slog.LevelError, "http server error", slog.String("error", err.Error()))
+		}
 		return err
 	}
 }
 
-func (server *Server) SendText(ctx context.Context, request *SendTextRequest) (*SendTextResponse, error) {
-	text := message.NewRequest(request.Recipient, &message.Text{
-		Body:       request.Text,
-		PreviewURL: request.PreviewURL,
-	}, request.ReplyTo)
-
-	output, err := server.whatsapp.SendText(ctx, text)
-	if err != nil {
-		return nil, err
-	}
-
-	return &SendTextResponse{
-		Product:       output.Product,
-		Input:         output.Contacts[0].Input,
-		WhatsappID:    output.Contacts[0].WhatsappID,
-		MessageStatus: output.Messages[0].MessageStatus,
-		MessageID:     output.Messages[0].ID,
-	}, nil
-}
-
-func (server *Server) onHTTPServerInitHook(hook func(s *http.Server) error) error {
-	if hook != nil {
-		if hookErr := hook(server.http); hookErr != nil {
-			return fmt.Errorf("on http server init hook: %w", hookErr)
+func (s *Server) onHTTPServerInitHook() error {
+	if s.httpServerInitHook != nil {
+		if err := s.httpServerInitHook(s.http); err != nil {
+			return fmt.Errorf("on http server init hook failed: %w", err)
 		}
 	}
-
 	return nil
 }
 
-func (server *Server) onMCPServerInitHook(hook func(s *mcp.Server) error) error {
-	if hook != nil {
-		if hookErr := hook(server.mcp); hookErr != nil {
-			return fmt.Errorf("on mcp server init hook: %w", hookErr)
+func (s *Server) onMCPServerInitHook() error {
+	if s.mcpServerInitHook != nil {
+		if err := s.mcpServerInitHook(s.mcp); err != nil {
+			return fmt.Errorf("on mcp server init hook failed: %w", err)
 		}
 	}
-
 	return nil
 }
 
-func (server *Server) addSendTextTool() {
-	inputSchema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"text": {
-				Type:        "string",
-				Description: "Text body to send.",
-			},
-			"recipient": {
-				Type:        "string",
-				Description: "Recipient phone number in international format.",
-			},
-			"preview_url": {
-				Type:        "boolean",
-				Description: "Whether to allow URL preview if a link is present in the text.",
-			},
-			"reply_to": {
-				Type:        "string",
-				Description: "Optional message ID this text is replying to.",
-			},
-		},
-		Required:    []string{"text", "recipient"},
-		Description: "Input for sending a WhatsApp text message.",
-	}
-
-	outputSchema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"product": {
-				Type:        "string",
-				Description: "API product type returned by WhatsApp (e.g., whatsapp).",
-			},
-			"input": {
-				Type:        "string",
-				Description: "Normalized recipient input returned by WhatsApp.",
-			},
-			"whatsapp_id": {
-				Type:        "string",
-				Description: "WhatsApp ID associated with the recipient.",
-			},
-			"message_status": {
-				Type:        "string",
-				Description: "Delivery status of the message (e.g., accepted).",
-			},
-			"message_id": {
-				Type:        "string",
-				Description: "Unique ID of the created message.",
-			},
-		},
-		Required:    []string{"product", "input", "whatsapp_id", "message_status", "message_id"},
-		Description: "Response returned after sending a WhatsApp text message.",
-	}
-
-	toolHandlerFunc := mcp.ToolHandlerFor[*SendTextRequest, *SendTextResponse](server.HandleSendText)
-
+func (s *Server) addSendTextTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendTextRequest, *Response](s.HandleSendText)
 	tool := &mcp.Tool{
-		Meta:         nil,
-		Annotations:  nil,
-		Description:  "send text message to whatsapp number, with the option to specify previewing URL if message content contains one",
-		InputSchema:  inputSchema,
+		Description:  "Sends a text message to a WhatsApp number, with an option to preview URLs.",
+		InputSchema:  s.schemas.sendTextRequest,
 		Name:         "whatsapp-send-text",
-		OutputSchema: outputSchema,
-		Title:        "send text message to whatsapp number",
+		OutputSchema: s.schemas.response,
+		Title:        "SendRequest WhatsApp Text Message",
 	}
-
-	mcp.AddTool(server.mcp, tool, toolHandlerFunc)
+	mcp.AddTool(s.mcp, tool, toolHandler)
 }
 
-func (server *Server) HandleSendText(ctx context.Context, request *mcp.CallToolRequest, input *SendTextRequest) (
-	*mcp.CallToolResult, *SendTextResponse, error,
-) {
+func (s *Server) addRequestLocationTool() {
+	toolHandler := mcp.ToolHandlerFor[*RequestLocationRequest, *Response](s.HandleRequestLocation)
+	tool := &mcp.Tool{
+		Description:  "Asks a user to share their location on WhatsApp by sending a prompt.",
+		InputSchema:  s.schemas.requestLocationRequest,
+		Name:         "whatsapp-request-location",
+		OutputSchema: s.schemas.response,
+		Title:        "Request User Location via WhatsApp",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendLocationTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendLocationRequest, *Response](s.HandleSendLocation)
+	tool := &mcp.Tool{
+		Description:  "Sends a location message to a WhatsApp number with coordinates and address.",
+		InputSchema:  s.schemas.sendLocationRequest,
+		Name:         "whatsapp-send-location",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Location Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendImageTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendImageRequest, *Response](s.HandleSendImage)
+	tool := &mcp.Tool{
+		Description:  "Sends an image message to a WhatsApp number with optional caption.",
+		InputSchema:  s.schemas.sendImageRequest,
+		Name:         "whatsapp-send-image",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Image Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendDocumentTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendDocumentRequest, *Response](s.HandleSendDocument)
+	tool := &mcp.Tool{
+		Description:  "Sends a document message to a WhatsApp number with optional caption.",
+		InputSchema:  s.schemas.sendDocumentRequest,
+		Name:         "whatsapp-send-document",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Document Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendAudioTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendAudioRequest, *Response](s.HandleSendAudio)
+	tool := &mcp.Tool{
+		Description:  "Sends an audio message to a WhatsApp number.",
+		InputSchema:  s.schemas.sendAudioRequest,
+		Name:         "whatsapp-send-audio",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Audio Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendVideoTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendVideoRequest, *Response](s.HandleSendVideo)
+	tool := &mcp.Tool{
+		Description:  "Sends a video message to a WhatsApp number with optional caption.",
+		InputSchema:  s.schemas.sendVideoRequest,
+		Name:         "whatsapp-send-video",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Video Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendReactionTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendReactionRequest, *Response](s.HandleSendReaction)
+	tool := &mcp.Tool{
+		Description:  "Sends a reaction (emoji) to a specific WhatsApp message.",
+		InputSchema:  s.schemas.sendReactionRequest,
+		Name:         "whatsapp-send-reaction",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Reaction Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendTemplateTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendTemplateRequest, *Response](s.HandleSendTemplate)
+	tool := &mcp.Tool{
+		Description:  "Sends a template message to a WhatsApp number.",
+		InputSchema:  s.schemas.sendTemplateRequest,
+		Name:         "whatsapp-send-template",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Template Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendStickerTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendStickerRequest, *Response](s.HandleSendSticker)
+	tool := &mcp.Tool{
+		Description:  "Sends a sticker message to a WhatsApp number.",
+		InputSchema:  s.schemas.sendStickerRequest,
+		Name:         "whatsapp-send-sticker",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Sticker Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendContactsTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendContactsRequest, *Response](s.HandleSendContacts)
+	tool := &mcp.Tool{
+		Description:  "Sends contact information to a WhatsApp number.",
+		InputSchema:  s.schemas.sendContactsRequest,
+		Name:         "whatsapp-send-contacts",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Contacts Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) addSendInteractiveTool() {
+	toolHandler := mcp.ToolHandlerFor[*SendInteractiveRequest, *Response](s.HandleSendInteractive)
+	tool := &mcp.Tool{
+		Description:  "Sends an interactive message to a WhatsApp number (buttons, CTAs, etc.).",
+		InputSchema:  s.schemas.sendInteractiveRequest,
+		Name:         "whatsapp-send-interactive",
+		OutputSchema: s.schemas.response,
+		Title:        "Send WhatsApp Interactive Message",
+	}
+	mcp.AddTool(s.mcp, tool, toolHandler)
+}
+
+func (s *Server) HandleSendText(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendTextRequest,
+) (*mcp.CallToolResult, *Response, error) {
 	sessionID := request.GetSession().ID()
-	server.logger.LogAttrs(ctx, slog.LevelInfo, "handle send text request", slog.String("sessionID", sessionID))
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send text request", slog.String("sessionID", sessionID))
 
-	result := &mcp.CallToolResult{}
-	output, err := server.SendText(ctx, input)
+	output, err := s.SendText(ctx, input)
 	if err != nil {
-		result.IsError = true
-		return result, nil, err
+		return &mcp.CallToolResult{IsError: true}, nil, err
 	}
 
-	result.Content = []mcp.Content{
-		&mcp.TextContent{Text: fmt.Sprintf(
-			"The whatsapp message to number %s has been sent with the response being %s",
-			input.Recipient,
-			output.MessageID,
-		)},
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Message sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
 	}
-	result.IsError = false
+	return result, output, nil
+}
 
+func (s *Server) HandleRequestLocation(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *RequestLocationRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling request location request", slog.String("sessionID", sessionID))
+
+	output, err := s.RequestLocation(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Location request sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendLocation(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendLocationRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send location request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendLocation(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Location sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendImage(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendImageRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send image request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendImage(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Image sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendDocument(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendDocumentRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send document request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendDocument(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Document sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendAudio(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendAudioRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send audio request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendAudio(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Audio sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendVideo(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendVideoRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send video request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendVideo(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Video sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendReaction(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendReactionRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send reaction request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendReaction(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Reaction sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendTemplate(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendTemplateRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send template request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendTemplate(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Template sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendSticker(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendStickerRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send sticker request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendSticker(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Sticker sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendContacts(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendContactsRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send contacts request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendContacts(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Contacts sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
+	return result, output, nil
+}
+
+func (s *Server) HandleSendInteractive(
+	ctx context.Context,
+	request *mcp.CallToolRequest,
+	input *SendInteractiveRequest,
+) (*mcp.CallToolResult, *Response, error) {
+	sessionID := request.GetSession().ID()
+	s.logger.LogAttrs(ctx, slog.LevelInfo, "handling send interactive request", slog.String("sessionID", sessionID))
+
+	output, err := s.SendInteractiveMessage(ctx, input)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true}, nil, err
+	}
+
+	result := &mcp.CallToolResult{
+		IsError: false,
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf(
+				"Interactive message sent to %s. The message ID is %s.",
+				input.Recipient,
+				output.MessageID,
+			)},
+		},
+	}
 	return result, output, nil
 }

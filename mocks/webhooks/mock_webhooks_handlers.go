@@ -13,7 +13,6 @@ import (
 	context "context"
 	reflect "reflect"
 
-	errors "github.com/piusalfred/whatsapp/pkg/errors"
 	webhooks "github.com/piusalfred/whatsapp/webhooks"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -56,44 +55,6 @@ func (mr *MockEventHandlerMockRecorder[S, T]) HandleEvent(ctx, ntx, notification
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleEvent", reflect.TypeOf((*MockEventHandler[S, T])(nil).HandleEvent), ctx, ntx, notification)
 }
 
-// MockMessageHandler is a mock of MessageHandler interface.
-type MockMessageHandler[T any] struct {
-	ctrl     *gomock.Controller
-	recorder *MockMessageHandlerMockRecorder[T]
-	isgomock struct{}
-}
-
-// MockMessageHandlerMockRecorder is the mock recorder for MockMessageHandler.
-type MockMessageHandlerMockRecorder[T any] struct {
-	mock *MockMessageHandler[T]
-}
-
-// NewMockMessageHandler creates a new mock instance.
-func NewMockMessageHandler[T any](ctrl *gomock.Controller) *MockMessageHandler[T] {
-	mock := &MockMessageHandler[T]{ctrl: ctrl}
-	mock.recorder = &MockMessageHandlerMockRecorder[T]{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockMessageHandler[T]) EXPECT() *MockMessageHandlerMockRecorder[T] {
-	return m.recorder
-}
-
-// Handle mocks base method.
-func (m *MockMessageHandler[T]) Handle(ctx context.Context, notificationCtx *webhooks.MessageNotificationContext, info *webhooks.MessageInfo, message *T) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Handle", ctx, notificationCtx, info, message)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Handle indicates an expected call of Handle.
-func (mr *MockMessageHandlerMockRecorder[T]) Handle(ctx, notificationCtx, info, message any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockMessageHandler[T])(nil).Handle), ctx, notificationCtx, info, message)
-}
-
 // MockMessageChangeValueHandler is a mock of MessageChangeValueHandler interface.
 type MockMessageChangeValueHandler[T any] struct {
 	ctrl     *gomock.Controller
@@ -130,42 +91,4 @@ func (m *MockMessageChangeValueHandler[T]) Handle(ctx context.Context, notificat
 func (mr *MockMessageChangeValueHandlerMockRecorder[T]) Handle(ctx, notificationCtx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockMessageChangeValueHandler[T])(nil).Handle), ctx, notificationCtx, value)
-}
-
-// MockMessageErrorsHandler is a mock of MessageErrorsHandler interface.
-type MockMessageErrorsHandler struct {
-	ctrl     *gomock.Controller
-	recorder *MockMessageErrorsHandlerMockRecorder
-	isgomock struct{}
-}
-
-// MockMessageErrorsHandlerMockRecorder is the mock recorder for MockMessageErrorsHandler.
-type MockMessageErrorsHandlerMockRecorder struct {
-	mock *MockMessageErrorsHandler
-}
-
-// NewMockMessageErrorsHandler creates a new mock instance.
-func NewMockMessageErrorsHandler(ctrl *gomock.Controller) *MockMessageErrorsHandler {
-	mock := &MockMessageErrorsHandler{ctrl: ctrl}
-	mock.recorder = &MockMessageErrorsHandlerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockMessageErrorsHandler) EXPECT() *MockMessageErrorsHandlerMockRecorder {
-	return m.recorder
-}
-
-// Handle mocks base method.
-func (m *MockMessageErrorsHandler) Handle(ctx context.Context, notificationContext *webhooks.MessageNotificationContext, info *webhooks.MessageInfo, arg3 []*errors.Error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Handle", ctx, notificationContext, info, arg3)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Handle indicates an expected call of Handle.
-func (mr *MockMessageErrorsHandlerMockRecorder) Handle(ctx, notificationContext, info, arg3 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockMessageErrorsHandler)(nil).Handle), ctx, notificationContext, info, arg3)
 }

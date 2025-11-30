@@ -295,6 +295,7 @@ func (s *BaseClient) Download(ctx context.Context, request *DownloadRequest, dec
 		whttp.WithRequestSecured[any](false),
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestType[any](whttp.RequestTypeDownloadMedia),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	req := whttp.MakeDownloadRequest(request.URL, opts...)
@@ -331,6 +332,7 @@ func (s *BaseClient) Delete(ctx context.Context, req *BaseRequest) (*DeleteMedia
 	}
 
 	opts := []whttp.RequestOption[any]{
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 		whttp.WithRequestAppSecret[any](conf.AppSecret),
 		whttp.WithRequestSecured[any](conf.SecureRequests),
 		whttp.WithRequestBearer[any](conf.AccessToken),
@@ -378,6 +380,7 @@ func (s *BaseClient) GetInfo(ctx context.Context, req *BaseRequest) (*Informatio
 		whttp.WithRequestQueryParams[any](queryParams),
 		whttp.WithRequestBearer[any](conf.AccessToken),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, req.MediaID),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	request := whttp.MakeRequest(http.MethodGet, conf.BaseURL, opts...)
@@ -432,6 +435,7 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 		whttp.WithRequestType[any](whttp.RequestTypeUploadMedia),
 		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.PhoneNumberID, "media"),
 		whttp.WithRequestForm[any](form),
+		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	}
 
 	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, opts...)

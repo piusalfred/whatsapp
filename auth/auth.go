@@ -28,9 +28,10 @@ import (
 )
 
 type Client struct {
-	baseURL    string
-	apiVersion string
-	sender     whttp.AnySender
+	baseURL       string
+	apiVersion    string
+	sender        whttp.AnySender
+	debugLogLevel whttp.DebugLogLevel
 }
 
 func NewClient(baseURL, apiVersion string, sender whttp.AnySender) *Client {
@@ -39,6 +40,11 @@ func NewClient(baseURL, apiVersion string, sender whttp.AnySender) *Client {
 		apiVersion: apiVersion,
 		sender:     sender,
 	}
+}
+
+// SetDebugLogLevel sets the debug log level for the client.
+func (c *Client) SetDebugLogLevel(level whttp.DebugLogLevel) {
+	c.debugLogLevel = level
 }
 
 // InstallAppParams contains the parameters required to install an app for a system user.
@@ -80,6 +86,8 @@ func (c *Client) InstallApp(ctx context.Context, params InstallAppParams) error 
 		},
 	}
 
+	req.SetDebugLogLevel(c.debugLogLevel)
+
 	res := &SuccessResponse{}
 
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
@@ -103,9 +111,10 @@ type TwoStepVerificationRequest struct {
 }
 
 type TwoStepVerificationClient struct {
-	baseURL    string
-	apiVersion string
-	sender     whttp.Sender[TwoStepVerificationRequest]
+	baseURL       string
+	apiVersion    string
+	sender        whttp.Sender[TwoStepVerificationRequest]
+	debugLogLevel whttp.DebugLogLevel
 }
 
 // TwoStepVerification sends a request to set up two-step verification for a WhatsApp Business API
@@ -125,6 +134,8 @@ func (c *TwoStepVerificationClient) TwoStepVerification(ctx context.Context,
 		// avoid leaking the phone number and access token.
 		Message: &TwoStepVerificationRequest{SixDigitCode: request.SixDigitCode},
 	}
+
+	req.SetDebugLogLevel(c.debugLogLevel)
 
 	res := &SuccessResponse{}
 	decodeOptions := whttp.DecodeOptions{

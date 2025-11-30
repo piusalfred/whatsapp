@@ -48,7 +48,7 @@ type TestMultiClientConfigReader struct {
 }
 
 func (r *TestMultiClientConfigReader) ReadConfig(request *http.Request) (*webhooks.Config, error) {
-	// from URL path we expect something like /webhooks/clients/256535634/whatsapp
+	// from the URL path we expect something like /webhooks/clients/256535634/whatsapp
 	// so we can extract the client ID from the path
 	clientID := strings.TrimPrefix(request.URL.Path, "/webhooks/clients/")
 	clientID = strings.TrimSuffix(clientID, "/whatsapp")

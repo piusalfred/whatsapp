@@ -49,8 +49,22 @@ type (
 		sender      Sender[T]
 	}
 
-	CoreClientOption[T any] func(client *CoreClient[T])
+	CoreClientOption[T any] interface {
+		apply(client *CoreClient[T])
+	}
+
+	CoreClientOptionFunc[T any] func(client *CoreClient[T])
+
+	Options struct {
+		HTTPClient   *http.Client
+		RequestHook  RequestInterceptorFunc
+		ResponseHook ResponseInterceptorFunc
+	}
 )
+
+func (fn CoreClientOptionFunc[T]) apply(client *CoreClient[T]) {
+	fn(client)
+}
 
 func (core *CoreClient[T]) SetHTTPClient(httpClient *http.Client) {
 	if httpClient != nil {
@@ -79,27 +93,27 @@ func (core *CoreClient[T]) PrependMiddlewares(mws ...Middleware[T]) {
 }
 
 func WithCoreClientHTTPClient[T any](httpClient *http.Client) CoreClientOption[T] {
-	return func(client *CoreClient[T]) {
+	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
 		client.http = httpClient
-	}
+	})
 }
 
 func WithCoreClientRequestInterceptor[T any](hook RequestInterceptorFunc) CoreClientOption[T] {
-	return func(client *CoreClient[T]) {
+	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
 		client.reqHook = hook
-	}
+	})
 }
 
 func WithCoreClientResponseInterceptor[T any](hook ResponseInterceptorFunc) CoreClientOption[T] {
-	return func(client *CoreClient[T]) {
+	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
 		client.resHook = hook
-	}
+	})
 }
 
 func WithCoreClientMiddlewares[T any](mws ...Middleware[T]) CoreClientOption[T] {
-	return func(client *CoreClient[T]) {
+	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
 		client.middlewares = mws
-	}
+	})
 }
 
 func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
@@ -111,7 +125,7 @@ func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
 
 	for _, option := range options {
 		if option != nil {
-			option(core)
+			option.apply(core)
 		}
 	}
 
@@ -127,7 +141,7 @@ func NewAnySender(options ...CoreClientOption[any]) *CoreClient[any] {
 
 	for _, option := range options {
 		if option != nil {
-			option(core)
+			option.apply(core)
 		}
 	}
 
@@ -281,6 +295,25 @@ const (
 	RequestTypeDeletePhoneNumberAlternateCallbackURI
 	RequestTypeGetSettings
 	RequestTypeUpdateSettings
+	RequestTypeUpdateCallStatus
+	// Create and delete group
+	// Groups with join requests enabled
+	// Get and reset group invite link
+	// Send group invite link template message
+	// Remove group participants
+	// Get group info
+	// Get active groups
+	// Update group settings
+	RequestTypeCreateGroup
+	RequestTypeDeleteGroup
+	RequestTypeGetGroupInviteLink
+	RequestTypeResetGroupInviteLink
+	RequestTypeSendGroupInviteLinkTemplateMessage
+	RequestTypeRemoveGroupParticipants
+	RequestTypeGetGroupInfo
+	RequestTypeGetActiveGroups
+	RequestTypeUpdateGroupSettings
+	RequestTypeUpdateGroupCallStatus
 )
 
 // String returns the string representation of the request type.
@@ -365,6 +398,7 @@ type (
 		SecureRequests bool
 		DownloadURL    string // this is used for downloading media (it is taken as is)
 		BodyReader     io.Reader
+		debugLogLevel  DebugLogLevel
 	}
 
 	RequestForm struct {
@@ -381,13 +415,19 @@ type (
 	RequestOption[T any] func(request *Request[T])
 )
 
+// SetDebugLogLevel sets the debug log level for the request.
+func (request *Request[T]) SetDebugLogLevel(level DebugLogLevel) {
+	request.debugLogLevel = level
+}
+
 // MakeRequest creates a new request with the provided options.
 func MakeRequest[T any](method, baseURL string, options ...RequestOption[T]) *Request[T] {
 	req := &Request[T]{
-		Method:      method,
-		BaseURL:     baseURL,
-		Headers:     make(map[string]string),
-		QueryParams: make(map[string]string),
+		Method:        method,
+		BaseURL:       baseURL,
+		Headers:       make(map[string]string),
+		QueryParams:   make(map[string]string),
+		debugLogLevel: DebugLogLevelNone,
 	}
 
 	for _, option := range options {
@@ -402,10 +442,11 @@ func MakeRequest[T any](method, baseURL string, options ...RequestOption[T]) *Re
 // MakeDownloadRequest creates a new request for downloading media.
 func MakeDownloadRequest[T any](downloadURL string, options ...RequestOption[T]) *Request[T] {
 	req := &Request[T]{
-		Method:      http.MethodGet,
-		DownloadURL: downloadURL,
-		Headers:     make(map[string]string),
-		QueryParams: make(map[string]string),
+		Method:        http.MethodGet,
+		DownloadURL:   downloadURL,
+		Headers:       make(map[string]string),
+		QueryParams:   make(map[string]string),
+		debugLogLevel: DebugLogLevelNone,
 	}
 
 	for _, option := range options {
@@ -533,6 +574,11 @@ func (request *Request[T]) URL() (string, error) {
 
 	for key, value := range request.QueryParams {
 		q.Set(key, value)
+	}
+
+	shouldEnableDebugLogging := request.debugLogLevel != DebugLogLevelNone && request.debugLogLevel != ""
+	if shouldEnableDebugLogging {
+		q.Set("debug", string(request.debugLogLevel))
 	}
 
 	if request.SecureRequests {
