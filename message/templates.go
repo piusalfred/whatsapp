@@ -82,6 +82,7 @@ type (
 		Document         *Document         `json:"document"`
 		Video            *Video            `json:"video"`
 		Location         *Location         `json:"location"`
+		CouponCode       string            `json:"coupon_code,omitempty"`
 	}
 
 	LimitedTimeOffer struct {
