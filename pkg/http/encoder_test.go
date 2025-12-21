@@ -20,6 +20,8 @@ package http_test
 import (
 	"encoding/json"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -196,5 +198,135 @@ func TestEncodeFormData_Errors(t *testing.T) {
 
 		_, err := whttp.EncodePayload(form)
 		test.AssertError(t, "should error on missing file", err)
+	})
+}
+
+func TestEncodeFormData_WithTempFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("form with temp file default content type", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		tmpFile := filepath.Join(tmpDir, "upload.bin")
+
+		err := os.WriteFile(tmpFile, []byte("binary content"), 0o644)
+		test.AssertNoError(t, "write temp file", err)
+
+		form := &whttp.RequestForm{
+			Fields: map[string]string{
+				"description": "test upload",
+			},
+			FormFile: &whttp.FormFile{
+				Name: "file",
+				Path: tmpFile,
+				Type: "",
+			},
+		}
+
+		encoded, err := whttp.EncodePayload(form)
+		test.AssertNoError(t, "EncodePayload", err)
+
+		if !strings.Contains(encoded.ContentType, "multipart/form-data") {
+			t.Errorf("expected multipart/form-data content type, got %s", encoded.ContentType)
+		}
+
+		body, err := io.ReadAll(encoded.Body)
+		test.AssertNoError(t, "read body", err)
+
+		if !strings.Contains(string(body), "application/octet-stream") {
+			t.Error("expected default content type application/octet-stream in form body")
+		}
+	})
+
+	t.Run("form with special characters in field name", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		tmpFile := filepath.Join(tmpDir, "testfile.txt")
+
+		err := os.WriteFile(tmpFile, []byte("test content"), 0o644)
+		test.AssertNoError(t, "write temp file", err)
+
+		form := &whttp.RequestForm{
+			Fields: map[string]string{
+				"field_with_quotes": "value",
+			},
+			FormFile: &whttp.FormFile{
+				Name: "file_field",
+				Path: tmpFile,
+				Type: "text/plain",
+			},
+		}
+
+		encoded, err := whttp.EncodePayload(form)
+		test.AssertNoError(t, "EncodePayload", err)
+
+		if encoded.Body == nil {
+			t.Error("expected non-nil body")
+		}
+	})
+
+	t.Run("form with multiple fields", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		tmpFile := filepath.Join(tmpDir, "multifield.txt")
+
+		err := os.WriteFile(tmpFile, []byte("file content for multi-field test"), 0o644)
+		test.AssertNoError(t, "write temp file", err)
+
+		form := &whttp.RequestForm{
+			Fields: map[string]string{
+				"field1": "value1",
+				"field2": "value2",
+				"field3": "value3",
+			},
+			FormFile: &whttp.FormFile{
+				Name: "document",
+				Path: tmpFile,
+				Type: "text/plain",
+			},
+		}
+
+		encoded, err := whttp.EncodePayload(form)
+		test.AssertNoError(t, "EncodePayload", err)
+
+		body, err := io.ReadAll(encoded.Body)
+		test.AssertNoError(t, "read body", err)
+
+		bodyStr := string(body)
+		if !strings.Contains(bodyStr, "value1") || !strings.Contains(bodyStr, "value2") || !strings.Contains(bodyStr, "value3") {
+			t.Error("expected all field values in the encoded body")
+		}
+	})
+
+	t.Run("form with image content type", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		tmpFile := filepath.Join(tmpDir, "image.png")
+
+		err := os.WriteFile(tmpFile, []byte("fake png content"), 0o644)
+		test.AssertNoError(t, "write temp file", err)
+
+		form := &whttp.RequestForm{
+			Fields: map[string]string{},
+			FormFile: &whttp.FormFile{
+				Name: "image",
+				Path: tmpFile,
+				Type: "image/png",
+			},
+		}
+
+		encoded, err := whttp.EncodePayload(form)
+		test.AssertNoError(t, "EncodePayload", err)
+
+		body, err := io.ReadAll(encoded.Body)
+		test.AssertNoError(t, "read body", err)
+
+		if !strings.Contains(string(body), "image/png") {
+			t.Error("expected image/png content type in form body")
+		}
 	})
 }

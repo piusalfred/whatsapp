@@ -590,3 +590,132 @@ func TestBodyReaderResponseDecoder_ErrorHandling(t *testing.T) {
 		test.AssertErrorIs(t, "should be the expected error", err, expectedErr)
 	})
 }
+
+func TestDecodeResponseJSON_NilResponse(t *testing.T) {
+	t.Parallel()
+
+	var result TestMessage
+	err := whttp.DecodeResponseJSON[TestMessage](nil, &result, whttp.DecodeOptions{})
+
+	test.AssertError(t, "should error on nil response", err)
+	test.AssertErrorIs(t, "should be ErrNilResponse", err, whttp.ErrNilResponse)
+}
+
+func TestDecodeResponseJSON_NilTarget(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`{"name":"test","value":123}`)),
+	}
+
+	err := whttp.DecodeResponseJSON[TestMessage](resp, nil, whttp.DecodeOptions{})
+
+	test.AssertError(t, "should error on nil target", err)
+	test.AssertErrorIs(t, "should be ErrNilTarget", err, whttp.ErrNilTarget)
+}
+
+func TestDecodeResponseJSON_InspectErrorWithEmptyBody(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader("")),
+	}
+
+	var result TestMessage
+	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
+		InspectResponseError: true,
+	})
+
+	test.AssertError(t, "should error on non-2xx with empty body", err)
+	test.AssertErrorIs(t, "should be ErrRequestFailure", err, whttp.ErrRequestFailure)
+}
+
+func TestDecodeResponseJSON_InspectErrorWithInvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader("not valid json")),
+	}
+
+	var result TestMessage
+	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
+		InspectResponseError: true,
+	})
+
+	test.AssertError(t, "should error on invalid JSON in error response", err)
+	test.AssertErrorIs(t, "should be ErrDecodeErrorResponse", err, whttp.ErrDecodeErrorResponse)
+}
+
+func TestDecodeRequestJSON_NilRequest(t *testing.T) {
+	t.Parallel()
+
+	var result TestMessage
+	err := whttp.DecodeRequestJSON[TestMessage](nil, &result, whttp.DecodeOptions{})
+
+	test.AssertError(t, "should error on nil request", err)
+	test.AssertErrorIs(t, "should be ErrNilResponse", err, whttp.ErrNilResponse)
+}
+
+func TestDecodeRequestJSON_NilTarget(t *testing.T) {
+	t.Parallel()
+
+	req, _ := http.NewRequest(http.MethodPost, "http://example.com", strings.NewReader(`{"name":"test"}`))
+
+	err := whttp.DecodeRequestJSON[TestMessage](req, nil, whttp.DecodeOptions{})
+
+	test.AssertError(t, "should error on nil target", err)
+	test.AssertErrorIs(t, "should be ErrNilTarget", err, whttp.ErrNilTarget)
+}
+
+func TestDecodeRequestJSON_EmptyBodyAllowed(t *testing.T) {
+	t.Parallel()
+
+	req, _ := http.NewRequest(http.MethodPost, "http://example.com", strings.NewReader(""))
+
+	var result TestMessage
+	err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{
+		DisallowEmptyResponse: false,
+	})
+
+	test.AssertNoError(t, "should allow empty body when not disallowed", err)
+}
+
+func TestDecodeRequestJSON_WithDisallowUnknownFields(t *testing.T) {
+	t.Parallel()
+
+	req, _ := http.NewRequest(http.MethodPost, "http://example.com",
+		strings.NewReader(`{"name":"test","value":123,"unknown":"field"}`))
+
+	var result TestMessage
+	err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{
+		DisallowUnknownFields: true,
+	})
+
+	test.AssertError(t, "should error on unknown fields", err)
+	test.AssertErrorIs(t, "should be ErrDecodeResponseBody", err, whttp.ErrDecodeResponseBody)
+}
+
+func TestResponseDecoderFunc_Decode(t *testing.T) {
+	t.Parallel()
+
+	decodeCalled := false
+	decoder := whttp.ResponseDecoderFunc(func(ctx context.Context, resp *http.Response) error {
+		decodeCalled = true
+		return nil
+	})
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader("")),
+	}
+
+	err := decoder.Decode(context.Background(), resp)
+
+	test.AssertNoError(t, "Decode", err)
+	if !decodeCalled {
+		t.Error("expected decoder function to be called")
+	}
+}
