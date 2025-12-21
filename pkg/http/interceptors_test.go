@@ -45,6 +45,7 @@ func TestRequestInterceptorFunc(t *testing.T) {
 		t.Error("expected interceptor to be called")
 	}
 }
+
 func TestResponseInterceptorFunc(t *testing.T) {
 	t.Parallel()
 

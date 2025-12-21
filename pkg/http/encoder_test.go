@@ -135,6 +135,7 @@ func TestEncodePayload(t *testing.T) {
 		})
 	}
 }
+
 func TestEncodeFormData(t *testing.T) {
 	t.Parallel()
 
@@ -165,6 +166,7 @@ func TestEncodeFormData(t *testing.T) {
 		}
 	})
 }
+
 func TestEncodePayload_ErrorCases(t *testing.T) {
 	t.Parallel()
 
@@ -181,6 +183,7 @@ func TestEncodePayload_ErrorCases(t *testing.T) {
 		test.AssertError(t, "should error on invalid JSON", err)
 	})
 }
+
 func TestEncodeFormData_Errors(t *testing.T) {
 	t.Parallel()
 

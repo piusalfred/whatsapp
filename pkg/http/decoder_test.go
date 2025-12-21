@@ -166,6 +166,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 		})
 	}
 }
+
 func TestDecodeRequestJSON(t *testing.T) {
 	t.Parallel()
 	type Data struct {
@@ -254,6 +255,7 @@ func TestDecodeRequestJSON(t *testing.T) {
 		})
 	}
 }
+
 func TestBodyReaderResponseDecoder(t *testing.T) {
 	t.Parallel()
 	filePath := "testfile.txt"
@@ -356,6 +358,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 		})
 	}
 }
+
 func TestResponseDecoderJSON(t *testing.T) {
 	t.Parallel()
 
@@ -393,6 +396,7 @@ func TestResponseDecoderJSON(t *testing.T) {
 		test.AssertError(t, "Decode should fail on invalid JSON", err)
 	})
 }
+
 func TestDecodeResponseJSON_ErrorCases(t *testing.T) {
 	t.Parallel()
 
@@ -450,6 +454,7 @@ func TestDecodeResponseJSON_ErrorCases(t *testing.T) {
 		}
 	})
 }
+
 func TestDecodeResponseJSON_MoreEdgeCases(t *testing.T) {
 	t.Parallel()
 
@@ -497,6 +502,7 @@ func TestDecodeResponseJSON_MoreEdgeCases(t *testing.T) {
 		test.AssertError(t, "should error when can't decode error response", err)
 	})
 }
+
 func TestDecodeRequestJSON_EdgeCases(t *testing.T) {
 	t.Parallel()
 
@@ -537,6 +543,7 @@ func TestDecodeRequestJSON_EdgeCases(t *testing.T) {
 		test.AssertErrorIs(t, "should be ErrNilTarget", err, whttp.ErrNilTarget)
 	})
 }
+
 func TestBodyReaderResponseDecoder_ErrorHandling(t *testing.T) {
 	t.Parallel()
 

@@ -69,6 +69,7 @@ func TestResponseError(t *testing.T) {
 		}
 	})
 }
+
 func TestHTTPErrors(t *testing.T) {
 	t.Parallel()
 

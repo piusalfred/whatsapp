@@ -92,6 +92,7 @@ func TestParseDebugLogLevel(t *testing.T) {
 		})
 	}
 }
+
 func TestDebugLogLevelInRequest(t *testing.T) {
 	t.Parallel()
 

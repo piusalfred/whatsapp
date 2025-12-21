@@ -203,6 +203,7 @@ func TestRequestWithContext(t *testing.T) {
 		})
 	}
 }
+
 func TestRequest_URL(t *testing.T) {
 	t.Parallel()
 	testBaseURL := "https://api.example.com"
@@ -274,6 +275,7 @@ func TestRequest_URL(t *testing.T) {
 		})
 	}
 }
+
 func TestMakeRequest(t *testing.T) {
 	t.Parallel()
 
@@ -338,6 +340,7 @@ func TestMakeRequest(t *testing.T) {
 		}
 	})
 }
+
 func TestMakeDownloadRequest(t *testing.T) {
 	t.Parallel()
 
@@ -358,6 +361,7 @@ func TestMakeDownloadRequest(t *testing.T) {
 		t.Errorf("expected header X-Download=true")
 	}
 }
+
 func TestNewRequestWithContext(t *testing.T) {
 	t.Parallel()
 
@@ -384,6 +388,7 @@ func TestNewRequestWithContext(t *testing.T) {
 		}
 	})
 }
+
 func TestWithRequestOptions(t *testing.T) {
 	t.Parallel()
 
@@ -462,171 +467,200 @@ func TestWithRequestOptions(t *testing.T) {
 		}
 	})
 }
-func TestRequest_SetEndpoints(t *testing.T) {
+
+func TestRequestSetters(t *testing.T) {
 	t.Parallel()
 
-	req := &whttp.Request[TestMessage]{
-		Method:  http.MethodGet,
-		BaseURL: "https://api.example.com",
-	}
-
-	req.SetEndpoints("v1", "messages", "123")
-
-	if len(req.Endpoints) != 3 {
-		t.Errorf("expected 3 endpoints, got %d", len(req.Endpoints))
-	}
-	if req.Endpoints[0] != "v1" || req.Endpoints[1] != "messages" || req.Endpoints[2] != "123" {
-		t.Errorf("unexpected endpoints: %v", req.Endpoints)
-	}
-}
-func TestRequest_SetRequestMessage(t *testing.T) {
-	t.Parallel()
-
-	req := &whttp.Request[TestMessage]{
-		Method:  http.MethodPost,
-		BaseURL: "https://api.example.com",
-	}
-
-	msg := &TestMessage{Name: "test", Value: 999}
-	req.SetRequestMessage(msg)
-
-	if req.Message != msg {
-		t.Error("expected message to be set")
-	}
-	if req.Message.Name != "test" || req.Message.Value != 999 {
-		t.Errorf("expected Name=test and Value=999, got Name=%s and Value=%d", req.Message.Name, req.Message.Value)
-	}
-}
-func TestRequest_SetDebugLogLevel(t *testing.T) {
-	t.Parallel()
-
-	req := &whttp.Request[TestMessage]{
-		Method:  http.MethodGet,
-		BaseURL: "https://api.example.com",
-	}
-
-	req.SetDebugLogLevel(whttp.DebugLogLevelAll)
-
-	url, err := req.URL()
-	test.AssertNoError(t, "URL", err)
-
-	if !strings.Contains(url, "debug=all") {
-		t.Errorf("expected URL to contain debug=all, got %s", url)
-	}
-}
-func TestRequestWithContext_EdgeCases(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil request", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := whttp.RequestWithContext[TestMessage](context.Background(), nil)
-		test.AssertError(t, "should error on nil request", err)
-	})
-
-	t.Run("request without app secret verification", func(t *testing.T) {
-		t.Parallel()
-
-		req := &whttp.Request[TestMessage]{
-			Method:  http.MethodPost,
-			BaseURL: "https://api.example.com",
-			Message: &TestMessage{Name: "test", Value: 1},
-		}
-
-		httpReq, err := whttp.RequestWithContext(context.Background(), req)
-		test.AssertNoError(t, "RequestWithContext", err)
-
-		if httpReq == nil {
-			t.Fatal("expected non-nil http request")
-		}
-	})
-}
-func TestRequest_URL_EdgeCases(t *testing.T) {
-	t.Parallel()
-
-	t.Run("download URL takes precedence", func(t *testing.T) {
-		t.Parallel()
-
-		req := &whttp.Request[TestMessage]{
-			DownloadURL: "https://download.example.com/file.pdf",
-			BaseURL:     "https://api.example.com",
-			Endpoints:   []string{"should", "be", "ignored"},
-		}
-
-		url, err := req.URL()
-		test.AssertNoError(t, "URL", err)
-
-		if url != "https://download.example.com/file.pdf" {
-			t.Errorf("expected download URL, got %s", url)
-		}
-	})
-
-	t.Run("URL with multiple query params", func(t *testing.T) {
-		t.Parallel()
-
-		req := &whttp.Request[TestMessage]{
-			BaseURL:   "https://api.example.com",
-			Endpoints: []string{"v1", "users"},
-			QueryParams: map[string]string{
-				"filter": "active",
-				"sort":   "name",
-				"limit":  "10",
-			},
-		}
-
-		url, err := req.URL()
-		test.AssertNoError(t, "URL", err)
-
-		if !strings.Contains(url, "filter=active") || !strings.Contains(url, "sort=name") {
-			t.Errorf("expected URL to contain all query params, got %s", url)
-		}
-	})
-
-	t.Run("URL with secure requests but missing bearer token", func(t *testing.T) {
-		t.Parallel()
-
-		req := &whttp.Request[TestMessage]{
-			BaseURL:        "https://api.example.com",
-			SecureRequests: true,
-			AppSecret:      "secret",
-			Bearer:         "",
-		}
-
-		_, err := req.URL()
-		test.AssertError(t, "should error without bearer token", err)
-	})
-}
-func TestRequestWithContext_MoreEdgeCases(t *testing.T) {
-	t.Parallel()
-
-	t.Run("request with invalid base URL", func(t *testing.T) {
+	t.Run("SetEndpoints", func(t *testing.T) {
 		t.Parallel()
 
 		req := &whttp.Request[TestMessage]{
 			Method:  http.MethodGet,
-			BaseURL: "://invalid-url",
+			BaseURL: "https://api.example.com",
 		}
 
-		_, err := whttp.RequestWithContext(context.Background(), req)
-		test.AssertError(t, "should error on invalid URL", err)
+		req.SetEndpoints("v1", "messages", "123")
+
+		if len(req.Endpoints) != 3 {
+			t.Errorf("expected 3 endpoints, got %d", len(req.Endpoints))
+		}
+		if req.Endpoints[0] != "v1" || req.Endpoints[1] != "messages" || req.Endpoints[2] != "123" {
+			t.Errorf("unexpected endpoints: %v", req.Endpoints)
+		}
 	})
 
-	t.Run("form encoding error propagation", func(t *testing.T) {
+	t.Run("SetRequestMessage", func(t *testing.T) {
 		t.Parallel()
 
 		req := &whttp.Request[TestMessage]{
 			Method:  http.MethodPost,
 			BaseURL: "https://api.example.com",
-			Form: &whttp.RequestForm{
-				Fields: map[string]string{"field": "value"},
-				FormFile: &whttp.FormFile{
-					Name: "file",
-					Path: "/nonexistent/path/file.txt",
-				},
-			},
 		}
 
-		_, err := whttp.RequestWithContext(context.Background(), req)
-		test.AssertError(t, "should error on form encoding failure", err)
+		msg := &TestMessage{Name: "test", Value: 999}
+		req.SetRequestMessage(msg)
+
+		if req.Message != msg {
+			t.Error("expected message to be set")
+		}
+		if req.Message.Name != "test" || req.Message.Value != 999 {
+			t.Errorf("expected Name=test and Value=999, got Name=%s and Value=%d", req.Message.Name, req.Message.Value)
+		}
 	})
+
+	t.Run("SetDebugLogLevel", func(t *testing.T) {
+		t.Parallel()
+
+		req := &whttp.Request[TestMessage]{
+			Method:  http.MethodGet,
+			BaseURL: "https://api.example.com",
+		}
+
+		req.SetDebugLogLevel(whttp.DebugLogLevelAll)
+
+		url, err := req.URL()
+		test.AssertNoError(t, "URL", err)
+
+		if !strings.Contains(url, "debug=all") {
+			t.Errorf("expected URL to contain debug=all, got %s", url)
+		}
+	})
+}
+
+func TestRequestWithContextErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		req     *whttp.Request[TestMessage]
+		wantErr bool
+	}{
+		{
+			name:    "nil request returns error",
+			req:     nil,
+			wantErr: true,
+		},
+		{
+			name: "invalid base URL returns error",
+			req: &whttp.Request[TestMessage]{
+				Method:  http.MethodGet,
+				BaseURL: "://invalid-url",
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing file in form returns error",
+			req: &whttp.Request[TestMessage]{
+				Method:  http.MethodPost,
+				BaseURL: "https://api.example.com",
+				Form: &whttp.RequestForm{
+					Fields: map[string]string{"field": "value"},
+					FormFile: &whttp.FormFile{
+						Name: "file",
+						Path: "/nonexistent/path/file.txt",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid request with message succeeds",
+			req: &whttp.Request[TestMessage]{
+				Method:  http.MethodPost,
+				BaseURL: "https://api.example.com",
+				Message: &TestMessage{Name: "test", Value: 1},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			httpReq, err := whttp.RequestWithContext(context.Background(), tt.req)
+
+			if tt.wantErr {
+				test.AssertError(t, "expected error", err)
+				return
+			}
+
+			test.AssertNoError(t, "unexpected error", err)
+			if httpReq == nil {
+				t.Fatal("expected non-nil http request")
+			}
+		})
+	}
+}
+
+func TestRequestURLBuilding(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		req         *whttp.Request[TestMessage]
+		wantURL     string
+		wantErr     bool
+		urlContains []string
+	}{
+		{
+			name: "download URL takes precedence over base URL",
+			req: &whttp.Request[TestMessage]{
+				DownloadURL: "https://download.example.com/file.pdf",
+				BaseURL:     "https://api.example.com",
+				Endpoints:   []string{"should", "be", "ignored"},
+			},
+			wantURL: "https://download.example.com/file.pdf",
+			wantErr: false,
+		},
+		{
+			name: "URL includes all query params",
+			req: &whttp.Request[TestMessage]{
+				BaseURL:   "https://api.example.com",
+				Endpoints: []string{"v1", "users"},
+				QueryParams: map[string]string{
+					"filter": "active",
+					"sort":   "name",
+					"limit":  "10",
+				},
+			},
+			urlContains: []string{"filter=active", "sort=name", "limit=10"},
+			wantErr:     false,
+		},
+		{
+			name: "secure request without bearer token returns error",
+			req: &whttp.Request[TestMessage]{
+				BaseURL:        "https://api.example.com",
+				SecureRequests: true,
+				AppSecret:      "secret",
+				Bearer:         "",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotURL, err := tt.req.URL()
+
+			if tt.wantErr {
+				test.AssertError(t, "expected error", err)
+				return
+			}
+
+			test.AssertNoError(t, "unexpected error", err)
+
+			if tt.wantURL != "" && gotURL != tt.wantURL {
+				t.Errorf("expected URL %s, got %s", tt.wantURL, gotURL)
+			}
+
+			for _, substr := range tt.urlContains {
+				if !strings.Contains(gotURL, substr) {
+					t.Errorf("expected URL to contain %q, got %s", substr, gotURL)
+				}
+			}
+		})
+	}
 }

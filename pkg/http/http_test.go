@@ -157,6 +157,7 @@ func ExampleNewSender() {
 	// Just intercepted the response and status code: 200
 	// called after request send execution and the err is: <nil>
 }
+
 func TestCoreClient_SetMethods(t *testing.T) {
 	t.Parallel()
 
@@ -217,6 +218,7 @@ func TestCoreClient_SetMethods(t *testing.T) {
 		client.PrependMiddlewares(middleware)
 	})
 }
+
 func TestSenderFunc_Send(t *testing.T) {
 	t.Parallel()
 
@@ -242,6 +244,7 @@ func TestSenderFunc_Send(t *testing.T) {
 		t.Error("expected sender function to be called")
 	}
 }
+
 func TestMiddlewareExecution(t *testing.T) {
 	t.Parallel()
 
@@ -295,6 +298,7 @@ func TestMiddlewareExecution(t *testing.T) {
 		}
 	})
 }
+
 func TestNewSenderIntegration(t *testing.T) {
 	t.Parallel()
 
@@ -388,6 +392,7 @@ func TestNewSenderIntegration(t *testing.T) {
 		}
 	})
 }
+
 func TestCoreClientOptions(t *testing.T) {
 	t.Parallel()
 
@@ -432,6 +437,7 @@ func TestCoreClientOptions(t *testing.T) {
 		}
 	})
 }
+
 func TestAnySender(t *testing.T) {
 	t.Parallel()
 
@@ -470,6 +476,7 @@ func TestAnySender(t *testing.T) {
 		}
 	})
 }
+
 func TestCoreClientWithBaseSender(t *testing.T) {
 	t.Parallel()
 
@@ -498,6 +505,7 @@ func TestCoreClientWithBaseSender(t *testing.T) {
 		t.Error("expected base sender to be called")
 	}
 }
+
 func TestNewAnySender_WithOptions(t *testing.T) {
 	t.Parallel()
 
@@ -522,6 +530,7 @@ func TestNewAnySender_WithOptions(t *testing.T) {
 		}
 	})
 }
+
 func TestSendFuncWithInterceptors_ErrorPaths(t *testing.T) {
 	t.Parallel()
 
