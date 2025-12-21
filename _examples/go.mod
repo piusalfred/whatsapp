@@ -7,13 +7,13 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/piusalfred/whatsapp v1.0.0
-	github.com/piusalfred/whatsapp/extras/mcp v0.0.0-20251118204723-f95fcc19a8c1
+	github.com/piusalfred/whatsapp/extras/mcp v0.0.0-20251221095014-a550cfbe294b
 )
 
 require (
-	github.com/google/jsonschema-go v0.3.0 // indirect
+	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	golang.org/x/oauth2 v0.33.0 // indirect
+	golang.org/x/oauth2 v0.34.0 // indirect
 )
 
 replace github.com/piusalfred/whatsapp => ../

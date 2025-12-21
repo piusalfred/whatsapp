@@ -65,3 +65,23 @@ lint-fix:
 
 license-check:
 	@$(TASK_BIN) license-check
+
+.PHONY: update upgrade
+
+# go version => "go version go1.25.5 darwin/arm64"
+GO_VERSION_FULL := $(shell go version | awk '{print $$3}' | sed 's/^go//')          # 1.25.5
+GO_VERSION_MM   := $(shell echo $(GO_VERSION_FULL) | awk -F. '{print $$1 "." $$2}') # 1.25
+
+update-go:
+	@echo "==> go get -u ./..."
+	@go get -u ./...
+	@echo "==> go mod tidy"
+	@go mod tidy
+
+upgrade-go:
+	@echo "==> Updating go.mod directives to match installed Go $(GO_VERSION_FULL)"
+	@echo "    - setting: go $(GO_VERSION_MM)"
+	@go mod edit -go=$(GO_VERSION_MM)
+	@echo "    - setting: toolchain go$(GO_VERSION_FULL)"
+	@go mod edit -toolchain=go$(GO_VERSION_FULL)
+	@$(MAKE) update
