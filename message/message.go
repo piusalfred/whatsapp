@@ -120,7 +120,7 @@ type (
 		Video           *Video           `json:"video,omitempty"`
 		Image           *Image           `json:"image,omitempty"`
 		Audio           *Audio           `json:"audio,omitempty"`
-		Status          *string          `json:"Status,omitempty"`     // used to update message Status
+		Status          *string          `json:"status,omitempty"`     // used to update message Status
 		MessageID       *string          `json:"message_id,omitempty"` // used to update message Status
 		Template        *Template        `json:"template,omitempty"`
 		TypingIndicator *TypingIndicator `json:"typing_indicator,omitempty"`
