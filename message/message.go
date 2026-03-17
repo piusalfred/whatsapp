@@ -105,9 +105,9 @@ type (
 
 	Message struct {
 		Product         string           `json:"messaging_product"`
-		To              string           `json:"to"`
-		RecipientType   string           `json:"recipient_type"`
-		Type            string           `json:"type"`
+		To              string           `json:"to,omitempty"`
+		RecipientType   string           `json:"recipient_type,omitempty"`
+		Type            string           `json:"type,omitempty"`
 		PreviewURL      bool             `json:"preview_url,omitempty"`
 		Context         *Context         `json:"context,omitempty"`
 		Text            *Text            `json:"text,omitempty"`
