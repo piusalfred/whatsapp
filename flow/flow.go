@@ -29,6 +29,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -137,18 +138,18 @@ type (
 	}
 
 	SingleFlowResponse struct {
-		ID                      string                 `json:"id"`
-		Name                    string                 `json:"name"`
-		Status                  string                 `json:"status"`
-		Categories              []string               `json:"categories"`
-		ValidationErrors        []ValidationError      `json:"validation_errors"`
-		JSONVersion             string                 `json:"json_version"`
-		DataAPIVersion          string                 `json:"data_api_version"`
-		EndpointURI             string                 `json:"endpoint_uri"`
-		Preview                 Preview                `json:"preview"`
-		WhatsAppBusinessAccount map[string]interface{} `json:"whatsapp_business_account,omitempty"` // Optional
-		Application             map[string]interface{} `json:"application,omitempty"`               // Optional
-		HealthStatus            HealthStatus           `json:"health_status"`
+		ID                      string            `json:"id"`
+		Name                    string            `json:"name"`
+		Status                  string            `json:"status"`
+		Categories              []string          `json:"categories"`
+		ValidationErrors        []ValidationError `json:"validation_errors"`
+		JSONVersion             string            `json:"json_version"`
+		DataAPIVersion          string            `json:"data_api_version"`
+		EndpointURI             string            `json:"endpoint_uri"`
+		Preview                 Preview           `json:"preview"`
+		WhatsAppBusinessAccount map[string]any    `json:"whatsapp_business_account,omitempty"` // Optional
+		Application             map[string]any    `json:"application,omitempty"`               // Optional
+		HealthStatus            HealthStatus      `json:"health_status"`
 	}
 
 	Asset struct {
@@ -188,23 +189,23 @@ type (
 	}
 
 	BaseResponse struct {
-		ID                      string                 `json:"id,omitempty"`
-		Success                 bool                   `json:"success,omitempty"`
-		Data                    []*BaseResponseData    `json:"data,omitempty"`
-		Paging                  *whttp.Paging          `json:"paging,omitempty"`
-		ValidationErrors        []ValidationError      `json:"validation_errors,omitempty"`
-		PreviewURL              string                 `json:"preview_url,omitempty"`
-		ExpiresAt               string                 `json:"expires_at,omitempty"`
-		Name                    string                 `json:"name,omitempty"`
-		Status                  string                 `json:"status,omitempty"`
-		Categories              []string               `json:"categories,omitempty"`
-		JSONVersion             string                 `json:"json_version,omitempty"`
-		DataAPIVersion          string                 `json:"data_api_version,omitempty"`
-		EndpointURI             string                 `json:"endpoint_uri,omitempty"`
-		Preview                 Preview                `json:"preview,omitempty"`
-		WhatsAppBusinessAccount map[string]interface{} `json:"whatsapp_business_account,omitempty"` // Optional
-		Application             map[string]interface{} `json:"application,omitempty"`               // Optional
-		HealthStatus            HealthStatus           `json:"health_status,omitempty"`
+		ID                      string              `json:"id,omitempty"`
+		Success                 bool                `json:"success,omitempty"`
+		Data                    []*BaseResponseData `json:"data,omitempty"`
+		Paging                  *whttp.Paging       `json:"paging,omitempty"`
+		ValidationErrors        []ValidationError   `json:"validation_errors,omitempty"`
+		PreviewURL              string              `json:"preview_url,omitempty"`
+		ExpiresAt               string              `json:"expires_at,omitempty"`
+		Name                    string              `json:"name,omitempty"`
+		Status                  string              `json:"status,omitempty"`
+		Categories              []string            `json:"categories,omitempty"`
+		JSONVersion             string              `json:"json_version,omitempty"`
+		DataAPIVersion          string              `json:"data_api_version,omitempty"`
+		EndpointURI             string              `json:"endpoint_uri,omitempty"`
+		Preview                 Preview             `json:"preview"`
+		WhatsAppBusinessAccount map[string]any      `json:"whatsapp_business_account,omitempty"` // Optional
+		Application             map[string]any      `json:"application,omitempty"`               // Optional
+		HealthStatus            HealthStatus        `json:"health_status"`
 	}
 
 	BaseResponseData struct {
@@ -657,27 +658,27 @@ type (
 	}
 
 	DataExchangeRequest struct {
-		Version   string                 `json:"version"`
-		Action    string                 `json:"action"`
-		Screen    string                 `json:"screen"`
-		Data      map[string]interface{} `json:"data"`
-		FlowToken string                 `json:"flow_token"`
+		Version   string         `json:"version"`
+		Action    string         `json:"action"`
+		Screen    string         `json:"screen"`
+		Data      map[string]any `json:"data"`
+		FlowToken string         `json:"flow_token"`
 	}
 
 	Response struct {
-		Screen string                 `json:"screen,omitempty"`
-		Data   map[string]interface{} `json:"data"`
+		Screen string         `json:"screen,omitempty"`
+		Data   map[string]any `json:"data"`
 	}
 
 	NextScreenResponseData struct {
 		Screen       string
-		Data         map[string]interface{}
+		Data         map[string]any
 		ErrorMessage string
 	}
 
 	FinalScreenResponseData struct {
 		FlowToken      string
-		OptionalParams map[string]interface{}
+		OptionalParams map[string]any
 	}
 )
 
@@ -712,17 +713,15 @@ func CreateNextScreenResponse(nextScreenData NextScreenResponseData) *Response {
 }
 
 func CreateFinalScreenResponse(finalScreenData FinalScreenResponseData) *Response {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"flow_token": finalScreenData.FlowToken,
 	}
-	for k, v := range finalScreenData.OptionalParams {
-		params[k] = v
-	}
+	maps.Copy(params, finalScreenData.OptionalParams)
 
 	return &Response{
 		Screen: "SUCCESS",
-		Data: map[string]interface{}{
-			"extension_message_response": map[string]interface{}{
+		Data: map[string]any{
+			"extension_message_response": map[string]any{
 				"params": params,
 			},
 		},
@@ -731,7 +730,7 @@ func CreateFinalScreenResponse(finalScreenData FinalScreenResponseData) *Respons
 
 func CreateHealthCheckResponse(status string) *Response {
 	return &Response{
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"status": status,
 		},
 	}
@@ -739,7 +738,7 @@ func CreateHealthCheckResponse(status string) *Response {
 
 func CreateErrorAcknowledgmentResponse(acknowledged bool) *Response {
 	return &Response{
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"acknowledged": acknowledged,
 		},
 	}

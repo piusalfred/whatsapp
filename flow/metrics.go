@@ -67,11 +67,11 @@ type (
 	}
 
 	MetricsRequest struct {
-		FlowID      string         `json:"flow_id"`         // Flow ID to get metrics for
-		MetricName  metricEndpoint `json:"name"`            // Metric name (e.g., ENDPOINT_REQUEST_ERROR)
-		Granularity granularity    `json:"granularity"`     // Time granularity (DAY, HOUR, LIFETIME)
-		Since       time.Time      `json:"since,omitempty"` // Start of the time period (optional, YYYY-MM-DD)
-		Until       time.Time      `json:"until,omitempty"` // End of the time period (optional, YYYY-MM-DD)
+		FlowID      string         `json:"flow_id"`     // Flow ID to get metrics for
+		MetricName  metricEndpoint `json:"name"`        // Metric name (e.g., ENDPOINT_REQUEST_ERROR)
+		Granularity granularity    `json:"granularity"` // Time granularity (DAY, HOUR, LIFETIME)
+		Since       time.Time      `json:"since"`       // Start of the time period (optional, YYYY-MM-DD)
+		Until       time.Time      `json:"until"`       // End of the time period (optional, YYYY-MM-DD)
 	}
 )
 

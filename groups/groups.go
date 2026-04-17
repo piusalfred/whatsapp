@@ -71,7 +71,7 @@ type (
 		Participants          []*Participants     `json:"participants,omitempty"`
 		JoinApprovalMode      JoinApprovalMode    `json:"join_approval_mode,omitempty"`
 		Data                  []*ResponseDataItem `json:"data,omitempty"`
-		Paging                whttp.Paging        `json:"paging,omitempty"`
+		Paging                whttp.Paging        `json:"paging"`
 	}
 
 	BaseClient struct {

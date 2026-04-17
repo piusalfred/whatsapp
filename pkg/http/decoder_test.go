@@ -278,7 +278,7 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 				Body: io.NopCloser(strings.NewReader(`{"name": "John", "age": 30}`)),
 			},
 			fn: func(_ context.Context, reader io.Reader) error {
-				var result map[string]interface{}
+				var result map[string]any
 				err := json.NewDecoder(reader).Decode(&result)
 				if err != nil {
 					return fmt.Errorf("failed to decode JSON: %w", err)
