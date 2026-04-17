@@ -32,6 +32,8 @@ jobs:
 
             - name: Install gotools
               run: go install github.com/piusalfred/gotools/cmd/gotools@latest
+              env:
+                  GOPROXY: direct
 
             - name: Download dependencies
               run: go mod download
