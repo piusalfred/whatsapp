@@ -1,52 +1,46 @@
 name: Build
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
 
 jobs:
-  build-and-test:
-    name: Build and Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        go-version: ['stable']
+    build-and-test:
+        name: Build and Test
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest]
+                go-version: ["stable"]
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
-          cache-dependency-path: |
-            go.sum
-            tools/go.sum
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ${{ matrix.go-version }}
+                  cache-dependency-path: |
+                      go.sum
+                      tools/*.sum
 
-      - name: Configure private module access
-        run: git config --global url."https://${{ secrets.GOTOOLS_TOKEN }}@github.com/".insteadOf "https://github.com/"
+            - name: Install gotools
+              run: go install github.com/piusalfred/gotools/cmd/gotools@latest
 
-      - name: Install gotools
-        run: go install github.com/piusalfred/gotools/cmd/gotools@latest
-        env:
-          GOPRIVATE: github.com/piusalfred/gotools
-          GONOSUMDB: github.com/piusalfred/gotools
+            - name: Download dependencies
+              run: go mod download
 
-      - name: Download dependencies
-        run: go mod download
+            - name: Sanity Check
+              run: make check
 
-      - name: Check (lint + license)
-        run: make check
+            - name: Test
+              run: make test
 
-      - name: Test
-        run: make test
-
-      - name: Build
-        run: go build -v ./...
+            - name: Build
+              run: go build -v ./...
