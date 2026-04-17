@@ -19,6 +19,7 @@ package otel
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"net/http"
 
@@ -102,7 +103,7 @@ func NewSender[T any](core whttp.Sender[T], opts ...Option) (*Sender[T], error) 
 		metric.WithDescription("Total number of requests sent"),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create requests_total counter: %w", err)
 	}
 
 	errorCounter, err := meter.Int64Counter(
@@ -110,7 +111,7 @@ func NewSender[T any](core whttp.Sender[T], opts ...Option) (*Sender[T], error) 
 		metric.WithDescription("Total number of errors encountered"),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create errors_total counter: %w", err)
 	}
 
 	return &Sender[T]{
@@ -148,7 +149,7 @@ func (s *Sender[T]) Send(ctx context.Context, req *whttp.Request[T], decoder wht
 		s.errorsCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 		span.SetStatus(codes.Error, err.Error())
 
-		return err
+		return fmt.Errorf("send request: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "OK")
@@ -175,7 +176,7 @@ func NotificationLogValues(notification *webhooks.Notification) []attribute.KeyV
 		attribute.String("webhook.notification.object", notification.Object),
 	}
 
-	var entryIDs []string
+	entryIDs := make([]string, 0, len(notification.Entry))
 	var changeFields []string
 
 	for _, entry := range notification.Entry {

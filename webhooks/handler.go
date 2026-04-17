@@ -169,7 +169,7 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 	return &Response{StatusCode: http.StatusOK}
 }
 
-func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cyclop, funlen // ok
+func (handler *Handler) handleNotificationChange( //nolint:funlen // complex notification routing across entry/change/message types
 	ctx context.Context,
 	notification *Notification,
 	change Change,
@@ -541,7 +541,7 @@ func (f EventHandlerFunc[S, T]) HandleEvent(ctx context.Context, ntx *S, notific
 	return f(ctx, ntx, notification)
 }
 
-func NewNoOpEventHandler[S any, T any]() EventHandler[S, T] {
+func NewNoOpEventHandler[S, T any]() EventHandler[S, T] {
 	return EventHandlerFunc[S, T](func(_ context.Context, _ *S, _ *T) error {
 		return nil
 	})

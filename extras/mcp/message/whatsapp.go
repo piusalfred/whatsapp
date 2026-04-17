@@ -19,12 +19,15 @@ package message
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/piusalfred/whatsapp/message"
 )
+
+var ErrUnsupportedMessageType = errors.New("unsupported message type")
 
 type (
 	Sender interface {
@@ -467,7 +470,7 @@ func (s *Server) SendInteractiveMessage(ctx context.Context, request *SendIntera
 			},
 		}
 	default:
-		return nil, fmt.Errorf("unsupported interactive message type: %s", request.Type)
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedMessageType, request.Type)
 	}
 
 	response, err := s.SendRequest(ctx, request.Recipient,

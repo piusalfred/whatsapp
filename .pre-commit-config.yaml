@@ -1,0 +1,28 @@
+repos:
+  - repo: local
+    hooks:
+      - id: gotools-fmt
+        name: Root library lint+format
+        language: system
+        entry: make gotools-fmt
+        pass_filenames: false
+        types: [go]
+        exclude: '^(_examples|extras|tools)/'
+      - id: fmt-examples
+        name: _examples lint+format
+        language: system
+        entry: bash -c 'cd _examples && make fmt'
+        pass_filenames: false
+        files: '^_examples/.*\.go$'
+      - id: fmt-extras-otel
+        name: extras/otel lint+format
+        language: system
+        entry: bash -c 'cd extras/otel && make fmt'
+        pass_filenames: false
+        files: '^extras/otel/.*\.go$'
+      - id: fmt-extras-mcp
+        name: extras/mcp lint+format
+        language: system
+        entry: bash -c 'cd extras/mcp && make fmt'
+        pass_filenames: false
+        files: '^extras/mcp/.*\.go$'

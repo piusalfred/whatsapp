@@ -100,7 +100,7 @@ type (
 
 // Single source of truth for String() mappings.
 // Must have exactly RequestTypeCount entries, in the same order as the constants.
-var requestTypeStrings = [...]string{
+var requestTypeStrings = [...]string{ //nolint:gochecknoglobals // immutable string lookup table, never modified after init
 	"send_message",
 	"update_status",
 	"create_qr",

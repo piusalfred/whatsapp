@@ -35,6 +35,8 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
+var errReaderFunction = errors.New("reader function error")
+
 func TestDecodeResponseJSON(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -585,7 +587,7 @@ func TestBodyReaderResponseDecoder_ErrorHandling(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader("test content")),
 		}
 
-		expectedErr := errors.New("reader function error")
+		expectedErr := errReaderFunction
 		fn := func(ctx context.Context, reader io.Reader) error {
 			return expectedErr
 		}

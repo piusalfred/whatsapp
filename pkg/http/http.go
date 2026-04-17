@@ -50,7 +50,9 @@ type (
 	}
 )
 
-func (fn CoreClientOptionFunc[T]) apply(client *CoreClient[T]) {
+func (fn CoreClientOptionFunc[T]) apply( //nolint:unused // implements CoreClientOption[T], called via interface dispatch in NewSender
+	client *CoreClient[T],
+) {
 	fn(client)
 }
 

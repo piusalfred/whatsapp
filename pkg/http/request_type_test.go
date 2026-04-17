@@ -17,7 +17,7 @@
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package http
+package http //nolint:testpackage // needs access to unexported requestTypeStrings and requestTypeCount
 
 import (
 	"testing"
@@ -29,7 +29,11 @@ func TestRequestType_String(t *testing.T) {
 		t.Parallel()
 
 		if values, names := len(requestTypeStrings), int(requestTypeCount); values != names {
-			t.Errorf("Number of RequestType strings (%d) does not match number of RequestType constants (%d)", values, names)
+			t.Errorf(
+				"Number of RequestType strings (%d) does not match number of RequestType constants (%d)",
+				values,
+				names,
+			)
 		}
 	})
 
@@ -70,28 +74,92 @@ func TestRequestType_String(t *testing.T) {
 		{name: "GenerateToken", requestType: RequestTypeGenerateToken, want: "generate_token"},
 		{name: "RevokeToken", requestType: RequestTypeRevokeToken, want: "revoke_token"},
 		{name: "TwoStepVerification", requestType: RequestTypeTwoStepVerification, want: "two_step_verification"},
-		{name: "FetchMessagingAnalytics", requestType: RequestTypeFetchMessagingAnalytics, want: "fetch_messaging_analytics"},
-		{name: "FetchTemplateAnalytics", requestType: RequestTypeFetchTemplateAnalytics, want: "fetch_template_analytics"},
+		{
+			name:        "FetchMessagingAnalytics",
+			requestType: RequestTypeFetchMessagingAnalytics,
+			want:        "fetch_messaging_analytics",
+		},
+		{
+			name:        "FetchTemplateAnalytics",
+			requestType: RequestTypeFetchTemplateAnalytics,
+			want:        "fetch_template_analytics",
+		},
 		{name: "FetchPricingAnalytics", requestType: RequestTypeFetchPricingAnalytics, want: "fetch_pricing_analytics"},
-		{name: "FetchConversationAnalytics", requestType: RequestTypeFetchConversationAnalytics, want: "fetch_conversation_analytics"},
-		{name: "EnableTemplatesAnalytics", requestType: RequestTypeEnableTemplatesAnalytics, want: "enable_templates_analytics"},
-		{name: "DisableButtonClickTracking", requestType: RequestTypeDisableButtonClickTracking, want: "disable_button_click_tracking"},
+		{
+			name:        "FetchConversationAnalytics",
+			requestType: RequestTypeFetchConversationAnalytics,
+			want:        "fetch_conversation_analytics",
+		},
+		{
+			name:        "EnableTemplatesAnalytics",
+			requestType: RequestTypeEnableTemplatesAnalytics,
+			want:        "enable_templates_analytics",
+		},
+		{
+			name:        "DisableButtonClickTracking",
+			requestType: RequestTypeDisableButtonClickTracking,
+			want:        "disable_button_click_tracking",
+		},
 		{name: "BlockUsers", requestType: RequestTypeBlockUsers, want: "block_users"},
 		{name: "UnblockUsers", requestType: RequestTypeUnblockUsers, want: "unblock_users"},
 		{name: "ListBlockedUsers", requestType: RequestTypeListBlockedUsers, want: "list_blocked_users"},
 		{name: "DisableWelcomeMessage", requestType: RequestTypeDisableWelcomeMessage, want: "disable_welcome_message"},
 		{name: "EnableWelcomeMessage", requestType: RequestTypeEnableWelcomeMessage, want: "enable_welcome_message"},
-		{name: "GetConversationAutomationComponents", requestType: RequestTypeGetConversationAutomationComponents, want: "get_conversation_automation_components"},
-		{name: "UpdateConversationAutomationComponents", requestType: RequestTypeUpdateConversationAutomationComponents, want: "update_conversation_automation_components"},
-		{name: "InitResumableUploadSession", requestType: RequestTypeInitResumableUploadSession, want: "init_resumable_upload_session"},
-		{name: "GetResumableUploadSessionStatus", requestType: RequestTypeGetResumableUploadSessionStatus, want: "get_resumable_upload_session_status"},
-		{name: "PerformResumableUpload", requestType: RequestTypePerformResumableUpload, want: "perform_resumable_upload"},
-		{name: "SetWABAAlternateCallbackURI", requestType: RequestTypeSetWABAAlternateCallbackURI, want: "set_waba_alternate_callback_uri"},
-		{name: "GetWABAAlternateCallbackURI", requestType: RequestTypeGetWABAAlternateCallbackURI, want: "get_waba_alternate_callback_uri"},
-		{name: "DeleteWABAAlternateCallbackURI", requestType: RequestTypeDeleteWABAAlternateCallbackURI, want: "delete_waba_alternate_callback_uri"},
-		{name: "SetPhoneNumberAlternateCallbackURI", requestType: RequestTypeSetPhoneNumberAlternateCallbackURI, want: "set_phonenumber_alternate_callback_uri"},
-		{name: "GetPhoneNumberAlternateCallbackURI", requestType: RequestTypeGetPhoneNumberAlternateCallbackURI, want: "get_phonenumber_alternate_callback_uri"},
-		{name: "DeletePhoneNumberAlternateCallbackURI", requestType: RequestTypeDeletePhoneNumberAlternateCallbackURI, want: "delete_phonenumber_alternate_callback_uri"},
+		{
+			name:        "GetConversationAutomationComponents",
+			requestType: RequestTypeGetConversationAutomationComponents,
+			want:        "get_conversation_automation_components",
+		},
+		{
+			name:        "UpdateConversationAutomationComponents",
+			requestType: RequestTypeUpdateConversationAutomationComponents,
+			want:        "update_conversation_automation_components",
+		},
+		{
+			name:        "InitResumableUploadSession",
+			requestType: RequestTypeInitResumableUploadSession,
+			want:        "init_resumable_upload_session",
+		},
+		{
+			name:        "GetResumableUploadSessionStatus",
+			requestType: RequestTypeGetResumableUploadSessionStatus,
+			want:        "get_resumable_upload_session_status",
+		},
+		{
+			name:        "PerformResumableUpload",
+			requestType: RequestTypePerformResumableUpload,
+			want:        "perform_resumable_upload",
+		},
+		{
+			name:        "SetWABAAlternateCallbackURI",
+			requestType: RequestTypeSetWABAAlternateCallbackURI,
+			want:        "set_waba_alternate_callback_uri",
+		},
+		{
+			name:        "GetWABAAlternateCallbackURI",
+			requestType: RequestTypeGetWABAAlternateCallbackURI,
+			want:        "get_waba_alternate_callback_uri",
+		},
+		{
+			name:        "DeleteWABAAlternateCallbackURI",
+			requestType: RequestTypeDeleteWABAAlternateCallbackURI,
+			want:        "delete_waba_alternate_callback_uri",
+		},
+		{
+			name:        "SetPhoneNumberAlternateCallbackURI",
+			requestType: RequestTypeSetPhoneNumberAlternateCallbackURI,
+			want:        "set_phonenumber_alternate_callback_uri",
+		},
+		{
+			name:        "GetPhoneNumberAlternateCallbackURI",
+			requestType: RequestTypeGetPhoneNumberAlternateCallbackURI,
+			want:        "get_phonenumber_alternate_callback_uri",
+		},
+		{
+			name:        "DeletePhoneNumberAlternateCallbackURI",
+			requestType: RequestTypeDeletePhoneNumberAlternateCallbackURI,
+			want:        "delete_phonenumber_alternate_callback_uri",
+		},
 		{name: "GetSettings", requestType: RequestTypeGetSettings, want: "get_settings"},
 		{name: "UpdateSettings", requestType: RequestTypeUpdateSettings, want: "update_settings"},
 		{name: "UpdateCallStatus", requestType: RequestTypeUpdateCallStatus, want: "update_call_status"},
@@ -99,12 +167,24 @@ func TestRequestType_String(t *testing.T) {
 		{name: "DeleteGroup", requestType: RequestTypeDeleteGroup, want: "delete_group"},
 		{name: "GetGroupInviteLink", requestType: RequestTypeGetGroupInviteLink, want: "get_group_invite_link"},
 		{name: "ResetGroupInviteLink", requestType: RequestTypeResetGroupInviteLink, want: "reset_group_invite_link"},
-		{name: "SendGroupInviteLinkTemplateMessage", requestType: RequestTypeSendGroupInviteLinkTemplateMessage, want: "send_group_invite_link_template_message"},
-		{name: "RemoveGroupParticipants", requestType: RequestTypeRemoveGroupParticipants, want: "remove_group_participants"},
+		{
+			name:        "SendGroupInviteLinkTemplateMessage",
+			requestType: RequestTypeSendGroupInviteLinkTemplateMessage,
+			want:        "send_group_invite_link_template_message",
+		},
+		{
+			name:        "RemoveGroupParticipants",
+			requestType: RequestTypeRemoveGroupParticipants,
+			want:        "remove_group_participants",
+		},
 		{name: "GetGroupInfo", requestType: RequestTypeGetGroupInfo, want: "get_group_info"},
 		{name: "GetActiveGroups", requestType: RequestTypeGetActiveGroups, want: "get_active_groups"},
 		{name: "UpdateGroupSettings", requestType: RequestTypeUpdateGroupSettings, want: "update_group_settings"},
-		{name: "UpdateGroupCallStatus", requestType: RequestTypeUpdateGroupCallStatus, want: "update_group_call_status"},
+		{
+			name:        "UpdateGroupCallStatus",
+			requestType: RequestTypeUpdateGroupCallStatus,
+			want:        "update_group_call_status",
+		},
 	}
 
 	for _, tt := range tests {

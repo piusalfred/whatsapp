@@ -88,9 +88,8 @@ func main() {
 	if err != nil {
 		fmt.Printf("Failed to create QR: %v\n", err)
 		return
-	} else {
-		fmt.Printf("Created QR Code Link: %v\n", createResp.QRImageURL)
 	}
+	fmt.Printf("Created QR Code Link: %v\n", createResp.QRImageURL)
 
 	qrCodeID := createResp.Code
 	getResp, err := client.Get(ctx, qrCodeID)
@@ -119,10 +118,10 @@ func main() {
 		fmt.Printf("List of QR Codes: %+v\n", listResp.Data)
 	}
 
-	//deleteResp, err := client.Delete(ctx, qrCodeID)
-	//if err != nil {
+	// deleteResp, err := client.Delete(ctx, qrCodeID)
+	// if err != nil {
 	//	fmt.Printf("Failed to delete QR code: %v\n", err)
-	//} else {
+	// } else {
 	//	fmt.Printf("Deleted QR Code success: %v\n", deleteResp.Success)
 	//}
 

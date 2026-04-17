@@ -51,19 +51,21 @@ func (fn ReaderFunc) Read(ctx context.Context) (*Config, error) {
 	return fn(ctx)
 }
 
-const ErrInvalidConfig = whatsapp.Error("invalid config")
+const (
+	ErrInvalidConfig     = whatsapp.Error("invalid config")
+	ErrInvalidAPIVersion = whatsapp.Error("invalid API version")
+	ErrAppSecretRequired = whatsapp.Error("app secret is required for secure requests")
+)
 
 func Validate(conf *Config) error {
 	errs := make([]error, 0)
 	if !whatsapp.IsCorrectAPIVersion(conf.APIVersion) {
-		errVersion := fmt.Errorf("invalid API version: %s,lowest supported version is :%s",
-			conf.APIVersion, whatsapp.LowestSupportedAPIVersion)
-
-		errs = append(errs, errVersion)
+		errs = append(errs, fmt.Errorf("%w: got %s, minimum is %s",
+			ErrInvalidAPIVersion, conf.APIVersion, whatsapp.LowestSupportedAPIVersion))
 	}
 
 	if conf.SecureRequests && conf.AppSecret == "" {
-		errs = append(errs, errors.New("app secret is required for secure requests"))
+		errs = append(errs, ErrAppSecretRequired)
 	}
 
 	return errors.Join(errs...)

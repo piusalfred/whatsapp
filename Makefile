@@ -1,5 +1,6 @@
 SHELL := /bin/bash
 TASK_BIN := go tool -modfile=./tools/go.mod task --silent
+GOTOOLS  := gotools exec
 
 
 .DEFAULT_GOAL := all
@@ -8,7 +9,16 @@ TASK_BIN := go tool -modfile=./tools/go.mod task --silent
 TASK ?= $(cmd)
 TASK ?= all
 
-.PHONY: help list task run-example fmt test mocks add-license
+define fmt-module
+	@echo "==> [$(1)] go fix"
+	@cd $(1) && go fix ./...
+	@echo "==> [$(1)] golangci-lint fmt"
+	@cd $(1) && $(GOTOOLS) golangci-lint fmt
+	@echo "==> [$(1)] golangci-lint run --fix"
+	@cd $(1) && $(GOTOOLS) golangci-lint run --fix ./...
+endef
+
+.PHONY: help list task run-example fmt test mocks add-license gotools-fmt
 
 
 help: ## show documented make targets and Taskfile tasks
@@ -56,6 +66,11 @@ task: ## run arbitrary Taskfile task (usage: make task cmd=<name> [program=...] 
 
 run-example: ## run example program (usage: make run-example program=block [args="..."])
 	@$(TASK_BIN) run $(if $(program),program=$(program)) $(if $(args),args=$(args))
+
+gotools-fmt: ## add license headers, fix, format, and lint-fix the root library
+	@echo "==> addlicense"
+	@$(GOTOOLS) addlicense -f LICENCE $$(find . -name "*.go" -not -path "./tools/*" -not -path "./_examples/*" -not -path "./extras/*")
+	$(call fmt-module,.)
 
 lint-check:
 	@$(TASK_BIN) lint-check

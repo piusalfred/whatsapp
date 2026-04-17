@@ -112,10 +112,12 @@ func main() {
 
 	// Root context cancels on SIGINT/SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
-	if err := srv.Run(ctx); err != nil {
-		logger.Error("server exited with error", "error", err)
+	runErr := srv.Run(ctx)
+	stop()
+
+	if runErr != nil {
+		logger.Error("server exited with error", "error", runErr)
 		os.Exit(1)
 	}
 	logger.Info("server exited cleanly")

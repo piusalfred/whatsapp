@@ -33,6 +33,13 @@ import (
 	"github.com/piusalfred/whatsapp/webhooks"
 )
 
+var (
+	errClientIDRequired      = errors.New("client ID is required")
+	errClientIDNotRegistered = errors.New("client ID is not registered")
+	errClientEnvRequired     = errors.New("client environment is required")
+	errClientNotInEnv        = errors.New("client not registered in environment")
+)
+
 type (
 	TestConfigMap map[string]*webhooks.Config
 	TestEnvConfig struct {
@@ -54,36 +61,36 @@ func (r *TestMultiClientConfigReader) ReadConfig(request *http.Request) (*webhoo
 	clientID = strings.TrimSuffix(clientID, "/whatsapp")
 
 	if clientID == "" {
-		return nil, errors.New("client ID is required")
+		return nil, errClientIDRequired
 	}
 
 	clientName, ok := r.ids[clientID]
 	if !ok {
-		return nil, errors.New("client ID is not registered")
+		return nil, errClientIDNotRegistered
 	}
 
 	env := request.Header.Get("X-Client-Env")
 	if env == "" {
-		return nil, errors.New("client environment is required")
+		return nil, errClientEnvRequired
 	}
 
 	switch env {
 	case "dev":
 		cfg, ok := r.envConfig.Dev[clientName]
 		if !ok {
-			return nil, fmt.Errorf("client %s is not registered in dev environment", clientName)
+			return nil, fmt.Errorf("client %s in dev: %w", clientName, errClientNotInEnv)
 		}
 		return cfg, nil
 	case "stg":
 		cfg, ok := r.envConfig.Stg[clientName]
 		if !ok {
-			return nil, fmt.Errorf("client %s is not registered in stg environment", clientName)
+			return nil, fmt.Errorf("client %s in stg: %w", clientName, errClientNotInEnv)
 		}
 		return cfg, nil
 	default:
 		cfg, ok := r.envConfig.Prod[clientName]
 		if !ok {
-			return nil, fmt.Errorf("client %s is not registered in prod environment", clientName)
+			return nil, fmt.Errorf("client %s in prod: %w", clientName, errClientNotInEnv)
 		}
 		return cfg, nil
 	}
