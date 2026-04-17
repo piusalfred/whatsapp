@@ -19,7 +19,7 @@ jobs:
         go-version: ['stable']
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Go
@@ -30,25 +30,23 @@ jobs:
             go.sum
             tools/go.sum
 
-      - name: Install Task
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure private module access
+        run: git config --global url."https://${{ secrets.GOTOOLS_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
-      - name: Download Dependencies
-        run: |
-          go mod download
-          # Ensure build tools are downloaded
-          cd tools && go mod download
+      - name: Install gotools
+        run: go install github.com/piusalfred/gotools/cmd/gotools@latest
+        env:
+          GOPRIVATE: github.com/piusalfred/gotools
+          GONOSUMDB: github.com/piusalfred/gotools
 
-      - name: Lint Check
-        run: task lint-check
+      - name: Download dependencies
+        run: go mod download
 
-      - name: Run Tests
-        run: task test
+      - name: Check (lint + license)
+        run: make check
 
-      - name: Build Verification
+      - name: Test
+        run: make test
+
+      - name: Build
         run: go build -v ./...
-      - name: License Headers Check
-        run: task license-check

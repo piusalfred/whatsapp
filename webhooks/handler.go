@@ -360,7 +360,11 @@ func (handler *Handler) handleTemplateQualityUpdate(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.templateQuality.HandleEvent(ctx, notificationCtx, change.Value.TemplateQualityUpdate()); err != nil {
+		if err := handler.templateQuality.HandleEvent(
+			ctx,
+			notificationCtx,
+			change.Value.TemplateQualityUpdate(),
+		); err != nil {
 			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 				return handlerErr
 			}
@@ -383,7 +387,11 @@ func (handler *Handler) handleTemplateCategoryUpdate(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.templateCategory.HandleEvent(ctx, notificationCtx, change.Value.TemplateCategoryUpdate()); err != nil {
+		if err := handler.templateCategory.HandleEvent(
+			ctx,
+			notificationCtx,
+			change.Value.TemplateCategoryUpdate(),
+		); err != nil {
 			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 				return handlerErr
 			}
@@ -431,7 +439,11 @@ func (handler *Handler) handleTemplateStatusUpdate(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.templateStatus.HandleEvent(ctx, notificationCtx, change.Value.TemplateStatusUpdate()); err != nil {
+		if err := handler.templateStatus.HandleEvent(
+			ctx,
+			notificationCtx,
+			change.Value.TemplateStatusUpdate(),
+		); err != nil {
 			if handler.errorHandlerFunc != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr

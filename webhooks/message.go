@@ -328,26 +328,46 @@ func (handler *Handler) handleInteractiveNotification(ctx context.Context,
 ) error {
 	switch message.Interactive.Type {
 	case InteractiveTypeListReply:
-		if err := handler.listReplyMessage.Handle(ctx, notificationCtx, info, message.Interactive.ListReply); err != nil {
+		if err := handler.listReplyMessage.Handle(
+			ctx,
+			notificationCtx,
+			info,
+			message.Interactive.ListReply,
+		); err != nil {
 			return fmt.Errorf("handle list reply: %w", err)
 		}
 
 		return nil
 	case InteractiveTypeButtonReply:
-		if err := handler.buttonReplyMessage.Handle(ctx, notificationCtx, info, message.Interactive.ButtonReply); err != nil {
+		if err := handler.buttonReplyMessage.Handle(
+			ctx,
+			notificationCtx,
+			info,
+			message.Interactive.ButtonReply,
+		); err != nil {
 			return fmt.Errorf("handle button reply: %w", err)
 		}
 
 		return nil
 	case InteractiveTypeNFMReply:
-		if err := handler.flowCompletionUpdate.Handle(ctx, notificationCtx, info, message.Interactive.NFMReply); err != nil {
+		if err := handler.flowCompletionUpdate.Handle(
+			ctx,
+			notificationCtx,
+			info,
+			message.Interactive.NFMReply,
+		); err != nil {
 			return fmt.Errorf("handle flow completion update: %w", err)
 		}
 
 		return nil
 
 	case InteractiveAddressSubmission:
-		if err := handler.addressSubmission.Handle(ctx, notificationCtx, info, message.Interactive.NFMReply); err != nil {
+		if err := handler.addressSubmission.Handle(
+			ctx,
+			notificationCtx,
+			info,
+			message.Interactive.NFMReply,
+		); err != nil {
 			return fmt.Errorf("handle address submission: %w", err)
 		}
 		return nil
