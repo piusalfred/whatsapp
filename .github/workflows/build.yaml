@@ -1,48 +1,61 @@
 name: Build
 
 on:
-    push:
-        branches:
-            - main
-    pull_request:
-        branches:
-            - main
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
-    build-and-test:
-        name: Build and Test
-        runs-on: ${{ matrix.os }}
-        strategy:
-            fail-fast: false
-            matrix:
-                os: [ubuntu-latest, macos-latest]
-                go-version: ["stable"]
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        go-version:
+          - stable
 
-            - name: Setup Go
-              uses: actions/setup-go@v5
-              with:
-                  go-version: ${{ matrix.go-version }}
-                  cache-dependency-path: |
-                      go.sum
-                      tools/*.sum
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            - name: Install gotools
-              run: go install github.com/piusalfred/gotools/cmd/gotools@latest
-              env:
-                  GOPROXY: direct
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: false
 
-            - name: Download dependencies
-              run: go mod download
+      - name: Clear Go cache
+        run: |
+          go clean -modcache
+          go clean -cache
 
-            - name: Sanity Check
-              run: make check
+      - name: Install gotools
+        run: go install github.com/piusalfred/gotools/cmd/gotools@latest
+        env:
+          GOPROXY: direct
 
-            - name: Test
-              run: make test
+      - name: Download dependencies
+        run: go mod download
+        env:
+          GOPROXY: direct
 
-            - name: Build
-              run: go build -v ./...
+      - name: Sanity Check
+        run: make check
+
+      - name: Test
+        run: make test
+
+      - name: Build
+        run: go build -v ./...
+    
