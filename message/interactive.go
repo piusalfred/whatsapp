@@ -128,8 +128,8 @@ type (
 	}
 
 	FlowActionPayload struct {
-		Screen string                 `json:"screen"`
-		Data   map[string]interface{} `json:"data"`
+		Screen string         `json:"screen"`
+		Data   map[string]any `json:"data"`
 	}
 
 	InteractiveHeader struct {
