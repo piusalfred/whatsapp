@@ -9,19 +9,19 @@ repos:
         types: [go]
         exclude: '^(_examples|extras|tools)/'
       - id: fmt-examples
-        name: _examples lint+format
+        name: _examples formating
         language: system
         entry: bash -c 'cd _examples && make fmt'
         pass_filenames: false
         files: '^_examples/.*\.go$'
       - id: fmt-extras-otel
-        name: extras/otel lint+format
+        name: extras/otel formating
         language: system
         entry: bash -c 'cd extras/otel && make fmt'
         pass_filenames: false
         files: '^extras/otel/.*\.go$'
       - id: fmt-extras-mcp
-        name: extras/mcp lint+format
+        name: extras/mcp formating
         language: system
         entry: bash -c 'cd extras/mcp && make fmt'
         pass_filenames: false
