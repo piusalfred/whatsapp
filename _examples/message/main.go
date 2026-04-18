@@ -216,7 +216,6 @@ func main() {
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error creating contacts message", slog.String("error", err.Error()))
 		return
-
 	}
 
 	response, err = baseClient.SendMessage(ctx, mc)

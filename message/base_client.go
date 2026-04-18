@@ -28,11 +28,27 @@ import (
 )
 
 func (c *BaseClient) SendText(ctx context.Context, request *Request[Text]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithTextMessage)
+	return sendMessage(
+		ctx,
+		c,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithTextMessage,
+	)
 }
 
 func (c *BaseClient) SendLocation(ctx context.Context, request *Request[Location]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithLocationMessage)
+	return sendMessage(
+		ctx,
+		c,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithLocationMessage,
+	)
 }
 
 func (c *BaseClient) SendVideo(ctx context.Context, request *Request[Video]) (*Response, error) {
@@ -44,7 +60,15 @@ func (c *BaseClient) SendReaction(ctx context.Context, request *Request[Reaction
 }
 
 func (c *BaseClient) SendTemplate(ctx context.Context, request *Request[Template]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithTemplateMessage)
+	return sendMessage(
+		ctx,
+		c,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithTemplateMessage,
+	)
 }
 
 func (c *BaseClient) SendImage(ctx context.Context, request *Request[Image]) (*Response, error) {
@@ -56,7 +80,15 @@ func (c *BaseClient) SendAudio(ctx context.Context, request *Request[Audio]) (*R
 }
 
 func (c *BaseClient) RequestLocation(ctx context.Context, request *Request[string]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithRequestLocationMessage)
+	return sendMessage(
+		ctx,
+		c,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithRequestLocationMessage,
+	)
 }
 
 func (c *BaseClient) SendDocument(ctx context.Context, request *Request[Document]) (*Response, error) {
@@ -72,7 +104,15 @@ func (c *BaseClient) SendContacts(ctx context.Context, request *Request[Contacts
 }
 
 func (c *BaseClient) SendInteractiveMessage(ctx context.Context, request *Request[Interactive]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithInteractiveMessage)
+	return sendMessage(
+		ctx,
+		c,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithInteractiveMessage,
+	)
 }
 
 func NewBaseClient(sender whttp.Sender[Message], reader config.Reader,
@@ -232,7 +272,12 @@ func sendMessage[T any](
 	return response, nil
 }
 
-func buildOptions[T any](message *T, recType recipientType, replyTo string, createMessageFunc func(*T) Option) []Option {
+func buildOptions[T any](
+	message *T,
+	recType recipientType,
+	replyTo string,
+	createMessageFunc func(*T) Option,
+) []Option {
 	options := make([]Option, 2, 3) //nolint: mnd // ok
 	options[0] = createMessageFunc(message)
 	if replyTo != "" {

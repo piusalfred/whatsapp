@@ -36,6 +36,15 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
+var (
+	errUnexpectedStatus = errors.New("unexpected status code")
+	errInterceptor      = errors.New("interceptor error")
+	errTransport        = errors.New("transport error")
+	errRequestHook      = errors.New("request hook failed")
+	errResponseHook     = errors.New("response hook failed")
+	errMiddleware       = errors.New("middleware error")
+)
+
 func ExampleNewSender() {
 	customHTTPClient := &http.Client{
 		Timeout: 2 * time.Second,
@@ -223,10 +232,12 @@ func TestSenderFunc_Send(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	sender := whttp.SenderFunc[TestMessage](func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
-		called = true
-		return nil
-	})
+	sender := whttp.SenderFunc[TestMessage](
+		func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			called = true
+			return nil
+		},
+	)
 
 	req := &whttp.Request[TestMessage]{
 		Method:  http.MethodGet,
@@ -327,7 +338,7 @@ func TestNewSenderIntegration(t *testing.T) {
 		resInterceptor := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
 			responseIntercepted = true
 			if resp.StatusCode != http.StatusOK {
-				return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+				return fmt.Errorf("%w: %d", errUnexpectedStatus, resp.StatusCode)
 			}
 			return nil
 		})
@@ -371,7 +382,7 @@ func TestNewSenderIntegration(t *testing.T) {
 		defer server.Close()
 
 		reqInterceptor := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
-			return errors.New("interceptor error")
+			return errInterceptor
 		})
 
 		sender := whttp.NewSender[TestMessage](
@@ -445,10 +456,12 @@ func TestAnySender(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		sender := whttp.AnySenderFunc(func(ctx context.Context, req *whttp.Request[any], decoder whttp.ResponseDecoder) error {
-			called = true
-			return nil
-		})
+		sender := whttp.AnySenderFunc(
+			func(ctx context.Context, req *whttp.Request[any], decoder whttp.ResponseDecoder) error {
+				called = true
+				return nil
+			},
+		)
 
 		req := &whttp.Request[any]{
 			Method:  http.MethodGet,
@@ -481,10 +494,12 @@ func TestCoreClientWithBaseSender(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	baseSender := whttp.SenderFunc[TestMessage](func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
-		called = true
-		return nil
-	})
+	baseSender := whttp.SenderFunc[TestMessage](
+		func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			called = true
+			return nil
+		},
+	)
 
 	client := whttp.NewSender[TestMessage]()
 	client.SetBaseSender(baseSender)
@@ -591,7 +606,7 @@ func TestSendFuncWithInterceptors_ErrorPaths(t *testing.T) {
 type errorTransport struct{}
 
 func (t *errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	return nil, errors.New("transport error")
+	return nil, errTransport
 }
 
 func TestSendFuncWithInterceptors_RequestHookError(t *testing.T) {
@@ -603,7 +618,7 @@ func TestSendFuncWithInterceptors_RequestHookError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	expectedErr := errors.New("request hook failed")
+	expectedErr := errRequestHook
 	reqHook := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
 		return expectedErr
 	})
@@ -633,7 +648,7 @@ func TestSendFuncWithInterceptors_ResponseHookError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	expectedErr := errors.New("response hook failed")
+	expectedErr := errResponseHook
 	resHook := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
 		return expectedErr
 	})
@@ -745,7 +760,7 @@ func TestCoreClient_MiddlewareErrorShortCircuit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	expectedErr := errors.New("middleware error")
+	expectedErr := errMiddleware
 	errorMiddleware := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
 		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
 			return expectedErr

@@ -34,13 +34,15 @@ import (
 )
 
 func LoggingMiddleware(next webhooks.NotificationHandler) webhooks.NotificationHandler {
-	handler := webhooks.NotificationHandlerFunc(func(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
-		log.Println("[LoggingMiddleware] --> Before handling notification")
-		response := next.HandleNotification(ctx, notification)
-		log.Printf("response is %+v", response)
-		log.Println("[LoggingMiddleware] <-- After handling notification")
-		return response
-	})
+	handler := webhooks.NotificationHandlerFunc(
+		func(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
+			log.Println("[LoggingMiddleware] --> Before handling notification")
+			response := next.HandleNotification(ctx, notification)
+			log.Printf("response is %+v", response)
+			log.Println("[LoggingMiddleware] <-- After handling notification")
+			return response
+		},
+	)
 	return handler
 }
 

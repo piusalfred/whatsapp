@@ -71,7 +71,7 @@ func LoadConfigFromFile() (*Config, error) {
 	return conf, nil
 }
 
-func HttpClient() *http.Client {
+func HTTPClient() *http.Client {
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{

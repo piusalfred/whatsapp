@@ -1,6 +1,6 @@
 module github.com/piusalfred/whatsapp/examples
 
-go 1.25.1
+go 1.26
 
 require (
 	github.com/go-chi/chi/v5 v5.2.5

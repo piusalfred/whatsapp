@@ -131,7 +131,7 @@ func WithTemplateMessage(tmpl *Template) Option {
 func NewInteractiveTemplate(name string, language *TemplateLanguage, headers []*TemplateParameter,
 	bodies []*TemplateParameter, buttons []*InteractiveButtonTemplate,
 ) *Template {
-	var components []*TemplateComponent
+	components := make([]*TemplateComponent, 0, 2+len(buttons)) //nolint:mnd // 2 = fixed header + body components
 	headerTemplate := &TemplateComponent{
 		Type:       TemplateComponentTypeHeader,
 		Parameters: headers,

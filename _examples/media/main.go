@@ -44,13 +44,19 @@ func NewMediaService(configFilePath string) *MediaService {
 		Level:     slog.LevelDebug,
 	}).WithGroup("media")
 
+	cfg, err := examples.LoadConfigFromFile()
+	if err != nil {
+		slog.Default().Error("failed to load config", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	ms := &MediaService{
 		logger: slog.New(lh),
-		reader: examples.LoadConfigFromFile(),
+		reader: cfg.Reader,
 	}
 
 	clientOptions := []whttp.CoreClientOption[any]{
-		whttp.WithCoreClientHTTPClient[any](examples.HttpClient()),
+		whttp.WithCoreClientHTTPClient[any](examples.HTTPClient()),
 	}
 
 	coreClient := whttp.NewSender[any](clientOptions...)
@@ -152,7 +158,6 @@ func main() {
 		MediaID: info.ID,
 	})
 	if err != nil {
-
 		ms.logger.LogAttrs(ctx, slog.LevelError, "failed to delete media", slog.String("error", err.Error()))
 		return
 	}

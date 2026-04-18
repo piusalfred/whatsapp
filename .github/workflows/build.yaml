@@ -8,47 +8,54 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     name: Build and Test
     runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        go-version: ['stable']
+        os:
+          - ubuntu-latest
+          - macos-latest
+        go-version:
+          - stable
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
-          cache-dependency-path: |
-            go.sum
-            tools/go.sum
+          cache: false
 
-      - name: Install Task
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Download Dependencies
+      - name: Clear Go cache
         run: |
-          go mod download
-          # Ensure build tools are downloaded
-          cd tools && go mod download
+          go clean -modcache
+          go clean -cache
 
-      - name: Lint Check
-        run: task lint-check
+      - name: Install gotools
+        run: go install github.com/piusalfred/gotools/cmd/gotools@latest
+        env:
+          GOPROXY: direct
 
-      - name: Run Tests
-        run: task test
+      - name: Download dependencies
+        run: go mod download
+        env:
+          GOPROXY: direct
 
-      - name: Build Verification
+      - name: Sanity Check
+        run: make check
+
+      - name: Test
+        run: make test
+
+      - name: Build
         run: go build -v ./...
-      - name: License Headers Check
-        run: task license-check
+    

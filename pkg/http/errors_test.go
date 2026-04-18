@@ -18,6 +18,7 @@
 package http_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -64,7 +65,7 @@ func TestResponseError(t *testing.T) {
 		}
 
 		unwrapped := respErr.Unwrap()
-		if unwrapped != innerErr {
+		if !errors.Is(unwrapped, innerErr) {
 			t.Errorf("expected unwrapped error to be innerErr, got %v", unwrapped)
 		}
 	})

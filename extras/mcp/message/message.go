@@ -466,7 +466,7 @@ func (s *Server) HandleSendImage(
 
 	output, err := s.SendImage(ctx, input)
 	if err != nil {
-		return &mcp.CallToolResult{IsError: true}, nil, err
+		return &mcp.CallToolResult{IsError: true}, nil, fmt.Errorf("failed to send image message: %w", err)
 	}
 
 	result := &mcp.CallToolResult{

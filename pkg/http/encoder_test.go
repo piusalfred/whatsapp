@@ -45,6 +45,7 @@ func TestEncodePayload(t *testing.T) {
 			wantContentType: "application/json",
 			wantErr:         false,
 			validateBody: func(t *testing.T, body io.Reader) {
+				t.Helper()
 				if body != nil {
 					t.Error("expected nil body for nil payload")
 				}
@@ -59,6 +60,7 @@ func TestEncodePayload(t *testing.T) {
 			wantContentType: "application/json",
 			wantErr:         false,
 			validateBody: func(t *testing.T, body io.Reader) {
+				t.Helper()
 				data, err := io.ReadAll(body)
 				test.AssertNoError(t, "read encoded body", err)
 
@@ -77,6 +79,7 @@ func TestEncodePayload(t *testing.T) {
 			wantContentType: "application/octet-stream",
 			wantErr:         false,
 			validateBody: func(t *testing.T, body io.Reader) {
+				t.Helper()
 				data, err := io.ReadAll(body)
 				test.AssertNoError(t, "read body", err)
 				if string(data) != "test data" {
@@ -90,6 +93,7 @@ func TestEncodePayload(t *testing.T) {
 			wantContentType: "application/octet-stream",
 			wantErr:         false,
 			validateBody: func(t *testing.T, body io.Reader) {
+				t.Helper()
 				data, err := io.ReadAll(body)
 				test.AssertNoError(t, "read body", err)
 				if string(data) != "test bytes" {
@@ -103,6 +107,7 @@ func TestEncodePayload(t *testing.T) {
 			wantContentType: "text/plain",
 			wantErr:         false,
 			validateBody: func(t *testing.T, body io.Reader) {
+				t.Helper()
 				data, err := io.ReadAll(body)
 				test.AssertNoError(t, "read body", err)
 				if string(data) != "test string" {
@@ -299,7 +304,8 @@ func TestEncodeFormData_WithTempFile(t *testing.T) {
 		test.AssertNoError(t, "read body", err)
 
 		bodyStr := string(body)
-		if !strings.Contains(bodyStr, "value1") || !strings.Contains(bodyStr, "value2") || !strings.Contains(bodyStr, "value3") {
+		if !strings.Contains(bodyStr, "value1") || !strings.Contains(bodyStr, "value2") ||
+			!strings.Contains(bodyStr, "value3") {
 			t.Error("expected all field values in the encoded body")
 		}
 	})

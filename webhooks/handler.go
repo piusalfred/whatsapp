@@ -169,7 +169,7 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 	return &Response{StatusCode: http.StatusOK}
 }
 
-func (handler *Handler) handleNotificationChange( //nolint: gocognit,gocyclo, cyclop, funlen // ok
+func (handler *Handler) handleNotificationChange( //nolint:funlen // complex notification routing across entry/change/message types
 	ctx context.Context,
 	notification *Notification,
 	change Change,
@@ -360,7 +360,11 @@ func (handler *Handler) handleTemplateQualityUpdate(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.templateQuality.HandleEvent(ctx, notificationCtx, change.Value.TemplateQualityUpdate()); err != nil {
+		if err := handler.templateQuality.HandleEvent(
+			ctx,
+			notificationCtx,
+			change.Value.TemplateQualityUpdate(),
+		); err != nil {
 			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 				return handlerErr
 			}
@@ -383,7 +387,11 @@ func (handler *Handler) handleTemplateCategoryUpdate(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.templateCategory.HandleEvent(ctx, notificationCtx, change.Value.TemplateCategoryUpdate()); err != nil {
+		if err := handler.templateCategory.HandleEvent(
+			ctx,
+			notificationCtx,
+			change.Value.TemplateCategoryUpdate(),
+		); err != nil {
 			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 				return handlerErr
 			}
@@ -431,7 +439,11 @@ func (handler *Handler) handleTemplateStatusUpdate(
 			ChangeField: change.Field,
 		}
 
-		if err := handler.templateStatus.HandleEvent(ctx, notificationCtx, change.Value.TemplateStatusUpdate()); err != nil {
+		if err := handler.templateStatus.HandleEvent(
+			ctx,
+			notificationCtx,
+			change.Value.TemplateStatusUpdate(),
+		); err != nil {
 			if handler.errorHandlerFunc != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
@@ -541,7 +553,7 @@ func (f EventHandlerFunc[S, T]) HandleEvent(ctx context.Context, ntx *S, notific
 	return f(ctx, ntx, notification)
 }
 
-func NewNoOpEventHandler[S any, T any]() EventHandler[S, T] {
+func NewNoOpEventHandler[S, T any]() EventHandler[S, T] {
 	return EventHandlerFunc[S, T](func(_ context.Context, _ *S, _ *T) error {
 		return nil
 	})

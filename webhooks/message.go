@@ -118,8 +118,10 @@ func NewNoOpMessageErrorsHandler() MessageErrorsHandler {
 	)
 }
 
-func (handler *Handler) handleNotificationMessage(ctx context.Context,
-	notificationCtx *MessageNotificationContext, message *Message,
+func (handler *Handler) handleNotificationMessage( //nolint:gocognit // single dispatch switch over all message types; splitting further would obscure intent
+	ctx context.Context,
+	notificationCtx *MessageNotificationContext,
+	message *Message,
 ) error {
 	info := &MessageInfo{
 		From:             message.From,
@@ -137,14 +139,14 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 	switch messageType {
 	case MessageTypeOrder:
 		if err := handler.orderMessage.Handle(ctx, notificationCtx, info, message.Order); err != nil {
-			return err
+			return fmt.Errorf("handle order message: %w", err)
 		}
 
 		return nil
 
 	case MessageTypeButton:
 		if err := handler.buttonMessage.Handle(ctx, notificationCtx, info, message.Button); err != nil {
-			return err
+			return fmt.Errorf("handle button message: %w", err)
 		}
 
 		return nil
@@ -157,20 +159,24 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 
 	case MessageTypeSystem:
 		if err := handler.systemMessage.Handle(ctx, notificationCtx, info, message.System); err != nil {
-			return err
+			return fmt.Errorf("handle system message: %w", err)
 		}
 
 		return nil
 
 	case MessageTypeUnknown:
 		if err := handler.errorMessage.Handle(ctx, notificationCtx, info, message.Errors); err != nil {
-			return err
+			return fmt.Errorf("handle error message: %w", err)
 		}
 
 		return nil
 
 	case MessageTypeUnsupported:
-		return handler.unsupportedMessage.Handle(ctx, notificationCtx, info, message.Errors)
+		if err := handler.unsupportedMessage.Handle(ctx, notificationCtx, info, message.Errors); err != nil {
+			return fmt.Errorf("handle unsupported message: %w", err)
+		}
+
+		return nil
 
 	case MessageTypeText:
 		return handler.handleTextNotification(ctx, notificationCtx, message, info)
@@ -178,7 +184,7 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 	case MessageTypeRequestWelcome:
 		if handler.requestWelcome != nil {
 			if err := handler.requestWelcome.Handle(ctx, notificationCtx, info, message); err != nil {
-				return err
+				return fmt.Errorf("handle request welcome: %w", err)
 			}
 		}
 
@@ -186,21 +192,21 @@ func (handler *Handler) handleNotificationMessage(ctx context.Context,
 
 	case MessageTypeReaction:
 		if err := handler.reactionMessage.Handle(ctx, notificationCtx, info, message.Reaction); err != nil {
-			return err
+			return fmt.Errorf("handle reaction message: %w", err)
 		}
 
 		return nil
 
 	case MessageTypeLocation:
 		if err := handler.locationMessage.Handle(ctx, notificationCtx, info, message.Location); err != nil {
-			return err
+			return fmt.Errorf("handle location message: %w", err)
 		}
 
 		return nil
 
 	case MessageTypeContacts:
 		if err := handler.contactsMessage.Handle(ctx, notificationCtx, info, message.Contacts); err != nil {
-			return err
+			return fmt.Errorf("handle contacts message: %w", err)
 		}
 
 		return nil
@@ -217,35 +223,35 @@ func (handler *Handler) handleMediaMessage(ctx context.Context, notificationCtx 
 	switch messageType { //nolint:exhaustive // ok
 	case MessageTypeAudio:
 		if err := handler.audioMessage.Handle(ctx, notificationCtx, info, message.Audio); err != nil {
-			return err
+			return fmt.Errorf("handle audio message: %w", err)
 		}
 
 		return nil
 
 	case MessageTypeVideo:
 		if err := handler.videoMessage.Handle(ctx, notificationCtx, info, message.Video); err != nil {
-			return err
+			return fmt.Errorf("handle video message: %w", err)
 		}
 
 		return nil
 
 	case MessageTypeImage:
 		if err := handler.imageMessage.Handle(ctx, notificationCtx, info, message.Image); err != nil {
-			return err
+			return fmt.Errorf("handle image message: %w", err)
 		}
 
 		return nil
 
 	case MessageTypeDocument:
 		if err := handler.documentMessage.Handle(ctx, notificationCtx, info, message.Document); err != nil {
-			return err
+			return fmt.Errorf("handle document message: %w", err)
 		}
 
 		return nil
 
 	case MessageTypeSticker:
 		if err := handler.stickerMessage.Handle(ctx, notificationCtx, info, message.Sticker); err != nil {
-			return err
+			return fmt.Errorf("handle sticker message: %w", err)
 		}
 
 		return nil
@@ -264,7 +270,7 @@ func (handler *Handler) handleTextNotification(ctx context.Context, notification
 		}
 
 		if err := handler.referralMessage.Handle(ctx, notificationCtx, info, referral); err != nil {
-			return err
+			return fmt.Errorf("handle referral message: %w", err)
 		}
 
 		return nil
@@ -272,14 +278,14 @@ func (handler *Handler) handleTextNotification(ctx context.Context, notification
 
 	if info.IsProductInquiry {
 		if err := handler.productInquiry.Handle(ctx, notificationCtx, info, message.Text); err != nil {
-			return err
+			return fmt.Errorf("handle product inquiry: %w", err)
 		}
 
 		return nil
 	}
 
 	if err := handler.textMessage.Handle(ctx, notificationCtx, info, message.Text); err != nil {
-		return err
+		return fmt.Errorf("handle text message: %w", err)
 	}
 
 	return nil
@@ -293,14 +299,14 @@ func (handler *Handler) handleDefaultNotificationMessage(
 ) error {
 	if message.Contacts != nil {
 		if err := handler.contactsMessage.Handle(ctx, notificationCtx, info, message.Contacts); err != nil {
-			return err
+			return fmt.Errorf("handle contacts message: %w", err)
 		}
 
 		return nil
 	}
 	if message.Location != nil {
 		if err := handler.locationMessage.Handle(ctx, notificationCtx, info, message.Location); err != nil {
-			return err
+			return fmt.Errorf("handle location message: %w", err)
 		}
 
 		return nil
@@ -308,7 +314,7 @@ func (handler *Handler) handleDefaultNotificationMessage(
 
 	if message.Identity != nil {
 		if err := handler.customerIDChange.Handle(ctx, notificationCtx, info, message.Identity); err != nil {
-			return err
+			return fmt.Errorf("handle customer ID change: %w", err)
 		}
 
 		return nil
@@ -322,32 +328,52 @@ func (handler *Handler) handleInteractiveNotification(ctx context.Context,
 ) error {
 	switch message.Interactive.Type {
 	case InteractiveTypeListReply:
-		if err := handler.listReplyMessage.Handle(ctx, notificationCtx, info, message.Interactive.ListReply); err != nil {
+		if err := handler.listReplyMessage.Handle(
+			ctx,
+			notificationCtx,
+			info,
+			message.Interactive.ListReply,
+		); err != nil {
 			return fmt.Errorf("handle list reply: %w", err)
 		}
 
 		return nil
 	case InteractiveTypeButtonReply:
-		if err := handler.buttonReplyMessage.Handle(ctx, notificationCtx, info, message.Interactive.ButtonReply); err != nil {
+		if err := handler.buttonReplyMessage.Handle(
+			ctx,
+			notificationCtx,
+			info,
+			message.Interactive.ButtonReply,
+		); err != nil {
 			return fmt.Errorf("handle button reply: %w", err)
 		}
 
 		return nil
 	case InteractiveTypeNFMReply:
-		if err := handler.flowCompletionUpdate.Handle(ctx, notificationCtx, info, message.Interactive.NFMReply); err != nil {
+		if err := handler.flowCompletionUpdate.Handle(
+			ctx,
+			notificationCtx,
+			info,
+			message.Interactive.NFMReply,
+		); err != nil {
 			return fmt.Errorf("handle flow completion update: %w", err)
 		}
 
 		return nil
 
 	case InteractiveAddressSubmission:
-		if err := handler.addressSubmission.Handle(ctx, notificationCtx, info, message.Interactive.NFMReply); err != nil {
+		if err := handler.addressSubmission.Handle(
+			ctx,
+			notificationCtx,
+			info,
+			message.Interactive.NFMReply,
+		); err != nil {
 			return fmt.Errorf("handle address submission: %w", err)
 		}
 		return nil
 	default:
 		if err := handler.interactiveMessage.Handle(ctx, notificationCtx, info, message.Interactive); err != nil {
-			return err
+			return fmt.Errorf("handle interactive message: %w", err)
 		}
 
 		return nil

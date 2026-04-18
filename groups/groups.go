@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
@@ -29,6 +30,8 @@ import (
 const (
 	JoinApprovalModeRequired JoinApprovalMode = "approval_required"
 	JoinApprovalModeAuto     JoinApprovalMode = "auto_approve"
+
+	ErrNotImplemented = whatsapp.Error("not implemented")
 )
 
 type (
@@ -75,11 +78,11 @@ type (
 	}
 
 	BaseClient struct {
-		sender whttp.Sender[Request]
+		sender whttp.Sender[Request] //nolint:unused // OK for now
 	}
 )
 
-func createRequest(conf *config.Config, request *Request) *whttp.Request[Request] {
+func createRequest(conf *config.Config, request *Request) *whttp.Request[Request] { //nolint:unused // OK for now
 	var (
 		method    string
 		endpoints []string
@@ -109,6 +112,6 @@ func createRequest(conf *config.Config, request *Request) *whttp.Request[Request
 	)
 }
 
-func (client *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*Response, error) {
-	return nil, nil
+func (client *BaseClient) Send(_ context.Context, _ *config.Config, _ *Request) (*Response, error) {
+	return nil, ErrNotImplemented
 }

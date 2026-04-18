@@ -1,0 +1,28 @@
+repos:
+  - repo: local
+    hooks:
+      - id: fmt
+        name: formating whatsapp
+        language: system
+        entry: make fmt
+        pass_filenames: false
+        types: [go]
+        exclude: '^(_examples|extras|tools)/'
+      - id: fmt-examples
+        name: formating _examples/...
+        language: system
+        entry: bash -c 'cd _examples && make fmt'
+        pass_filenames: false
+        files: '^_examples/.*\.go$'
+      - id: fmt-extras-otel
+        name: formating extras/otel
+        language: system
+        entry: bash -c 'cd extras/otel && make fmt'
+        pass_filenames: false
+        files: '^extras/otel/.*\.go$'
+      - id: fmt-extras-mcp
+        name: formating extras/mcp
+        language: system
+        entry: bash -c 'cd extras/mcp && make fmt'
+        pass_filenames: false
+        files: '^extras/mcp/.*\.go$'
