@@ -240,7 +240,5 @@ func main() {
 		return
 	}
 
-	// sendAsGroupMessageOption := message.WithRequestRecipientType(message.RecipientTypeGroup)
-
 	logger.LogAttrs(ctx, slog.LevelInfo, "response from reaction message", slog.Any("response", response))
 }

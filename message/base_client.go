@@ -375,8 +375,8 @@ func WithRequestAsReplyTo[T any](replyTo string) RequestOption[T] {
 	}
 }
 
-func WithRequestRecipientType(recType recipientType) RequestOption[string] {
-	return func(request *Request[string]) {
+func WithRequestRecipientType[T any](recType recipientType) RequestOption[T] {
+	return func(request *Request[T]) {
 		request.RecipientType = recType
 	}
 }
@@ -393,4 +393,9 @@ func NewRequest[T any](recipient string, message *T, options ...RequestOption[T]
 		}
 	}
 	return r
+}
+
+// SetAsGroupMessage sets the message as a group message.
+func (req *Request[T]) SetAsGroupMessage() {
+	req.RecipientType = RecipientTypeGroup
 }
