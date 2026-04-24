@@ -858,8 +858,9 @@ func (c *Contact) SenderInfo() *SenderInfo {
 
 type (
 	Contact struct {
-		Profile *Profile `json:"profile,omitempty"`
-		WaID    string   `json:"wa_id,omitempty"`
+		Profile         *Profile `json:"profile,omitempty"`
+		WaID            string   `json:"wa_id,omitempty"`
+		IdentityKeyHash string   `json:"identity_key_hash,omitempty"`
 	}
 
 	SenderInfo struct {

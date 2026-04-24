@@ -22,16 +22,13 @@ all: fmt test ## run fmt then test
 
 fmt: ## add license headers, fix, format, and lint-fix the root library
 	@echo "🧹 go mod tidy"
-	@$(GO) mod tidy && $(GO) build ./...
+	@$(GO) mod tidy
 	@echo "⚙️ go fix"
 	@$(GO) fix ./...
 	@echo "📜 addlicense"
-	@$(ADDLICENSE) -f LICENCE $$(find . -name "*.go" \
-		-not -path "./tools/*" \
-		-not -path "./_examples/*" \
-		-not -path "./extras/*")
+	@$(ADDLICENSE) -f LICENCE $$(find . -name "*.go")
 	@echo "🎨 golangci-lint fmt"
-	@$(GOLANGCI) fmt
+	@$(GOLANGCI) fmt ./...
 	@echo "🔍 golangci-lint run --fix"
 	@$(GOLANGCI) run --fix ./...
 
