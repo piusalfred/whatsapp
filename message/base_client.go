@@ -115,6 +115,18 @@ func (c *BaseClient) SendInteractiveMessage(ctx context.Context, request *Reques
 	)
 }
 
+func (c *BaseClient) PinGroupMessage(ctx context.Context, request *Request[Pin]) (*Response, error) {
+	return sendMessage(
+		ctx,
+		c,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithPinGroupMessageInfo,
+	)
+}
+
 func NewBaseClient(sender whttp.Sender[Message], reader config.Reader,
 	middlewares ...SenderMiddleware,
 ) (*BaseClient, error) {
