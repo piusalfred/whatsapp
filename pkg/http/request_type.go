@@ -167,6 +167,7 @@ var requestTypeStrings = [...]string{ //nolint:gochecknoglobals // immutable str
 	"get_active_groups",
 	"update_group_settings",
 	"update_group_call_status",
+	"check_call_permissions",
 }
 
 func (r RequestType) Name() string {
