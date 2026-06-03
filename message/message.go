@@ -79,6 +79,7 @@ const (
 	TypeContacts     = "contacts"
 	TypeInteractive  = "interactive"
 	TypeTemplate     = "template"
+	TypePinMessage   = "pin"
 )
 
 type (
@@ -257,6 +258,13 @@ func WithLocationMessage(location *Location) Option {
 	return func(message *Message) {
 		message.Type = TypeLocation
 		message.Location = location
+	}
+}
+
+func WithPinGroupMessageInfo(pin *Pin) Option {
+	return func(message *Message) {
+		message.Type = TypePinMessage
+		message.Pin = pin
 	}
 }
 
