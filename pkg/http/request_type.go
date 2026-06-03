@@ -89,6 +89,7 @@ const (
 	RequestTypeGetActiveGroups
 	RequestTypeUpdateGroupSettings
 	RequestTypeUpdateGroupCallStatus
+	RequestTypeCheckCallPermissions
 
 	// Sentinel (NOT a real request type): keep this last for testing purposes.
 	requestTypeCount
