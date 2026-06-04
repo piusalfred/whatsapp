@@ -849,7 +849,7 @@ func (h *DataExchangeHandlerImpl) DecryptRequest(ctx context.Context, request *R
 
 	return &DecryptedRequest{
 		FlowData:      decryptedFlowData,
-		AesKey:        aesKey,
+		AesKey:        decryptedAesKey,
 		InitialVector: initialVector,
 	}, nil
 }
@@ -860,7 +860,7 @@ func aesGCMDecrypt(ciphertext, key, iv, tag []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create new cipher: %w", err)
 	}
 
-	aesGCM, err := cipher.NewGCM(block)
+	aesGCM, err := cipher.NewGCMWithNonceSize(block, len(iv))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new GCM: %w", err)
 	}
@@ -879,7 +879,7 @@ func aesGCMEncrypt(plaintext, key, iv []byte) ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("failed to create new cipher: %w", err)
 	}
 
-	aesGCM, err := cipher.NewGCM(block)
+	aesGCM, err := cipher.NewGCMWithNonceSize(block, len(iv))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create new GCM: %w", err)
 	}
