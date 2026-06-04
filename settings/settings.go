@@ -55,11 +55,59 @@ type (
 	}
 
 	Calling struct {
-		Status                   string     `json:"status,omitempty"`
-		CallIconVisibility       string     `json:"call_icon_visibility,omitempty"`
-		CallbackPermissionStatus string     `json:"callback_permission_status,omitempty"`
-		CallHours                *CallHours `json:"call_hours,omitempty"`
-		SIP                      *SIP       `json:"sip,omitempty"`
+		Status                   string        `json:"status,omitempty"`
+		CallIconVisibility       string        `json:"call_icon_visibility,omitempty"`
+		CallbackPermissionStatus string        `json:"callback_permission_status,omitempty"`
+		CallHours                *CallHours    `json:"call_hours,omitempty"`
+		SIP                      *SIP          `json:"sip,omitempty"`
+		CallIcons                *CallIcons    `json:"call_icons,omitempty"`
+		Audio                    *Audio        `json:"audio,omitempty"`
+		Voicemail                *Voicemail    `json:"voicemail,omitempty"`
+		Restrictions             *Restrictions `json:"restrictions,omitempty"`
+	}
+
+	// CallIcons configures country-based visibility of the call button.
+	CallIcons struct {
+		RestrictToUserCountries []string `json:"restrict_to_user_countries,omitempty"`
+	}
+
+	// Audio defines additional codecs supported for calls (Opus is always present).
+	Audio struct {
+		AdditionalCodecs []string `json:"additional_codecs,omitempty"` // "PCMA", "PCMU"
+	}
+
+	// Voicemail config (alpha feature).
+	Voicemail struct {
+		Status   string          `json:"status,omitempty"`   // "ENABLED", "DISABLED"
+		Triggers []string        `json:"triggers,omitempty"` // "REJECT", "TIMEOUT"
+		Audio    *VoicemailAudio `json:"audio,omitempty"`
+	}
+
+	VoicemailAudio struct {
+		Default *VoicemailDefault `json:"default,omitempty"`
+	}
+
+	VoicemailDefault struct {
+		AnnouncementMediaID int64 `json:"announcement_media_id,omitempty"`
+		TimeoutSeconds      int   `json:"timeout_seconds,omitempty"` // 0-30, required for TIMEOUT trigger
+	}
+
+	// Restrictions appears only in GET responses when a restriction is active.
+	Restrictions struct {
+		RestrictionsList []*Restriction `json:"restrictions_list,omitempty"`
+	}
+
+	Restriction struct {
+		Type       string `json:"type,omitempty"` // "RESTRICTED_BUSINESS_INITIATED_CALLING", "RESTRICTED_USER_INITIATED_CALLING"
+		Reason     string `json:"reason,omitempty"`
+		Expiration int64  `json:"expiration,omitempty"` // UNIX timestamp
+	}
+
+	// SIPServer – add missing RequestURIUserParams field.
+	SIPServer struct {
+		Hostname             string            `json:"hostname,omitempty"`
+		SIPUserPassword      string            `json:"sip_user_password,omitempty"`
+		RequestURIUserParams map[string]string `json:"request_uri_user_params,omitempty"` // NEW
 	}
 
 	CallHours struct {
@@ -84,11 +132,6 @@ type (
 	SIP struct {
 		Status  string      `json:"status,omitempty"`
 		Servers []SIPServer `json:"servers,omitempty"`
-	}
-
-	SIPServer struct {
-		Hostname        string `json:"hostname,omitempty"`
-		SIPUserPassword string `json:"sip_user_password,omitempty"`
 	}
 )
 

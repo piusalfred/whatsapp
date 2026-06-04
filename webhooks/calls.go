@@ -37,11 +37,20 @@ type (
 		Duration              int          `json:"duration"`
 		BizOpaqueCallbackData string       `json:"biz_opaque_callback_data,omitempty"`
 		Session               *CallSession `json:"session,omitempty"`
+		Connection            *Connection  `json:"connection,omitempty"`
 	}
 
 	CallSession struct {
 		SDPType string `json:"sdp_type"`
 		SDP     string `json:"sdp"`
+	}
+
+	WebRTC struct {
+		SDP string `json:"sdp"`
+	}
+
+	Connection struct {
+		WebRTC *WebRTC `json:"webrtc,omitempty"`
 	}
 
 	CallStatusUpdate struct {

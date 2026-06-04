@@ -31,6 +31,7 @@ fmt: ## add license headers, fix, format, and lint-fix the root library
 	@$(GOLANGCI) fmt ./...
 	@echo "🔍 golangci-lint run --fix"
 	@$(GOLANGCI) run --fix ./...
+	@$(MAKE) mocks
 
 check: ## verify license headers and lint without making changes (CI-safe)
 	@echo "📜 license check"
