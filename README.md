@@ -127,12 +127,6 @@ See more in [examples](./_examples/) and [docs](./docs/README.md)
 ## Testing
 There is provision of [**mocks**](./mocks) that may come handy in testing.
 
-## Extras
-The extras package contains some useful utilities for working with this library. It is experimental and may change in future releases.
-- [OpenTelemetry Adapter](./extras/otel) provides OpenTelemetry instrumentation for tracing and monitoring sending and receiving whatsapp messages.
-- [Model Context Protocol](./extras/mcp) a simple implementation of the Model Context Protocol (MCP) server for sending whatapp messages.
-
-
 ## Development
 After making some changes run `make all` to format and test the code. You can also run `make help` to see other available commands
 
