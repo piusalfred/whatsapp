@@ -69,6 +69,8 @@ type Handler struct {
 	userPreferencesUpdate    MessageChangeValueHandler[UserPreference]
 	groupLifecycleUpdate     MessageChangeValueHandler[Group]
 	groupParticipantsUpdate  MessageChangeValueHandler[Group]
+	groupSettingsUpdate      MessageChangeValueHandler[Group]
+	groupStatusUpdate        MessageChangeValueHandler[Group]
 	errorMessage             MessageErrorsHandler
 	unsupportedMessage       MessageErrorsHandler
 
@@ -118,6 +120,8 @@ func NewHandler() *Handler {
 		userPreferencesUpdate:    NewNoOpMessageChangeValueHandler[UserPreference](),
 		groupLifecycleUpdate:     NewNoOpMessageChangeValueHandler[Group](),
 		groupParticipantsUpdate:  NewNoOpMessageChangeValueHandler[Group](),
+		groupSettingsUpdate:      NewNoOpMessageChangeValueHandler[Group](),
+		groupStatusUpdate:        NewNoOpMessageChangeValueHandler[Group](),
 		errorMessage:             NewNoOpMessageErrorsHandler(),
 		unsupportedMessage:       NewNoOpMessageErrorsHandler(),
 		requestWelcome:           NewNoOpMessageHandler[Message](),
@@ -268,7 +272,9 @@ func (handler *Handler) handleNotificationChange( //nolint:funlen // complex not
 		return handler.handleNotificationMessageItem(ctx, entry, change)
 
 	case ChangeFieldGroupLifecycleUpdate.String(),
-		ChangeFieldGroupParticipantsUpdate.String():
+		ChangeFieldGroupParticipantsUpdate.String(),
+		ChangeFieldGroupSettingsUpdate.String(),
+		ChangeFieldGroupStatusUpdate.String():
 		return handler.handleGroupWebhooks(ctx, change, entry)
 	}
 
@@ -313,6 +319,14 @@ func (handler *Handler) handleGroupWebhooks(ctx context.Context, change Change, 
 	case ChangeFieldGroupParticipantsUpdate.String():
 		return handleMessageChangeNotification(
 			ctx, handler, handler.groupParticipantsUpdate, change, entry, change.Value.Groups,
+		)
+	case ChangeFieldGroupSettingsUpdate.String():
+		return handleMessageChangeNotification(
+			ctx, handler, handler.groupSettingsUpdate, change, entry, change.Value.Groups,
+		)
+	case ChangeFieldGroupStatusUpdate.String():
+		return handleMessageChangeNotification(
+			ctx, handler, handler.groupStatusUpdate, change, entry, change.Value.Groups,
 		)
 	}
 	return nil
@@ -1130,6 +1144,8 @@ type (
 	MessageStatusChangeHandler     = MessageChangeValueHandler[Status]
 	GroupLifecycleUpdateHandler    = MessageChangeValueHandler[Group]
 	GroupParticipantsUpdateHandler = MessageChangeValueHandler[Group]
+	GroupSettingsUpdateHandler     = MessageChangeValueHandler[Group]
+	GroupStatusUpdateHandler       = MessageChangeValueHandler[Group]
 )
 
 func (f MessageChangeValueHandlerFunc[T]) Handle(

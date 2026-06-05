@@ -180,6 +180,9 @@ func TestRequestType_String(t *testing.T) {
 		{name: "GetGroupInfo", requestType: RequestTypeGetGroupInfo, want: "get_group_info"},
 		{name: "GetActiveGroups", requestType: RequestTypeGetActiveGroups, want: "get_active_groups"},
 		{name: "UpdateGroupSettings", requestType: RequestTypeUpdateGroupSettings, want: "update_group_settings"},
+		{name: "GetJoinRequests", requestType: RequestTypeGetJoinRequests, want: "get_join_requests"},
+		{name: "ApproveJoinRequests", requestType: RequestTypeApproveJoinRequests, want: "approve_join_requests"},
+		{name: "RejectJoinRequests", requestType: RequestTypeRejectJoinRequests, want: "reject_join_requests"},
 		{
 			name:        "UpdateGroupCallStatus",
 			requestType: RequestTypeUpdateGroupCallStatus,

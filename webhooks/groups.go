@@ -25,25 +25,44 @@ import (
 
 type (
 	Group struct {
-		Timestamp           string             `json:"timestamp"`
-		GroupID             string             `json:"group_id"`
-		Type                string             `json:"type"`
-		RequestID           string             `json:"request_id"`
-		Subject             string             `json:"subject"`
-		InviteLink          string             `json:"invite_link"`
-		JoinApprovalMode    string             `json:"join_approval_mode"`
-		Description         string             `json:"description"`
-		Errors              []werrors.Error    `json:"errors,omitempty"`
-		Reason              string             `json:"reason"`
-		AddedParticipants   []GroupParticipant `json:"added_participants"`
-		RemovedParticipants []GroupParticipant `json:"removed_participants"`
-		JoinRequestID       string             `json:"join_request_id"`
-		WaID                string             `json:"wa_id"`
-		InitiatedBy         string             `json:"initiated_by"`
+		Timestamp           string                   `json:"timestamp"`
+		GroupID             string                   `json:"group_id"`
+		Type                string                   `json:"type"`
+		RequestID           string                   `json:"request_id"`
+		Subject             string                   `json:"subject"`
+		InviteLink          string                   `json:"invite_link"`
+		JoinApprovalMode    string                   `json:"join_approval_mode"`
+		Description         string                   `json:"description"`
+		Errors              []werrors.Error          `json:"errors,omitempty"`
+		Reason              string                   `json:"reason"`
+		AddedParticipants   []GroupParticipant       `json:"added_participants"`
+		RemovedParticipants []GroupParticipant       `json:"removed_participants"`
+		FailedParticipants  []FailedGroupParticipant `json:"failed_participants"`
+		JoinRequestID       string                   `json:"join_request_id"`
+		WaID                string                   `json:"wa_id"`
+		InitiatedBy         string                   `json:"initiated_by"`
+		ProfilePicture      *GroupProfilePicture     `json:"profile_picture,omitempty"`
+		GroupSubject        *GroupSettingText        `json:"group_subject,omitempty"`
+		GroupDescription    *GroupSettingText        `json:"group_description,omitempty"`
 	}
 	GroupParticipant struct {
 		WaID  string `json:"wa_id"`
 		Input string `json:"input"`
+	}
+	FailedGroupParticipant struct {
+		Input  string          `json:"input"`
+		Errors []werrors.Error `json:"errors,omitempty"`
+	}
+	GroupProfilePicture struct {
+		MimeType         string          `json:"mime_type"`
+		UpdateSuccessful bool            `json:"update_successful"`
+		SHA256           string          `json:"sha256"`
+		Errors           []werrors.Error `json:"errors,omitempty"`
+	}
+	GroupSettingText struct {
+		Text             string          `json:"text"`
+		UpdateSuccessful bool            `json:"update_successful"`
+		Errors           []werrors.Error `json:"errors,omitempty"`
 	}
 )
 
@@ -69,4 +88,28 @@ func (handler *Handler) SetGroupParticipantsUpdateHandler(
 	h GroupParticipantsUpdateHandler,
 ) {
 	handler.groupParticipantsUpdate = h
+}
+
+func (handler *Handler) OnGroupSettingsUpdate(
+	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
+) {
+	handler.groupSettingsUpdate = MessageChangeValueHandlerFunc[Group](fn)
+}
+
+func (handler *Handler) SetGroupSettingsUpdateHandler(
+	h GroupSettingsUpdateHandler,
+) {
+	handler.groupSettingsUpdate = h
+}
+
+func (handler *Handler) OnGroupStatusUpdate(
+	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
+) {
+	handler.groupStatusUpdate = MessageChangeValueHandlerFunc[Group](fn)
+}
+
+func (handler *Handler) SetGroupStatusUpdateHandler(
+	h GroupStatusUpdateHandler,
+) {
+	handler.groupStatusUpdate = h
 }

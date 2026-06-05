@@ -19,99 +19,604 @@ package groups
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
-	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
+	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
 const (
 	JoinApprovalModeRequired JoinApprovalMode = "approval_required"
 	JoinApprovalModeAuto     JoinApprovalMode = "auto_approve"
-
-	ErrNotImplemented = whatsapp.Error("not implemented")
 )
 
 type (
-	JoinApprovalMode  string
-	CreateGroupParams struct {
-		MessagingProduct string           `json:"messaging_product"`
-		Subject          string           `json:"subject,omitempty"`
-		Description      string           `json:"description,omitempty"`
-		JoinApprovalMode JoinApprovalMode `json:"join_approval_mode,omitempty"`
+	JoinApprovalMode string
+
+	// CreateGroupRequest represents a request to create a new group.
+	CreateGroupRequest struct {
+		Subject          string
+		Description      string
+		JoinApprovalMode JoinApprovalMode
 	}
 
+	// DeleteGroupRequest represents a request to delete a group.
+	DeleteGroupRequest struct {
+		GroupID string
+	}
+
+	// GetGroupInviteLinkRequest represents a request to get a group's invite link.
+	GetGroupInviteLinkRequest struct {
+		GroupID string
+	}
+
+	// ResetGroupInviteLinkRequest represents a request to reset a group's invite link.
+	ResetGroupInviteLinkRequest struct {
+		GroupID string
+	}
+
+	// RemoveGroupParticipantsRequest represents a request to remove participants from a group.
+	RemoveGroupParticipantsRequest struct {
+		GroupID      string
+		Participants []string
+	}
+
+	// GetGroupInfoRequest represents a request to retrieve metadata about a single group.
+	GetGroupInfoRequest struct {
+		GroupID string
+		Fields  []string
+	}
+
+	// GetActiveGroupsRequest represents a request to retrieve a list of active groups.
+	GetActiveGroupsRequest struct {
+		Limit  int
+		After  string
+		Before string
+	}
+
+	// UpdateGroupSettingsRequest represents a request to update group settings.
+	UpdateGroupSettingsRequest struct {
+		GroupID            string
+		Subject            string
+		Description        string
+		ProfilePictureFile string
+	}
+
+	// GetJoinRequestsRequest represents a request to get pending join requests for a group.
+	GetJoinRequestsRequest struct {
+		GroupID string
+	}
+
+	// ApproveJoinRequestsRequest represents a request to approve one or more join requests.
+	ApproveJoinRequestsRequest struct {
+		GroupID      string
+		JoinRequests []string
+	}
+
+	// RejectJoinRequestsRequest represents a request to reject one or more join requests.
+	RejectJoinRequestsRequest struct {
+		GroupID      string
+		JoinRequests []string
+	}
+
+	// Request is the combined struct that holds all fields needed for any group management operation.
 	Request struct {
-		MessagingProduct string            `json:"messaging_product"`
-		Subject          string            `json:"subject,omitempty"`
-		GroupID          string            `json:"group_id,omitempty"`
-		Description      string            `json:"description,omitempty"`
-		JoinApprovalMode JoinApprovalMode  `json:"join_approval_mode,omitempty"`
-		RequestType      whttp.RequestType `json:"-"`
-		Participants     []*Participants   `json:"participants,omitempty"`
-		GroupInfoFields  []string          `json:"group_info_fields,omitempty"`
+		MessagingProduct   string            `json:"messaging_product"`
+		Subject            string            `json:"subject,omitempty"`
+		GroupID            string            `json:"-"`
+		Description        string            `json:"description,omitempty"`
+		JoinApprovalMode   JoinApprovalMode  `json:"join_approval_mode,omitempty"`
+		RequestType        whttp.RequestType `json:"-"`
+		Participants       []*Participants   `json:"participants,omitempty"`
+		JoinRequests       []string          `json:"join_requests,omitempty"`
+		ProfilePictureFile string            `json:"-"`
+		GroupInfoFields    []string          `json:"-"`
+		Limit              int               `json:"-"`
+		After              string            `json:"-"`
+		Before             string            `json:"-"`
 	}
 
 	Participants struct {
 		User string `json:"user"`
 		WaID string `json:"wa_id"`
 	}
+
 	ResponseDataItem struct {
 		JoinRequestID     string `json:"join_request_id"`
 		WhatsappID        string `json:"wa_id"`
 		CreationTimestamp string `json:"creation_timestamp"`
 	}
 
-	Response struct {
-		MessagingProduct      string              `json:"messaging_product"`
-		Subject               string              `json:"subject,omitempty"`
-		CreationTimestamp     string              `json:"creation_timestamp,omitempty"`
-		Suspended             bool                `json:"suspended,omitempty"`
-		Description           string              `json:"description,omitempty"`
-		TotalParticipantCount int                 `json:"total_participant_count,omitempty"`
-		Participants          []*Participants     `json:"participants,omitempty"`
-		JoinApprovalMode      JoinApprovalMode    `json:"join_approval_mode,omitempty"`
-		Data                  []*ResponseDataItem `json:"data,omitempty"`
-		Paging                whttp.Paging        `json:"paging"`
+	ActiveGroup struct {
+		ID        string `json:"id"`
+		Subject   string `json:"subject"`
+		CreatedAt string `json:"created_at"`
 	}
 
-	BaseClient struct {
-		sender whttp.Sender[Request] //nolint:unused // OK for now
+	FailedJoinRequest struct {
+		JoinRequestID string          `json:"join_request_id"`
+		Errors        []werrors.Error `json:"errors,omitempty"`
+	}
+
+	// Response is the general response struct that captures all possible fields
+	// returned by the Groups API. Use the typed helper methods to extract
+	// operation-specific responses.
+	Response struct {
+		MessagingProduct      string               `json:"messaging_product"`
+		Subject               string               `json:"subject,omitempty"`
+		CreationTimestamp     string               `json:"creation_timestamp,omitempty"`
+		Suspended             bool                 `json:"suspended,omitempty"`
+		Description           string               `json:"description,omitempty"`
+		TotalParticipantCount int                  `json:"total_participant_count,omitempty"`
+		Participants          []*Participants      `json:"participants,omitempty"`
+		JoinApprovalMode      JoinApprovalMode     `json:"join_approval_mode,omitempty"`
+		ID                    string               `json:"id,omitempty"`
+		InviteLink            string               `json:"invite_link,omitempty"`
+		Data                  json.RawMessage      `json:"data,omitempty"`
+		ApprovedJoinRequests  []string             `json:"approved_join_requests,omitempty"`
+		RejectedJoinRequests  []string             `json:"rejected_join_requests,omitempty"`
+		FailedJoinRequests    []*FailedJoinRequest `json:"failed_join_requests,omitempty"`
+		Errors                []werrors.Error      `json:"errors,omitempty"`
+		Paging                whttp.Paging         `json:"paging"`
+	}
+
+	// GroupInfoResponse is returned by GetGroupInfo.
+	GroupInfoResponse struct {
+		ID                    string           `json:"id,omitempty"`
+		Subject               string           `json:"subject,omitempty"`
+		CreationTimestamp     string           `json:"creation_timestamp,omitempty"`
+		Suspended             bool             `json:"suspended,omitempty"`
+		Description           string           `json:"description,omitempty"`
+		TotalParticipantCount int              `json:"total_participant_count,omitempty"`
+		Participants          []*Participants  `json:"participants,omitempty"`
+		JoinApprovalMode      JoinApprovalMode `json:"join_approval_mode,omitempty"`
+	}
+
+	// GroupInviteLinkResponse is returned by GetGroupInviteLink and ResetGroupInviteLink.
+	GroupInviteLinkResponse struct {
+		MessagingProduct string `json:"messaging_product"`
+		InviteLink       string `json:"invite_link,omitempty"`
+	}
+
+	// ActiveGroupsResponse is returned by GetActiveGroups.
+	ActiveGroupsResponse struct {
+		Groups []*ActiveGroup `json:"groups,omitempty"`
+		Paging whttp.Paging   `json:"paging"`
+	}
+
+	// JoinRequestsResponse is returned by GetJoinRequests.
+	JoinRequestsResponse struct {
+		JoinRequests []*ResponseDataItem `json:"data,omitempty"`
+		Paging       whttp.Paging        `json:"paging"`
+	}
+
+	// ApproveJoinRequestsResponse is returned by ApproveJoinRequests.
+	ApproveJoinRequestsResponse struct {
+		MessagingProduct     string               `json:"messaging_product"`
+		ApprovedJoinRequests []string             `json:"approved_join_requests,omitempty"`
+		FailedJoinRequests   []*FailedJoinRequest `json:"failed_join_requests,omitempty"`
+		Errors               []werrors.Error      `json:"errors,omitempty"`
+	}
+
+	// RejectJoinRequestsResponse is returned by RejectJoinRequests.
+	RejectJoinRequestsResponse struct {
+		MessagingProduct     string               `json:"messaging_product"`
+		RejectedJoinRequests []string             `json:"rejected_join_requests,omitempty"`
+		FailedJoinRequests   []*FailedJoinRequest `json:"failed_join_requests,omitempty"`
+		Errors               []werrors.Error      `json:"errors,omitempty"`
 	}
 )
 
-func createRequest(conf *config.Config, request *Request) *whttp.Request[Request] { //nolint:unused // OK for now
+// GroupInfoResponse extracts a GroupInfoResponse from the general Response.
+func (r *Response) GroupInfoResponse() *GroupInfoResponse {
+	return &GroupInfoResponse{
+		ID:                    r.ID,
+		Subject:               r.Subject,
+		CreationTimestamp:     r.CreationTimestamp,
+		Suspended:             r.Suspended,
+		Description:           r.Description,
+		TotalParticipantCount: r.TotalParticipantCount,
+		Participants:          r.Participants,
+		JoinApprovalMode:      r.JoinApprovalMode,
+	}
+}
+
+// GroupInviteLinkResponse extracts a GroupInviteLinkResponse from the general Response.
+func (r *Response) GroupInviteLinkResponse() *GroupInviteLinkResponse {
+	return &GroupInviteLinkResponse{
+		MessagingProduct: r.MessagingProduct,
+		InviteLink:       r.InviteLink,
+	}
+}
+
+// ActiveGroupsResponse extracts an ActiveGroupsResponse from the general Response.
+func (r *Response) ActiveGroupsResponse() *ActiveGroupsResponse {
+	return &ActiveGroupsResponse{
+		Groups: r.ActiveGroups(),
+		Paging: r.Paging,
+	}
+}
+
+// JoinRequestsResponse extracts a JoinRequestsResponse from the general Response.
+func (r *Response) JoinRequestsResponse() *JoinRequestsResponse {
+	return &JoinRequestsResponse{
+		JoinRequests: r.JoinRequests(),
+		Paging:       r.Paging,
+	}
+}
+
+// ApproveJoinRequestsResponse extracts an ApproveJoinRequestsResponse from the general Response.
+func (r *Response) ApproveJoinRequestsResponse() *ApproveJoinRequestsResponse {
+	return &ApproveJoinRequestsResponse{
+		MessagingProduct:     r.MessagingProduct,
+		ApprovedJoinRequests: r.ApprovedJoinRequests,
+		FailedJoinRequests:   r.FailedJoinRequests,
+		Errors:               r.Errors,
+	}
+}
+
+// RejectJoinRequestsResponse extracts a RejectJoinRequestsResponse from the general Response.
+func (r *Response) RejectJoinRequestsResponse() *RejectJoinRequestsResponse {
+	return &RejectJoinRequestsResponse{
+		MessagingProduct:     r.MessagingProduct,
+		RejectedJoinRequests: r.RejectedJoinRequests,
+		FailedJoinRequests:   r.FailedJoinRequests,
+		Errors:               r.Errors,
+	}
+}
+
+// JoinRequests returns the join requests from the Data field.
+func (r *Response) JoinRequests() []*ResponseDataItem {
+	if len(r.Data) == 0 {
+		return nil
+	}
+	var items []*ResponseDataItem
+	_ = json.Unmarshal(r.Data, &items)
+	return items
+}
+
+// ActiveGroups returns the active groups from the Data field.
+func (r *Response) ActiveGroups() []*ActiveGroup {
+	if len(r.Data) == 0 {
+		return nil
+	}
+	var wrapper struct {
+		Groups []*ActiveGroup `json:"groups"`
+	}
+	if err := json.Unmarshal(r.Data, &wrapper); err != nil {
+		return nil
+	}
+	return wrapper.Groups
+}
+
+type BaseSender struct {
+	sender whttp.Sender[Request]
+}
+
+func NewBaseSender(sender whttp.Sender[Request]) *BaseSender {
+	return &BaseSender{sender: sender}
+}
+
+func (sender *BaseSender) SendRequest(
+	ctx context.Context,
+	conf *config.Config,
+	request *Request,
+) (*Response, error) {
+	req := buildHTTPRequest(conf, request)
+
+	response := &Response{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	})
+
+	if err := sender.sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("groups: send request: %w", err)
+	}
+
+	return response, nil
+}
+
+func buildHTTPRequest(conf *config.Config, request *Request) *whttp.Request[Request] {
 	var (
-		method    string
-		endpoints []string
-		params    = map[string]string{}
+		method      string
+		endpoints   []string
+		queryParams = map[string]string{}
 	)
+
 	switch request.RequestType {
+	case whttp.RequestTypeCreateGroup:
+		method = http.MethodPost
+		endpoints = []string{conf.APIVersion, conf.PhoneNumberID, "groups"}
+
+	case whttp.RequestTypeDeleteGroup:
+		method = http.MethodDelete
+		endpoints = []string{conf.APIVersion, request.GroupID}
+
+	case whttp.RequestTypeGetGroupInviteLink:
+		method = http.MethodGet
+		endpoints = []string{conf.APIVersion, request.GroupID, "invite_link"}
+
+	case whttp.RequestTypeResetGroupInviteLink:
+		method = http.MethodPost
+		endpoints = []string{conf.APIVersion, request.GroupID, "invite_link"}
+
 	case whttp.RequestTypeRemoveGroupParticipants:
 		method = http.MethodDelete
-		endpoints = []string{
-			conf.APIVersion,
-			request.GroupID,
-			"participants",
-		}
+		endpoints = []string{conf.APIVersion, request.GroupID, "participants"}
 
 	case whttp.RequestTypeGetGroupInfo:
 		method = http.MethodGet
-		endpoints = []string{
-			conf.APIVersion,
-			request.GroupID,
+		endpoints = []string{conf.APIVersion, request.GroupID}
+		if len(request.GroupInfoFields) > 0 {
+			queryParams["fields"] = strings.Join(request.GroupInfoFields, ",")
 		}
-		params["fields"] = strings.Join(request.GroupInfoFields, ",")
+
+	case whttp.RequestTypeGetActiveGroups:
+		method = http.MethodGet
+		endpoints = []string{conf.APIVersion, conf.PhoneNumberID, "groups"}
+		if request.Limit > 0 {
+			queryParams["limit"] = strconv.Itoa(request.Limit)
+		}
+		if request.After != "" {
+			queryParams["after"] = request.After
+		}
+		if request.Before != "" {
+			queryParams["before"] = request.Before
+		}
+
+	case whttp.RequestTypeUpdateGroupSettings:
+		method = http.MethodPost
+		endpoints = []string{conf.APIVersion, request.GroupID}
+
+	case whttp.RequestTypeGetJoinRequests:
+		method = http.MethodGet
+		endpoints = []string{conf.APIVersion, request.GroupID, "join_requests"}
+
+	case whttp.RequestTypeApproveJoinRequests:
+		method = http.MethodPost
+		endpoints = []string{conf.APIVersion, request.GroupID, "join_requests"}
+
+	case whttp.RequestTypeRejectJoinRequests:
+		method = http.MethodDelete
+		endpoints = []string{conf.APIVersion, request.GroupID, "join_requests"}
 	default:
+		panic("unhandled default case")
 	}
+
 	return whttp.MakeRequest[Request](method, conf.BaseURL,
 		whttp.WithRequestType[Request](request.RequestType),
 		whttp.WithRequestEndpoints[Request](endpoints...),
+		whttp.WithRequestQueryParams[Request](queryParams),
+		whttp.WithRequestMessage[Request](request),
+		whttp.WithRequestBearer[Request](conf.AccessToken),
+		whttp.WithRequestAppSecret[Request](conf.AppSecret),
+		whttp.WithRequestSecured[Request](conf.SecureRequests),
+		whttp.WithRequestDebugLogLevel[Request](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
 	)
 }
 
-func (client *BaseClient) Send(_ context.Context, _ *config.Config, _ *Request) (*Response, error) {
-	return nil, ErrNotImplemented
+func (sender *BaseSender) CreateGroup(
+	ctx context.Context,
+	conf *config.Config,
+	req *CreateGroupRequest,
+) (*Response, error) {
+	request := &Request{
+		RequestType:      whttp.RequestTypeCreateGroup,
+		MessagingProduct: "whatsapp",
+		Subject:          req.Subject,
+		Description:      req.Description,
+		JoinApprovalMode: req.JoinApprovalMode,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: create group: %w", err)
+	}
+
+	return response, nil
+}
+
+func (sender *BaseSender) DeleteGroup(
+	ctx context.Context,
+	conf *config.Config,
+	req *DeleteGroupRequest,
+) (*Response, error) {
+	request := &Request{
+		RequestType: whttp.RequestTypeDeleteGroup,
+		GroupID:     req.GroupID,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: delete group: %w", err)
+	}
+
+	return response, nil
+}
+
+func (sender *BaseSender) GetGroupInviteLink(
+	ctx context.Context,
+	conf *config.Config,
+	req *GetGroupInviteLinkRequest,
+) (*GroupInviteLinkResponse, error) {
+	request := &Request{
+		RequestType: whttp.RequestTypeGetGroupInviteLink,
+		GroupID:     req.GroupID,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: get group invite link: %w", err)
+	}
+
+	return response.GroupInviteLinkResponse(), nil
+}
+
+func (sender *BaseSender) ResetGroupInviteLink(
+	ctx context.Context,
+	conf *config.Config,
+	req *ResetGroupInviteLinkRequest,
+) (*GroupInviteLinkResponse, error) {
+	request := &Request{
+		RequestType:      whttp.RequestTypeResetGroupInviteLink,
+		GroupID:          req.GroupID,
+		MessagingProduct: "whatsapp",
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: reset group invite link: %w", err)
+	}
+
+	return response.GroupInviteLinkResponse(), nil
+}
+
+func (sender *BaseSender) RemoveGroupParticipants(
+	ctx context.Context,
+	conf *config.Config,
+	req *RemoveGroupParticipantsRequest,
+) (*Response, error) {
+	participants := make([]*Participants, len(req.Participants))
+	for i, p := range req.Participants {
+		participants[i] = &Participants{User: p}
+	}
+
+	request := &Request{
+		RequestType:      whttp.RequestTypeRemoveGroupParticipants,
+		GroupID:          req.GroupID,
+		MessagingProduct: "whatsapp",
+		Participants:     participants,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: remove group participants: %w", err)
+	}
+
+	return response, nil
+}
+
+func (sender *BaseSender) GetGroupInfo(
+	ctx context.Context,
+	conf *config.Config,
+	req *GetGroupInfoRequest,
+) (*GroupInfoResponse, error) {
+	request := &Request{
+		RequestType:     whttp.RequestTypeGetGroupInfo,
+		GroupID:         req.GroupID,
+		GroupInfoFields: req.Fields,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: get group info: %w", err)
+	}
+
+	return response.GroupInfoResponse(), nil
+}
+
+func (sender *BaseSender) GetActiveGroups(
+	ctx context.Context,
+	conf *config.Config,
+	req *GetActiveGroupsRequest,
+) (*ActiveGroupsResponse, error) {
+	request := &Request{
+		RequestType: whttp.RequestTypeGetActiveGroups,
+		Limit:       req.Limit,
+		After:       req.After,
+		Before:      req.Before,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: get active groups: %w", err)
+	}
+
+	return response.ActiveGroupsResponse(), nil
+}
+
+func (sender *BaseSender) UpdateGroupSettings(
+	ctx context.Context,
+	conf *config.Config,
+	req *UpdateGroupSettingsRequest,
+) (*Response, error) {
+	request := &Request{
+		RequestType:        whttp.RequestTypeUpdateGroupSettings,
+		GroupID:            req.GroupID,
+		MessagingProduct:   "whatsapp",
+		Subject:            req.Subject,
+		Description:        req.Description,
+		ProfilePictureFile: req.ProfilePictureFile,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: update group settings: %w", err)
+	}
+
+	return response, nil
+}
+
+func (sender *BaseSender) GetJoinRequests(
+	ctx context.Context,
+	conf *config.Config,
+	req *GetJoinRequestsRequest,
+) (*JoinRequestsResponse, error) {
+	request := &Request{
+		RequestType: whttp.RequestTypeGetJoinRequests,
+		GroupID:     req.GroupID,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: get join requests: %w", err)
+	}
+
+	return response.JoinRequestsResponse(), nil
+}
+
+func (sender *BaseSender) ApproveJoinRequests(
+	ctx context.Context,
+	conf *config.Config,
+	req *ApproveJoinRequestsRequest,
+) (*ApproveJoinRequestsResponse, error) {
+	request := &Request{
+		RequestType:      whttp.RequestTypeApproveJoinRequests,
+		GroupID:          req.GroupID,
+		MessagingProduct: "whatsapp",
+		JoinRequests:     req.JoinRequests,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: approve join requests: %w", err)
+	}
+
+	return response.ApproveJoinRequestsResponse(), nil
+}
+
+func (sender *BaseSender) RejectJoinRequests(
+	ctx context.Context,
+	conf *config.Config,
+	req *RejectJoinRequestsRequest,
+) (*RejectJoinRequestsResponse, error) {
+	request := &Request{
+		RequestType:      whttp.RequestTypeRejectJoinRequests,
+		GroupID:          req.GroupID,
+		MessagingProduct: "whatsapp",
+		JoinRequests:     req.JoinRequests,
+	}
+
+	response, err := sender.SendRequest(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("groups: reject join requests: %w", err)
+	}
+
+	return response.RejectJoinRequestsResponse(), nil
 }
