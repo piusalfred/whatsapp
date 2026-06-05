@@ -88,6 +88,9 @@ const (
 	RequestTypeGetGroupInfo
 	RequestTypeGetActiveGroups
 	RequestTypeUpdateGroupSettings
+	RequestTypeGetJoinRequests
+	RequestTypeApproveJoinRequests
+	RequestTypeRejectJoinRequests
 	RequestTypeUpdateGroupCallStatus
 	RequestTypeCheckCallPermissions
 
@@ -166,6 +169,9 @@ var requestTypeStrings = [...]string{ //nolint:gochecknoglobals // immutable str
 	"get_group_info",
 	"get_active_groups",
 	"update_group_settings",
+	"get_join_requests",
+	"approve_join_requests",
+	"reject_join_requests",
 	"update_group_call_status",
 	"check_call_permissions",
 }
