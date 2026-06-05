@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"strings"
@@ -105,7 +106,7 @@ func (listener *Listener) HandleSubscriptionVerification(writer http.ResponseWri
 	}
 
 	writer.WriteHeader(http.StatusOK)
-	_, _ = writer.Write([]byte(challenge))
+	_, _ = writer.Write([]byte(html.EscapeString(challenge)))
 }
 
 func (listener *Listener) HandleNotification(writer http.ResponseWriter, request *http.Request) {
