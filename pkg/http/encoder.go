@@ -22,6 +22,7 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -30,6 +31,8 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+var ErrMissingFormFile = errors.New("missing form file")
 
 type EncodeResponse struct {
 	Body        io.Reader
@@ -98,6 +101,10 @@ func encodeFormData(form *RequestForm) (io.Reader, string, error) {
 		if err != nil {
 			return nil, "", fmt.Errorf("error writing field '%s': %w", key, err)
 		}
+	}
+
+	if form.FormFile == nil {
+		return nil, "", ErrMissingFormFile
 	}
 
 	file, err := os.Open(form.FormFile.Path)

@@ -32,6 +32,9 @@ type ResponseError struct {
 }
 
 func (e *ResponseError) Error() string {
+	if e.Err == nil {
+		return fmt.Sprintf("whatsapp message error: http code: %d, <no details>", e.Code)
+	}
 	return fmt.Sprintf("whatsapp message error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
 }
 

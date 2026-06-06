@@ -25,6 +25,7 @@ import (
 	"io"
 	stdhttp "net/http"
 	"net/url"
+	"sort"
 
 	"github.com/piusalfred/whatsapp/pkg/crypto"
 	"github.com/piusalfred/whatsapp/pkg/types"
@@ -220,8 +221,13 @@ func (request *Request[T]) URL() (string, error) {
 
 	q := parsedURL.Query()
 
-	for key, value := range request.QueryParams {
-		q.Set(key, value)
+	keys := make([]string, 0, len(request.QueryParams))
+	for key := range request.QueryParams {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		q.Set(key, request.QueryParams[key])
 	}
 
 	shouldEnableDebugLogging := request.debugLogLevel != DebugLogLevelNone && request.debugLogLevel != ""

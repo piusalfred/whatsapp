@@ -44,7 +44,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		return fmt.Errorf("read response: %w", err)
 	}
 	defer func() {
-		response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		response.Body = io.NopCloser(bytes.NewReader(responseBody))
 	}()
 
 	if len(responseBody) == 0 && opts.DisallowEmptyResponse {
@@ -97,7 +97,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 
 func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) error {
 	if request == nil {
-		return ErrNilResponse
+		return ErrNilRequest
 	}
 
 	requestBody, err := io.ReadAll(request.Body)
@@ -171,7 +171,7 @@ func BodyReaderResponseDecoder(fn ResponseBodyReaderFunc) ResponseDecoderFunc {
 		}
 
 		defer func() {
-			response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+			response.Body = io.NopCloser(bytes.NewReader(responseBody))
 		}()
 
 		if err = fn(ctx, bytes.NewReader(responseBody)); err != nil {

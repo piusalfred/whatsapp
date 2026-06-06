@@ -20,6 +20,7 @@
 package http
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -181,5 +182,8 @@ func (r RequestType) Name() string {
 }
 
 func (r RequestType) String() string {
+	if int(r) >= len(requestTypeStrings) {
+		return fmt.Sprintf("unknown_request_type(%d)", r)
+	}
 	return requestTypeStrings[r]
 }
