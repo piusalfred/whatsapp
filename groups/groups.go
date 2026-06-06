@@ -30,6 +30,8 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
+const messagingProduct = "whatsapp"
+
 const (
 	JoinApprovalModeRequired JoinApprovalMode = "approval_required"
 	JoinApprovalModeAuto     JoinApprovalMode = "auto_approve"
@@ -294,15 +296,245 @@ func (r *Response) ActiveGroups() []*ActiveGroup {
 	return wrapper.Groups
 }
 
-type BaseSender struct {
+type Client struct {
+	sender *BaseClient
+	config *config.Config
+}
+
+func NewClient(conf *config.Config, sender whttp.Sender[Request]) *Client {
+	return &Client{
+		config: conf,
+		sender: NewBaseSender(sender),
+	}
+}
+
+func (client *Client) CreateGroup(
+	ctx context.Context,
+	req *CreateGroupRequest,
+) (*Response, error) {
+	request := &Request{
+		RequestType:      whttp.RequestTypeCreateGroup,
+		MessagingProduct: messagingProduct,
+		Subject:          req.Subject,
+		Description:      req.Description,
+		JoinApprovalMode: req.JoinApprovalMode,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: create group: %w", err)
+	}
+
+	return response, nil
+}
+
+func (client *Client) DeleteGroup(
+	ctx context.Context,
+	req *DeleteGroupRequest,
+) (*Response, error) {
+	request := &Request{
+		RequestType: whttp.RequestTypeDeleteGroup,
+		GroupID:     req.GroupID,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: delete group: %w", err)
+	}
+
+	return response, nil
+}
+
+func (client *Client) GetGroupInviteLink(
+	ctx context.Context,
+	req *GetGroupInviteLinkRequest,
+) (*GroupInviteLinkResponse, error) {
+	request := &Request{
+		RequestType: whttp.RequestTypeGetGroupInviteLink,
+		GroupID:     req.GroupID,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: get group invite link: %w", err)
+	}
+
+	return response.GroupInviteLinkResponse(), nil
+}
+
+func (client *Client) ResetGroupInviteLink(
+	ctx context.Context,
+	req *ResetGroupInviteLinkRequest,
+) (*GroupInviteLinkResponse, error) {
+	request := &Request{
+		RequestType:      whttp.RequestTypeResetGroupInviteLink,
+		GroupID:          req.GroupID,
+		MessagingProduct: messagingProduct,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: reset group invite link: %w", err)
+	}
+
+	return response.GroupInviteLinkResponse(), nil
+}
+
+func (client *Client) RemoveGroupParticipants(
+	ctx context.Context,
+	req *RemoveGroupParticipantsRequest,
+) (*Response, error) {
+	participants := make([]*Participants, len(req.Participants))
+	for i, p := range req.Participants {
+		participants[i] = &Participants{User: p}
+	}
+
+	request := &Request{
+		RequestType:      whttp.RequestTypeRemoveGroupParticipants,
+		GroupID:          req.GroupID,
+		MessagingProduct: messagingProduct,
+		Participants:     participants,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: remove group participants: %w", err)
+	}
+
+	return response, nil
+}
+
+func (client *Client) GetGroupInfo(
+	ctx context.Context,
+	req *GetGroupInfoRequest,
+) (*GroupInfoResponse, error) {
+	request := &Request{
+		RequestType:     whttp.RequestTypeGetGroupInfo,
+		GroupID:         req.GroupID,
+		GroupInfoFields: req.Fields,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: get group info: %w", err)
+	}
+
+	return response.GroupInfoResponse(), nil
+}
+
+func (client *Client) GetActiveGroups(
+	ctx context.Context,
+	req *GetActiveGroupsRequest,
+) (*ActiveGroupsResponse, error) {
+	request := &Request{
+		RequestType: whttp.RequestTypeGetActiveGroups,
+		Limit:       req.Limit,
+		After:       req.After,
+		Before:      req.Before,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: get active groups: %w", err)
+	}
+
+	return response.ActiveGroupsResponse(), nil
+}
+
+func (client *Client) UpdateGroupSettings(
+	ctx context.Context,
+	req *UpdateGroupSettingsRequest,
+) (*Response, error) {
+	request := &Request{
+		RequestType:        whttp.RequestTypeUpdateGroupSettings,
+		GroupID:            req.GroupID,
+		MessagingProduct:   messagingProduct,
+		Subject:            req.Subject,
+		Description:        req.Description,
+		ProfilePictureFile: req.ProfilePictureFile,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: update group settings: %w", err)
+	}
+
+	return response, nil
+}
+
+func (client *Client) GetJoinRequests(
+	ctx context.Context,
+	req *GetJoinRequestsRequest,
+) (*JoinRequestsResponse, error) {
+	request := &Request{
+		RequestType: whttp.RequestTypeGetJoinRequests,
+		GroupID:     req.GroupID,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: get join requests: %w", err)
+	}
+
+	return response.JoinRequestsResponse(), nil
+}
+
+func (client *Client) ApproveJoinRequests(
+	ctx context.Context,
+	req *ApproveJoinRequestsRequest,
+) (*ApproveJoinRequestsResponse, error) {
+	request := &Request{
+		RequestType:      whttp.RequestTypeApproveJoinRequests,
+		GroupID:          req.GroupID,
+		MessagingProduct: messagingProduct,
+		JoinRequests:     req.JoinRequests,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: approve join requests: %w", err)
+	}
+
+	return response.ApproveJoinRequestsResponse(), nil
+}
+
+func (client *Client) RejectJoinRequests(
+	ctx context.Context,
+	req *RejectJoinRequestsRequest,
+) (*RejectJoinRequestsResponse, error) {
+	request := &Request{
+		RequestType:      whttp.RequestTypeRejectJoinRequests,
+		GroupID:          req.GroupID,
+		MessagingProduct: messagingProduct,
+		JoinRequests:     req.JoinRequests,
+	}
+
+	response, err := client.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("client: reject join requests: %w", err)
+	}
+
+	return response.RejectJoinRequestsResponse(), nil
+}
+
+func (client *Client) Send(ctx context.Context, request *Request) (*Response, error) {
+	response, err := client.sender.Send(ctx, client.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	return response, nil
+}
+
+type BaseClient struct {
 	sender whttp.Sender[Request]
 }
 
-func NewBaseSender(sender whttp.Sender[Request]) *BaseSender {
-	return &BaseSender{sender: sender}
+func NewBaseSender(sender whttp.Sender[Request]) *BaseClient {
+	return &BaseClient{sender: sender}
 }
 
-func (sender *BaseSender) SendRequest(
+func (client *BaseClient) Send(
 	ctx context.Context,
 	conf *config.Config,
 	request *Request,
@@ -315,8 +547,8 @@ func (sender *BaseSender) SendRequest(
 		InspectResponseError:  true,
 	})
 
-	if err := sender.sender.Send(ctx, req, decoder); err != nil {
-		return nil, fmt.Errorf("groups: send request: %w", err)
+	if err := client.sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
 	}
 
 	return response, nil
@@ -401,28 +633,28 @@ func buildHTTPRequest(conf *config.Config, request *Request) *whttp.Request[Requ
 	)
 }
 
-func (sender *BaseSender) CreateGroup(
+func (client *BaseClient) CreateGroup(
 	ctx context.Context,
 	conf *config.Config,
 	req *CreateGroupRequest,
 ) (*Response, error) {
 	request := &Request{
 		RequestType:      whttp.RequestTypeCreateGroup,
-		MessagingProduct: "whatsapp",
+		MessagingProduct: messagingProduct,
 		Subject:          req.Subject,
 		Description:      req.Description,
 		JoinApprovalMode: req.JoinApprovalMode,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: create group: %w", err)
+		return nil, fmt.Errorf("base client: create group: %w", err)
 	}
 
 	return response, nil
 }
 
-func (sender *BaseSender) DeleteGroup(
+func (client *BaseClient) DeleteGroup(
 	ctx context.Context,
 	conf *config.Config,
 	req *DeleteGroupRequest,
@@ -432,15 +664,15 @@ func (sender *BaseSender) DeleteGroup(
 		GroupID:     req.GroupID,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: delete group: %w", err)
+		return nil, fmt.Errorf("base client: delete group: %w", err)
 	}
 
 	return response, nil
 }
 
-func (sender *BaseSender) GetGroupInviteLink(
+func (client *BaseClient) GetGroupInviteLink(
 	ctx context.Context,
 	conf *config.Config,
 	req *GetGroupInviteLinkRequest,
@@ -450,15 +682,15 @@ func (sender *BaseSender) GetGroupInviteLink(
 		GroupID:     req.GroupID,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: get group invite link: %w", err)
+		return nil, fmt.Errorf("base client: get group invite link: %w", err)
 	}
 
 	return response.GroupInviteLinkResponse(), nil
 }
 
-func (sender *BaseSender) ResetGroupInviteLink(
+func (client *BaseClient) ResetGroupInviteLink(
 	ctx context.Context,
 	conf *config.Config,
 	req *ResetGroupInviteLinkRequest,
@@ -466,18 +698,18 @@ func (sender *BaseSender) ResetGroupInviteLink(
 	request := &Request{
 		RequestType:      whttp.RequestTypeResetGroupInviteLink,
 		GroupID:          req.GroupID,
-		MessagingProduct: "whatsapp",
+		MessagingProduct: messagingProduct,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: reset group invite link: %w", err)
+		return nil, fmt.Errorf("base client: reset group invite link: %w", err)
 	}
 
 	return response.GroupInviteLinkResponse(), nil
 }
 
-func (sender *BaseSender) RemoveGroupParticipants(
+func (client *BaseClient) RemoveGroupParticipants(
 	ctx context.Context,
 	conf *config.Config,
 	req *RemoveGroupParticipantsRequest,
@@ -490,19 +722,19 @@ func (sender *BaseSender) RemoveGroupParticipants(
 	request := &Request{
 		RequestType:      whttp.RequestTypeRemoveGroupParticipants,
 		GroupID:          req.GroupID,
-		MessagingProduct: "whatsapp",
+		MessagingProduct: messagingProduct,
 		Participants:     participants,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: remove group participants: %w", err)
+		return nil, fmt.Errorf("base client: remove group participants: %w", err)
 	}
 
 	return response, nil
 }
 
-func (sender *BaseSender) GetGroupInfo(
+func (client *BaseClient) GetGroupInfo(
 	ctx context.Context,
 	conf *config.Config,
 	req *GetGroupInfoRequest,
@@ -513,15 +745,15 @@ func (sender *BaseSender) GetGroupInfo(
 		GroupInfoFields: req.Fields,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: get group info: %w", err)
+		return nil, fmt.Errorf("base client: get group info: %w", err)
 	}
 
 	return response.GroupInfoResponse(), nil
 }
 
-func (sender *BaseSender) GetActiveGroups(
+func (client *BaseClient) GetActiveGroups(
 	ctx context.Context,
 	conf *config.Config,
 	req *GetActiveGroupsRequest,
@@ -533,15 +765,15 @@ func (sender *BaseSender) GetActiveGroups(
 		Before:      req.Before,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: get active groups: %w", err)
+		return nil, fmt.Errorf("base client: get active groups: %w", err)
 	}
 
 	return response.ActiveGroupsResponse(), nil
 }
 
-func (sender *BaseSender) UpdateGroupSettings(
+func (client *BaseClient) UpdateGroupSettings(
 	ctx context.Context,
 	conf *config.Config,
 	req *UpdateGroupSettingsRequest,
@@ -549,21 +781,21 @@ func (sender *BaseSender) UpdateGroupSettings(
 	request := &Request{
 		RequestType:        whttp.RequestTypeUpdateGroupSettings,
 		GroupID:            req.GroupID,
-		MessagingProduct:   "whatsapp",
+		MessagingProduct:   messagingProduct,
 		Subject:            req.Subject,
 		Description:        req.Description,
 		ProfilePictureFile: req.ProfilePictureFile,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: update group settings: %w", err)
+		return nil, fmt.Errorf("base client: update group settings: %w", err)
 	}
 
 	return response, nil
 }
 
-func (sender *BaseSender) GetJoinRequests(
+func (client *BaseClient) GetJoinRequests(
 	ctx context.Context,
 	conf *config.Config,
 	req *GetJoinRequestsRequest,
@@ -573,15 +805,15 @@ func (sender *BaseSender) GetJoinRequests(
 		GroupID:     req.GroupID,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: get join requests: %w", err)
+		return nil, fmt.Errorf("base client: get join requests: %w", err)
 	}
 
 	return response.JoinRequestsResponse(), nil
 }
 
-func (sender *BaseSender) ApproveJoinRequests(
+func (client *BaseClient) ApproveJoinRequests(
 	ctx context.Context,
 	conf *config.Config,
 	req *ApproveJoinRequestsRequest,
@@ -589,19 +821,19 @@ func (sender *BaseSender) ApproveJoinRequests(
 	request := &Request{
 		RequestType:      whttp.RequestTypeApproveJoinRequests,
 		GroupID:          req.GroupID,
-		MessagingProduct: "whatsapp",
+		MessagingProduct: messagingProduct,
 		JoinRequests:     req.JoinRequests,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: approve join requests: %w", err)
+		return nil, fmt.Errorf("base client: approve join requests: %w", err)
 	}
 
 	return response.ApproveJoinRequestsResponse(), nil
 }
 
-func (sender *BaseSender) RejectJoinRequests(
+func (client *BaseClient) RejectJoinRequests(
 	ctx context.Context,
 	conf *config.Config,
 	req *RejectJoinRequestsRequest,
@@ -609,13 +841,13 @@ func (sender *BaseSender) RejectJoinRequests(
 	request := &Request{
 		RequestType:      whttp.RequestTypeRejectJoinRequests,
 		GroupID:          req.GroupID,
-		MessagingProduct: "whatsapp",
+		MessagingProduct: messagingProduct,
 		JoinRequests:     req.JoinRequests,
 	}
 
-	response, err := sender.SendRequest(ctx, conf, request)
+	response, err := client.Send(ctx, conf, request)
 	if err != nil {
-		return nil, fmt.Errorf("groups: reject join requests: %w", err)
+		return nil, fmt.Errorf("base client: reject join requests: %w", err)
 	}
 
 	return response.RejectJoinRequestsResponse(), nil
