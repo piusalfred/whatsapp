@@ -34,6 +34,26 @@ type DecodeOptions struct {
 	InspectResponseError  bool
 }
 
+// StrictDecodeOptions returns a DecodeOptions preset that is strict about
+// response contents and inspects error responses.
+func StrictDecodeOptions() DecodeOptions {
+	return DecodeOptions{
+		DisallowUnknownFields: true,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	}
+}
+
+// LenientDecodeOptions returns a DecodeOptions preset that allows unknown
+// fields and empty bodies, but still inspects error responses.
+func LenientDecodeOptions() DecodeOptions {
+	return DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: false,
+		InspectResponseError:  true,
+	}
+}
+
 func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions) error {
 	if response == nil {
 		return ErrNilResponse
@@ -44,7 +64,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		return fmt.Errorf("read response: %w", err)
 	}
 	defer func() {
-		response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		response.Body = io.NopCloser(bytes.NewReader(responseBody))
 	}()
 
 	if len(responseBody) == 0 && opts.DisallowEmptyResponse {
@@ -97,7 +117,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 
 func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) error {
 	if request == nil {
-		return ErrNilResponse
+		return ErrNilRequest
 	}
 
 	requestBody, err := io.ReadAll(request.Body)
@@ -171,7 +191,7 @@ func BodyReaderResponseDecoder(fn ResponseBodyReaderFunc) ResponseDecoderFunc {
 		}
 
 		defer func() {
-			response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+			response.Body = io.NopCloser(bytes.NewReader(responseBody))
 		}()
 
 		if err = fn(ctx, bytes.NewReader(responseBody)); err != nil {

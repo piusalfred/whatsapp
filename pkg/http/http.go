@@ -26,7 +26,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
+
+const DefaultHTTPClientTimeout = 30 * time.Second
 
 type (
 	CoreClient[T any] struct {
@@ -42,12 +45,6 @@ type (
 	}
 
 	CoreClientOptionFunc[T any] func(client *CoreClient[T])
-
-	Options struct {
-		HTTPClient   *http.Client
-		RequestHook  RequestInterceptorFunc
-		ResponseHook ResponseInterceptorFunc
-	}
 )
 
 func (fn CoreClientOptionFunc[T]) apply( //nolint:unused // implements CoreClientOption[T], called via interface dispatch in NewSender
@@ -108,7 +105,7 @@ func WithCoreClientMiddlewares[T any](mws ...Middleware[T]) CoreClientOption[T] 
 
 func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
 	core := &CoreClient[T]{
-		http: http.DefaultClient,
+		http: &http.Client{Timeout: DefaultHTTPClientTimeout},
 	}
 
 	core.sender = SenderFunc[T](core.send)
@@ -123,19 +120,7 @@ func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
 }
 
 func NewAnySender(options ...CoreClientOption[any]) *CoreClient[any] {
-	core := &CoreClient[any]{
-		http: http.DefaultClient,
-	}
-
-	core.sender = SenderFunc[any](core.send)
-
-	for _, option := range options {
-		if option != nil {
-			option.apply(core)
-		}
-	}
-
-	return core
+	return NewSender[any](options...)
 }
 
 func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
@@ -175,11 +160,11 @@ func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterce
 			if errRead != nil && !errors.Is(errRead, io.EOF) {
 				return fmt.Errorf("read response body: %w", errRead)
 			}
-			response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			response.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 			if errHook := resHook.InterceptResponse(ctx, response); errHook != nil {
 				return errHook
 			}
-			response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			response.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 		}
 
 		if err = decoder.Decode(ctx, response); err != nil {

@@ -661,7 +661,7 @@ func TestDecodeRequestJSON_NilRequest(t *testing.T) {
 	err := whttp.DecodeRequestJSON[TestMessage](nil, &result, whttp.DecodeOptions{})
 
 	test.AssertError(t, "should error on nil request", err)
-	test.AssertErrorIs(t, "should be ErrNilResponse", err, whttp.ErrNilResponse)
+	test.AssertErrorIs(t, "should be ErrNilRequest", err, whttp.ErrNilRequest)
 }
 
 func TestDecodeRequestJSON_NilTarget(t *testing.T) {
