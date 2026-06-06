@@ -70,7 +70,8 @@ func AssertErrorIs(t *testing.T, msg string, err, target error) {
 }
 
 // AssertErrorAs checks if err is or wraps an error of the same type as target using errors.As.
-// The target must be a pointer to an error type. If the errors don't match, the test fails.
+// The target must be a pointer to the type you want to extract (e.g. &respErr).
+// If the errors don't match, the test fails.
 func AssertErrorAs(t *testing.T, msg string, err error, target any) {
 	t.Helper()
 	if err == nil {
@@ -82,11 +83,11 @@ func AssertErrorAs(t *testing.T, msg string, err error, target any) {
 		return
 	}
 
-	if !errors.As(err, &target) {
+	if !errors.As(err, target) {
 		if msg != "" {
-			t.Fatalf("%s: error type does not match target, got=%T, want=%T", msg, err, target)
+			t.Fatalf("%s: error type does not match target, got=%T", msg, err)
 		}
 
-		t.Fatalf("error type does not match target, got=%T, want=%T", err, target)
+		t.Fatalf("error type does not match target, got=%T", err)
 	}
 }

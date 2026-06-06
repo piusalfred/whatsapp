@@ -23,7 +23,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	http2 "net/http"
+	stdhttp "net/http"
 	"net/url"
 
 	"github.com/piusalfred/whatsapp/pkg/crypto"
@@ -90,7 +90,7 @@ func MakeRequest[T any](method, baseURL string, options ...RequestOption[T]) *Re
 // MakeDownloadRequest creates a new request for downloading media.
 func MakeDownloadRequest[T any](downloadURL string, options ...RequestOption[T]) *Request[T] {
 	req := &Request[T]{
-		Method:        http2.MethodGet,
+		Method:        stdhttp.MethodGet,
 		DownloadURL:   downloadURL,
 		Headers:       make(map[string]string),
 		QueryParams:   make(map[string]string),
@@ -109,7 +109,7 @@ func MakeDownloadRequest[T any](downloadURL string, options ...RequestOption[T])
 // NewRequestWithContext ...
 func NewRequestWithContext[T any](ctx context.Context, method, baseURL string,
 	options ...RequestOption[T],
-) (*http2.Request, error) {
+) (*stdhttp.Request, error) {
 	req := MakeRequest(method, baseURL, options...)
 
 	return RequestWithContext(ctx, req)
@@ -242,7 +242,7 @@ func (request *Request[T]) URL() (string, error) {
 	return parsedURL.String(), nil
 }
 
-func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http2.Request, error) {
+func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*stdhttp.Request, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request: %w", ErrNilRequest)
 	}
@@ -279,7 +279,7 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*http2.Req
 		contentType = "application/octet-stream"
 	}
 
-	r, err := http2.NewRequestWithContext(ctx, req.Method, parsedURL, body)
+	r, err := stdhttp.NewRequestWithContext(ctx, req.Method, parsedURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("create http request: %w", err)
 	}

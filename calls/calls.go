@@ -227,26 +227,21 @@ func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, err
 }
 
 func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*BaseResponse, error) {
-	var method string
-	var endpoint string
-	var queryParams map[string]string
-
-	opts := []whttp.RequestOption[BaseRequest]{
-		whttp.WithRequestBearer[BaseRequest](conf.AccessToken),
-		whttp.WithRequestAppSecret[BaseRequest](conf.AppSecret),
-		whttp.WithRequestSecured[BaseRequest](conf.SecureRequests),
-		whttp.WithRequestDebugLogLevel[BaseRequest](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	}
+	var (
+		method      string
+		endpoint    string
+		queryParams map[string]string
+		message     *BaseRequest
+	)
 
 	switch request.RequestType {
 	case whttp.RequestTypeCheckCallPermissions:
 		endpoint = callPermissionsCheckEndpoint
 		method = http.MethodGet
 		queryParams = map[string]string{"user_wa_id": request.UserWaID}
-		opts = append(opts, whttp.WithRequestType[BaseRequest](whttp.RequestTypeCheckCallPermissions))
 
 	case whttp.RequestTypeUpdateCallStatus:
-		message := &BaseRequest{
+		message = &BaseRequest{
 			MessagingProduct:      request.MessagingProduct,
 			To:                    request.To,
 			CallID:                request.CallID,
@@ -254,28 +249,29 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 			Session:               request.Session,
 			BizOpaqueCallbackData: request.BizOpaqueCallbackData,
 		}
-		opts = append(opts, whttp.WithRequestMessage[BaseRequest](message))
 		endpoint = callStatusUpdateEndpoint
 		method = http.MethodPost
-		opts = append(opts, whttp.WithRequestType[BaseRequest](whttp.RequestTypeUpdateCallStatus))
 
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrUnknownRequestType, request.RequestType)
 	}
 
+	b := whttp.NewRequestBuilder(method, conf.BaseURL).
+		WithBearer(conf.AccessToken).
+		WithAppSecret(conf.AppSecret, conf.SecureRequests).
+		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		WithRequestType(request.RequestType).
+		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, endpoint)
+
 	if len(queryParams) > 0 {
-		opts = append(opts, whttp.WithRequestQueryParams[BaseRequest](queryParams))
+		b = b.WithQueryParams(queryParams)
 	}
 
-	opts = append(opts, whttp.WithRequestEndpoints[BaseRequest](conf.APIVersion, conf.PhoneNumberID, endpoint))
-	req := whttp.MakeRequest(method, conf.BaseURL, opts...)
-	req.SetDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+	req := whttp.BuildRequest(b, message)
 
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
+		InspectResponseError: true,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {

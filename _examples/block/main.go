@@ -55,8 +55,7 @@ func main() {
 	sender := whttp.NewSender[user.BlockBaseRequest]()
 	blocker := user.NewBlockClient(reader, sender)
 
-	spammers := []string{"1234567890", "1234567891", "1234567892"}
-	resp, err := blocker.Block(ctx, spammers)
+	resp, err := blocker.Block(ctx, &user.BlockRequest{Numbers: []string{"1234567890", "1234567891", "1234567892"}})
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -64,8 +63,7 @@ func main() {
 
 	fmt.Println(resp)
 
-	spammers1 := []string{"1234567890", "1234567891"}
-	resp1, err1 := blocker.Unblock(ctx, spammers1)
+	resp1, err1 := blocker.Unblock(ctx, &user.UnblockRequest{Numbers: []string{"1234567890", "1234567891"}})
 	if err1 != nil {
 		panic(err1)
 	}

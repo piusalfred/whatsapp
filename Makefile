@@ -49,7 +49,6 @@ test: ## run tests with race detector and coverage
 mocks: ## generate or refresh all mocks
 	@echo "🤖 generating mocks"
 	@$(MOCKGEN) -destination=./mocks/media/mock_media.go           -package=media         -source=./media/media.go
-	@$(MOCKGEN) -destination=./mocks/user/mock_user.go             -package=user          -source=./user/user.go
 	@$(MOCKGEN) -destination=./mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=./phonenumber/phonenumber.go
 	@$(MOCKGEN) -destination=./mocks/qrcode/mock_qrcode.go         -package=qrcode        -source=./qrcode/qrcode.go
 	@$(MOCKGEN) -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
