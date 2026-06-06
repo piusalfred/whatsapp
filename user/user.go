@@ -258,6 +258,53 @@ func NewBlockBaseClient(sender whttp.Sender[BlockBaseRequest]) *BlockBaseClient 
 	return &BlockBaseClient{sender: sender}
 }
 
+func (client *BlockBaseClient) Block(
+	ctx context.Context,
+	conf *config.Config,
+	request *BlockRequest,
+) (*BlockResponse, error) {
+	req := NewBlockBaseRequest(BlockActionBlock, WithBlockUsersBaseRequestNumbers(request.Numbers))
+
+	resp, err := client.Send(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to block users: %w", err)
+	}
+
+	return resp.BlockUsersResponse(), nil
+}
+
+func (client *BlockBaseClient) Unblock(
+	ctx context.Context,
+	conf *config.Config,
+	request *UnblockRequest,
+) (*BlockResponse, error) {
+	req := NewBlockBaseRequest(BlockActionUnblock, WithBlockUsersBaseRequestNumbers(request.Numbers))
+
+	resp, err := client.Send(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unblock users: %w", err)
+	}
+
+	return resp.BlockUsersResponse(), nil
+}
+
+func (client *BlockBaseClient) ListBlocked(
+	ctx context.Context,
+	conf *config.Config,
+	request *ListBlockedUsersOptions,
+) (*ListBlockedUsersResponse, error) {
+	req := NewBlockBaseRequest(BlockActionListBlocked, func(r *BlockBaseRequest) {
+		r.ListOptions = request
+	})
+
+	resp, err := client.Send(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list blocked users: %w", err)
+	}
+
+	return resp.ListResponse(), nil
+}
+
 func (client *BlockBaseClient) Send(ctx context.Context, conf *config.Config, request *BlockBaseRequest) (
 	*BlockBaseResponse, error,
 ) {

@@ -161,9 +161,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 
 			if tt.wantErr && tt.opts.InspectResponseError {
 				var respErr *whttp.ResponseError
-				if !errors.As(err, &respErr) {
-					t.Errorf("expected error of type ResponseError, got %T", err)
-				}
+				test.AssertErrorAs(t, "expected ResponseError", err, &respErr)
 			}
 		})
 	}
@@ -447,9 +445,7 @@ func TestDecodeResponseJSON_ErrorCases(t *testing.T) {
 		test.AssertError(t, "should return error", err)
 
 		var respErr *whttp.ResponseError
-		if !errors.As(err, &respErr) {
-			t.Fatalf("expected error to be ResponseError type, got %T", err)
-		}
+		test.AssertErrorAs(t, "expected ResponseError", err, &respErr)
 
 		if respErr.Code != http.StatusBadRequest {
 			t.Errorf("expected Code=%d, got %d", http.StatusBadRequest, respErr.Code)

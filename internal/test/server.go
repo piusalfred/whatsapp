@@ -23,31 +23,81 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"sync"
 )
 
-// MockServer wraps an httptest.Server and records the last incoming request
-// so tests can assert on method, path, headers, query params and body.
-type MockServer struct {
-	Server      *httptest.Server
-	LastRequest *http.Request
-	LastBody    []byte
+// CapturedRequest holds details about a single request received by MockServer.
+type CapturedRequest struct {
+	Method      string
+	Path        string
+	QueryParams url.Values
+	Header      http.Header
+	Body        []byte
 }
 
-// NewMockServer starts a new server. The optional handler is called after the
-// request has been recorded.
-func NewMockServer(handler http.HandlerFunc) *MockServer {
-	m := &MockServer{}
-	m.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		m.LastRequest = r
+// MockBehavior configures the response a MockServer returns.
+type MockBehavior struct {
+	StatusCode int
+	Payload    []byte
+	Headers    map[string]string
+}
+
+// MockServer wraps httptest.Server and records every incoming request so tests
+// can assert on HTTP method, path, headers, query parameters and body.
+type MockServer struct {
+	Server   *httptest.Server
+	Behavior MockBehavior
+	mu       sync.Mutex
+	Requests []CapturedRequest
+}
+
+// NewMockServer starts a new mock server with the given behavior.
+func NewMockServer(behavior MockBehavior) *MockServer {
+	m := &MockServer{
+		Behavior: behavior,
+		Requests: make([]CapturedRequest, 0),
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		m.LastBody = body
-		if handler != nil {
-			handler(w, r)
-		} else {
-			w.WriteHeader(http.StatusOK)
+
+		m.mu.Lock()
+		m.Requests = append(m.Requests, CapturedRequest{
+			Method:      r.Method,
+			Path:        r.URL.Path,
+			QueryParams: r.URL.Query(),
+			Header:      r.Header.Clone(),
+			Body:        body,
+		})
+		m.mu.Unlock()
+
+		for k, v := range m.Behavior.Headers {
+			w.Header().Set(k, v)
 		}
-	}))
+
+		statusCode := m.Behavior.StatusCode
+		if statusCode == 0 {
+			statusCode = http.StatusOK
+		}
+		w.WriteHeader(statusCode)
+
+		if m.Behavior.Payload != nil {
+			_, _ = w.Write(m.Behavior.Payload)
+		}
+	})
+
+	m.Server = httptest.NewServer(handler)
 	return m
+}
+
+// GetRequests returns a copy of all captured requests.
+func (m *MockServer) GetRequests() []CapturedRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	reqs := make([]CapturedRequest, len(m.Requests))
+	copy(reqs, m.Requests)
+	return reqs
 }
 
 // Close shuts down the server.
