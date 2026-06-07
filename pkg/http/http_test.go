@@ -806,7 +806,6 @@ func TestCoreClient_InterceptorsWithBody(t *testing.T) {
 		if req.Body != nil {
 			body, _ := io.ReadAll(req.Body)
 			interceptedReqBody = string(body)
-			req.Body = io.NopCloser(bytes.NewReader(body))
 		}
 		return nil
 	})
@@ -814,7 +813,6 @@ func TestCoreClient_InterceptorsWithBody(t *testing.T) {
 	resHook := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
 		body, _ := io.ReadAll(resp.Body)
 		interceptedResBody = string(body)
-		resp.Body = io.NopCloser(bytes.NewReader(body))
 		return nil
 	})
 
@@ -846,6 +844,156 @@ func TestCoreClient_InterceptorsWithBody(t *testing.T) {
 	if result.Name != "response" || result.Value != 999 {
 		t.Errorf("expected Name=response and Value=999, got Name=%s and Value=%d", result.Name, result.Value)
 	}
+}
+
+func TestRequestInterceptor_ConsumesBodyWithoutRestoring(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if len(body) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"name":"empty-body","value":0}`))
+
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"name":"ok","value":1}`))
+	}))
+	defer server.Close()
+
+	reqHook := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
+		// Consume body but DO NOT restore it — the framework now handles restoration.
+		_, _ = io.ReadAll(req.Body)
+		return nil
+	})
+
+	sender := whttp.NewSender(
+		whttp.WithCoreClientRequestInterceptor[TestMessage](reqHook),
+	)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodPost,
+		BaseURL: server.URL,
+		Message: &TestMessage{Name: "request", Value: 42},
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+	err := sender.Send(context.Background(), req, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	// The server received the full body because the framework restored it.
+	if result.Name != "ok" || result.Value != 1 {
+		t.Errorf("expected server to receive full body (ok response), got Name=%q Value=%d", result.Name, result.Value)
+	}
+}
+
+func TestResponseInterceptor_ConsumesBodyWithoutRestoring(t *testing.T) {
+	t.Parallel()
+
+	responseBody := `{"name":"response","value":999}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(responseBody))
+	}))
+	defer server.Close()
+
+	reqHook := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
+		// Restore request body so the server gets it.
+		if req.Body != nil {
+			body, _ := io.ReadAll(req.Body)
+			req.Body = io.NopCloser(bytes.NewReader(body))
+		}
+		return nil
+	})
+
+	resHook := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
+		// Consume body but DO NOT restore it — the framework should still protect
+		// downstream decoding.
+		_, _ = io.ReadAll(resp.Body)
+		return nil
+	})
+
+	sender := whttp.NewSender(
+		whttp.WithCoreClientRequestInterceptor[TestMessage](reqHook),
+		whttp.WithCoreClientResponseInterceptor[TestMessage](resHook),
+	)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodPost,
+		BaseURL: server.URL,
+		Message: &TestMessage{Name: "request", Value: 42},
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+	err := sender.Send(context.Background(), req, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	// Decoder still gets the full body because the framework restored it.
+	if result.Name != "response" || result.Value != 999 {
+		t.Errorf(
+			"expected decoder to receive full body despite interceptor not restoring, got Name=%s Value=%d",
+			result.Name,
+			result.Value,
+		)
+	}
+}
+
+func Example_interceptorBodyGotcha() {
+	// This example demonstrates safe body handling in interceptors.
+	//
+	// Both request and response interceptors are body-safe: the framework snapshots
+	// the body before the interceptor runs and restores it afterwards. You can read
+	// req.Body or resp.Body freely without breaking the downstream call or decoder.
+
+	echoHandler := func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(echoHandler))
+	defer server.Close()
+
+	// Read the request body freely — the framework restores it automatically.
+	reqInterceptor := func(_ context.Context, req *http.Request) error {
+		if req.Body == nil {
+			return nil
+		}
+		body, _ := io.ReadAll(req.Body)
+		fmt.Println("request body length:", len(body))
+		return nil
+	}
+
+	// Read the response body freely — the framework restores it automatically.
+	resInterceptor := func(_ context.Context, res *http.Response) error {
+		_, _ = io.ReadAll(res.Body)
+		fmt.Println("response status:", res.StatusCode)
+		return nil
+	}
+
+	sender := whttp.NewSender(
+		whttp.WithCoreClientRequestInterceptor[TestMessage](reqInterceptor),
+		whttp.WithCoreClientResponseInterceptor[TestMessage](resInterceptor),
+	)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodPost,
+		BaseURL: server.URL,
+		Message: &TestMessage{Name: "hello", Value: 1},
+	}
+
+	decoder := whttp.ResponseDecoderJSON(&TestMessage{}, whttp.DecodeOptions{})
+	_ = sender.Send(context.Background(), req, decoder)
+
+	// Output:
+	// request body length: 27
+	// response status: 200
 }
 
 func TestAnySenderFunc_Send(t *testing.T) {

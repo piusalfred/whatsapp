@@ -25,11 +25,21 @@ import (
 )
 
 type (
+	// RequestInterceptorFunc intercepts an outgoing HTTP request before it is sent.
+	//
+	// The framework snapshots the request body before calling the interceptor and
+	// restores the original body afterward, so reading req.Body does not affect the
+	// actual HTTP call.
 	RequestInterceptorFunc func(ctx context.Context, request *http.Request) error
 	RequestInterceptor     interface {
 		InterceptRequest(ctx context.Context, request *http.Request) error
 	}
 
+	// ResponseInterceptorFunc intercepts an HTTP response before it is decoded.
+	//
+	// The framework snapshots the response body before calling the interceptor and
+	// restores the original body afterward, so reading resp.Body does not affect
+	// downstream decoding.
 	ResponseInterceptorFunc func(ctx context.Context, response *http.Response) error
 	ResponseInterceptor     interface {
 		InterceptResponse(ctx context.Context, response *http.Response) error
