@@ -209,15 +209,12 @@ func (request *Request[T]) URL() (string, error) {
 		return request.DownloadURL, nil
 	}
 
-	fmtURL, err := url.JoinPath(request.BaseURL, request.Endpoints...)
-	if err != nil {
-		return "", fmt.Errorf("format url: %w", err)
-	}
-
-	parsedURL, err := url.Parse(fmtURL)
+	parsedURL, err := url.Parse(request.BaseURL)
 	if err != nil {
 		return "", fmt.Errorf("parse url: %w", err)
 	}
+
+	parsedURL = parsedURL.JoinPath(request.Endpoints...)
 
 	q := parsedURL.Query()
 

@@ -39,14 +39,27 @@ type EncodeResponse struct {
 	ContentType string
 }
 
+// PayloadEncoder allows custom types to provide their own encoding logic.
+// When a payload implements this interface, EncodePayload delegates to it
+// instead of using the built-in type switch.
+type PayloadEncoder interface {
+	EncodePayload() (*EncodeResponse, error)
+}
+
 // EncodePayload takes different types of payloads (form data, readers, JSON) and returns an EncodeResponse.
 func EncodePayload(payload any) (*EncodeResponse, error) {
-	switch p := payload.(type) {
-	case nil:
+	if payload == nil {
 		return &EncodeResponse{
 			Body:        nil,
 			ContentType: "application/json",
 		}, nil
+	}
+
+	if p, ok := payload.(PayloadEncoder); ok {
+		return p.EncodePayload()
+	}
+
+	switch p := payload.(type) {
 	case *RequestForm:
 		body, contentType, err := encodeFormData(p)
 		if err != nil {
