@@ -131,19 +131,23 @@ func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decode
 	return nil
 }
 
+// SendFuncWithInterceptors returns a SenderFunc that applies request and response
+// interceptors around the actual HTTP call.
+//
+// Both request and response bodies are snapshotted before the interceptor runs and
+// restored afterwards, so interceptors can read the body freely without affecting the
+// HTTP call or downstream decoding.
 func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptorFunc,
 	resHook ResponseInterceptorFunc,
 ) SenderFunc[T] {
-	fn := SenderFunc[T](func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
+	return SenderFunc[T](func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
 		req, err := RequestWithContext(ctx, request)
 		if err != nil {
 			return err
 		}
 
-		if reqHook != nil {
-			if errHook := reqHook(ctx, req); errHook != nil {
-				return errHook
-			}
+		if err = applyRequestInterceptor(ctx, req, reqHook); err != nil {
+			return err
 		}
 
 		response, err := client.Do(req) //nolint:bodyclose // body closed
@@ -155,16 +159,8 @@ func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterce
 			_ = Body.Close()
 		}(response.Body)
 
-		if resHook != nil {
-			bodyBytes, errRead := io.ReadAll(response.Body)
-			if errRead != nil && !errors.Is(errRead, io.EOF) {
-				return fmt.Errorf("read response body: %w", errRead)
-			}
-			response.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			if errHook := resHook.InterceptResponse(ctx, response); errHook != nil {
-				return errHook
-			}
-			response.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		if err = applyResponseInterceptor(ctx, response, resHook); err != nil {
+			return err
 		}
 
 		if err = decoder.Decode(ctx, response); err != nil {
@@ -173,8 +169,53 @@ func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterce
 
 		return nil
 	})
+}
 
-	return fn
+func applyRequestInterceptor(ctx context.Context, req *http.Request, hook RequestInterceptorFunc) error {
+	if hook == nil {
+		return nil
+	}
+
+	var reqBodyBytes []byte
+	if req.Body != nil {
+		var err error
+		reqBodyBytes, err = io.ReadAll(req.Body)
+		if err != nil {
+			return fmt.Errorf("read request body for interceptor: %w", err)
+		}
+		req.Body = io.NopCloser(bytes.NewReader(reqBodyBytes))
+	}
+
+	if err := hook(ctx, req); err != nil {
+		return err
+	}
+
+	if req.Body != nil {
+		req.Body = io.NopCloser(bytes.NewReader(reqBodyBytes))
+	}
+
+	return nil
+}
+
+func applyResponseInterceptor(ctx context.Context, resp *http.Response, hook ResponseInterceptorFunc) error {
+	if hook == nil {
+		return nil
+	}
+
+	bodyBytes, errRead := io.ReadAll(resp.Body)
+	if errRead != nil && !errors.Is(errRead, io.EOF) {
+		return fmt.Errorf("read response body: %w", errRead)
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+	if err := hook.InterceptResponse(ctx, resp); err != nil {
+		return err
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+	return nil
 }
 
 func (core *CoreClient[T]) Send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
