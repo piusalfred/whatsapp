@@ -156,10 +156,6 @@ linters:
             min-complexity: 20
 
         gocritic:
-            disabled-checks:
-                - commentedOutCode # noisy; commented-out code is legitimate during active development
-                - hugeParam # size threshold is context-dependent; use nolint when genuinely needed
-                - rangeValCopy # same as hugeParam; flag only when the copy is provably hot
             settings:
                 captLocal:
                     paramsOnly: false
@@ -223,7 +219,7 @@ linters:
             os-temp-dir: true
 
     exclusions:
-        warn-unused: true
+        warn-unused: false
         presets:
             - std-error-handling
             - common-false-positives

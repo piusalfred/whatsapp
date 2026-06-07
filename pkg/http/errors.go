@@ -50,6 +50,10 @@ const (
 	ErrRequestFailure      = httpError("request failed")
 	ErrDecodeResponseBody  = httpError("failed to decode response body")
 	ErrDecodeErrorResponse = httpError("failed to decode error response")
+	ErrBodyTooLarge        = httpError("body exceeds maximum allowed size")
+	ErrMultipleBodySources = httpError(
+		"multiple body sources provided: only one of Message, Form, or BodyReader is allowed",
+	)
 )
 
 type httpError string

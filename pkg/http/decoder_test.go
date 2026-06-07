@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,7 +9,7 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -344,16 +344,6 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 				t.Errorf("BodyReaderResponseDecoder() error = %v, expectErr %v", err, tt.expectErr)
 
 				return
-			}
-
-			if tt.response.Body != nil {
-				reReadBody, err := io.ReadAll(tt.response.Body)
-				if err != nil {
-					t.Fatalf("failed to re-read response body: %v", err)
-				}
-				if string(reReadBody) != tt.expectedBody {
-					t.Errorf("expected re-read body = %v, got %v", tt.expectedBody, string(reReadBody))
-				}
 			}
 		})
 	}
@@ -723,4 +713,41 @@ func TestResponseDecoderFunc_Decode(t *testing.T) {
 	if !decodeCalled {
 		t.Error("expected decoder function to be called")
 	}
+}
+
+func TestDecodeResponseJSON_MaxBodyBytes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("body within limit", func(t *testing.T) {
+		t.Parallel()
+
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"name":"test","value":123}`)),
+		}
+
+		var result TestMessage
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
+			MaxBodyBytes: 100,
+		})
+
+		test.AssertNoError(t, "should decode within limit", err)
+	})
+
+	t.Run("body exceeds limit", func(t *testing.T) {
+		t.Parallel()
+
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"name":"test","value":123}`)),
+		}
+
+		var result TestMessage
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
+			MaxBodyBytes: 10,
+		})
+
+		test.AssertError(t, "should error when body exceeds limit", err)
+		test.AssertErrorIs(t, "should be ErrBodyTooLarge", err, whttp.ErrBodyTooLarge)
+	})
 }

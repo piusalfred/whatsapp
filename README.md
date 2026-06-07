@@ -73,8 +73,9 @@ const recipient = "XXXXXXXXXXXXX" // Placeholder for recipient number
 func main() {
 	ctx := context.Background()
 
-	coreClient := whttp.NewSender[message.Message]()
-	coreClient.SetHTTPClient(http.DefaultClient)
+	coreClient := whttp.NewSender[message.Message](
+		whttp.WithCoreClientHTTPClient[message.Message](http.DefaultClient),
+	)
 
 	reader := config.ReaderFunc(func(ctx context.Context) (*config.Config, error) {
 		// TODO: Replace with your config reader implementation

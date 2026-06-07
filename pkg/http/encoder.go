@@ -25,11 +25,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/textproto"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 var ErrMissingFormFile = errors.New("missing form file")
@@ -69,77 +69,86 @@ func EncodePayload(payload any) (*EncodeResponse, error) {
 		}, nil
 	case string:
 		return &EncodeResponse{
-			Body:        strings.NewReader(p),
+			Body:        bytes.NewReader([]byte(p)),
 			ContentType: "text/plain",
 		}, nil
 	default:
-		buf := &bytes.Buffer{}
-		if err := json.NewEncoder(buf).Encode(p); err != nil {
+		data, err := json.Marshal(p)
+		if err != nil {
 			return nil, fmt.Errorf("failed to encode payload as JSON: %w", err)
 		}
 
 		return &EncodeResponse{
-			Body:        buf,
+			Body:        bytes.NewReader(data),
 			ContentType: "application/json",
 		}, nil
 	}
 }
 
-var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"") //nolint:gochecknoglobals // this is a global variable
-
-func escapeQuotes(s string) string {
-	return quoteEscaper.Replace(s)
-}
-
 // encodeFormData encodes form fields and file data into multipart/form-data.
+// It streams the data via io.Pipe to avoid buffering the entire file in memory.
 func encodeFormData(form *RequestForm) (io.Reader, string, error) {
-	var requestBody bytes.Buffer
-	multipartWriter := multipart.NewWriter(&requestBody)
-
-	for key, value := range form.Fields {
-		err := multipartWriter.WriteField(key, value)
-		if err != nil {
-			return nil, "", fmt.Errorf("error writing field '%s': %w", key, err)
-		}
-	}
-
 	if form.FormFile == nil {
 		return nil, "", ErrMissingFormFile
 	}
 
-	file, err := os.Open(form.FormFile.Path)
-	if err != nil {
+	// Eager validation: ensure file exists before streaming so common errors
+	// (e.g. file not found) are surfaced immediately.
+	if _, err := os.Stat(form.FormFile.Path); err != nil {
 		return nil, "", fmt.Errorf("error opening file '%s': %w", form.FormFile.Path, err)
 	}
-	defer file.Close()
 
-	h := make(textproto.MIMEHeader)
-	actualFileName := filepath.Base(form.FormFile.Path)
+	pr, pw := io.Pipe()
+	multipartWriter := multipart.NewWriter(pw)
 
-	h.Set("Content-Disposition",
-		fmt.Sprintf(`form-data; name="%s"; filename="%s"`,
-			escapeQuotes(form.FormFile.Name), escapeQuotes(actualFileName)))
+	go func() {
+		defer pw.Close()
 
-	if form.FormFile.Type != "" {
-		h.Set("Content-Type", form.FormFile.Type)
-	} else {
-		h.Set("Content-Type", "application/octet-stream")
-	}
+		for key, value := range form.Fields {
+			if err := multipartWriter.WriteField(key, value); err != nil {
+				pw.CloseWithError(fmt.Errorf("error writing field '%s': %w", key, err))
+				return
+			}
+		}
 
-	partWriter, err := multipartWriter.CreatePart(h)
-	if err != nil {
-		return nil, "", fmt.Errorf("error creating form file part for field '%s': %w", form.FormFile.Name, err)
-	}
+		file, err := os.Open(form.FormFile.Path)
+		if err != nil {
+			pw.CloseWithError(fmt.Errorf("error opening file '%s': %w", form.FormFile.Path, err))
+			return
+		}
+		defer file.Close()
 
-	_, err = io.Copy(partWriter, file)
-	if err != nil {
-		return nil, "", fmt.Errorf("error copying file content for field '%s': %w", form.FormFile.Name, err)
-	}
+		actualFileName := filepath.Base(form.FormFile.Path)
+		contentType := form.FormFile.Type
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
 
-	err = multipartWriter.Close()
-	if err != nil {
-		return nil, "", fmt.Errorf("error closing multipart writer: %w", err)
-	}
+		h := make(textproto.MIMEHeader)
+		disp := mime.FormatMediaType("form-data", map[string]string{
+			"name":     form.FormFile.Name,
+			"filename": actualFileName,
+		})
+		h.Set("Content-Disposition", disp)
+		h.Set("Content-Type", contentType)
 
-	return &requestBody, multipartWriter.FormDataContentType(), nil
+		partWriter, err := multipartWriter.CreatePart(h)
+		if err != nil {
+			pw.CloseWithError(fmt.Errorf("error creating form file part for field '%s': %w", form.FormFile.Name, err))
+			return
+		}
+
+		_, err = io.Copy(partWriter, file)
+		if err != nil {
+			pw.CloseWithError(fmt.Errorf("error copying file content for field '%s': %w", form.FormFile.Name, err))
+			return
+		}
+
+		if closeErr := multipartWriter.Close(); closeErr != nil {
+			pw.CloseWithError(fmt.Errorf("error closing multipart writer: %w", closeErr))
+			return
+		}
+	}()
+
+	return pr, multipartWriter.FormDataContentType(), nil
 }
