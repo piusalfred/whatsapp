@@ -18,8 +18,11 @@
 package http_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"mime"
+	"mime/multipart"
 	"os"
 	"path/filepath"
 	"strings"
@@ -364,4 +367,197 @@ func TestEncodeFormData_WithTempFile(t *testing.T) {
 			t.Error("expected image/png content type in form body")
 		}
 	})
+}
+
+func TestEncodeFormData_MultipartStructure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("parseable multipart body", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		tmpFile := filepath.Join(tmpDir, "data.txt")
+
+		err := os.WriteFile(tmpFile, []byte("hello world"), 0o644)
+		test.AssertNoError(t, "write temp file", err)
+
+		form := &whttp.RequestForm{
+			Fields: map[string]string{
+				"caption": "my upload",
+				"meta":    "123",
+			},
+			FormFile: &whttp.FormFile{
+				Name: "media",
+				Path: tmpFile,
+				Type: "text/plain",
+			},
+		}
+
+		encoded, err := whttp.EncodePayload(form)
+		test.AssertNoError(t, "EncodePayload", err)
+
+		body, err := io.ReadAll(encoded.Body)
+		test.AssertNoError(t, "read body", err)
+
+		// Extract boundary from Content-Type header.
+		contentType := encoded.ContentType
+		if !strings.HasPrefix(contentType, "multipart/form-data") {
+			t.Fatalf("expected multipart/form-data, got %s", contentType)
+		}
+
+		_, params, err := mime.ParseMediaType(contentType)
+		test.AssertNoError(t, "parse media type", err)
+
+		boundary, ok := params["boundary"]
+		if !ok || boundary == "" {
+			t.Fatal("expected boundary in content type")
+		}
+
+		reader := multipart.NewReader(bytes.NewReader(body), boundary)
+
+		foundFields := make(map[string]string)
+		var fileData []byte
+
+		for {
+			part, err := reader.NextPart()
+			if err == io.EOF {
+				break
+			}
+			test.AssertNoError(t, "next part", err)
+
+			data, err := io.ReadAll(part)
+			test.AssertNoError(t, "read part", err)
+
+			if part.FileName() != "" {
+				fileData = data
+				continue
+			}
+
+			name := part.FormName()
+			foundFields[name] = string(data)
+		}
+
+		if len(foundFields) != 2 {
+			t.Errorf("expected 2 form fields, got %d", len(foundFields))
+		}
+		if foundFields["caption"] != "my upload" {
+			t.Errorf("expected caption='my upload', got %q", foundFields["caption"])
+		}
+		if foundFields["meta"] != "123" {
+			t.Errorf("expected meta='123', got %q", foundFields["meta"])
+		}
+
+		if fileData == nil {
+			t.Fatal("expected file part in multipart body")
+		}
+		if string(fileData) != "hello world" {
+			t.Errorf("expected file content 'hello world', got %q", string(fileData))
+		}
+	})
+}
+
+func TestEncodeFormData_EmptyFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "empty.bin")
+
+	err := os.WriteFile(tmpFile, []byte{}, 0o644)
+	test.AssertNoError(t, "write empty file", err)
+
+	form := &whttp.RequestForm{
+		Fields: map[string]string{"note": "empty"},
+		FormFile: &whttp.FormFile{
+			Name: "file",
+			Path: tmpFile,
+			Type: "application/octet-stream",
+		},
+	}
+
+	encoded, err := whttp.EncodePayload(form)
+	test.AssertNoError(t, "EncodePayload", err)
+
+	body, err := io.ReadAll(encoded.Body)
+	test.AssertNoError(t, "read body", err)
+
+	if !strings.Contains(string(body), "note") || !strings.Contains(string(body), "empty") {
+		t.Error("expected form field in body")
+	}
+}
+
+func TestEncodeFormData_SpecialFilename(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "file with spaces & symbols.txt")
+
+	err := os.WriteFile(tmpFile, []byte("special"), 0o644)
+	test.AssertNoError(t, "write temp file", err)
+
+	form := &whttp.RequestForm{
+		Fields: map[string]string{},
+		FormFile: &whttp.FormFile{
+			Name: "upload",
+			Path: tmpFile,
+			Type: "text/plain",
+		},
+	}
+
+	encoded, err := whttp.EncodePayload(form)
+	test.AssertNoError(t, "EncodePayload", err)
+
+	body, err := io.ReadAll(encoded.Body)
+	test.AssertNoError(t, "read body", err)
+
+	// The filename should appear in the Content-Disposition header.
+	if !strings.Contains(string(body), `filename="file with spaces & symbols.txt"`) {
+		t.Error("expected quoted filename in multipart body")
+	}
+}
+
+func TestEncodePayload_PayloadEncoder(t *testing.T) {
+	t.Parallel()
+
+	custom := &customEncoder{
+		data:        []byte("custom-encoded"),
+		contentType: "application/x-custom",
+	}
+
+	resp, err := whttp.EncodePayload(custom)
+	test.AssertNoError(t, "EncodePayload", err)
+
+	if resp.ContentType != "application/x-custom" {
+		t.Errorf("expected content type application/x-custom, got %s", resp.ContentType)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	test.AssertNoError(t, "read body", err)
+
+	if string(data) != "custom-encoded" {
+		t.Errorf("expected body 'custom-encoded', got %q", string(data))
+	}
+}
+
+func TestEncodePayload_PayloadEncoderError(t *testing.T) {
+	t.Parallel()
+
+	custom := &customEncoder{err: os.ErrNotExist}
+	_, err := whttp.EncodePayload(custom)
+	test.AssertError(t, "EncodePayload should return error", err)
+}
+
+type customEncoder struct {
+	data        []byte
+	contentType string
+	err         error
+}
+
+func (c *customEncoder) EncodePayload() (*whttp.EncodeResponse, error) {
+	if c.err != nil {
+		return nil, c.err
+	}
+	return &whttp.EncodeResponse{
+		Body:        bytes.NewReader(c.data),
+		ContentType: c.contentType,
+	}, nil
 }

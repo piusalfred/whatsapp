@@ -115,21 +115,30 @@ func encodeFormData(form *RequestForm) (io.Reader, string, error) {
 	multipartWriter := multipart.NewWriter(pw)
 
 	go func() {
-		defer pw.Close()
+		var writeErr error
+
+		defer func() {
+			if r := recover(); r != nil {
+				pw.CloseWithError(fmt.Errorf("panic encoding form data: %v", r))
+			} else if writeErr != nil {
+				pw.CloseWithError(writeErr)
+			} else {
+				pw.Close()
+			}
+		}()
 
 		for key, value := range form.Fields {
 			if err := multipartWriter.WriteField(key, value); err != nil {
-				pw.CloseWithError(fmt.Errorf("error writing field '%s': %w", key, err))
+				writeErr = fmt.Errorf("error writing field %q: %w", key, err)
 				return
 			}
 		}
 
 		file, err := os.Open(form.FormFile.Path)
 		if err != nil {
-			pw.CloseWithError(fmt.Errorf("error opening file '%s': %w", form.FormFile.Path, err))
+			writeErr = fmt.Errorf("error opening file %q: %w", form.FormFile.Path, err)
 			return
 		}
-		defer file.Close()
 
 		actualFileName := filepath.Base(form.FormFile.Path)
 		contentType := form.FormFile.Type
@@ -147,18 +156,25 @@ func encodeFormData(form *RequestForm) (io.Reader, string, error) {
 
 		partWriter, err := multipartWriter.CreatePart(h)
 		if err != nil {
-			pw.CloseWithError(fmt.Errorf("error creating form file part for field '%s': %w", form.FormFile.Name, err))
+			_ = file.Close()
+			writeErr = fmt.Errorf("error creating form file part for field %q: %w", form.FormFile.Name, err)
 			return
 		}
 
 		_, err = io.Copy(partWriter, file)
 		if err != nil {
-			pw.CloseWithError(fmt.Errorf("error copying file content for field '%s': %w", form.FormFile.Name, err))
+			_ = file.Close()
+			writeErr = fmt.Errorf("error copying file content for field %q: %w", form.FormFile.Name, err)
 			return
 		}
 
-		if closeErr := multipartWriter.Close(); closeErr != nil {
-			pw.CloseWithError(fmt.Errorf("error closing multipart writer: %w", closeErr))
+		if err := file.Close(); err != nil {
+			writeErr = fmt.Errorf("error closing file %q: %w", form.FormFile.Path, err)
+			return
+		}
+
+		if err := multipartWriter.Close(); err != nil {
+			writeErr = fmt.Errorf("error closing multipart writer: %w", err)
 			return
 		}
 	}()
