@@ -20,6 +20,7 @@ package http_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -420,7 +421,7 @@ func TestEncodeFormData_MultipartStructure(t *testing.T) {
 
 		for {
 			part, err := reader.NextPart()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			test.AssertNoError(t, "next part", err)

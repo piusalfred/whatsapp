@@ -56,7 +56,12 @@ func EncodePayload(payload any) (*EncodeResponse, error) {
 	}
 
 	if p, ok := payload.(PayloadEncoder); ok {
-		return p.EncodePayload()
+		resp, err := p.EncodePayload()
+		if err != nil {
+			return nil, fmt.Errorf("encode payload: encoder: %T: error: %w", p, err)
+		}
+
+		return resp, nil
 	}
 
 	switch p := payload.(type) {
@@ -98,17 +103,24 @@ func EncodePayload(payload any) (*EncodeResponse, error) {
 	}
 }
 
-// encodeFormData encodes form fields and file data into multipart/form-data.
-// It streams the data via io.Pipe to avoid buffering the entire file in memory.
-func encodeFormData(form *RequestForm) (io.Reader, string, error) {
-	if form.FormFile == nil {
+var errPanicMessage = errors.New("panic")
+
+// encodeFormData packages the provided form fields and file into a multipart/form-data stream.
+// It uses an io.Pipe to stream data concurrently, avoiding loading the entire file into memory.
+//
+// Validation for file existence happens eagerly before returning. Any errors encountered
+// mid-stream (e.g., disk I/O or network failures) are propagated asynchronously to the
+// consumer via the returned io.Reader's Read method.
+func encodeFormData( //nolint:gocognit // complexity is OK
+	form *RequestForm,
+) (io.Reader, string, error) {
+	if form == nil || form.FormFile == nil {
 		return nil, "", ErrMissingFormFile
 	}
 
-	// Eager validation: ensure file exists before streaming so common errors
-	// (e.g. file not found) are surfaced immediately.
+	// Eagerly validate that the target file exists before initializing the pipeline.
 	if _, err := os.Stat(form.FormFile.Path); err != nil {
-		return nil, "", fmt.Errorf("error opening file '%s': %w", form.FormFile.Path, err)
+		return nil, "", fmt.Errorf("error opening file %q: %w", form.FormFile.Path, err)
 	}
 
 	pr, pw := io.Pipe()
@@ -117,16 +129,20 @@ func encodeFormData(form *RequestForm) (io.Reader, string, error) {
 	go func() {
 		var writeErr error
 
+		// Ensures the pipe is always closed and captures panics or streaming errors,
+		// routing them directly to the reader side of the pipe.
 		defer func() {
 			if r := recover(); r != nil {
-				pw.CloseWithError(fmt.Errorf("panic encoding form data: %v", r))
+				pw.CloseWithError(fmt.Errorf("%w: encoding form data: %v", errPanicMessage, r))
 			} else if writeErr != nil {
 				pw.CloseWithError(writeErr)
 			} else {
-				pw.Close()
+				_ = multipartWriter.Close()
+				_ = pw.Close()
 			}
 		}()
 
+		// Write standard key/value metadata fields.
 		for key, value := range form.Fields {
 			if err := multipartWriter.WriteField(key, value); err != nil {
 				writeErr = fmt.Errorf("error writing field %q: %w", key, err)
@@ -139,6 +155,7 @@ func encodeFormData(form *RequestForm) (io.Reader, string, error) {
 			writeErr = fmt.Errorf("error opening file %q: %w", form.FormFile.Path, err)
 			return
 		}
+		defer file.Close()
 
 		actualFileName := filepath.Base(form.FormFile.Path)
 		contentType := form.FormFile.Type
@@ -156,25 +173,13 @@ func encodeFormData(form *RequestForm) (io.Reader, string, error) {
 
 		partWriter, err := multipartWriter.CreatePart(h)
 		if err != nil {
-			_ = file.Close()
 			writeErr = fmt.Errorf("error creating form file part for field %q: %w", form.FormFile.Name, err)
 			return
 		}
 
-		_, err = io.Copy(partWriter, file)
-		if err != nil {
-			_ = file.Close()
+		// Stream the file payload into the multipart part writer.
+		if _, err = io.Copy(partWriter, file); err != nil {
 			writeErr = fmt.Errorf("error copying file content for field %q: %w", form.FormFile.Name, err)
-			return
-		}
-
-		if err := file.Close(); err != nil {
-			writeErr = fmt.Errorf("error closing file %q: %w", form.FormFile.Path, err)
-			return
-		}
-
-		if err := multipartWriter.Close(); err != nil {
-			writeErr = fmt.Errorf("error closing multipart writer: %w", err)
 			return
 		}
 	}()
