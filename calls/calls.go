@@ -139,10 +139,6 @@ type (
 		SDPType string `json:"sdp_type"` // "offer" or "answer"
 		SDP     string `json:"sdp"`
 	}
-
-	BaseClient struct {
-		Sender whttp.Sender[BaseRequest]
-	}
 )
 
 var ErrUnknownRequestType = errors.New("unknown request type")
@@ -226,6 +222,14 @@ func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, err
 	return response, nil
 }
 
+type BaseClient struct {
+	sender whttp.Sender[BaseRequest]
+}
+
+func NewBaseClient(sender whttp.Sender[BaseRequest]) *BaseClient {
+	return &BaseClient{sender: sender}
+}
+
 func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*BaseResponse, error) {
 	var (
 		method      string
@@ -274,7 +278,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 		InspectResponseError: true,
 	})
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	return resp, nil
