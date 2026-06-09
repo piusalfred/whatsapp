@@ -33,8 +33,8 @@
 //	}
 //
 //	client := calls.NewClient(conf,
-//	    calls.WithTimeout(30*time.Second),
-//	    calls.WithMaxBodyBytes(10<<20),
+//	    calls.WithSenderTimeout(30*time.Second),
+//	    calls.WithSenderMaxBodyBytes(10<<20),
 //	)
 //
 // # Checking Permissions
@@ -74,12 +74,12 @@
 //
 // [SenderOption] functions customize the underlying HTTP behavior:
 //
-//	calls.WithHTTPClient(customHTTPClient)
-//	calls.WithRequestInterceptor(myRequestHook)
-//	calls.WithResponseInterceptor(myResponseHook)
-//	calls.WithTimeout(30 * time.Second)
-//	calls.WithMaxBodyBytes(10 << 20)
-//	calls.WithMaxHeaderBytes(1 << 20)
+//	calls.WithSenderHTTPClient(customHTTPClient)
+//	calls.WithSenderRequestInterceptor(myRequestHook)
+//	calls.WithSenderResponseInterceptor(myResponseHook)
+//	calls.WithSenderTimeout(30 * time.Second)
+//	calls.WithSenderMaxBodyBytes(10 << 20)
+//	calls.WithSenderMaxHeaderBytes(1 << 20)
 //
 // # Testing
 //
@@ -340,8 +340,8 @@ func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, err
 // Example:
 //
 //	client := calls.NewClient(conf,
-//	    calls.WithTimeout(30*time.Second),
-//	    calls.WithMaxBodyBytes(10<<20),
+//	    calls.WithSenderTimeout(30*time.Second),
+//	    calls.WithSenderMaxBodyBytes(10<<20),
 //	)
 func NewClient(conf *config.Config, options ...SenderOption) *Client {
 	return &Client{
@@ -364,9 +364,9 @@ type senderOptions struct {
 // SenderOption configures the underlying [BaseClient] HTTP transport.
 type SenderOption func(*senderOptions)
 
-// WithHTTPClient replaces the default [http.Client] used by the sender.
+// WithSenderHTTPClient replaces the default [http.Client] used by the sender.
 // A nil client is ignored.
-func WithHTTPClient(hc *http.Client) SenderOption {
+func WithSenderHTTPClient(hc *http.Client) SenderOption {
 	return func(so *senderOptions) {
 		if hc != nil {
 			so.opts = append(so.opts, whttp.WithCoreClientHTTPClient[BaseRequest](hc))
@@ -374,9 +374,9 @@ func WithHTTPClient(hc *http.Client) SenderOption {
 	}
 }
 
-// WithRequestInterceptor registers a hook that inspects or mutates every
+// WithSenderRequestInterceptor registers a hook that inspects or mutates every
 // outgoing [http.Request] before it is transmitted. A nil hook is ignored.
-func WithRequestInterceptor(hook whttp.RequestInterceptorFunc) SenderOption {
+func WithSenderRequestInterceptor(hook whttp.RequestInterceptorFunc) SenderOption {
 	return func(so *senderOptions) {
 		if hook != nil {
 			so.opts = append(so.opts, whttp.WithCoreClientRequestInterceptor[BaseRequest](hook))
@@ -384,9 +384,9 @@ func WithRequestInterceptor(hook whttp.RequestInterceptorFunc) SenderOption {
 	}
 }
 
-// WithResponseInterceptor registers a hook that inspects or mutates every
+// WithSenderResponseInterceptor registers a hook that inspects or mutates every
 // incoming [http.Response] before it is decoded. A nil hook is ignored.
-func WithResponseInterceptor(hook whttp.ResponseInterceptorFunc) SenderOption {
+func WithSenderResponseInterceptor(hook whttp.ResponseInterceptorFunc) SenderOption {
 	return func(so *senderOptions) {
 		if hook != nil {
 			so.opts = append(so.opts, whttp.WithCoreClientResponseInterceptor[BaseRequest](hook))
@@ -394,9 +394,9 @@ func WithResponseInterceptor(hook whttp.ResponseInterceptorFunc) SenderOption {
 	}
 }
 
-// WithMaxBodyBytes sets the maximum allowable body size for request/response
+// WithSenderMaxBodyBytes sets the maximum allowable body size for request/response
 // interceptors. Values less than or equal to zero are ignored.
-func WithMaxBodyBytes(n int64) SenderOption {
+func WithSenderMaxBodyBytes(n int64) SenderOption {
 	return func(so *senderOptions) {
 		if n > 0 {
 			so.opts = append(so.opts, whttp.WithCoreClientMaxBodyBytes[BaseRequest](n))
@@ -404,9 +404,9 @@ func WithMaxBodyBytes(n int64) SenderOption {
 	}
 }
 
-// WithMaxHeaderBytes sets the maximum response header size. Values less than or
+// WithSenderMaxHeaderBytes sets the maximum response header size. Values less than or
 // equal to zero are ignored.
-func WithMaxHeaderBytes(n int64) SenderOption {
+func WithSenderMaxHeaderBytes(n int64) SenderOption {
 	return func(so *senderOptions) {
 		if n > 0 {
 			so.opts = append(so.opts, whttp.WithCoreClientMaxHeaderBytes[BaseRequest](n))
@@ -414,9 +414,9 @@ func WithMaxHeaderBytes(n int64) SenderOption {
 	}
 }
 
-// WithTimeout sets the HTTP client timeout. Values less than or equal to zero
+// WithSenderTimeout sets the HTTP client timeout. Values less than or equal to zero
 // are ignored.
-func WithTimeout(timeout time.Duration) SenderOption {
+func WithSenderTimeout(timeout time.Duration) SenderOption {
 	return func(so *senderOptions) {
 		if timeout > 0 {
 			so.opts = append(so.opts, whttp.WithCoreClientHTTPTimeout[BaseRequest](timeout))
