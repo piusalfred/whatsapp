@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/piusalfred/whatsapp/config"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
@@ -46,10 +47,10 @@ const (
 
 type (
 	// Client orchestrates high-level calls API operations by resolving dynamic
-	// configuration credentials per request via the ConfigReader.
+	// configuration credentials per request via the config.
 	Client struct {
-		Sender       *BaseClient
-		ConfigReader config.Reader
+		sender *BaseClient
+		config *config.Config
 	}
 
 	CheckPermissionRequest struct {
@@ -210,24 +211,103 @@ func (c *Client) CheckPermission(
 }
 
 func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
-	conf, err := c.ConfigReader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
-	}
-
-	response, err := c.Sender.Send(ctx, conf, request)
+	response, err := c.sender.Send(ctx, c.config, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	return response, nil
 }
 
+func NewClient(conf *config.Config, options ...SenderOption) *Client {
+	return &Client{
+		sender: NewBaseClient(options...),
+		config: conf,
+	}
+}
+
+// SetBaseClient ...
+func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
+	c.sender.SetRequestSender(sender)
+}
+
+type senderOptions struct {
+	opts []whttp.CoreClientOption[BaseRequest]
+}
+
+type SenderOption func(*senderOptions)
+
+func WithHTTPClient(hc *http.Client) SenderOption {
+	return func(so *senderOptions) {
+		if hc != nil {
+			so.opts = append(so.opts, whttp.WithCoreClientHTTPClient[BaseRequest](hc))
+		}
+	}
+}
+
+func WithRequestInterceptor(hook whttp.RequestInterceptorFunc) SenderOption {
+	return func(so *senderOptions) {
+		if hook != nil {
+			so.opts = append(so.opts, whttp.WithCoreClientRequestInterceptor[BaseRequest](hook))
+		}
+	}
+}
+
+func WithResponseInterceptor(hook whttp.ResponseInterceptorFunc) SenderOption {
+	return func(so *senderOptions) {
+		if hook != nil {
+			so.opts = append(so.opts, whttp.WithCoreClientResponseInterceptor[BaseRequest](hook))
+		}
+	}
+}
+
+func WithMaxBodyBytes(n int64) SenderOption {
+	return func(so *senderOptions) {
+		if n > 0 {
+			so.opts = append(so.opts, whttp.WithCoreClientMaxBodyBytes[BaseRequest](n))
+		}
+	}
+}
+
+func WithMaxHeaderBytes(n int64) SenderOption {
+	return func(so *senderOptions) {
+		if n > 0 {
+			so.opts = append(so.opts, whttp.WithCoreClientMaxHeaderBytes[BaseRequest](n))
+		}
+	}
+}
+
+func WithTimeout(timeout time.Duration) SenderOption {
+	return func(so *senderOptions) {
+		if timeout > 0 {
+			so.opts = append(so.opts, whttp.WithCoreClientHTTPTimeout[BaseRequest](timeout))
+		}
+	}
+}
+
 type BaseClient struct {
 	sender whttp.Sender[BaseRequest]
 }
 
-func NewBaseClient(sender whttp.Sender[BaseRequest]) *BaseClient {
-	return &BaseClient{sender: sender}
+func NewBaseClient(options ...SenderOption) *BaseClient {
+	senderOpts := &senderOptions{
+		opts: make([]whttp.CoreClientOption[BaseRequest], 0),
+	}
+
+	for _, option := range options {
+		option(senderOpts)
+	}
+
+	cc := whttp.NewCoreClient[BaseRequest](senderOpts.opts...)
+
+	return &BaseClient{sender: cc}
+}
+
+// SetRequestSender this setter ignores everything that has been configured via NewBaseClient and set
+// a base sender. This is useful when you want to use your own custom sender implementation and
+// bypass all the default configurations. Forex ample during testing, you might want to mock the sender
+// and bypass all the default http client configurations.
+func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
+	bc.sender = sender
 }
 
 func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*BaseResponse, error) {

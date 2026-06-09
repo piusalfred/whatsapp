@@ -442,9 +442,8 @@ func TestCoreClientWithSenderOption(t *testing.T) {
 		},
 	)
 
-	client := whttp.NewSender[TestMessage](
-		whttp.WithCoreClientSender[TestMessage](baseSender),
-	)
+	client := whttp.NewSender[TestMessage]()
+	client.SetRequestSender(baseSender)
 
 	req := &whttp.Request[TestMessage]{
 		Method:  http.MethodGet,

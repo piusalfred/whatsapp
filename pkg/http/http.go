@@ -43,6 +43,7 @@ type (
 		sender         Sender[T]
 		maxBodyBytes   int64
 		maxHeaderBytes int64
+		timeout        time.Duration
 	}
 
 	CoreClientOption[T any] interface {
@@ -100,6 +101,17 @@ func WithCoreClientMaxHeaderBytes[T any](n int64) CoreClientOption[T] {
 	})
 }
 
+func WithCoreClientHTTPTimeout[T any](timeout time.Duration) CoreClientOption[T] {
+	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
+		if timeout > 0 {
+			if client.http != nil {
+				client.timeout = timeout
+				client.http.Timeout = timeout
+			}
+		}
+	})
+}
+
 func WithCoreClientSender[T any](sender Sender[T]) CoreClientOption[T] {
 	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
 		if sender != nil {
@@ -108,7 +120,40 @@ func WithCoreClientSender[T any](sender Sender[T]) CoreClientOption[T] {
 	})
 }
 
+// SetRequestSender ....
+func (core *CoreClient[T]) SetRequestSender(sender Sender[T]) {
+	if sender != nil {
+		core.sender = sender
+	}
+}
+
+// NewSender creates a CoreClient[T] with the provided options and returns it. CoreClient[T]
+// can act as a Sender[T] for sending HTTP requests with type T message structure
+// Deprecated: use NewCoreClient instead for better clarity and consistency with the builder pattern.
 func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
+	core := &CoreClient[T]{
+		http: &http.Client{
+			Timeout: DefaultHTTPClientTimeout,
+			Transport: &http.Transport{
+				MaxResponseHeaderBytes: DefaultMaxHeaderBytes,
+			},
+		},
+		maxBodyBytes:   DefaultMaxBodyBytes,
+		maxHeaderBytes: DefaultMaxHeaderBytes,
+	}
+
+	core.sender = SenderFunc[T](core.send)
+
+	for _, option := range options {
+		if option != nil {
+			option.apply(core)
+		}
+	}
+
+	return core
+}
+
+func NewCoreClient[T any](options ...CoreClientOption[T]) *CoreClient[T] {
 	core := &CoreClient[T]{
 		http: &http.Client{
 			Timeout: DefaultHTTPClientTimeout,
