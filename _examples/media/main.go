@@ -57,7 +57,7 @@ func NewMediaService(configFilePath string) *MediaService {
 	ms := &MediaService{
 		logger: slog.New(lh),
 		client: media.NewClient(conf,
-			media.WithSenderHTTPClient(examples.HTTPClient()),
+			whttp.WithSenderHTTPClient(examples.HTTPClient()),
 		),
 	}
 

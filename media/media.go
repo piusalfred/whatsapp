@@ -34,8 +34,8 @@
 //	}
 //
 //	client := media.NewClient(conf,
-//	    media.WithSenderHTTPClient(http.DefaultClient),
-//	    media.WithSenderTimeout(30*time.Second),
+//	    whttp.WithSenderHTTPClient(http.DefaultClient),
+//	    whttp.WithSenderTimeout(30*time.Second),
 //	)
 //
 // # Uploading Media
@@ -73,14 +73,14 @@
 //
 // # Configuration Options
 //
-// [SenderOption] functions customize the underlying HTTP transport:
+// [whttp.CoreSenderOption] functions customize the underlying HTTP transport:
 //
-//	media.WithSenderHTTPClient(customHTTPClient)
-//	media.WithSenderRequestInterceptor(myRequestHook)
-//	media.WithSenderResponseInterceptor(myResponseHook)
-//	media.WithSenderTimeout(30 * time.Second)
-//	media.WithSenderMaxBodyBytes(10 << 20)
-//	media.WithSenderMaxHeaderBytes(1 << 20)
+//	whttp.WithSenderHTTPClient(customHTTPClient)
+//	whttp.WithSenderRequestInterceptor(myRequestHook)
+//	whttp.WithSenderResponseInterceptor(myResponseHook)
+//	whttp.WithSenderTimeout(30 * time.Second)
+//	whttp.WithSenderMaxBodyBytes(10 << 20)
+//	whttp.WithSenderMaxHeaderBytes(1 << 20)
 //
 // # Testing
 //
@@ -95,7 +95,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"time"
 
 	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
@@ -391,7 +390,7 @@ type (
 
 // NewClient creates a high-level [Client] with a fixed configuration.
 // Optional [SenderOption] functions tune the underlying HTTP transport.
-func NewClient(conf *config.Config, options ...SenderOption) *Client {
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
 		sender: NewBaseClient(options...),
 		config: conf,
@@ -435,49 +434,8 @@ func (c *Client) DownloadByMediaID(
 	return c.sender.DownloadByMediaID(ctx, c.config, request, decoder, options...)
 }
 
-// SenderOption configures the underlying [BaseClient] HTTP transport.
-type SenderOption = whttp.CoreSenderOption
-
-// WithSenderHTTPClient replaces the default [http.Client] used by the sender.
-// A nil client is ignored.
-func WithSenderHTTPClient(hc *http.Client) SenderOption {
-	return whttp.WithSenderHTTPClient(hc)
-}
-
-// WithSenderRequestInterceptor registers a hook that inspects or mutates every
-// outgoing [http.Request] before it is transmitted. A nil hook is ignored.
-func WithSenderRequestInterceptor(hook whttp.RequestInterceptorFunc) SenderOption {
-	return whttp.WithSenderRequestInterceptor(hook)
-}
-
-// WithSenderResponseInterceptor registers a hook that inspects or mutates every
-// incoming [http.Response] before it is decoded. A nil hook is ignored.
-func WithSenderResponseInterceptor(hook whttp.ResponseInterceptorFunc) SenderOption {
-	return whttp.WithSenderResponseInterceptor(hook)
-}
-
-// WithSenderMaxBodyBytes sets the maximum allowable body size for request/response
-// interceptors. Values less than or equal to zero are ignored.
-func WithSenderMaxBodyBytes(n int64) SenderOption {
-	return whttp.WithSenderMaxBodyBytes(n)
-}
-
-// WithSenderMaxHeaderBytes sets the maximum response header size. Values less than or
-// equal to zero are ignored.
-func WithSenderMaxHeaderBytes(n int64) SenderOption {
-	return whttp.WithSenderMaxHeaderBytes(n)
-}
-
-// WithSenderTimeout sets the HTTP client timeout. Values less than or equal to zero
-// are ignored.
-func WithSenderTimeout(timeout time.Duration) SenderOption {
-	return whttp.WithSenderTimeout(timeout)
-}
-
-// NewBaseClient creates a low-level [BaseClient] with optional [SenderOption]
-// tuning. By default it builds a [whttp.CoreClient] with sensible defaults
-// (30-second timeout, 10 MB body limit, 1 MB header limit).
-func NewBaseClient(options ...SenderOption) *BaseClient {
+// NewBaseClient creates a low-level [BaseClient] with optional [whttp.CoreSenderOption].
+func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
 	return &BaseClient{sender: whttp.NewCoreClient[any](options...)}
 }
 

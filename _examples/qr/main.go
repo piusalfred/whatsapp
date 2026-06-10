@@ -29,6 +29,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/piusalfred/whatsapp/config"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/qrcode"
 )
 
@@ -57,12 +58,12 @@ func main() {
 	}
 
 	client := qrcode.NewClient(conf,
-		qrcode.WithSenderHTTPClient(http.DefaultClient),
-		qrcode.WithSenderRequestInterceptor(func(ctx context.Context, req *http.Request) error {
+		whttp.WithSenderHTTPClient(http.DefaultClient),
+		whttp.WithSenderRequestInterceptor(func(ctx context.Context, req *http.Request) error {
 			logger.Info("Request Intercepted", slog.String("url", req.URL.String()))
 			return nil
 		}),
-		qrcode.WithSenderResponseInterceptor(func(ctx context.Context, resp *http.Response) error {
+		whttp.WithSenderResponseInterceptor(func(ctx context.Context, resp *http.Response) error {
 			logger.Info("Response Intercepted", slog.Int("status", resp.StatusCode))
 			return nil
 		}),

@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/piusalfred/whatsapp/config"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
@@ -249,7 +248,7 @@ func NewBlockBaseRequest(action BlockAction, options ...BlockBaseRequestOption) 
 
 // NewBlockClient creates a high-level [BlockClient] with a fixed configuration.
 // Optional [SenderOption] functions tune the underlying HTTP transport.
-func NewBlockClient(config *config.Config, options ...SenderOption) *BlockClient {
+func NewBlockClient(config *config.Config, options ...whttp.CoreSenderOption) *BlockClient {
 	return &BlockClient{config: config, sender: NewBlockBaseClient(options...)}
 }
 
@@ -260,45 +259,6 @@ func (client *BlockClient) SetBaseClient(sender whttp.Sender[BlockBaseRequest]) 
 	client.sender.SetRequestSender(sender)
 }
 
-// SenderOption configures the underlying [BlockBaseClient] HTTP transport.
-type SenderOption = whttp.CoreSenderOption
-
-// WithSenderHTTPClient replaces the default [http.Client] used by the sender.
-// A nil client is ignored.
-func WithSenderHTTPClient(hc *http.Client) SenderOption {
-	return whttp.WithSenderHTTPClient(hc)
-}
-
-// WithSenderRequestInterceptor registers a hook that inspects or mutates every
-// outgoing [http.Request] before it is transmitted. A nil hook is ignored.
-func WithSenderRequestInterceptor(hook whttp.RequestInterceptorFunc) SenderOption {
-	return whttp.WithSenderRequestInterceptor(hook)
-}
-
-// WithSenderResponseInterceptor registers a hook that inspects or mutates every
-// incoming [http.Response] before it is decoded. A nil hook is ignored.
-func WithSenderResponseInterceptor(hook whttp.ResponseInterceptorFunc) SenderOption {
-	return whttp.WithSenderResponseInterceptor(hook)
-}
-
-// WithSenderMaxBodyBytes sets the maximum allowable body size for request/response
-// interceptors. Values less than or equal to zero are ignored.
-func WithSenderMaxBodyBytes(n int64) SenderOption {
-	return whttp.WithSenderMaxBodyBytes(n)
-}
-
-// WithSenderMaxHeaderBytes sets the maximum response header size. Values less than or
-// equal to zero are ignored.
-func WithSenderMaxHeaderBytes(n int64) SenderOption {
-	return whttp.WithSenderMaxHeaderBytes(n)
-}
-
-// WithSenderTimeout sets the HTTP client timeout. Values less than or equal to zero
-// are ignored.
-func WithSenderTimeout(timeout time.Duration) SenderOption {
-	return whttp.WithSenderTimeout(timeout)
-}
-
 // BlockBaseClient is a base client that accepts a concrete *config.Config per request.
 // This makes it suitable for multi-tenant SaaS scenarios where each call may target a
 // different tenant. For a fixed-configuration client, use BlockClient.
@@ -306,10 +266,8 @@ type BlockBaseClient struct {
 	sender whttp.Sender[BlockBaseRequest]
 }
 
-// NewBlockBaseClient creates a low-level [BlockBaseClient] with optional [SenderOption]
-// tuning. By default, it builds a [whttp.CoreClient] with sensible defaults
-// (30-second timeout, 10 MB body limit, 1 MB header limit).
-func NewBlockBaseClient(options ...SenderOption) *BlockBaseClient {
+// NewBlockBaseClient creates a low-level [BlockBaseClient] with optional [whttp.CoreSenderOption].
+func NewBlockBaseClient(options ...whttp.CoreSenderOption) *BlockBaseClient {
 	return &BlockBaseClient{sender: whttp.NewCoreClient[BlockBaseRequest](options...)}
 }
 
