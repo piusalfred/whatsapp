@@ -278,6 +278,17 @@ func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
 	bc.sender = sender
 }
 
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
+		core.SetMiddlewares(mws...)
+	}
+}
+
 func buildListQueryParams(opts *ListOptions) map[string]string {
 	if opts == nil {
 		return nil

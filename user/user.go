@@ -259,6 +259,15 @@ func (client *BlockClient) SetBaseClient(sender whttp.Sender[BlockBaseRequest]) 
 	client.sender.SetRequestSender(sender)
 }
 
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (client *BlockClient) SetMiddlewares(mws ...whttp.Middleware[BlockBaseRequest]) {
+	client.sender.SetMiddlewares(mws...)
+}
+
 // BlockBaseClient is a base client that accepts a concrete *config.Config per request.
 // This makes it suitable for multi-tenant SaaS scenarios where each call may target a
 // different tenant. For a fixed-configuration client, use BlockClient.
@@ -276,6 +285,17 @@ func NewBlockBaseClient(options ...whttp.CoreSenderOption) *BlockBaseClient {
 // to use a custom sender implementation or a mock during testing.
 func (client *BlockBaseClient) SetRequestSender(sender whttp.Sender[BlockBaseRequest]) {
 	client.sender = sender
+}
+
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (client *BlockBaseClient) SetMiddlewares(mws ...whttp.Middleware[BlockBaseRequest]) {
+	if core, ok := client.sender.(*whttp.CoreClient[BlockBaseRequest]); ok {
+		core.SetMiddlewares(mws...)
+	}
 }
 
 func (client *BlockBaseClient) Block(

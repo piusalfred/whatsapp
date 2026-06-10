@@ -52,7 +52,15 @@ type (
 		Prompts              []string   `json:"prompts,omitempty"`
 	}
 
-	Response struct {
+	// BaseRequest is the wire-format payload for the Conversational Automation API.
+	BaseRequest struct {
+		EnableWelcomeMessage bool       `json:"enable_welcome_message"`
+		Commands             []*Command `json:"commands,omitempty"`
+		Prompts              []string   `json:"prompts,omitempty"`
+	}
+
+	// BaseResponse is the general response for the Conversational Automation API.
+	BaseResponse struct {
 		ID                       string   `json:"id,omitempty"`
 		ConversationalAutomation *Request `json:"conversational_automation,omitempty"`
 		Success                  bool     `json:"success,omitempty"`
@@ -63,149 +71,156 @@ type (
 	}
 )
 
-func NewRequest(commands []*Command, prompts []string) *Request {
-	req := &Request{
+const Endpoint = "conversational_automation"
+
+// Client orchestrates high-level Conversational Automation API operations.
+type Client struct {
+	sender *BaseClient
+	config *config.Config
+}
+
+// NewClient creates a high-level Client for the Conversational Automation API.
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
+	return &Client{
+		sender: NewBaseClient(options...),
+		config: conf,
+	}
+}
+
+// SetBaseClient replaces the underlying request sender.
+func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
+	c.sender.SetRequestSender(sender)
+}
+
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	c.sender.SetMiddlewares(mws...)
+}
+
+func (c *Client) AddComponents(ctx context.Context, commands []*Command, prompts []string) (*SuccessResponse, error) {
+	return c.sender.AddComponents(ctx, c.config, commands, prompts)
+}
+
+func (c *Client) UpdateWelcomeMessageStatus(ctx context.Context, shouldEnable bool) (*SuccessResponse, error) {
+	return c.sender.UpdateWelcomeMessageStatus(ctx, c.config, shouldEnable)
+}
+
+func (c *Client) ListComponents(ctx context.Context) (*BaseResponse, error) {
+	return c.sender.ListComponents(ctx, c.config)
+}
+
+// BaseClient is the low-level HTTP executor for the Conversational Automation API.
+type BaseClient struct {
+	sender whttp.Sender[BaseRequest]
+}
+
+// NewBaseClient creates a low-level BaseClient with optional whttp.CoreSenderOption.
+func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
+	return &BaseClient{sender: whttp.NewCoreClient[BaseRequest](options...)}
+}
+
+// SetRequestSender replaces the internal sender.
+func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
+	bc.sender = sender
+}
+
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
+		core.SetMiddlewares(mws...)
+	}
+}
+
+func (bc *BaseClient) AddComponents(ctx context.Context, conf *config.Config,
+	commands []*Command, prompts []string,
+) (*SuccessResponse, error) {
+	message := &BaseRequest{
 		EnableWelcomeMessage: true,
 		Commands:             commands,
 		Prompts:              prompts,
 	}
 
-	return req
-}
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		WithBearer(conf.AccessToken).
+		WithAppSecret(conf.AppSecret, conf.SecureRequests).
+		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		WithRequestType(whttp.RequestTypeUpdateConversationAutomationComponents).
+		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint)
 
-const Endpoint = "conversational_automation"
-
-type BaseClient struct {
-	Sender whttp.Sender[Request]
-}
-
-func (client *BaseClient) AddComponents(ctx context.Context, reader config.Reader,
-	commands []*Command, prompts []string,
-) (*SuccessResponse, error) {
-	conf, err := reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
-	}
-
-	message := NewRequest(commands, prompts)
-
-	options := []whttp.RequestOption[Request]{
-		whttp.WithRequestEndpoints[Request](conf.APIVersion, conf.PhoneNumberID, Endpoint),
-		whttp.WithRequestBearer[Request](conf.AccessToken),
-		whttp.WithRequestAppSecret[Request](conf.AppSecret),
-		whttp.WithRequestSecured[Request](conf.SecureRequests),
-		whttp.WithRequestMessage(message),
-		whttp.WithRequestType[Request](whttp.RequestTypeUpdateConversationAutomationComponents),
-		whttp.WithRequestDebugLogLevel[Request](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	}
-
-	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
+	req := whttp.BuildRequest(b, message)
 
 	response := &SuccessResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		InspectResponseError: true,
+	})
 
-	if err = client.Sender.Send(ctx, request, whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})); err != nil {
+	if err := bc.sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send: %w", err)
 	}
 
 	return response, nil
 }
 
-func (client *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, reader config.Reader,
+func (bc *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, conf *config.Config,
 	shouldEnable bool,
 ) (*SuccessResponse, error) {
-	conf, err := reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
-	}
-
-	var requestTypeOption whttp.RequestOption[Request]
-
+	var requestType whttp.RequestType
 	if shouldEnable {
-		requestTypeOption = whttp.WithRequestType[Request](whttp.RequestTypeEnableWelcomeMessage)
+		requestType = whttp.RequestTypeEnableWelcomeMessage
 	} else {
-		requestTypeOption = whttp.WithRequestType[Request](whttp.RequestTypeDisableWelcomeMessage)
+		requestType = whttp.RequestTypeDisableWelcomeMessage
 	}
 
-	options := []whttp.RequestOption[Request]{
-		whttp.WithRequestEndpoints[Request](conf.APIVersion, conf.PhoneNumberID, Endpoint),
-		whttp.WithRequestBearer[Request](conf.AccessToken),
-		whttp.WithRequestAppSecret[Request](conf.AppSecret),
-		whttp.WithRequestSecured[Request](conf.SecureRequests),
-		whttp.WithRequestQueryParams[Request](map[string]string{
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		WithBearer(conf.AccessToken).
+		WithAppSecret(conf.AppSecret, conf.SecureRequests).
+		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		WithRequestType(requestType).
+		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint).
+		WithQueryParams(map[string]string{
 			"enable_welcome_message": strconv.FormatBool(shouldEnable),
-		}),
-		whttp.WithRequestDebugLogLevel[Request](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-		requestTypeOption,
-	}
+		})
 
-	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
+	req := whttp.BuildRequest(b, (*BaseRequest)(nil))
 
 	response := &SuccessResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		InspectResponseError: true,
+	})
 
-	if err = client.Sender.Send(ctx, request, whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})); err != nil {
+	if err := bc.sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send: %w", err)
 	}
 
 	return response, nil
 }
 
-func (client *BaseClient) ListComponents(ctx context.Context, reader config.Reader) (*Response, error) {
-	conf, err := reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
-	}
+func (bc *BaseClient) ListComponents(ctx context.Context, conf *config.Config) (*BaseResponse, error) {
+	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		WithBearer(conf.AccessToken).
+		WithAppSecret(conf.AppSecret, conf.SecureRequests).
+		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		WithRequestType(whttp.RequestTypeGetConversationAutomationComponents).
+		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint)
 
-	options := []whttp.RequestOption[Request]{
-		whttp.WithRequestEndpoints[Request](conf.APIVersion, conf.PhoneNumberID, Endpoint),
-		whttp.WithRequestBearer[Request](conf.AccessToken),
-		whttp.WithRequestAppSecret[Request](conf.AppSecret),
-		whttp.WithRequestSecured[Request](conf.SecureRequests),
-		whttp.WithRequestDebugLogLevel[Request](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-		whttp.WithRequestType[Request](whttp.RequestTypeGetConversationAutomationComponents),
-	}
+	req := whttp.BuildRequest(b, (*BaseRequest)(nil))
 
-	request := whttp.MakeRequest(http.MethodGet, conf.BaseURL, options...)
+	response := &BaseResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		InspectResponseError: true,
+	})
 
-	response := &Response{}
-
-	if err = client.Sender.Send(ctx, request, whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})); err != nil {
+	if err := bc.sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send: %w", err)
 	}
 
 	return response, nil
-}
-
-type Client struct {
-	Reader config.Reader
-	Base   *BaseClient
-}
-
-func (c *Client) ListComponents(ctx context.Context) (*Response, error) {
-	return c.Base.ListComponents(ctx, c.Reader)
-}
-
-func (c *Client) UpdateWelcomeMessageStatus(ctx context.Context, shouldEnable bool) (*SuccessResponse, error) {
-	return c.Base.UpdateWelcomeMessageStatus(ctx, c.Reader, shouldEnable)
-}
-
-func (c *Client) AddComponents(ctx context.Context, commands []*Command, prompts []string) (*SuccessResponse, error) {
-	return c.Base.AddComponents(ctx, c.Reader, commands, prompts)
-}
-
-type Service interface {
-	ListComponents(ctx context.Context) (*Response, error)
-	UpdateWelcomeMessageStatus(ctx context.Context, shouldEnable bool) (*SuccessResponse, error)
-	AddComponents(ctx context.Context, commands []*Command, prompts []string) (*SuccessResponse, error)
 }
