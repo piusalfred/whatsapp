@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,7 +9,7 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -26,7 +26,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/piusalfred/whatsapp/config"
 	examples "github.com/piusalfred/whatsapp/examples"
 	"github.com/piusalfred/whatsapp/media"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
@@ -34,8 +33,7 @@ import (
 
 type MediaService struct {
 	logger *slog.Logger
-	client *media.BaseClient
-	reader config.ReaderFunc
+	client *media.Client
 }
 
 func NewMediaService(configFilePath string) *MediaService {
@@ -50,17 +48,18 @@ func NewMediaService(configFilePath string) *MediaService {
 		os.Exit(1)
 	}
 
+	conf, err := cfg.Reader.Read(context.Background())
+	if err != nil {
+		slog.Default().Error("failed to read config", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	ms := &MediaService{
 		logger: slog.New(lh),
-		reader: cfg.Reader,
+		client: media.NewClient(conf,
+			media.WithSenderHTTPClient(examples.HTTPClient()),
+		),
 	}
-
-	clientOptions := []whttp.CoreClientOption[any]{
-		whttp.WithCoreClientHTTPClient[any](examples.HTTPClient()),
-	}
-
-	coreClient := whttp.NewSender[any](clientOptions...)
-	ms.client = media.NewBaseClient(ms.reader, coreClient)
 
 	return ms
 }

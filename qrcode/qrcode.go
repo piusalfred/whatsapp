@@ -260,71 +260,43 @@ func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessRespon
 	return c.sender.Update(ctx, c.config, req)
 }
 
-type senderOptions struct {
-	opts []whttp.CoreClientOption[BaseRequest]
-}
-
 // SenderOption configures the underlying [BaseClient] HTTP transport.
-type SenderOption func(*senderOptions)
+type SenderOption = whttp.CoreSenderOption
 
 // WithSenderHTTPClient replaces the default [http.Client] used by the sender.
 // A nil client is ignored.
 func WithSenderHTTPClient(hc *http.Client) SenderOption {
-	return func(so *senderOptions) {
-		if hc != nil {
-			so.opts = append(so.opts, whttp.WithCoreClientHTTPClient[BaseRequest](hc))
-		}
-	}
+	return whttp.WithSenderHTTPClient(hc)
 }
 
 // WithSenderRequestInterceptor registers a hook that inspects or mutates every
 // outgoing [http.Request] before it is transmitted. A nil hook is ignored.
 func WithSenderRequestInterceptor(hook whttp.RequestInterceptorFunc) SenderOption {
-	return func(so *senderOptions) {
-		if hook != nil {
-			so.opts = append(so.opts, whttp.WithCoreClientRequestInterceptor[BaseRequest](hook))
-		}
-	}
+	return whttp.WithSenderRequestInterceptor(hook)
 }
 
 // WithSenderResponseInterceptor registers a hook that inspects or mutates every
 // incoming [http.Response] before it is decoded. A nil hook is ignored.
 func WithSenderResponseInterceptor(hook whttp.ResponseInterceptorFunc) SenderOption {
-	return func(so *senderOptions) {
-		if hook != nil {
-			so.opts = append(so.opts, whttp.WithCoreClientResponseInterceptor[BaseRequest](hook))
-		}
-	}
+	return whttp.WithSenderResponseInterceptor(hook)
 }
 
 // WithSenderMaxBodyBytes sets the maximum allowable body size for request/response
 // interceptors. Values less than or equal to zero are ignored.
 func WithSenderMaxBodyBytes(n int64) SenderOption {
-	return func(so *senderOptions) {
-		if n > 0 {
-			so.opts = append(so.opts, whttp.WithCoreClientMaxBodyBytes[BaseRequest](n))
-		}
-	}
+	return whttp.WithSenderMaxBodyBytes(n)
 }
 
 // WithSenderMaxHeaderBytes sets the maximum response header size. Values less than or
 // equal to zero are ignored.
 func WithSenderMaxHeaderBytes(n int64) SenderOption {
-	return func(so *senderOptions) {
-		if n > 0 {
-			so.opts = append(so.opts, whttp.WithCoreClientMaxHeaderBytes[BaseRequest](n))
-		}
-	}
+	return whttp.WithSenderMaxHeaderBytes(n)
 }
 
 // WithSenderTimeout sets the HTTP client timeout. Values less than or equal to zero
 // are ignored.
 func WithSenderTimeout(timeout time.Duration) SenderOption {
-	return func(so *senderOptions) {
-		if timeout > 0 {
-			so.opts = append(so.opts, whttp.WithCoreClientHTTPTimeout[BaseRequest](timeout))
-		}
-	}
+	return whttp.WithSenderTimeout(timeout)
 }
 
 // BaseClient is the low-level HTTP executor for the QR Code API. It accepts a
@@ -338,17 +310,7 @@ type BaseClient struct {
 // tuning. By default, it builds a [whttp.CoreClient] with sensible defaults
 // (30-second timeout, 10 MB body limit, 1 MB header limit).
 func NewBaseClient(options ...SenderOption) *BaseClient {
-	senderOpts := &senderOptions{
-		opts: make([]whttp.CoreClientOption[BaseRequest], 0),
-	}
-
-	for _, option := range options {
-		option(senderOpts)
-	}
-
-	cc := whttp.NewCoreClient[BaseRequest](senderOpts.opts...)
-
-	return &BaseClient{sender: cc}
+	return &BaseClient{sender: whttp.NewCoreClient[BaseRequest](options...)}
 }
 
 // SetRequestSender replaces the internal sender, ignoring any HTTP

@@ -28,13 +28,13 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-func TestCoreClientBuilder_BuildSender(t *testing.T) {
+func TestCoreSenderConfigBuilder_BuildSender(t *testing.T) {
 	t.Parallel()
 
 	t.Run("build with defaults", func(t *testing.T) {
 		t.Parallel()
 
-		b := whttp.NewCoreClientBuilder()
+		b := whttp.NewCoreSenderConfigBuilder()
 		client := whttp.BuildSender[TestMessage](b)
 
 		if client == nil {
@@ -46,7 +46,7 @@ func TestCoreClientBuilder_BuildSender(t *testing.T) {
 		t.Parallel()
 
 		customClient := &http.Client{Timeout: 5 * time.Second}
-		b := whttp.NewCoreClientBuilder().WithHTTPClient(customClient)
+		b := whttp.NewCoreSenderConfigBuilder().WithHTTPClient(customClient)
 		client := whttp.BuildSender[TestMessage](b)
 
 		if client == nil {
@@ -60,7 +60,7 @@ func TestCoreClientBuilder_BuildSender(t *testing.T) {
 		reqCalled := false
 		resCalled := false
 
-		b := whttp.NewCoreClientBuilder().
+		b := whttp.NewCoreSenderConfigBuilder().
 			WithRequestInterceptor(func(ctx context.Context, req *http.Request) error {
 				reqCalled = true
 				return nil
@@ -112,7 +112,7 @@ func TestCoreClientBuilder_BuildSender(t *testing.T) {
 		}))
 		defer server.Close()
 
-		b := whttp.NewCoreClientBuilder()
+		b := whttp.NewCoreSenderConfigBuilder()
 		client := whttp.BuildSender(b, mw)
 
 		req := &whttp.Request[TestMessage]{
@@ -132,7 +132,7 @@ func TestCoreClientBuilder_BuildSender(t *testing.T) {
 	t.Run("build with limits", func(t *testing.T) {
 		t.Parallel()
 
-		b := whttp.NewCoreClientBuilder().
+		b := whttp.NewCoreSenderConfigBuilder().
 			WithMaxBodyBytes(1024).
 			WithMaxHeaderBytes(512)
 
@@ -145,7 +145,7 @@ func TestCoreClientBuilder_BuildSender(t *testing.T) {
 	t.Run("build any client", func(t *testing.T) {
 		t.Parallel()
 
-		b := whttp.NewCoreClientBuilder()
+		b := whttp.NewCoreSenderConfigBuilder()
 		client := whttp.BuildAnySender(b)
 
 		if client == nil {
@@ -156,7 +156,7 @@ func TestCoreClientBuilder_BuildSender(t *testing.T) {
 	t.Run("nil http client is ignored", func(t *testing.T) {
 		t.Parallel()
 
-		b := whttp.NewCoreClientBuilder().WithHTTPClient(nil)
+		b := whttp.NewCoreSenderConfigBuilder().WithHTTPClient(nil)
 		client := whttp.BuildSender[TestMessage](b)
 
 		if client == nil {
@@ -167,7 +167,7 @@ func TestCoreClientBuilder_BuildSender(t *testing.T) {
 	t.Run("zero limits are ignored", func(t *testing.T) {
 		t.Parallel()
 
-		b := whttp.NewCoreClientBuilder().
+		b := whttp.NewCoreSenderConfigBuilder().
 			WithMaxBodyBytes(0).
 			WithMaxHeaderBytes(0)
 
@@ -178,10 +178,10 @@ func TestCoreClientBuilder_BuildSender(t *testing.T) {
 	})
 }
 
-func TestCoreClientBuilder_FluentChaining(t *testing.T) {
+func TestCoreSenderConfigBuilder_FluentChaining(t *testing.T) {
 	t.Parallel()
 
-	b := whttp.NewCoreClientBuilder().
+	b := whttp.NewCoreSenderConfigBuilder().
 		WithHTTPClient(&http.Client{Timeout: 10 * time.Second}).
 		WithRequestInterceptor(func(ctx context.Context, req *http.Request) error { return nil }).
 		WithResponseInterceptor(func(ctx context.Context, resp *http.Response) error { return nil }).

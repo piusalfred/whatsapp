@@ -108,20 +108,20 @@ func ExampleNewSender() {
 
 	longLiveClient := &http.Client{Timeout: time.Hour}
 
-	options := []whttp.CoreClientOption[TestMessage]{
-		whttp.WithCoreClientHTTPClient[TestMessage](customHTTPClient),
-		whttp.WithCoreClientMiddlewares[TestMessage](
-			loggingMiddleware,
-			methodPrinter,
-			loggingMiddleware2,
-			loggingMiddleware3,
-		),
-		whttp.WithCoreClientRequestInterceptor[TestMessage](nil),
-		whttp.WithCoreClientResponseInterceptor[TestMessage](resBodyInterceptor),
+	options := []whttp.CoreSenderOption{
+		whttp.WithSenderHTTPClient(customHTTPClient),
+		whttp.WithSenderRequestInterceptor(nil),
+		whttp.WithSenderResponseInterceptor(resBodyInterceptor),
 	}
 
-	sender := whttp.NewSender(
+	sender := whttp.NewCoreClient[TestMessage](
 		options...,
+	)
+	sender.SetMiddlewares(
+		loggingMiddleware,
+		methodPrinter,
+		loggingMiddleware2,
+		loggingMiddleware3,
 	)
 
 	_ = longLiveClient
@@ -229,9 +229,8 @@ func TestMiddlewareExecution(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := whttp.NewSender[TestMessage](
-			whttp.WithCoreClientMiddlewares[TestMessage](middleware1, middleware2),
-		)
+		client := whttp.NewCoreClient[TestMessage]()
+		client.SetMiddlewares(middleware1, middleware2)
 
 		req := &whttp.Request[TestMessage]{
 			Method:  http.MethodGet,
@@ -284,9 +283,9 @@ func TestNewSenderIntegration(t *testing.T) {
 			return nil
 		})
 
-		sender := whttp.NewSender[TestMessage](
-			whttp.WithCoreClientRequestInterceptor[TestMessage](reqInterceptor),
-			whttp.WithCoreClientResponseInterceptor[TestMessage](resInterceptor),
+		sender := whttp.NewCoreClient[TestMessage](
+			whttp.WithSenderRequestInterceptor(reqInterceptor),
+			whttp.WithSenderResponseInterceptor(resInterceptor),
 		)
 
 		req := &whttp.Request[TestMessage]{
@@ -326,8 +325,8 @@ func TestNewSenderIntegration(t *testing.T) {
 			return errInterceptor
 		})
 
-		sender := whttp.NewSender[TestMessage](
-			whttp.WithCoreClientRequestInterceptor[TestMessage](reqInterceptor),
+		sender := whttp.NewCoreClient[TestMessage](
+			whttp.WithSenderRequestInterceptor(reqInterceptor),
 		)
 
 		req := &whttp.Request[TestMessage]{
@@ -348,12 +347,12 @@ func TestNewSenderIntegration(t *testing.T) {
 func TestCoreClientOptions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("WithCoreClientHTTPClient", func(t *testing.T) {
+	t.Run("WithSenderHTTPClient", func(t *testing.T) {
 		t.Parallel()
 
 		customClient := &http.Client{Timeout: 10 * time.Second}
-		sender := whttp.NewSender[TestMessage](
-			whttp.WithCoreClientHTTPClient[TestMessage](customClient),
+		sender := whttp.NewCoreClient[TestMessage](
+			whttp.WithSenderHTTPClient(customClient),
 		)
 
 		if sender == nil {
@@ -377,12 +376,12 @@ func TestCoreClientOptions(t *testing.T) {
 			}
 		}
 
-		sender := whttp.NewSender[TestMessage](
-			whttp.WithCoreClientHTTPClient[TestMessage](customClient),
-			whttp.WithCoreClientRequestInterceptor[TestMessage](reqInterceptor),
-			whttp.WithCoreClientResponseInterceptor[TestMessage](resInterceptor),
-			whttp.WithCoreClientMiddlewares[TestMessage](middleware),
+		sender := whttp.NewCoreClient[TestMessage](
+			whttp.WithSenderHTTPClient(customClient),
+			whttp.WithSenderRequestInterceptor(reqInterceptor),
+			whttp.WithSenderResponseInterceptor(resInterceptor),
 		)
+		sender.SetMiddlewares(middleware)
 
 		if sender == nil {
 			t.Error("expected sender to be created with all options")
@@ -424,7 +423,7 @@ func TestAnySender(t *testing.T) {
 	t.Run("NewSender[any]", func(t *testing.T) {
 		t.Parallel()
 
-		sender := whttp.NewSender[any]()
+		sender := whttp.NewCoreClient[any]()
 		if sender == nil {
 			t.Error("expected non-nil sender")
 		}
@@ -442,7 +441,7 @@ func TestCoreClientWithSenderOption(t *testing.T) {
 		},
 	)
 
-	client := whttp.NewSender[TestMessage]()
+	client := whttp.NewCoreClient[TestMessage]()
 	client.SetRequestSender(baseSender)
 
 	req := &whttp.Request[TestMessage]{
@@ -468,7 +467,7 @@ func TestNewSender_WithOptions(t *testing.T) {
 	t.Run("with nil option", func(t *testing.T) {
 		t.Parallel()
 
-		sender := whttp.NewSender[TestMessage](nil)
+		sender := whttp.NewCoreClient[TestMessage](nil)
 		if sender == nil {
 			t.Error("expected non-nil sender even with nil option")
 		}
@@ -478,8 +477,8 @@ func TestNewSender_WithOptions(t *testing.T) {
 		t.Parallel()
 
 		customClient := &http.Client{Timeout: 30 * time.Second}
-		sender := whttp.NewSender[TestMessage](
-			whttp.WithCoreClientHTTPClient[TestMessage](customClient),
+		sender := whttp.NewCoreClient[TestMessage](
+			whttp.WithSenderHTTPClient(customClient),
 		)
 		if sender == nil {
 			t.Error("expected non-nil sender")
@@ -671,9 +670,8 @@ func TestCoreClient_SendWithMiddlewareChain(t *testing.T) {
 		}
 	}
 
-	sender := whttp.NewSender(
-		whttp.WithCoreClientMiddlewares[TestMessage](middleware1, middleware2),
-	)
+	sender := whttp.NewCoreClient[TestMessage]()
+	sender.SetMiddlewares(middleware1, middleware2)
 
 	req := &whttp.Request[TestMessage]{
 		Method:  http.MethodGet,
@@ -708,9 +706,8 @@ func TestCoreClient_MiddlewareErrorShortCircuit(t *testing.T) {
 		}
 	}
 
-	sender := whttp.NewSender(
-		whttp.WithCoreClientMiddlewares[TestMessage](errorMiddleware),
-	)
+	sender := whttp.NewCoreClient[TestMessage]()
+	sender.SetMiddlewares(errorMiddleware)
 
 	req := &whttp.Request[TestMessage]{
 		Method:  http.MethodGet,
@@ -757,9 +754,9 @@ func TestCoreClient_InterceptorsWithBody(t *testing.T) {
 		return nil
 	})
 
-	sender := whttp.NewSender(
-		whttp.WithCoreClientRequestInterceptor[TestMessage](reqHook),
-		whttp.WithCoreClientResponseInterceptor[TestMessage](resHook),
+	sender := whttp.NewCoreClient[TestMessage](
+		whttp.WithSenderRequestInterceptor(reqHook),
+		whttp.WithSenderResponseInterceptor(resHook),
 	)
 
 	req := &whttp.Request[TestMessage]{
@@ -809,8 +806,8 @@ func TestRequestInterceptor_ConsumesBodyWithoutRestoring(t *testing.T) {
 		return nil
 	})
 
-	sender := whttp.NewSender(
-		whttp.WithCoreClientRequestInterceptor[TestMessage](reqHook),
+	sender := whttp.NewCoreClient[TestMessage](
+		whttp.WithSenderRequestInterceptor(reqHook),
 	)
 
 	req := &whttp.Request[TestMessage]{
@@ -858,9 +855,9 @@ func TestResponseInterceptor_ConsumesBodyWithoutRestoring(t *testing.T) {
 		return nil
 	})
 
-	sender := whttp.NewSender(
-		whttp.WithCoreClientRequestInterceptor[TestMessage](reqHook),
-		whttp.WithCoreClientResponseInterceptor[TestMessage](resHook),
+	sender := whttp.NewCoreClient[TestMessage](
+		whttp.WithSenderRequestInterceptor(reqHook),
+		whttp.WithSenderResponseInterceptor(resHook),
 	)
 
 	req := &whttp.Request[TestMessage]{
@@ -918,9 +915,9 @@ func Example_interceptorBodyGotcha() {
 		return nil
 	}
 
-	sender := whttp.NewSender(
-		whttp.WithCoreClientRequestInterceptor[TestMessage](reqInterceptor),
-		whttp.WithCoreClientResponseInterceptor[TestMessage](resInterceptor),
+	sender := whttp.NewCoreClient[TestMessage](
+		whttp.WithSenderRequestInterceptor(reqInterceptor),
+		whttp.WithSenderResponseInterceptor(resInterceptor),
 	)
 
 	req := &whttp.Request[TestMessage]{
@@ -983,9 +980,8 @@ func TestCoreClient_NilMiddlewaresSkipped(t *testing.T) {
 		}
 	}
 
-	sender := whttp.NewSender(
-		whttp.WithCoreClientMiddlewares[TestMessage](mw1, nil, mw3),
-	)
+	sender := whttp.NewCoreClient[TestMessage]()
+	sender.SetMiddlewares(mw1, nil, mw3)
 
 	req := &whttp.Request[TestMessage]{
 		Method:  http.MethodGet,

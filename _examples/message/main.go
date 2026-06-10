@@ -36,7 +36,7 @@ func main() {
 		Level:     slog.LevelDebug,
 	}))
 
-	clientOptions := []whttp.CoreClientOption[message.Message]{
+	clientOptions := []whttp.coreClientOption[message.Message]{
 		whttp.WithCoreClientRequestInterceptor[message.Message](
 			func(ctx context.Context, req *http.Request) error {
 				logger.LogAttrs(ctx, slog.LevelInfo, "request intercepted",

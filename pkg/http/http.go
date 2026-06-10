@@ -29,6 +29,9 @@ import (
 	"time"
 )
 
+// ErrUnknownRequestType is returned when a request carries an unsupported RequestType.
+var ErrUnknownRequestType = errors.New("unknown request type")
+
 const (
 	DefaultHTTPClientTimeout = 30 * time.Second
 	DefaultMaxBodyBytes      = 10 << 20 // 10 MB
@@ -40,140 +43,76 @@ type (
 		http           *http.Client
 		reqHook        RequestInterceptorFunc
 		resHook        ResponseInterceptorFunc
-		sender         Sender[T]
 		maxBodyBytes   int64
 		maxHeaderBytes int64
 		timeout        time.Duration
+		sender         Sender[T]
+		middlewares    []Middleware[T]
 	}
 
-	CoreClientOption[T any] interface {
-		apply(client *CoreClient[T])
+	// CoreSenderConfig holds HTTP transport configuration that is independent of
+	// the request type. This is used to create typed coreClientOption values in a single place.
+	CoreSenderConfig struct {
+		httpClient        *http.Client
+		requestHook       RequestInterceptorFunc
+		responseHook      ResponseInterceptorFunc
+		httpClientTimeout time.Duration
+		maxBodyBytes      int64
+		maxHeaderBytes    int64
 	}
-
-	CoreClientOptionFunc[T any] func(client *CoreClient[T])
 )
 
-func (fn CoreClientOptionFunc[T]) apply( //nolint:unused // implements CoreClientOption[T]
-	client *CoreClient[T],
-) {
-	fn(client)
-}
-
-func WithCoreClientHTTPClient[T any](httpClient *http.Client) CoreClientOption[T] {
-	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
-		if httpClient != nil {
-			client.http = httpClient
-		}
-	})
-}
-
-func WithCoreClientRequestInterceptor[T any](hook RequestInterceptorFunc) CoreClientOption[T] {
-	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
-		client.reqHook = hook
-	})
-}
-
-func WithCoreClientResponseInterceptor[T any](hook ResponseInterceptorFunc) CoreClientOption[T] {
-	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
-		client.resHook = hook
-	})
-}
-
-func WithCoreClientMiddlewares[T any](mws ...Middleware[T]) CoreClientOption[T] {
-	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
-		client.sender = WrapMiddlewares(SenderFunc[T](client.sender.Send), mws)
-	})
-}
-
-func WithCoreClientMaxBodyBytes[T any](n int64) CoreClientOption[T] {
-	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
-		if n > 0 {
-			client.maxBodyBytes = n
-		}
-	})
-}
-
-func WithCoreClientMaxHeaderBytes[T any](n int64) CoreClientOption[T] {
-	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
-		if n > 0 {
-			client.maxHeaderBytes = n
-		}
-	})
-}
-
-func WithCoreClientHTTPTimeout[T any](timeout time.Duration) CoreClientOption[T] {
-	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
-		if timeout > 0 {
-			if client.http != nil {
-				client.timeout = timeout
-				client.http.Timeout = timeout
-			}
-		}
-	})
-}
-
-func WithCoreClientSender[T any](sender Sender[T]) CoreClientOption[T] {
-	return CoreClientOptionFunc[T](func(client *CoreClient[T]) {
-		if sender != nil {
-			client.sender = sender
-		}
-	})
-}
-
-// SetRequestSender ....
+// SetRequestSender replaces the default implementation of the Sender[T] interface used by the CoreClient[T]
+// to send HTTP requests.
 func (core *CoreClient[T]) SetRequestSender(sender Sender[T]) {
 	if sender != nil {
 		core.sender = sender
 	}
 }
 
+// SetMiddlewares configures the middleware stack for the CoreClient[T]. Middlewares are applied in the order they
+// are provided, meaning the first middleware will be the outermost wrapper around the sender. This allows for flexible
+// composition of cross-cutting concerns like logging, retry logic, or metrics collection around the core HTTP sending
+// functionality.
+func (core *CoreClient[T]) SetMiddlewares(mws ...Middleware[T]) {
+	core.middlewares = mws
+	core.sender = WrapMiddlewares(core.sender.Send, mws)
+}
+
 // NewSender creates a CoreClient[T] with the provided options and returns it. CoreClient[T]
 // can act as a Sender[T] for sending HTTP requests with type T message structure
 // Deprecated: use NewCoreClient instead for better clarity and consistency with the builder pattern.
-func NewSender[T any](options ...CoreClientOption[T]) *CoreClient[T] {
-	core := &CoreClient[T]{
-		http: &http.Client{
-			Timeout: DefaultHTTPClientTimeout,
-			Transport: &http.Transport{
-				MaxResponseHeaderBytes: DefaultMaxHeaderBytes,
-			},
-		},
-		maxBodyBytes:   DefaultMaxBodyBytes,
-		maxHeaderBytes: DefaultMaxHeaderBytes,
-	}
-
-	core.sender = SenderFunc[T](core.send)
-
+func NewSender[T any](options ...CoreSenderOptionFunc) *CoreClient[T] {
+	config := defaultCoreSenderConfig()
 	for _, option := range options {
 		if option != nil {
-			option.apply(core)
+			option(&config)
 		}
 	}
-
-	return core
+	return newCoreClientFromConfig[T](config)
 }
 
-func NewCoreClient[T any](options ...CoreClientOption[T]) *CoreClient[T] {
-	core := &CoreClient[T]{
-		http: &http.Client{
-			Timeout: DefaultHTTPClientTimeout,
-			Transport: &http.Transport{
-				MaxResponseHeaderBytes: DefaultMaxHeaderBytes,
-			},
-		},
-		maxBodyBytes:   DefaultMaxBodyBytes,
-		maxHeaderBytes: DefaultMaxHeaderBytes,
-	}
-
-	core.sender = SenderFunc[T](core.send)
-
+// NewCoreClient creates a CoreClient[T] with the provided options.
+func NewCoreClient[T any](options ...CoreSenderOption) *CoreClient[T] {
+	config := defaultCoreSenderConfig()
 	for _, option := range options {
 		if option != nil {
-			option.apply(core)
+			option.apply(&config)
 		}
 	}
+	return newCoreClientFromConfig[T](config)
+}
 
-	return core
+func defaultCoreSenderConfig() CoreSenderConfig {
+	return CoreSenderConfig{
+		httpClient: &http.Client{
+			Timeout:   DefaultHTTPClientTimeout,
+			Transport: &http.Transport{MaxResponseHeaderBytes: DefaultMaxHeaderBytes},
+		},
+		httpClientTimeout: DefaultHTTPClientTimeout,
+		maxBodyBytes:      DefaultMaxBodyBytes,
+		maxHeaderBytes:    DefaultMaxHeaderBytes,
+	}
 }
 
 func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
@@ -329,4 +268,75 @@ func WrapMiddlewares[T any](doFunc SenderFunc[T], middlewares []Middleware[T]) S
 	}
 
 	return doFunc
+}
+
+type CoreSenderOption interface {
+	apply(client *CoreSenderConfig)
+}
+
+// CoreSenderOptionFunc configures the underlying [BaseClient] HTTP transport.
+type CoreSenderOptionFunc func(*CoreSenderConfig)
+
+func (c CoreSenderOptionFunc) apply(client *CoreSenderConfig) {
+	c(client)
+}
+
+// WithSenderHTTPClient replaces the default [http.Client] used by the sender.
+// A nil client is ignored.
+func WithSenderHTTPClient(hc *http.Client) CoreSenderOptionFunc {
+	return func(cfg *CoreSenderConfig) {
+		if hc != nil {
+			cfg.httpClient = hc
+		}
+	}
+}
+
+// WithSenderRequestInterceptor registers a hook that inspects or mutates every
+// outgoing [http.Request] before it is transmitted. A nil hook is ignored.
+func WithSenderRequestInterceptor(hook RequestInterceptorFunc) CoreSenderOptionFunc {
+	return func(cfg *CoreSenderConfig) {
+		if hook != nil {
+			cfg.requestHook = hook
+		}
+	}
+}
+
+// WithSenderResponseInterceptor registers a hook that inspects or mutates every
+// incoming [http.Response] before it is decoded. A nil hook is ignored.
+func WithSenderResponseInterceptor(hook ResponseInterceptorFunc) CoreSenderOptionFunc {
+	return func(cfg *CoreSenderConfig) {
+		if hook != nil {
+			cfg.responseHook = hook
+		}
+	}
+}
+
+// WithSenderMaxBodyBytes sets the maximum allowable body size for request/response
+// interceptors. Values less than or equal to zero are ignored.
+func WithSenderMaxBodyBytes(n int64) CoreSenderOptionFunc {
+	return func(cfg *CoreSenderConfig) {
+		if n > 0 {
+			cfg.maxBodyBytes = n
+		}
+	}
+}
+
+// WithSenderMaxHeaderBytes sets the maximum response header size. Values less than or
+// equal to zero are ignored.
+func WithSenderMaxHeaderBytes(n int64) CoreSenderOptionFunc {
+	return func(cfg *CoreSenderConfig) {
+		if n > 0 {
+			cfg.maxHeaderBytes = n
+		}
+	}
+}
+
+// WithSenderTimeout sets the HTTP client timeout. Values less than or equal to zero
+// are ignored.
+func WithSenderTimeout(timeout time.Duration) CoreSenderOptionFunc {
+	return func(cfg *CoreSenderConfig) {
+		if timeout > 0 {
+			cfg.httpClientTimeout = timeout
+		}
+	}
 }

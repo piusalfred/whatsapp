@@ -23,95 +23,98 @@ import (
 	"net/http"
 )
 
-// CoreClientBuilder provides a non-generic, fluent way to configure the
-// type-independent parts of a CoreClient. The generic type parameter is only
-// needed when the client is built (see BuildSender and BuildAnySender).
-type CoreClientBuilder struct {
-	httpClient     *http.Client
-	reqHook        RequestInterceptorFunc
-	resHook        ResponseInterceptorFunc
-	maxBodyBytes   int64
-	maxHeaderBytes int64
+// CoreSenderConfigBuilder provides a non-generic, fluent way to configure a
+// CoreSenderConfig. The generic type parameter is only needed when the client
+// is built (see BuildSender and BuildAnySender).
+type CoreSenderConfigBuilder struct {
+	cfg CoreSenderConfig
 }
 
-// NewCoreClientBuilder starts building a new CoreClient with sensible defaults.
-func NewCoreClientBuilder() *CoreClientBuilder {
-	core := &CoreClientBuilder{
-		httpClient: &http.Client{
-			Timeout: DefaultHTTPClientTimeout,
-			Transport: &http.Transport{
-				MaxResponseHeaderBytes: DefaultMaxHeaderBytes,
+// NewCoreSenderConfigBuilder starts building a new CoreSenderConfig with sensible defaults.
+func NewCoreSenderConfigBuilder() *CoreSenderConfigBuilder {
+	return &CoreSenderConfigBuilder{
+		cfg: CoreSenderConfig{
+			httpClient: &http.Client{
+				Timeout: DefaultHTTPClientTimeout,
+				Transport: &http.Transport{
+					MaxResponseHeaderBytes: DefaultMaxHeaderBytes,
+				},
 			},
+			httpClientTimeout: DefaultHTTPClientTimeout,
+			maxBodyBytes:      DefaultMaxBodyBytes,
+			maxHeaderBytes:    DefaultMaxHeaderBytes,
 		},
-		maxBodyBytes:   DefaultMaxBodyBytes,
-		maxHeaderBytes: DefaultMaxHeaderBytes,
-		reqHook:        nil,
-		resHook:        nil,
 	}
-
-	return core
 }
 
 // WithHTTPClient sets the underlying *http.Client.
-func (b *CoreClientBuilder) WithHTTPClient(client *http.Client) *CoreClientBuilder {
+func (b *CoreSenderConfigBuilder) WithHTTPClient(client *http.Client) *CoreSenderConfigBuilder {
 	if client != nil {
-		b.httpClient = client
+		b.cfg.httpClient = client
 	}
 	return b
 }
 
 // WithRequestInterceptor sets the request interceptor.
-func (b *CoreClientBuilder) WithRequestInterceptor(hook RequestInterceptorFunc) *CoreClientBuilder {
-	b.reqHook = hook
+func (b *CoreSenderConfigBuilder) WithRequestInterceptor(hook RequestInterceptorFunc) *CoreSenderConfigBuilder {
+	b.cfg.requestHook = hook
 	return b
 }
 
 // WithResponseInterceptor sets the response interceptor.
-func (b *CoreClientBuilder) WithResponseInterceptor(hook ResponseInterceptorFunc) *CoreClientBuilder {
-	b.resHook = hook
+func (b *CoreSenderConfigBuilder) WithResponseInterceptor(hook ResponseInterceptorFunc) *CoreSenderConfigBuilder {
+	b.cfg.responseHook = hook
 	return b
 }
 
 // WithMaxBodyBytes sets the maximum allowed body size in bytes.
-func (b *CoreClientBuilder) WithMaxBodyBytes(n int64) *CoreClientBuilder {
+func (b *CoreSenderConfigBuilder) WithMaxBodyBytes(n int64) *CoreSenderConfigBuilder {
 	if n > 0 {
-		b.maxBodyBytes = n
+		b.cfg.maxBodyBytes = n
 	}
 	return b
 }
 
 // WithMaxHeaderBytes sets the maximum allowed response header size in bytes.
-func (b *CoreClientBuilder) WithMaxHeaderBytes(n int64) *CoreClientBuilder {
+func (b *CoreSenderConfigBuilder) WithMaxHeaderBytes(n int64) *CoreSenderConfigBuilder {
 	if n > 0 {
-		b.maxHeaderBytes = n
+		b.cfg.maxHeaderBytes = n
 	}
 	return b
 }
 
+// Build creates a CoreSenderConfig from the builder. This is useful when you
+// want to build the config and pass it around before creating a CoreClient.
+func (b *CoreSenderConfigBuilder) Build() CoreSenderConfig {
+	return b.cfg
+}
+
 // BuildSender creates a typed CoreClient[T] from the builder configuration.
 // Middlewares (which are generic) are supplied at this final step.
-func BuildSender[T any](b *CoreClientBuilder, middlewares ...Middleware[T]) *CoreClient[T] {
-	opts := []CoreClientOption[T]{
-		CoreClientOptionFunc[T](func(client *CoreClient[T]) {
-			client.maxBodyBytes = b.maxBodyBytes
-			client.maxHeaderBytes = b.maxHeaderBytes
-			client.reqHook = b.reqHook
-			client.resHook = b.resHook
-			if b.httpClient != nil {
-				client.http = b.httpClient
-			}
-		}),
-	}
-
+func BuildSender[T any](b *CoreSenderConfigBuilder, middlewares ...Middleware[T]) *CoreClient[T] {
+	core := newCoreClientFromConfig[T](b.cfg)
 	if len(middlewares) > 0 {
-		opts = append(opts, WithCoreClientMiddlewares[T](middlewares...))
+		core.SetMiddlewares(middlewares...)
 	}
-
-	return NewSender[T](opts...)
+	return core
 }
 
 // BuildAnySender creates a CoreClient[any] from the builder configuration.
 // This is a convenience wrapper around BuildSender[any].
-func BuildAnySender(b *CoreClientBuilder, middlewares ...Middleware[any]) *CoreClient[any] {
+func BuildAnySender(b *CoreSenderConfigBuilder, middlewares ...Middleware[any]) *CoreClient[any] {
 	return BuildSender[any](b, middlewares...)
+}
+
+// newCoreClientFromConfig creates a CoreClient from a CoreSenderConfig.
+func newCoreClientFromConfig[T any](cfg CoreSenderConfig) *CoreClient[T] {
+	core := &CoreClient[T]{
+		http:           cfg.httpClient,
+		maxBodyBytes:   cfg.maxBodyBytes,
+		maxHeaderBytes: cfg.maxHeaderBytes,
+		reqHook:        cfg.requestHook,
+		resHook:        cfg.responseHook,
+		timeout:        cfg.httpClientTimeout,
+	}
+	core.sender = SenderFunc[T](core.send)
+	return core
 }
