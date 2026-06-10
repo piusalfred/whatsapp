@@ -94,6 +94,7 @@ const (
 	RequestTypeRejectJoinRequests
 	RequestTypeUpdateGroupCallStatus
 	RequestTypeCheckCallPermissions
+	RequestTypeGetBotDetails
 
 	// Sentinel (NOT a real request type): keep this last for testing purposes.
 	requestTypeCount
@@ -175,6 +176,7 @@ var requestTypeStrings = [...]string{ //nolint:gochecknoglobals // immutable str
 	"reject_join_requests",
 	"update_group_call_status",
 	"check_call_permissions",
+	"get_bot_details",
 }
 
 func (r RequestType) Name() string {

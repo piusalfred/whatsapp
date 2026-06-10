@@ -26,7 +26,6 @@ import (
 
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/internal/test"
-	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/user"
 )
 
@@ -58,7 +57,7 @@ func TestBlockUsers_RequestPayload(t *testing.T) {
 	})
 	defer srv.Close()
 
-	client := user.NewBlockClient(mockConfig(srv.Server.URL), whttp.NewSender[user.BlockBaseRequest]())
+	client := user.NewBlockClient(mockConfig(srv.Server.URL))
 	_, err := client.Block(context.Background(), &user.BlockRequest{Numbers: []string{"+16505551234"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -111,7 +110,7 @@ func TestUnblockUsers_RequestPayload(t *testing.T) {
 	})
 	defer srv.Close()
 
-	client := user.NewBlockClient(mockConfig(srv.Server.URL), whttp.NewSender[user.BlockBaseRequest]())
+	client := user.NewBlockClient(mockConfig(srv.Server.URL))
 	_, err := client.Unblock(context.Background(), &user.UnblockRequest{Numbers: []string{"+16505551234"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -159,7 +158,7 @@ func TestListBlockedUsers_QueryParams(t *testing.T) {
 	limit := 10
 	after := "after123"
 	before := "before123"
-	client := user.NewBlockClient(mockConfig(srv.Server.URL), whttp.NewSender[user.BlockBaseRequest]())
+	client := user.NewBlockClient(mockConfig(srv.Server.URL))
 	_, err := client.ListBlocked(context.Background(), &user.ListBlockedUsersOptions{
 		Limit:  &limit,
 		After:  &after,
@@ -206,7 +205,7 @@ func TestBlockUsers_SuccessResponse(t *testing.T) {
 	})
 	defer srv.Close()
 
-	client := user.NewBlockClient(mockConfig(srv.Server.URL), whttp.NewSender[user.BlockBaseRequest]())
+	client := user.NewBlockClient(mockConfig(srv.Server.URL))
 	resp, err := client.Block(
 		context.Background(),
 		&user.BlockRequest{Numbers: []string{"+16505551234", "+14155559876"}},
@@ -262,7 +261,7 @@ func TestBlockUsers_MixedResponse(t *testing.T) {
 	})
 	defer srv.Close()
 
-	client := user.NewBlockClient(mockConfig(srv.Server.URL), whttp.NewSender[user.BlockBaseRequest]())
+	client := user.NewBlockClient(mockConfig(srv.Server.URL))
 	resp, err := client.Block(
 		context.Background(),
 		&user.BlockRequest{Numbers: []string{"+16505551234", "+14155559876"}},
@@ -311,7 +310,7 @@ func TestUnblockUsers_RemovedUsersResponse(t *testing.T) {
 	})
 	defer srv.Close()
 
-	client := user.NewBlockClient(mockConfig(srv.Server.URL), whttp.NewSender[user.BlockBaseRequest]())
+	client := user.NewBlockClient(mockConfig(srv.Server.URL))
 	resp, err := client.Unblock(context.Background(), &user.UnblockRequest{Numbers: []string{"+16505551234"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -346,7 +345,7 @@ func TestListBlockedUsers_SuccessResponse(t *testing.T) {
 	})
 	defer srv.Close()
 
-	client := user.NewBlockClient(mockConfig(srv.Server.URL), whttp.NewSender[user.BlockBaseRequest]())
+	client := user.NewBlockClient(mockConfig(srv.Server.URL))
 	resp, err := client.ListBlocked(context.Background(), &user.ListBlockedUsersOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -375,7 +374,7 @@ func TestBlockUsers_HTTPError(t *testing.T) {
 	})
 	defer srv.Close()
 
-	client := user.NewBlockClient(mockConfig(srv.Server.URL), whttp.NewSender[user.BlockBaseRequest]())
+	client := user.NewBlockClient(mockConfig(srv.Server.URL))
 	_, err := client.Block(context.Background(), &user.BlockRequest{Numbers: []string{"+16505551234"}})
 	if err == nil {
 		t.Fatal("expected error for 429 response")

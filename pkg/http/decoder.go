@@ -32,6 +32,14 @@ type DecodeOptions struct {
 	DisallowUnknownFields bool
 	DisallowEmptyResponse bool
 	InspectResponseError  bool
+	MaxBodyBytes          int64 // 0 = use package default (DefaultMaxBodyBytes)
+}
+
+func effectiveMaxBodyBytes(opts DecodeOptions) int64 {
+	if opts.MaxBodyBytes > 0 {
+		return opts.MaxBodyBytes
+	}
+	return DefaultMaxBodyBytes
 }
 
 func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions) error {
@@ -39,7 +47,8 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		return ErrNilResponse
 	}
 
-	responseBody, err := io.ReadAll(response.Body)
+	limit := effectiveMaxBodyBytes(opts)
+	responseBody, err := readAllLimited(response.Body, limit)
 	if err != nil {
 		return fmt.Errorf("read response: %w", err)
 	}
@@ -51,7 +60,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		return fmt.Errorf("%w: expected non-empty response body", ErrEmptyResponseBody)
 	}
 
-	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusPermanentRedirect
+	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
 
 	if !isResponseOk { //nolint:nestif // no need to nest
 		if opts.InspectResponseError {
@@ -100,7 +109,8 @@ func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) e
 		return ErrNilRequest
 	}
 
-	requestBody, err := io.ReadAll(request.Body)
+	limit := effectiveMaxBodyBytes(opts)
+	requestBody, err := readAllLimited(request.Body, limit)
 	if err != nil {
 		return fmt.Errorf("read request: %w", err)
 	}
@@ -114,7 +124,7 @@ func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) e
 
 	//	At this point, we know:
 	//	- If the body is empty, it's allowed based on `DisallowEmptyResponse`.
-	//	- If the body is not empty and `v == nil`, return an error as there’s no target to decode into.
+	//	- If the body is not empty and `v == nil`, return an error as there's no target to decode into.
 	//	- Otherwise, proceed with decoding into `v` if the body is not empty and `v` is provided.
 
 	if len(requestBody) == 0 {
@@ -165,16 +175,7 @@ func ResponseDecoderJSON[T any](v *T, options DecodeOptions) ResponseDecoderFunc
 
 func BodyReaderResponseDecoder(fn ResponseBodyReaderFunc) ResponseDecoderFunc {
 	return func(ctx context.Context, response *http.Response) error {
-		responseBody, err := io.ReadAll(response.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read response body: %w", err)
-		}
-
-		defer func() {
-			response.Body = io.NopCloser(bytes.NewReader(responseBody))
-		}()
-
-		if err = fn(ctx, bytes.NewReader(responseBody)); err != nil {
+		if err := fn(ctx, response.Body); err != nil {
 			return err
 		}
 

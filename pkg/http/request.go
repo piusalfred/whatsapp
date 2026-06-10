@@ -209,15 +209,12 @@ func (request *Request[T]) URL() (string, error) {
 		return request.DownloadURL, nil
 	}
 
-	fmtURL, err := url.JoinPath(request.BaseURL, request.Endpoints...)
-	if err != nil {
-		return "", fmt.Errorf("format url: %w", err)
-	}
-
-	parsedURL, err := url.Parse(fmtURL)
+	parsedURL, err := url.Parse(request.BaseURL)
 	if err != nil {
 		return "", fmt.Errorf("parse url: %w", err)
 	}
+
+	parsedURL = parsedURL.JoinPath(request.Endpoints...)
 
 	q := parsedURL.Query()
 
@@ -260,9 +257,11 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*stdhttp.R
 	}
 
 	var body io.Reader
-	contentType := "application/json"
+	var contentType string
+	var bodySources int
 
 	if req.Message != nil {
+		bodySources++
 		encodeResp, encodeErr := EncodePayload(req.Message)
 		if encodeErr != nil {
 			return nil, fmt.Errorf("failed to encode request payload: %w", encodeErr)
@@ -272,6 +271,7 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*stdhttp.R
 	}
 
 	if req.Form != nil {
+		bodySources++
 		encodeResp, encodeErr := EncodePayload(req.Form)
 		if encodeErr != nil {
 			return nil, fmt.Errorf("failed to encode request payload: %w", encodeErr)
@@ -281,8 +281,13 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*stdhttp.R
 	}
 
 	if req.BodyReader != nil {
+		bodySources++
 		body = req.BodyReader
 		contentType = "application/octet-stream"
+	}
+
+	if bodySources > 1 {
+		return nil, ErrMultipleBodySources
 	}
 
 	r, err := stdhttp.NewRequestWithContext(ctx, req.Method, parsedURL, body)
@@ -290,7 +295,9 @@ func RequestWithContext[T any](ctx context.Context, req *Request[T]) (*stdhttp.R
 		return nil, fmt.Errorf("create http request: %w", err)
 	}
 
-	r.Header.Set("Content-Type", contentType)
+	if body != nil {
+		r.Header.Set("Content-Type", contentType)
+	}
 
 	if req.Bearer != "" {
 		r.Header.Set("Authorization", "Bearer "+req.Bearer)

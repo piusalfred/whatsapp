@@ -31,29 +31,23 @@ import (
 
 	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
-	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/user"
 )
 
 func main() {
-	reader := config.ReaderFunc(func(ctx context.Context) (*config.Config, error) {
-		conf := &config.Config{
-			BaseURL:           whatsapp.BaseURL,
-			APIVersion:        "",
-			AccessToken:       "",
-			PhoneNumberID:     "",
-			BusinessAccountID: "",
-			AppSecret:         "",
-			SecureRequests:    false,
-		}
-
-		return conf, nil
-	})
+	conf := &config.Config{
+		BaseURL:           whatsapp.BaseURL,
+		APIVersion:        "",
+		AccessToken:       "",
+		PhoneNumberID:     "",
+		BusinessAccountID: "",
+		AppSecret:         "",
+		SecureRequests:    false,
+	}
 
 	ctx := context.Background()
 
-	sender := whttp.NewSender[user.BlockBaseRequest]()
-	blocker := user.NewBlockClient(reader, sender)
+	blocker := user.NewBlockClient(conf)
 
 	resp, err := blocker.Block(ctx, &user.BlockRequest{Numbers: []string{"1234567890", "1234567891", "1234567892"}})
 	if err != nil {

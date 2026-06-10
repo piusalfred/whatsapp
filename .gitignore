@@ -8,3 +8,4 @@ coverage.out
 ./examples/api.env
 TODO.md
 findings.md
+http_fix_list.md

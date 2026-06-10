@@ -2,7 +2,7 @@
  *  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
- *  and associated documentation files (the “Software”), to deal in the Software without restriction,
+ *  and associated documentation files (the "Software"), to deal in the Software without restriction,
  *  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
  *  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
  *  subject to the following conditions:
@@ -10,7 +10,7 @@
  *  The above copyright notice and this permission notice shall be included in all copies or substantial
  *  portions of the Software.
  *
- *  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
  *  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
  *  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
  *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -108,8 +108,11 @@ type (
 		Paging           *whttp.Paging          `json:"paging,omitempty"`
 		Error            *werrors.Error         `json:"error,omitempty"`
 	}
+
 	BlockBaseRequestOption func(*BlockBaseRequest)
 
+	// BlockClient is a high-level client for the WhatsApp Block Users API.
+	// It binds a fixed [config.Config] and a [BlockBaseClient] sender.
 	BlockClient struct {
 		config *config.Config
 		sender *BlockBaseClient
@@ -243,8 +246,17 @@ func NewBlockBaseRequest(action BlockAction, options ...BlockBaseRequestOption) 
 	return b
 }
 
-func NewBlockClient(config *config.Config, sender whttp.Sender[BlockBaseRequest]) *BlockClient {
-	return &BlockClient{config: config, sender: &BlockBaseClient{sender: sender}}
+// NewBlockClient creates a high-level [BlockClient] with a fixed configuration.
+// Optional [SenderOption] functions tune the underlying HTTP transport.
+func NewBlockClient(config *config.Config, options ...whttp.CoreSenderOption) *BlockClient {
+	return &BlockClient{config: config, sender: NewBlockBaseClient(options...)}
+}
+
+// SetBaseClient replaces the underlying request sender. This is useful during
+// testing when you want to inject a mock [whttp.Sender] and bypass the default
+// HTTP stack entirely.
+func (client *BlockClient) SetBaseClient(sender whttp.Sender[BlockBaseRequest]) {
+	client.sender.SetRequestSender(sender)
 }
 
 // BlockBaseClient is a base client that accepts a concrete *config.Config per request.
@@ -254,8 +266,16 @@ type BlockBaseClient struct {
 	sender whttp.Sender[BlockBaseRequest]
 }
 
-func NewBlockBaseClient(sender whttp.Sender[BlockBaseRequest]) *BlockBaseClient {
-	return &BlockBaseClient{sender: sender}
+// NewBlockBaseClient creates a low-level [BlockBaseClient] with optional [whttp.CoreSenderOption].
+func NewBlockBaseClient(options ...whttp.CoreSenderOption) *BlockBaseClient {
+	return &BlockBaseClient{sender: whttp.NewCoreClient[BlockBaseRequest](options...)}
+}
+
+// SetRequestSender replaces the internal sender, ignoring any HTTP
+// configuration established by [NewBlockBaseClient]. This is useful when you want
+// to use a custom sender implementation or a mock during testing.
+func (client *BlockBaseClient) SetRequestSender(sender whttp.Sender[BlockBaseRequest]) {
+	client.sender = sender
 }
 
 func (client *BlockBaseClient) Block(
@@ -358,9 +378,7 @@ func (client *BlockBaseClient) Send(ctx context.Context, conf *config.Config, re
 
 	response := &BlockBaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
+		InspectResponseError: true,
 	})
 
 	if err := client.sender.Send(ctx, req, decoder); err != nil {

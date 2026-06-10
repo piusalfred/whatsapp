@@ -81,7 +81,7 @@ func main() {
 		Level:     slog.LevelDebug,
 	}))
 
-	clientOptions := []whttp.CoreClientOption[any]{
+	clientOptions := []whttp.coreClientOption[any]{
 		whttp.WithCoreClientRequestInterceptor[any](
 			func(ctx context.Context, req *http.Request) error {
 				logger.LogAttrs(ctx, slog.LevelInfo, "request intercepted",
@@ -106,7 +106,7 @@ func main() {
 	}
 	ctx := context.Background()
 
-	coreClient := whttp.NewAnySender(clientOptions...)
+	coreClient := whttp.NewSender[any](clientOptions...)
 
 	conf, err := LoadConfigFromFile("api.env")
 	if err != nil {
