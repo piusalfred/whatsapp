@@ -351,6 +351,15 @@ func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
 	c.sender.SetRequestSender(sender)
 }
 
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	c.sender.SetMiddlewares(mws...)
+}
+
 // BaseClient is the low-level HTTP executor for the Calls API. It converts
 // domain [Request] values into HTTP traffic and decodes JSON responses.
 type BaseClient struct {
@@ -367,6 +376,17 @@ func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
 // to use a custom sender implementation or a mock during testing.
 func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
 	bc.sender = sender
+}
+
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
+		core.SetMiddlewares(mws...)
+	}
 }
 
 // Send translates a high-level [Request] into an HTTP transaction and returns

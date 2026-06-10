@@ -404,6 +404,15 @@ func (c *Client) SetBaseClient(sender whttp.Sender[any]) {
 	c.sender.SetRequestSender(sender)
 }
 
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	c.sender.SetMiddlewares(mws...)
+}
+
 // Upload uploads a media file to WhatsApp.
 func (c *Client) Upload(ctx context.Context, req *UploadRequest) (*UploadMediaResponse, error) {
 	return c.sender.Upload(ctx, c.config, req)
@@ -444,6 +453,17 @@ func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
 // to use a custom sender implementation or a mock during testing.
 func (bc *BaseClient) SetRequestSender(sender whttp.Sender[any]) {
 	bc.sender = sender
+}
+
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	if core, ok := bc.sender.(*whttp.CoreClient[any]); ok {
+		core.SetMiddlewares(mws...)
+	}
 }
 
 // ToUploadMediaResponse attempts to coerce a BaseResponse into an UploadMediaResponse.
