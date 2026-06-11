@@ -45,7 +45,7 @@ var (
 	errMiddleware       = errors.New("middleware error")
 )
 
-func ExampleNewSender() {
+func ExampleNewBaseClient() {
 	customHTTPClient := &http.Client{
 		Timeout: 2 * time.Second,
 	}
@@ -114,10 +114,9 @@ func ExampleNewSender() {
 		whttp.WithSenderResponseInterceptor(resBodyInterceptor),
 	}
 
-	sender := whttp.NewCoreClient[TestMessage](
-		options...,
-	)
-	sender.SetMiddlewares(
+	base := whttp.NewBaseClient[TestMessage](options...)
+	base.Sender = whttp.WrapMiddlewareSender(
+		base.Sender,
 		loggingMiddleware,
 		methodPrinter,
 		loggingMiddleware2,
@@ -156,7 +155,7 @@ func ExampleNewSender() {
 	decoder := whttp.ResponseDecoderJSON(&TestMessage{}, whttp.DecodeOptions{})
 
 	// Send the request using the sender
-	err := sender.Send(context.Background(), req, decoder)
+	err := base.Sender.Send(context.Background(), req, decoder)
 	if err != nil {
 		fmt.Println("Error sending request:", err)
 	}
@@ -229,8 +228,8 @@ func TestMiddlewareExecution(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := whttp.NewCoreClient[TestMessage]()
-		client.SetMiddlewares(middleware1, middleware2)
+		client := whttp.NewBaseClient[TestMessage]()
+		client.Sender = whttp.WrapMiddlewareSender(client.Sender, middleware1, middleware2)
 
 		req := &whttp.Request[TestMessage]{
 			Method:  http.MethodGet,
@@ -240,7 +239,7 @@ func TestMiddlewareExecution(t *testing.T) {
 		msg := &TestMessage{}
 		decoder := whttp.ResponseDecoderJSON(msg, whttp.DecodeOptions{})
 
-		err := client.Send(context.Background(), req, decoder)
+		err := client.Sender.Send(context.Background(), req, decoder)
 		test.AssertNoError(t, "Send", err)
 
 		expectedOrder := []int{1, 2, 3, 4}
@@ -376,16 +375,16 @@ func TestCoreClientOptions(t *testing.T) {
 			}
 		}
 
-		sender := whttp.NewCoreClient[TestMessage](
+		sender := whttp.NewBaseClient[TestMessage](
 			whttp.WithSenderHTTPClient(customClient),
 			whttp.WithSenderRequestInterceptor(reqInterceptor),
 			whttp.WithSenderResponseInterceptor(resInterceptor),
 		)
-		sender.SetMiddlewares(middleware)
-
 		if sender == nil {
 			t.Error("expected sender to be created with all options")
+			return
 		}
+		sender.Sender = whttp.WrapMiddlewareSender(sender.Sender, middleware)
 	})
 }
 
@@ -396,7 +395,7 @@ func TestAnySender(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		sender := whttp.AnySenderFunc(
+		sender := whttp.SenderFunc[any](
 			func(ctx context.Context, req *whttp.Request[any], decoder whttp.ResponseDecoder) error {
 				called = true
 				return nil
@@ -441,8 +440,8 @@ func TestCoreClientWithSenderOption(t *testing.T) {
 		},
 	)
 
-	client := whttp.NewCoreClient[TestMessage]()
-	client.SetRequestSender(baseSender)
+	client := whttp.NewBaseClient[TestMessage]()
+	client.Sender = baseSender
 
 	req := &whttp.Request[TestMessage]{
 		Method:  http.MethodGet,
@@ -453,7 +452,7 @@ func TestCoreClientWithSenderOption(t *testing.T) {
 		return nil
 	})
 
-	err := client.Send(context.Background(), req, decoder)
+	err := client.Sender.Send(context.Background(), req, decoder)
 	test.AssertNoError(t, "Send", err)
 
 	if !called {
@@ -670,8 +669,8 @@ func TestCoreClient_SendWithMiddlewareChain(t *testing.T) {
 		}
 	}
 
-	sender := whttp.NewCoreClient[TestMessage]()
-	sender.SetMiddlewares(middleware1, middleware2)
+	sender := whttp.NewBaseClient[TestMessage]()
+	sender.Sender = whttp.WrapMiddlewareSender(sender.Sender, middleware1, middleware2)
 
 	req := &whttp.Request[TestMessage]{
 		Method:  http.MethodGet,
@@ -681,7 +680,7 @@ func TestCoreClient_SendWithMiddlewareChain(t *testing.T) {
 	result := &TestMessage{}
 	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
 
-	err := sender.Send(context.Background(), req, decoder)
+	err := sender.Sender.Send(context.Background(), req, decoder)
 	test.AssertNoError(t, "Send", err)
 
 	if result.Name != "success" || result.Value != 200 {
@@ -706,8 +705,8 @@ func TestCoreClient_MiddlewareErrorShortCircuit(t *testing.T) {
 		}
 	}
 
-	sender := whttp.NewCoreClient[TestMessage]()
-	sender.SetMiddlewares(errorMiddleware)
+	sender := whttp.NewBaseClient[TestMessage]()
+	sender.Sender = whttp.WrapMiddlewareSender(sender.Sender, errorMiddleware)
 
 	req := &whttp.Request[TestMessage]{
 		Method:  http.MethodGet,
@@ -716,7 +715,7 @@ func TestCoreClient_MiddlewareErrorShortCircuit(t *testing.T) {
 
 	decoder := whttp.ResponseDecoderJSON(&TestMessage{}, whttp.DecodeOptions{})
 
-	err := sender.Send(context.Background(), req, decoder)
+	err := sender.Sender.Send(context.Background(), req, decoder)
 	test.AssertError(t, "should return middleware error", err)
 	test.AssertErrorIs(t, "should be the expected error", err, expectedErr)
 
@@ -938,10 +937,12 @@ func TestAnySenderFunc_Send(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	fn := whttp.AnySenderFunc(func(ctx context.Context, req *whttp.Request[any], decoder whttp.ResponseDecoder) error {
-		called = true
-		return nil
-	})
+	fn := whttp.SenderFunc[any](
+		func(ctx context.Context, req *whttp.Request[any], decoder whttp.ResponseDecoder) error {
+			called = true
+			return nil
+		},
+	)
 
 	decoder := whttp.ResponseDecoderFunc(func(ctx context.Context, resp *http.Response) error {
 		return nil
@@ -980,8 +981,8 @@ func TestCoreClient_NilMiddlewaresSkipped(t *testing.T) {
 		}
 	}
 
-	sender := whttp.NewCoreClient[TestMessage]()
-	sender.SetMiddlewares(mw1, nil, mw3)
+	sender := whttp.NewBaseClient[TestMessage]()
+	sender.Sender = whttp.WrapMiddlewareSender(sender.Sender, mw1, nil, mw3)
 
 	req := &whttp.Request[TestMessage]{
 		Method:  http.MethodGet,
@@ -991,7 +992,7 @@ func TestCoreClient_NilMiddlewaresSkipped(t *testing.T) {
 	result := &TestMessage{}
 	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
 
-	err := sender.Send(context.Background(), req, decoder)
+	err := sender.Sender.Send(context.Background(), req, decoder)
 	test.AssertNoError(t, "Send", err)
 
 	if len(executionOrder) != 2 || executionOrder[0] != "mw1" || executionOrder[1] != "mw3" {

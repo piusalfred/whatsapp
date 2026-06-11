@@ -42,6 +42,26 @@ func effectiveMaxBodyBytes(opts DecodeOptions) int64 {
 	return DefaultMaxBodyBytes
 }
 
+// StrictDecode returns options that reject unknown JSON fields, require a
+// non-empty response body, and parse error bodies into structured types.
+func StrictDecode() DecodeOptions {
+	return DecodeOptions{
+		DisallowUnknownFields: true,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	}
+}
+
+// PermissiveDecode returns options that accept unknown fields, allow empty
+// bodies, and treat error responses as opaque failures.
+func PermissiveDecode() DecodeOptions {
+	return DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: false,
+		InspectResponseError:  false,
+	}
+}
+
 func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions) error {
 	if response == nil {
 		return ErrNilResponse

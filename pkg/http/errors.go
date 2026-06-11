@@ -61,3 +61,14 @@ type httpError string
 func (e httpError) Error() string {
 	return string(e)
 }
+
+type Paging struct {
+	Cursors  *Cursors `json:"cursors,omitempty"`
+	Previous string   `json:"previous,omitempty"`
+	Next     string   `json:"next,omitempty"`
+}
+
+type Cursors struct {
+	After  string `json:"after,omitempty"`
+	Before string `json:"before,omitempty"`
+}

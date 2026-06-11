@@ -64,7 +64,7 @@ type (
 	RequestOption[T any] func(request *Request[T])
 )
 
-// SetDebugLogLevel sets the debug log level for the request.
+// SetDebugLogLevel sets the debug log level on the request.
 func (request *Request[T]) SetDebugLogLevel(level DebugLogLevel) {
 	request.debugLogLevel = level
 }
@@ -88,23 +88,11 @@ func MakeRequest[T any](method, baseURL string, options ...RequestOption[T]) *Re
 	return req
 }
 
-// MakeDownloadRequest creates a new request for downloading media.
+// MakeDownloadRequest creates a request for downloading media from a pre-signed URL.
 func MakeDownloadRequest[T any](downloadURL string, options ...RequestOption[T]) *Request[T] {
-	req := &Request[T]{
-		Method:        stdhttp.MethodGet,
-		DownloadURL:   downloadURL,
-		Headers:       make(map[string]string),
-		QueryParams:   make(map[string]string),
-		debugLogLevel: DebugLogLevelNone,
-	}
-
-	for _, option := range options {
-		if option != nil {
-			option(req)
-		}
-	}
-
-	return req
+	return MakeRequest(stdhttp.MethodGet, "", append(options, func(r *Request[T]) {
+		r.DownloadURL = downloadURL
+	})...)
 }
 
 // NewRequestWithContext ...
@@ -137,10 +125,6 @@ func WithRequestEndpoints[T any](endpoints ...string) RequestOption[T] {
 	}
 }
 
-func (request *Request[T]) SetEndpoints(endpoints ...string) {
-	request.Endpoints = endpoints
-}
-
 // WithRequestMetadata sets the metadata for the request.
 func WithRequestMetadata[T any](metadata types.Metadata) RequestOption[T] {
 	return func(request *Request[T]) {
@@ -169,24 +153,17 @@ func WithRequestMessage[T any](message *T) RequestOption[T] {
 	}
 }
 
-// SetRequestMessage sets the body of the request.
-func (request *Request[T]) SetRequestMessage(message *T) {
-	request.Message = message
-}
-
 func WithRequestForm[T any](form *RequestForm) RequestOption[T] {
 	return func(request *Request[T]) {
 		request.Form = form
 	}
 }
 
-// WithRequestAppSecret sets the app secret for the request and turns on secure requests.
+// WithRequestAppSecret sets the app secret for the request.
+// Use [WithRequestSecured] to enable secure request mode.
 func WithRequestAppSecret[T any](appSecret string) RequestOption[T] {
 	return func(request *Request[T]) {
-		if appSecret != "" {
-			request.SecureRequests = true
-			request.AppSecret = appSecret
-		}
+		request.AppSecret = appSecret
 	}
 }
 

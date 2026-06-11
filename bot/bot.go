@@ -113,7 +113,7 @@ type (
 	// accepts a concrete [*config.Config] per request, making it suitable for
 	// multi-tenant SaaS scenarios. For a fixed-configuration client, use [Client].
 	BaseClient struct {
-		sender whttp.Sender[BaseRequest]
+		*whttp.BaseClient[BaseRequest]
 	}
 
 	// BaseRequest is an internal unified context data carrier mapping operation
@@ -129,7 +129,7 @@ type (
 // Optional [SenderOption] functions tune the underlying HTTP transport.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: NewBaseClient(options...),
+		sender: &BaseClient{BaseClient: whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
 	}
 }
@@ -138,35 +138,12 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 // testing when you want to inject a mock [whttp.Sender] and bypass the default
 // HTTP stack entirely.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.SetRequestSender(sender)
+	c.sender.Sender = sender
 }
 
 // GetBotDetails retrieves comprehensive details about a WhatsApp Business Bot.
 func (c *Client) GetBotDetails(ctx context.Context, request *Request) (*Bot, error) {
 	return c.sender.GetBotDetails(ctx, c.config, request)
-}
-
-// NewBaseClient creates a low-level [BaseClient] with optional [whttp.CoreSenderOption].
-func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
-	return &BaseClient{sender: whttp.NewCoreClient[BaseRequest](options...)}
-}
-
-// SetRequestSender replaces the internal sender, ignoring any HTTP
-// configuration established by [NewBaseClient]. This is useful when you want
-// to use a custom sender implementation or a mock during testing.
-func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
-	bc.sender = sender
-}
-
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
-		core.SetMiddlewares(mws...)
-	}
 }
 
 // Send translates a high-level [botRequest] into an HTTP transaction and decodes
@@ -178,14 +155,14 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 	}
 
 	bld := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(request.Type).
-		WithEndpoints(conf.APIVersion, request.BotID)
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.Type).
+		Endpoints(conf.APIVersion, request.BotID)
 
 	if len(queryParams) > 0 {
-		bld = bld.WithQueryParams(queryParams)
+		bld = bld.QueryParams(queryParams)
 	}
 
 	req := whttp.BuildRequest(bld, request)
@@ -195,7 +172,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 		InspectResponseError: true,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 

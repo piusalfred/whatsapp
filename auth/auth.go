@@ -30,11 +30,11 @@ import (
 type Client struct {
 	baseURL       string
 	apiVersion    string
-	sender        whttp.AnySender
+	sender        whttp.Sender[any]
 	debugLogLevel whttp.DebugLogLevel
 }
 
-func NewClient(baseURL, apiVersion string, sender whttp.AnySender) *Client {
+func NewClient(baseURL, apiVersion string, sender whttp.Sender[any]) *Client {
 	return &Client{
 		baseURL:    baseURL,
 		apiVersion: apiVersion,

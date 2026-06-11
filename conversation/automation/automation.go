@@ -82,14 +82,14 @@ type Client struct {
 // NewClient creates a high-level Client for the Conversational Automation API.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: NewBaseClient(options...),
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
 	}
 }
 
 // SetBaseClient replaces the underlying request sender.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.SetRequestSender(sender)
+	c.sender.Sender = sender
 }
 
 // SetMiddlewares configures middlewares that wrap the underlying Sender.
@@ -98,7 +98,7 @@ func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
 // configuration internally, the configuration is silently discarded.
 // Apply middlewares to your custom sender before injecting it.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	c.sender.SetMiddlewares(mws...)
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
 }
 
 func (c *Client) AddComponents(ctx context.Context, commands []*Command, prompts []string) (*SuccessResponse, error) {
@@ -115,28 +115,7 @@ func (c *Client) ListComponents(ctx context.Context) (*BaseResponse, error) {
 
 // BaseClient is the low-level HTTP executor for the Conversational Automation API.
 type BaseClient struct {
-	sender whttp.Sender[BaseRequest]
-}
-
-// NewBaseClient creates a low-level BaseClient with optional whttp.CoreSenderOption.
-func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
-	return &BaseClient{sender: whttp.NewCoreClient[BaseRequest](options...)}
-}
-
-// SetRequestSender replaces the internal sender.
-func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
-	bc.sender = sender
-}
-
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
-		core.SetMiddlewares(mws...)
-	}
+	whttp.BaseClient[BaseRequest]
 }
 
 func (bc *BaseClient) AddComponents(ctx context.Context, conf *config.Config,
@@ -149,11 +128,11 @@ func (bc *BaseClient) AddComponents(ctx context.Context, conf *config.Config,
 	}
 
 	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(whttp.RequestTypeUpdateConversationAutomationComponents).
-		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint)
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(whttp.RequestTypeUpdateConversationAutomationComponents).
+		Endpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint)
 
 	req := whttp.BuildRequest(b, message)
 
@@ -162,7 +141,7 @@ func (bc *BaseClient) AddComponents(ctx context.Context, conf *config.Config,
 		InspectResponseError: true,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send: %w", err)
 	}
 
@@ -180,12 +159,12 @@ func (bc *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, conf *conf
 	}
 
 	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(requestType).
-		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint).
-		WithQueryParams(map[string]string{
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(requestType).
+		Endpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint).
+		QueryParams(map[string]string{
 			"enable_welcome_message": strconv.FormatBool(shouldEnable),
 		})
 
@@ -196,7 +175,7 @@ func (bc *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, conf *conf
 		InspectResponseError: true,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send: %w", err)
 	}
 
@@ -205,11 +184,11 @@ func (bc *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, conf *conf
 
 func (bc *BaseClient) ListComponents(ctx context.Context, conf *config.Config) (*BaseResponse, error) {
 	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(whttp.RequestTypeGetConversationAutomationComponents).
-		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint)
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(whttp.RequestTypeGetConversationAutomationComponents).
+		Endpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint)
 
 	req := whttp.BuildRequest(b, (*BaseRequest)(nil))
 
@@ -218,7 +197,7 @@ func (bc *BaseClient) ListComponents(ctx context.Context, conf *config.Config) (
 		InspectResponseError: true,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send: %w", err)
 	}
 

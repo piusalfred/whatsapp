@@ -355,7 +355,7 @@ type (
 	// concrete [*config.Config] per request, making it suitable for multi-tenant
 	// SaaS scenarios. For a fixed-configuration client, use [Client].
 	BaseClient struct {
-		sender whttp.Sender[any]
+		*whttp.BaseClient[any]
 	}
 
 	// Request is an internal unified context data carrier mapping operation
@@ -392,7 +392,7 @@ type (
 // Optional [SenderOption] functions tune the underlying HTTP transport.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: NewBaseClient(options...),
+		sender: &BaseClient{BaseClient: whttp.NewBaseClient[any](options...)},
 		config: conf,
 	}
 }
@@ -401,7 +401,7 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 // testing when you want to inject a mock [whttp.Sender] and bypass the default
 // HTTP stack entirely.
 func (c *Client) SetBaseClient(sender whttp.Sender[any]) {
-	c.sender.SetRequestSender(sender)
+	c.sender.Sender = sender
 }
 
 // SetMiddlewares configures middlewares that wrap the underlying Sender.
@@ -410,7 +410,7 @@ func (c *Client) SetBaseClient(sender whttp.Sender[any]) {
 // configuration internally, the configuration is silently discarded.
 // Apply middlewares to your custom sender before injecting it.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[any]) {
-	c.sender.SetMiddlewares(mws...)
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
 }
 
 // Upload uploads a media file to WhatsApp.
@@ -441,29 +441,6 @@ func (c *Client) DownloadByMediaID(
 	options ...DownloadOptionFunc,
 ) error {
 	return c.sender.DownloadByMediaID(ctx, c.config, request, decoder, options...)
-}
-
-// NewBaseClient creates a low-level [BaseClient] with optional [whttp.CoreSenderOption].
-func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
-	return &BaseClient{sender: whttp.NewCoreClient[any](options...)}
-}
-
-// SetRequestSender replaces the internal sender, ignoring any HTTP
-// configuration established by [NewBaseClient]. This is useful when you want
-// to use a custom sender implementation or a mock during testing.
-func (bc *BaseClient) SetRequestSender(sender whttp.Sender[any]) {
-	bc.sender = sender
-}
-
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
-	if core, ok := bc.sender.(*whttp.CoreClient[any]); ok {
-		core.SetMiddlewares(mws...)
-	}
 }
 
 // ToUploadMediaResponse attempts to coerce a BaseResponse into an UploadMediaResponse.
@@ -520,33 +497,33 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	}
 
 	bld := whttp.NewRequestBuilder(method, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(request.Type)
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.Type)
 
 	if request.MediaID != "" {
-		bld = bld.WithEndpoints(conf.APIVersion, request.MediaID)
+		bld = bld.Endpoints(conf.APIVersion, request.MediaID)
 	} else if request.Type == whttp.RequestTypeUploadMedia {
-		bld = bld.WithEndpoints(conf.APIVersion, conf.PhoneNumberID, "media")
+		bld = bld.Endpoints(conf.APIVersion, conf.PhoneNumberID, "media")
 	}
 
 	if len(queryParams) > 0 {
-		bld = bld.WithQueryParams(queryParams)
+		bld = bld.QueryParams(queryParams)
 	}
 
 	if request.Form != nil {
-		bld = bld.WithForm(request.Form)
+		bld = bld.Form(request.Form)
 	}
 
-	req := whttp.BuildAnyRequest(bld)
+	req := whttp.Build[any](bld, nil)
 
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
 		InspectResponseError: true,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
@@ -635,15 +612,15 @@ func (bc *BaseClient) Download(
 	decoder whttp.ResponseDecoder,
 ) error {
 	bld := whttp.NewRequestBuilder(http.MethodGet, "").
-		WithBearer(conf.AccessToken).
-		WithRequestType(whttp.RequestTypeDownloadMedia).
-		WithDownloadURL(req.URL).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+		Bearer(conf.AccessToken).
+		Type(whttp.RequestTypeDownloadMedia).
+		DownloadURL(req.URL).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
 
-	request := whttp.BuildAnyRequest(bld)
+	request := whttp.Build[any](bld, nil)
 
 	for i := 0; i <= req.Retries; i++ {
-		if err := bc.sender.Send(ctx, request, decoder); err != nil {
+		if err := bc.Sender.Send(ctx, request, decoder); err != nil {
 			if i < req.Retries {
 				continue
 			}

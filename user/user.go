@@ -249,14 +249,17 @@ func NewBlockBaseRequest(action BlockAction, options ...BlockBaseRequestOption) 
 // NewBlockClient creates a high-level [BlockClient] with a fixed configuration.
 // Optional [SenderOption] functions tune the underlying HTTP transport.
 func NewBlockClient(config *config.Config, options ...whttp.CoreSenderOption) *BlockClient {
-	return &BlockClient{config: config, sender: NewBlockBaseClient(options...)}
+	return &BlockClient{
+		config: config,
+		sender: &BlockBaseClient{BaseClient: whttp.NewBaseClient[BlockBaseRequest](options...)},
+	}
 }
 
 // SetBaseClient replaces the underlying request sender. This is useful during
 // testing when you want to inject a mock [whttp.Sender] and bypass the default
 // HTTP stack entirely.
 func (client *BlockClient) SetBaseClient(sender whttp.Sender[BlockBaseRequest]) {
-	client.sender.SetRequestSender(sender)
+	client.sender.Sender = sender
 }
 
 // SetMiddlewares configures middlewares that wrap the underlying Sender.
@@ -265,37 +268,14 @@ func (client *BlockClient) SetBaseClient(sender whttp.Sender[BlockBaseRequest]) 
 // configuration internally, the configuration is silently discarded.
 // Apply middlewares to your custom sender before injecting it.
 func (client *BlockClient) SetMiddlewares(mws ...whttp.Middleware[BlockBaseRequest]) {
-	client.sender.SetMiddlewares(mws...)
+	client.sender.Sender = whttp.WrapMiddlewareSender(client.sender.Sender, mws...)
 }
 
 // BlockBaseClient is a base client that accepts a concrete *config.Config per request.
 // This makes it suitable for multi-tenant SaaS scenarios where each call may target a
 // different tenant. For a fixed-configuration client, use BlockClient.
 type BlockBaseClient struct {
-	sender whttp.Sender[BlockBaseRequest]
-}
-
-// NewBlockBaseClient creates a low-level [BlockBaseClient] with optional [whttp.CoreSenderOption].
-func NewBlockBaseClient(options ...whttp.CoreSenderOption) *BlockBaseClient {
-	return &BlockBaseClient{sender: whttp.NewCoreClient[BlockBaseRequest](options...)}
-}
-
-// SetRequestSender replaces the internal sender, ignoring any HTTP
-// configuration established by [NewBlockBaseClient]. This is useful when you want
-// to use a custom sender implementation or a mock during testing.
-func (client *BlockBaseClient) SetRequestSender(sender whttp.Sender[BlockBaseRequest]) {
-	client.sender = sender
-}
-
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
-func (client *BlockBaseClient) SetMiddlewares(mws ...whttp.Middleware[BlockBaseRequest]) {
-	if core, ok := client.sender.(*whttp.CoreClient[BlockBaseRequest]); ok {
-		core.SetMiddlewares(mws...)
-	}
+	*whttp.BaseClient[BlockBaseRequest]
 }
 
 func (client *BlockBaseClient) Block(
@@ -384,24 +364,24 @@ func (client *BlockBaseClient) Send(ctx context.Context, conf *config.Config, re
 	}
 
 	bld := whttp.NewRequestBuilder(method, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(reqType).
-		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, BlockEndpoint)
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(reqType).
+		Endpoints(conf.APIVersion, conf.PhoneNumberID, BlockEndpoint)
 
 	if len(params) > 0 {
-		bld = bld.WithQueryParams(params)
+		bld = bld.QueryParams(params)
 	}
 
-	req := whttp.BuildRequest(bld, message)
+	req := whttp.Build(bld, message)
 
 	response := &BlockBaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
 		InspectResponseError: true,
 	})
 
-	if err := client.sender.Send(ctx, req, decoder); err != nil {
+	if err := client.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 

@@ -47,7 +47,7 @@ type (
 	}
 
 	BaseClient struct {
-		sender whttp.AnySender
+		sender whttp.Sender[any]
 	}
 
 	SuccessResponse struct {
@@ -170,7 +170,7 @@ func (bc *Client) UpdateSettings(ctx context.Context, settings *Settings) (*Succ
 	return response, nil
 }
 
-func NewBaseClient(sender whttp.AnySender) *BaseClient {
+func NewBaseClient(sender whttp.Sender[any]) *BaseClient {
 	return &BaseClient{sender: sender}
 }
 

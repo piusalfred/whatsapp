@@ -37,10 +37,10 @@ const (
 
 type BaseClient struct {
 	ConfReader config.Reader
-	Sender     whttp.AnySender
+	Sender     whttp.Sender[any]
 }
 
-func NewBaseClient(confReader config.Reader, sender whttp.AnySender) *BaseClient {
+func NewBaseClient(confReader config.Reader, sender whttp.Sender[any]) *BaseClient {
 	return &BaseClient{
 		ConfReader: confReader,
 		Sender:     sender,

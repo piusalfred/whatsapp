@@ -222,7 +222,7 @@ func (r *BaseResponse) ToListResponse() *ListResponse {
 // Optional [SenderOption] functions tune the underlying HTTP transport.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: NewBaseClient(options...),
+		sender: &BaseClient{BaseClient: whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
 	}
 }
@@ -231,7 +231,7 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 // testing when you want to inject a mock [whttp.Sender] and bypass the default
 // HTTP stack entirely.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.SetRequestSender(sender)
+	c.sender.Sender = sender
 }
 
 // Create generates a new QR code for the given prefilled message and image format.
@@ -263,30 +263,7 @@ func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessRespon
 // concrete [*config.Config] per request, making it suitable for multi-tenant
 // SaaS scenarios. For a fixed-configuration client, use [Client].
 type BaseClient struct {
-	sender whttp.Sender[BaseRequest]
-}
-
-// NewBaseClient creates a low-level [BaseClient] with optional [whttp.CoreSenderOption].
-func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
-	return &BaseClient{sender: whttp.NewCoreClient[BaseRequest](options...)}
-}
-
-// SetRequestSender replaces the internal sender, ignoring any HTTP
-// configuration established by [NewBaseClient]. This is useful when you want
-// to use a custom sender implementation or a mock during testing.
-func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
-	bc.sender = sender
-}
-
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
-		core.SetMiddlewares(mws...)
-	}
+	*whttp.BaseClient[BaseRequest]
 }
 
 func buildListQueryParams(opts *ListOptions) map[string]string {
@@ -352,24 +329,24 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	}
 
 	bld := whttp.NewRequestBuilder(method, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(request.Type).
-		WithEndpoints(endpoints...)
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.Type).
+		Endpoints(endpoints...)
 
 	if len(queryParams) > 0 {
-		bld = bld.WithQueryParams(queryParams)
+		bld = bld.QueryParams(queryParams)
 	}
 
-	req := whttp.BuildRequest(bld, message)
+	req := whttp.Build(bld, message)
 
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
 		InspectResponseError: true,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
