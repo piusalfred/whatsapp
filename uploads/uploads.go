@@ -231,6 +231,11 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	return response, nil
 }
 
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
+
 func (bc *BaseClient) InitUploadSession(
 	ctx context.Context,
 	conf *config.Config,

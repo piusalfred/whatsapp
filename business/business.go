@@ -190,6 +190,11 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 	return response, nil
 }
 
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
+
 // Get retrieves the business profile for the given config.
 func (bc *BaseClient) Get(ctx context.Context, conf *config.Config, fields []string) ([]*Profile, error) {
 	resp, err := bc.Send(ctx, conf, &BaseRequest{
