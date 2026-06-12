@@ -104,6 +104,8 @@ type (
 		Calls                        []*Call                   `json:"calls,omitempty"`
 		Groups                       []*Group                  `json:"groups,omitempty"`
 		History                      []HistoryEntry            `json:"history,omitempty"`
+		StateSync                    []SMBAppStateSync         `json:"state_sync,omitempty"`
+		MessageEchoes                []*Message                `json:"message_echoes,omitempty"`
 	}
 
 	// ErrorInfo captures per-message or per-status error details from the

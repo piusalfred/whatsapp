@@ -130,6 +130,30 @@ type (
 		PhoneNumber string `json:"message_template_button_phone_number,omitempty"`
 	}
 
+	// SMBAppStateSync describes a contact sync event from a WhatsApp Business
+	// app user onboarded via a solution provider.
+	// Triggers: provider syncs contacts, or the business customer adds, edits,
+	// or removes a contact in their WhatsApp Business app address book.
+	SMBAppStateSync struct {
+		Type     string          `json:"type"` // always "contact"
+		Contact  *SMBContactSync `json:"contact,omitempty"`
+		Action   string          `json:"action"` // "add" or "remove"
+		Metadata *SMBMetadata    `json:"metadata,omitempty"`
+	}
+
+	// SMBContactSync is the contact information within an SMB state sync event.
+	// Fields are omitted when the action is "remove".
+	SMBContactSync struct {
+		FullName    string `json:"full_name,omitempty"`
+		FirstName   string `json:"first_name,omitempty"`
+		PhoneNumber string `json:"phone_number"`
+	}
+
+	// SMBMetadata carries the timestamp of the state sync event.
+	SMBMetadata struct {
+		Timestamp int64 `json:"timestamp"`
+	}
+
 	ViolationInfo struct {
 		ViolationType string `json:"violation_type"` // e.g., "ACCOUNT_VIOLATION"
 	}

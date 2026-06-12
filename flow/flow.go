@@ -301,11 +301,8 @@ func (c *Client) SetBaseClient(sender whttp.Sender[any]) {
 	c.sender.Sender = sender
 }
 
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[any]) {
 	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
 }

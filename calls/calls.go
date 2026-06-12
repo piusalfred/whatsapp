@@ -351,11 +351,8 @@ func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
 	c.sender.Sender = sender
 }
 
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
 	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
 }
@@ -420,6 +417,51 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	return resp, nil
+}
+
+// CheckPermission checks if a business is permitted to call a user.
+func (bc *BaseClient) CheckPermission(
+	ctx context.Context,
+	conf *config.Config,
+	request *CheckPermissionRequest,
+) (*CallPermissionCheckResponse, error) {
+	req := &Request{
+		MessagingProduct:      "whatsapp",
+		RequestType:           whttp.RequestTypeCheckCallPermissions,
+		UserWaID:              request.UserWaID,
+		BizOpaqueCallbackData: request.BizOpaqueCallbackData,
+	}
+	resp, err := bc.Send(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("check permission failed: %w", err)
+	}
+	return resp.ToCallPermissionCheckResponse(), nil
+}
+
+// UpdateCallStatus transitions a call's lifecycle state.
+func (bc *BaseClient) UpdateCallStatus(
+	ctx context.Context,
+	conf *config.Config,
+	request *CallUpdateStatusRequest,
+) (*CallUpdateStatusResponse, error) {
+	req := &Request{
+		MessagingProduct:      "whatsapp",
+		CallID:                request.CallID,
+		Action:                request.Action,
+		Session:               request.Session,
+		BizOpaqueCallbackData: request.BizOpaqueCallbackData,
+		RequestType:           whttp.RequestTypeUpdateCallStatus,
+		To:                    request.To,
+	}
+	resp, err := bc.Send(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("update call status failed: %w", err)
+	}
+	return resp.ToCallUpdateResponse(), nil
+}
+
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
 }
 
 // SetBizOpaqueCallbackData attaches an opaque callback data string to the

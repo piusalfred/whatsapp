@@ -83,6 +83,8 @@ type Handler struct {
 	messageStatusChange      MessageChangeValueHandler[Status]
 	revokeMessage            MessageHandler[Revoke]
 	editMessage              MessageHandler[Edit]
+	smbAppStateSync          MessageChangeValueHandler[SMBAppStateSync]
+	smbMessageEcho           MessageHandler[Message]
 	userPreferencesUpdate    MessageChangeValueHandler[UserPreference]
 	groupLifecycleUpdate     MessageChangeValueHandler[Group]
 	groupParticipantsUpdate  MessageChangeValueHandler[Group]
@@ -141,6 +143,8 @@ func NewHandler() *Handler {
 		messageStatusChange:      NewNoOpMessageChangeValueHandler[Status](),
 		revokeMessage:            NewNoOpMessageHandler[Revoke](),
 		editMessage:              NewNoOpMessageHandler[Edit](),
+		smbAppStateSync:          NewNoOpMessageChangeValueHandler[SMBAppStateSync](),
+		smbMessageEcho:           NewNoOpMessageHandler[Message](),
 		userPreferencesUpdate:    NewNoOpMessageChangeValueHandler[UserPreference](),
 		groupLifecycleUpdate:     NewNoOpMessageChangeValueHandler[Group](),
 		groupParticipantsUpdate:  NewNoOpMessageChangeValueHandler[Group](),
@@ -198,7 +202,7 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 	return &Response{StatusCode: http.StatusOK}
 }
 
-func (handler *Handler) handleNotificationChange( //nolint:funlen,gocognit // complex notification routing
+func (handler *Handler) handleNotificationChange( //nolint:funlen,gocognit,gocyclo,cyclop // complex notification routing
 	ctx context.Context,
 	notification *Notification,
 	change Change,
@@ -301,6 +305,16 @@ func (handler *Handler) handleNotificationChange( //nolint:funlen,gocognit // co
 			entry, change.Value.UserPreferences,
 		)
 
+	case ChangeFieldSMBAppStateSync.String():
+		syncs := make([]*SMBAppStateSync, len(change.Value.StateSync))
+		for i := range change.Value.StateSync {
+			syncs[i] = &change.Value.StateSync[i]
+		}
+		return handleMessageChangeNotification(
+			ctx, handler, handler.smbAppStateSync, change,
+			entry, syncs,
+		)
+
 	case ChangeFieldAccountSettingsUpdate.String():
 		return handleBusinessNotification(
 			ctx, handler, notification, change, entry,
@@ -319,6 +333,23 @@ func (handler *Handler) handleNotificationChange( //nolint:funlen,gocognit // co
 
 	case ChangeFieldMessages.String():
 		return handler.handleNotificationMessageItem(ctx, entry, change)
+
+	case ChangeFieldSMBMessageEchoes.String():
+		for _, msg := range change.Value.MessageEchoes {
+			if msg == nil {
+				continue
+			}
+			notificationCtx := &MessageNotificationContext{
+				EntryID:          entry.ID,
+				MessagingProduct: change.Value.MessagingProduct,
+				Metadata:         change.Value.Metadata,
+				Contacts:         change.Value.Contacts,
+			}
+			if err := handler.handleNotificationMessage(ctx, notificationCtx, msg); err != nil {
+				return err
+			}
+		}
+		return nil
 
 	case ChangeFieldGroupLifecycleUpdate.String(),
 		ChangeFieldGroupParticipantsUpdate.String(),
@@ -611,8 +642,7 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 //
 // Not yet implemented (no-ops if received):
 //
-//	automatic_events, partner_solutions, payment_configuration_update,
-//	smb_app_state_sync, smb_message_echoes
+//	automatic_events, partner_solutions, payment_configuration_update
 type ChangeField string
 
 const (
@@ -637,6 +667,8 @@ const (
 	ChangeFieldHistory                  ChangeField = "history"
 	ChangeFieldSecurity                 ChangeField = "security"
 	ChangeFieldTemplateComponentsUpdate ChangeField = "message_template_components_update"
+	ChangeFieldSMBAppStateSync          ChangeField = "smb_app_state_sync"
+	ChangeFieldSMBMessageEchoes         ChangeField = "smb_message_echoes"
 )
 
 const (
@@ -1294,6 +1326,7 @@ type (
 	GroupSettingsUpdateHandler     = MessageChangeValueHandler[Group]
 	GroupStatusUpdateHandler       = MessageChangeValueHandler[Group]
 	HistorySyncHandler             = MessageChangeValueHandler[HistoryEntry]
+	SMBAppStateSyncHandler         = MessageChangeValueHandler[SMBAppStateSync]
 )
 
 func (f MessageChangeValueHandlerFunc[T]) Handle(
@@ -1320,6 +1353,36 @@ func (handler *Handler) SetUserPreferencesUpdateHandler(
 	h UserPreferenceUpdateHandler,
 ) {
 	handler.userPreferencesUpdate = h
+}
+
+// OnSMBAppStateSync registers a callback for SMB contact sync events.
+// Triggers when a solution provider syncs contacts for an onboarded business,
+// or when the business customer adds, edits, or removes a contact in their
+// WhatsApp Business app address book.
+func (handler *Handler) OnSMBAppStateSync(
+	fn func(ctx context.Context, notificationContext *MessageNotificationContext, syncs []*SMBAppStateSync) error,
+) {
+	handler.smbAppStateSync = MessageChangeValueHandlerFunc[SMBAppStateSync](fn)
+}
+
+func (handler *Handler) SetSMBAppStateSyncHandler(h SMBAppStateSyncHandler) {
+	handler.smbAppStateSync = h
+}
+
+// OnSMBMessageEcho registers a callback for messages sent by an onboarded
+// business customer via their WhatsApp Business app or companion device.
+// Triggers: business sends a message, revokes a message, or edits a message
+// using the WhatsApp Business app.
+// The payload shape is identical to incoming messages — use the same Message
+// handlers you use for regular messages.
+func (handler *Handler) OnSMBMessageEcho(
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, msg *Message) error,
+) {
+	handler.smbMessageEcho = MessageHandlerFunc[Message](fn)
+}
+
+func (handler *Handler) SetSMBMessageEchoHandler(h MessageHandler[Message]) {
+	handler.smbMessageEcho = h
 }
 
 func (handler *Handler) OnRequestWelcomeMessage(

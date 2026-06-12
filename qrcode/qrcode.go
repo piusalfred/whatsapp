@@ -494,3 +494,7 @@ func (bc *BaseClient) Update(ctx context.Context, conf *config.Config, req *Upda
 
 	return &SuccessResponse{Success: resp.Success}, nil
 }
+
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}

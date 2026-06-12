@@ -262,11 +262,8 @@ func (client *BlockClient) SetBaseClient(sender whttp.Sender[BlockBaseRequest]) 
 	client.sender.Sender = sender
 }
 
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
 func (client *BlockClient) SetMiddlewares(mws ...whttp.Middleware[BlockBaseRequest]) {
 	client.sender.Sender = whttp.WrapMiddlewareSender(client.sender.Sender, mws...)
 }
@@ -386,4 +383,8 @@ func (client *BlockBaseClient) Send(ctx context.Context, conf *config.Config, re
 	}
 
 	return response, nil
+}
+
+func (client *BlockBaseClient) SetMiddlewares(mws ...whttp.Middleware[BlockBaseRequest]) {
+	client.Sender = whttp.WrapMiddlewareSender(client.Sender, mws...)
 }
