@@ -720,3 +720,7 @@ func (bc *BaseClient) DownloadByMediaID(
 
 	return nil
 }
+
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
