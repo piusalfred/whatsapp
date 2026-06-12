@@ -183,6 +183,11 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	return response, nil
 }
 
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
+
 // BaseResponse is the general response struct for the Analytics API.
 type BaseResponse struct {
 	Messaging      *MessagingAnalytics    `json:"analytics,omitempty"`

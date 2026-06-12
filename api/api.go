@@ -32,15 +32,19 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/piusalfred/whatsapp/business"
+	"github.com/piusalfred/whatsapp/business/analytics"
 	"github.com/piusalfred/whatsapp/calls"
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/conversation/automation"
 	"github.com/piusalfred/whatsapp/flow"
+	"github.com/piusalfred/whatsapp/groups"
 	"github.com/piusalfred/whatsapp/media"
 	"github.com/piusalfred/whatsapp/phonenumber"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/qrcode"
 	"github.com/piusalfred/whatsapp/settings"
+	"github.com/piusalfred/whatsapp/uploads"
 	"github.com/piusalfred/whatsapp/user"
 )
 
@@ -52,14 +56,18 @@ type Client struct {
 
 // BaseClient is the multi-tenant layer. Pass a *config.Config per call.
 type BaseClient struct {
-	calls    *calls.BaseClient
-	users    *user.BlockBaseClient
-	qrCode   *qrcode.BaseClient
-	auto     *automation.BaseClient
-	flows    *flow.BaseClient
-	media    *media.BaseClient
-	settings *settings.BaseClient
-	phone    *phonenumber.BaseClient
+	calls     *calls.BaseClient
+	users     *user.BlockBaseClient
+	qrCode    *qrcode.BaseClient
+	auto      *automation.BaseClient
+	flows     *flow.BaseClient
+	media     *media.BaseClient
+	settings  *settings.BaseClient
+	phone     *phonenumber.BaseClient
+	groups    *groups.BaseClient
+	biz       *business.BaseClient
+	analytics *analytics.BaseClient
+	uploads   *uploads.BaseClient
 }
 
 // NewClient creates a Client with the given fixed configuration.
@@ -73,14 +81,18 @@ func NewClient(conf *config.Config, opts ...whttp.CoreSenderOption) *Client {
 // NewBaseClient creates a BaseClient with the given sender options.
 func NewBaseClient(opts ...whttp.CoreSenderOption) *BaseClient {
 	return &BaseClient{
-		calls:    &calls.BaseClient{BaseClient: *whttp.NewBaseClient[calls.BaseRequest](opts...)},
-		users:    &user.BlockBaseClient{BaseClient: *whttp.NewBaseClient[user.BlockBaseRequest](opts...)},
-		qrCode:   &qrcode.BaseClient{BaseClient: *whttp.NewBaseClient[qrcode.BaseRequest](opts...)},
-		auto:     &automation.BaseClient{BaseClient: *whttp.NewBaseClient[automation.BaseRequest](opts...)},
-		flows:    &flow.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
-		media:    &media.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
-		settings: &settings.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
-		phone:    &phonenumber.BaseClient{BaseClient: *whttp.NewBaseClient[phonenumber.BaseRequest](opts...)},
+		calls:     &calls.BaseClient{BaseClient: *whttp.NewBaseClient[calls.BaseRequest](opts...)},
+		users:     &user.BlockBaseClient{BaseClient: *whttp.NewBaseClient[user.BlockBaseRequest](opts...)},
+		qrCode:    &qrcode.BaseClient{BaseClient: *whttp.NewBaseClient[qrcode.BaseRequest](opts...)},
+		auto:      &automation.BaseClient{BaseClient: *whttp.NewBaseClient[automation.BaseRequest](opts...)},
+		flows:     &flow.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
+		media:     &media.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
+		settings:  &settings.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
+		phone:     &phonenumber.BaseClient{BaseClient: *whttp.NewBaseClient[phonenumber.BaseRequest](opts...)},
+		groups:    &groups.BaseClient{BaseClient: *whttp.NewBaseClient[groups.BaseRequest](opts...)},
+		biz:       &business.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
+		analytics: &analytics.BaseClient{BaseClient: *whttp.NewBaseClient[analytics.BaseRequest](opts...)},
+		uploads:   &uploads.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 	}
 }
 
@@ -114,6 +126,22 @@ func (c *Client) SetSettingsMiddlewares(mws ...whttp.Middleware[any]) {
 
 func (c *Client) SetPhoneNumbersMiddlewares(mws ...whttp.Middleware[phonenumber.BaseRequest]) {
 	c.sender.phone.SetMiddlewares(mws...)
+}
+
+func (c *Client) SetGroupsMiddlewares(mws ...whttp.Middleware[groups.BaseRequest]) {
+	c.sender.groups.SetMiddlewares(mws...)
+}
+
+func (c *Client) SetBusinessMiddlewares(mws ...whttp.Middleware[any]) {
+	c.sender.biz.SetMiddlewares(mws...)
+}
+
+func (c *Client) SetAnalyticsMiddlewares(mws ...whttp.Middleware[analytics.BaseRequest]) {
+	c.sender.analytics.SetMiddlewares(mws...)
+}
+
+func (c *Client) SetUploadsMiddlewares(mws ...whttp.Middleware[any]) {
+	c.sender.uploads.SetMiddlewares(mws...)
 }
 
 func (c *Client) CheckCallingPermission(
@@ -397,6 +425,205 @@ func (c *Client) DownloadMediaByID(
 	opts ...media.DownloadOptionFunc,
 ) error {
 	return c.sender.DownloadMediaByID(ctx, c.config, req, decoder, opts...)
+}
+
+// --- Groups ---
+
+func (c *Client) CreateGroup(ctx context.Context, req *groups.CreateGroupRequest) (*groups.BaseResponse, error) {
+	resp, err := c.sender.CreateGroup(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("create group: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) DeleteGroup(ctx context.Context, req *groups.DeleteGroupRequest) (*groups.BaseResponse, error) {
+	resp, err := c.sender.DeleteGroup(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("delete group: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) GetGroupInfo(ctx context.Context, req *groups.GetGroupInfoRequest) (*groups.GroupInfoResponse, error) {
+	resp, err := c.sender.GetGroupInfo(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("get group info: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) GetGroupInviteLink(
+	ctx context.Context,
+	req *groups.GetGroupInviteLinkRequest,
+) (*groups.GroupInviteLinkResponse, error) {
+	resp, err := c.sender.GetGroupInviteLink(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("get group invite link: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) ResetGroupInviteLink(
+	ctx context.Context,
+	req *groups.ResetGroupInviteLinkRequest,
+) (*groups.GroupInviteLinkResponse, error) {
+	resp, err := c.sender.ResetGroupInviteLink(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("reset group invite link: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) RemoveGroupParticipants(
+	ctx context.Context,
+	req *groups.RemoveGroupParticipantsRequest,
+) (*groups.BaseResponse, error) {
+	resp, err := c.sender.RemoveGroupParticipants(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("remove group participants: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) ListActiveGroups(
+	ctx context.Context,
+	req *groups.GetActiveGroupsRequest,
+) (*groups.ActiveGroupsResponse, error) {
+	resp, err := c.sender.ListActiveGroups(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("list active groups: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) UpdateGroupSettings(
+	ctx context.Context,
+	req *groups.UpdateGroupSettingsRequest,
+) (*groups.BaseResponse, error) {
+	resp, err := c.sender.UpdateGroupSettings(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("update group settings: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) ListJoinRequests(
+	ctx context.Context,
+	req *groups.GetJoinRequestsRequest,
+) (*groups.JoinRequestsResponse, error) {
+	resp, err := c.sender.ListJoinRequests(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("list join requests: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) ApproveJoinRequests(
+	ctx context.Context,
+	req *groups.ApproveJoinRequestsRequest,
+) (*groups.ApproveJoinRequestsResponse, error) {
+	resp, err := c.sender.ApproveJoinRequests(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("approve join requests: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) RejectJoinRequests(
+	ctx context.Context,
+	req *groups.RejectJoinRequestsRequest,
+) (*groups.RejectJoinRequestsResponse, error) {
+	resp, err := c.sender.RejectJoinRequests(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("reject join requests: %w", err)
+	}
+	return resp, nil
+}
+
+// --- Business ---
+
+func (c *Client) GetBusinessProfile(ctx context.Context, fields []string) ([]*business.Profile, error) {
+	resp, err := c.sender.GetBusinessProfile(ctx, c.config, fields)
+	if err != nil {
+		return nil, fmt.Errorf("get business profile: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) UpdateBusinessProfile(ctx context.Context, req *business.UpdateProfileRequest) (bool, error) {
+	resp, err := c.sender.UpdateBusinessProfile(ctx, c.config, req)
+	if err != nil {
+		return false, fmt.Errorf("update business profile: %w", err)
+	}
+	return resp, nil
+}
+
+// --- Analytics ---
+
+func (c *Client) FetchMessagingAnalytics(
+	ctx context.Context,
+	req *analytics.MessagingRequest,
+) (*analytics.MessagingResponse, error) {
+	resp, err := c.sender.FetchMessagingAnalytics(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch messaging analytics: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) FetchConversationAnalytics(
+	ctx context.Context,
+	req *analytics.ConversationalRequest,
+) (*analytics.ConversationalResponse, error) {
+	resp, err := c.sender.FetchConversationAnalytics(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch conversation analytics: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) FetchPricingAnalytics(
+	ctx context.Context,
+	req *analytics.PricingRequest,
+) (*analytics.PricingResponse, error) {
+	resp, err := c.sender.FetchPricingAnalytics(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch pricing analytics: %w", err)
+	}
+	return resp, nil
+}
+
+// --- Uploads ---
+
+func (c *Client) InitUploadSession(
+	ctx context.Context,
+	req *uploads.InitUploadSessionRequest,
+) (*uploads.InitUploadSessionResponse, error) {
+	resp, err := c.sender.InitUploadSession(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("init upload session: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) UploadChunk(
+	ctx context.Context,
+	req *uploads.UploadChunkRequest,
+) (*uploads.UploadChunkResponse, error) {
+	resp, err := c.sender.UploadChunk(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("upload chunk: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) GetUploadStatus(ctx context.Context, uploadSessionID string) (*uploads.UploadStatusResponse, error) {
+	resp, err := c.sender.GetUploadStatus(ctx, c.config, uploadSessionID)
+	if err != nil {
+		return nil, fmt.Errorf("get upload status: %w", err)
+	}
+	return resp, nil
 }
 
 func (bc *BaseClient) CheckCallingPermission(
@@ -780,4 +1007,240 @@ func (bc *BaseClient) DownloadMediaByID(
 		return fmt.Errorf("download media by id: %w", err)
 	}
 	return nil
+}
+
+// --- Groups BaseClient ---
+
+func (bc *BaseClient) CreateGroup(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.CreateGroupRequest,
+) (*groups.BaseResponse, error) {
+	resp, err := bc.groups.CreateGroup(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("create group: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) DeleteGroup(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.DeleteGroupRequest,
+) (*groups.BaseResponse, error) {
+	resp, err := bc.groups.DeleteGroup(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("delete group: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) GetGroupInfo(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.GetGroupInfoRequest,
+) (*groups.GroupInfoResponse, error) {
+	resp, err := bc.groups.GetGroupInfo(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("get group info: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) GetGroupInviteLink(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.GetGroupInviteLinkRequest,
+) (*groups.GroupInviteLinkResponse, error) {
+	resp, err := bc.groups.GetGroupInviteLink(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("get group invite link: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) ResetGroupInviteLink(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.ResetGroupInviteLinkRequest,
+) (*groups.GroupInviteLinkResponse, error) {
+	resp, err := bc.groups.ResetGroupInviteLink(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("reset group invite link: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) RemoveGroupParticipants(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.RemoveGroupParticipantsRequest,
+) (*groups.BaseResponse, error) {
+	resp, err := bc.groups.RemoveGroupParticipants(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("remove group participants: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) ListActiveGroups(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.GetActiveGroupsRequest,
+) (*groups.ActiveGroupsResponse, error) {
+	resp, err := bc.groups.GetActiveGroups(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("list active groups: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) UpdateGroupSettings(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.UpdateGroupSettingsRequest,
+) (*groups.BaseResponse, error) {
+	resp, err := bc.groups.UpdateGroupSettings(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("update group settings: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) ListJoinRequests(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.GetJoinRequestsRequest,
+) (*groups.JoinRequestsResponse, error) {
+	resp, err := bc.groups.GetJoinRequests(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("list join requests: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) ApproveJoinRequests(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.ApproveJoinRequestsRequest,
+) (*groups.ApproveJoinRequestsResponse, error) {
+	resp, err := bc.groups.ApproveJoinRequests(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("approve join requests: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) RejectJoinRequests(
+	ctx context.Context,
+	conf *config.Config,
+	req *groups.RejectJoinRequestsRequest,
+) (*groups.RejectJoinRequestsResponse, error) {
+	resp, err := bc.groups.RejectJoinRequests(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("reject join requests: %w", err)
+	}
+	return resp, nil
+}
+
+// --- Business BaseClient ---
+
+func (bc *BaseClient) GetBusinessProfile(
+	ctx context.Context,
+	conf *config.Config,
+	fields []string,
+) ([]*business.Profile, error) {
+	resp, err := bc.biz.Get(ctx, conf, fields)
+	if err != nil {
+		return nil, fmt.Errorf("get business profile: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) UpdateBusinessProfile(
+	ctx context.Context,
+	conf *config.Config,
+	req *business.UpdateProfileRequest,
+) (bool, error) {
+	resp, err := bc.biz.Update(ctx, conf, req)
+	if err != nil {
+		return false, fmt.Errorf("update business profile: %w", err)
+	}
+	return resp, nil
+}
+
+// --- Analytics BaseClient ---
+
+func (bc *BaseClient) FetchMessagingAnalytics(
+	ctx context.Context,
+	conf *config.Config,
+	req *analytics.MessagingRequest,
+) (*analytics.MessagingResponse, error) {
+	resp, err := bc.analytics.FetchGeneralAnalytics(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch messaging analytics: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) FetchConversationAnalytics(
+	ctx context.Context,
+	conf *config.Config,
+	req *analytics.ConversationalRequest,
+) (*analytics.ConversationalResponse, error) {
+	resp, err := bc.analytics.FetchConversationAnalytics(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch conversation analytics: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) FetchPricingAnalytics(
+	ctx context.Context,
+	conf *config.Config,
+	req *analytics.PricingRequest,
+) (*analytics.PricingResponse, error) {
+	resp, err := bc.analytics.FetchPricingAnalytics(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch pricing analytics: %w", err)
+	}
+	return resp, nil
+}
+
+// --- Uploads BaseClient ---
+
+func (bc *BaseClient) InitUploadSession(
+	ctx context.Context,
+	conf *config.Config,
+	req *uploads.InitUploadSessionRequest,
+) (*uploads.InitUploadSessionResponse, error) {
+	resp, err := bc.uploads.InitUploadSession(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("init upload session: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) UploadChunk(
+	ctx context.Context,
+	conf *config.Config,
+	req *uploads.UploadChunkRequest,
+) (*uploads.UploadChunkResponse, error) {
+	resp, err := bc.uploads.UploadChunk(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("upload chunk: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) GetUploadStatus(
+	ctx context.Context,
+	conf *config.Config,
+	uploadSessionID string,
+) (*uploads.UploadStatusResponse, error) {
+	resp, err := bc.uploads.GetUploadStatus(ctx, conf, uploadSessionID)
+	if err != nil {
+		return nil, fmt.Errorf("get upload status: %w", err)
+	}
+	return resp, nil
 }

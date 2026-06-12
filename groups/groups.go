@@ -688,6 +688,11 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	return resp, nil
 }
 
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
+
 func (bc *BaseClient) CreateGroup(
 	ctx context.Context,
 	conf *config.Config,
