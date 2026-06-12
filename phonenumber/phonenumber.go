@@ -213,9 +213,8 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	return resp, nil
 }
 
-type Service interface {
-	List(ctx context.Context) (*ListResponse, error)
-	Get(ctx context.Context, request *GetRequest) (*PhoneNumber, error)
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
 }
 
-var _ Service = (*Client)(nil)
+var _ = (*Client)(nil)

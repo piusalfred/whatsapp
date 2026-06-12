@@ -268,6 +268,10 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 	return response, nil
 }
 
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
+
 type (
 	BaseRequest struct {
 		Method  string

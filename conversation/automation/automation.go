@@ -73,6 +73,28 @@ type (
 	SuccessResponse struct {
 		Success bool `json:"success"`
 	}
+
+	// BotRequest carries the parameters for retrieving bot details.
+	BotRequest struct {
+		BotID  string
+		Fields string // comma-separated list of fields
+	}
+
+	// Bot describes a WhatsApp Business Bot configuration and details.
+	Bot struct {
+		ID                   string    `json:"id"`
+		Prompts              []string  `json:"prompts,omitempty"`
+		Commands             []Command `json:"commands,omitempty"`
+		EnableWelcomeMessage bool      `json:"enable_welcome_message,omitempty"`
+	}
+
+	// BotBaseRequest is an internal unified context data carrier for bot
+	// operations. It maps domain parameters down to the HTTP executor.
+	BotBaseRequest struct {
+		Type   whttp.RequestType
+		BotID  string
+		Fields string
+	}
 )
 
 const Endpoint = "conversational_automation"
@@ -111,7 +133,11 @@ func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, err
 	return response, nil
 }
 
-func (c *Client) AddComponents(ctx context.Context, commands []*Command, prompts []string) (*SuccessResponse, error) {
+func (c *Client) AddConversationComponents(
+	ctx context.Context,
+	commands []*Command,
+	prompts []string,
+) (*SuccessResponse, error) {
 	request := &Request{
 		EnableWelcomeMessage: true,
 		Commands:             commands,
@@ -148,12 +174,17 @@ func (c *Client) UpdateWelcomeMessageStatus(ctx context.Context, shouldEnable bo
 	return &SuccessResponse{Success: resp.Success}, nil
 }
 
-func (c *Client) ListComponents(ctx context.Context) (*BaseResponse, error) {
+func (c *Client) ListConversationComponents(ctx context.Context) (*BaseResponse, error) {
 	request := &Request{
 		RequestType: whttp.RequestTypeGetConversationAutomationComponents,
 	}
 
 	return c.Send(ctx, request)
+}
+
+// GetBotDetails retrieves comprehensive details about a WhatsApp Business Bot.
+func (c *Client) GetBotDetails(ctx context.Context, request *BotRequest) (*Bot, error) {
+	return c.sender.GetBotDetails(ctx, c.config, request)
 }
 
 // BaseClient is the low-level HTTP executor for the Conversational Automation API.
@@ -213,7 +244,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	return response, nil
 }
 
-func (bc *BaseClient) AddComponents(ctx context.Context, conf *config.Config,
+func (bc *BaseClient) AddConversationComponents(ctx context.Context, conf *config.Config,
 	commands []*Command, prompts []string,
 ) (*SuccessResponse, error) {
 	request := &Request{
@@ -254,10 +285,60 @@ func (bc *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, conf *conf
 	return &SuccessResponse{Success: resp.Success}, nil
 }
 
-func (bc *BaseClient) ListComponents(ctx context.Context, conf *config.Config) (*BaseResponse, error) {
+func (bc *BaseClient) ListConversationComponents(ctx context.Context, conf *config.Config) (*BaseResponse, error) {
 	request := &Request{
 		RequestType: whttp.RequestTypeGetConversationAutomationComponents,
 	}
 
 	return bc.Send(ctx, conf, request)
+}
+
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
+
+// sendBot translates a BotBaseRequest into an HTTP transaction and decodes the
+// response into a Bot. The bot detail endpoint uses GET with optional query
+// parameters and no request body.
+func (bc *BaseClient) sendBot(ctx context.Context, conf *config.Config, request *BotBaseRequest) (*Bot, error) {
+	queryParams := map[string]string{}
+	if request.Fields != "" {
+		queryParams["fields"] = request.Fields
+	}
+
+	bld := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.Type).
+		Endpoints(conf.APIVersion, request.BotID)
+
+	if len(queryParams) > 0 {
+		bld = bld.QueryParams(queryParams)
+	}
+
+	req := whttp.BuildRequest[BaseRequest](bld, nil)
+
+	var resp Bot
+	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
+		InspectResponseError: true,
+	})
+
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	return &resp, nil
+}
+
+// GetBotDetails retrieves comprehensive details about a WhatsApp Business Bot.
+func (bc *BaseClient) GetBotDetails(ctx context.Context, conf *config.Config, request *BotRequest) (*Bot, error) {
+	req := &BotBaseRequest{
+		Type:   whttp.RequestTypeGetBotDetails,
+		BotID:  request.BotID,
+		Fields: request.Fields,
+	}
+	return bc.sendBot(ctx, conf, req)
 }
