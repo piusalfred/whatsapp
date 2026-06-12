@@ -222,7 +222,7 @@ func (r *BaseResponse) ToListResponse() *ListResponse {
 // Optional [SenderOption] functions tune the underlying HTTP transport.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: NewBaseClient(options...),
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
 	}
 }
@@ -231,62 +231,99 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 // testing when you want to inject a mock [whttp.Sender] and bypass the default
 // HTTP stack entirely.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.SetRequestSender(sender)
+	c.sender.Sender = sender
+}
+
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
 }
 
 // Create generates a new QR code for the given prefilled message and image format.
 func (c *Client) Create(ctx context.Context, req *CreateRequest) (*CreateResponse, error) {
-	return c.sender.Create(ctx, c.config, req)
+	request := &Request{
+		Type:             whttp.RequestTypeCreateQR,
+		PrefilledMessage: req.PrefilledMessage,
+		GenerateQRImage:  string(req.ImageFormat),
+	}
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrCreateQRCode, err)
+	}
+	return resp.ToCreateResponse(), nil
 }
 
 // Get retrieves metadata for a specific QR code by its code identifier.
 func (c *Client) Get(ctx context.Context, qrCodeID string) (*Information, error) {
-	return c.sender.Get(ctx, c.config, qrCodeID)
+	request := &Request{
+		Type:     whttp.RequestTypeGetQR,
+		QRCodeID: qrCodeID,
+	}
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrGetQRCode, err)
+	}
+	if len(resp.Data) == 0 {
+		return nil, fmt.Errorf("%w: qr code not found", ErrGetQRCode)
+	}
+	return resp.Data[0], nil
 }
 
 // List returns all QR codes associated with the phone number.
 func (c *Client) List(ctx context.Context, opts *ListOptions) (*ListResponse, error) {
-	return c.sender.List(ctx, c.config, opts)
+	request := &Request{
+		Type:        whttp.RequestTypeListQR,
+		ListOptions: opts,
+	}
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrListQRCode, err)
+	}
+	return resp.ToListResponse(), nil
 }
 
 // Delete removes a QR code by its code identifier.
 func (c *Client) Delete(ctx context.Context, qrCodeID string) (*SuccessResponse, error) {
-	return c.sender.Delete(ctx, c.config, qrCodeID)
+	request := &Request{
+		Type:     whttp.RequestTypeDeleteQR,
+		QRCodeID: qrCodeID,
+	}
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrDeleteQRCode, err)
+	}
+	return &SuccessResponse{Success: resp.Success}, nil
 }
 
 // Update modifies the prefilled message and/or image format of an existing QR code.
 func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessResponse, error) {
-	return c.sender.Update(ctx, c.config, req)
+	request := &Request{
+		Type:             whttp.RequestTypeUpdateQR,
+		QRCodeID:         req.QRCodeID,
+		PrefilledMessage: req.PrefilledMessage,
+		GenerateQRImage:  string(req.ImageFormat),
+	}
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrUpdateQRCode, err)
+	}
+	return &SuccessResponse{Success: resp.Success}, nil
+}
+
+// Send dispatches a raw [Request] through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+	return response, nil
 }
 
 // BaseClient is the low-level HTTP executor for the QR Code API. It accepts a
 // concrete [*config.Config] per request, making it suitable for multi-tenant
 // SaaS scenarios. For a fixed-configuration client, use [Client].
 type BaseClient struct {
-	sender whttp.Sender[BaseRequest]
-}
-
-// NewBaseClient creates a low-level [BaseClient] with optional [whttp.CoreSenderOption].
-func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
-	return &BaseClient{sender: whttp.NewCoreClient[BaseRequest](options...)}
-}
-
-// SetRequestSender replaces the internal sender, ignoring any HTTP
-// configuration established by [NewBaseClient]. This is useful when you want
-// to use a custom sender implementation or a mock during testing.
-func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
-	bc.sender = sender
-}
-
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
-		core.SetMiddlewares(mws...)
-	}
+	whttp.BaseClient[BaseRequest]
 }
 
 func buildListQueryParams(opts *ListOptions) map[string]string {
@@ -352,24 +389,24 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	}
 
 	bld := whttp.NewRequestBuilder(method, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(request.Type).
-		WithEndpoints(endpoints...)
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.Type).
+		Endpoints(endpoints...)
 
 	if len(queryParams) > 0 {
-		bld = bld.WithQueryParams(queryParams)
+		bld = bld.QueryParams(queryParams)
 	}
 
-	req := whttp.BuildRequest(bld, message)
+	req := whttp.Build(bld, message)
 
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
 		InspectResponseError: true,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
@@ -456,4 +493,8 @@ func (bc *BaseClient) Update(ctx context.Context, conf *config.Config, req *Upda
 	}
 
 	return &SuccessResponse{Success: resp.Success}, nil
+}
+
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
 }

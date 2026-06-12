@@ -20,12 +20,25 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/piusalfred/whatsapp/message"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
 
+// Handler registers callbacks for every WhatsApp webhook event type. Each
+// field holds an event-specific handler that defaults to a no-op. Use the
+// On*/Set* method pairs to read or replace individual handlers.
+//
+// Registration follows a consistent pattern:
+//
+//	handler.OnTextMessage(...)   // returns current handler
+//	handler.SetTextMessage(...)  // replaces with a new handler
+//
+// Fields are organized by event category: flow alerts, template updates,
+// account notifications, message types (text, image, interactive, etc.),
+// status changes, and group events.
 type Handler struct {
 	flowStatus               EventHandler[FlowNotificationContext, StatusChangeDetails]
 	flowClientErrorRate      EventHandler[FlowNotificationContext, ClientErrorRateDetails]
@@ -36,6 +49,7 @@ type Handler struct {
 	templateStatus           EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
 	templateCategory         EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
 	templateQuality          EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]
+	templateComponents       EventHandler[BusinessNotificationContext, TemplateComponentsUpdateNotification]
 	phoneNumberNameUpdate    EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
 	capabilityUpdate         EventHandler[BusinessNotificationContext, CapabilityUpdate]
 	accountUpdate            EventHandler[BusinessNotificationContext, AccountUpdate]
@@ -43,6 +57,7 @@ type Handler struct {
 	phoneNumberQualityUpdate EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
 	accountReviewUpdate      EventHandler[BusinessNotificationContext, AccountReviewUpdate]
 	callStatusUpdate         EventHandler[BusinessNotificationContext, CallStatusUpdate]
+	securityUpdate           EventHandler[BusinessNotificationContext, SecurityNotification]
 	buttonMessage            MessageHandler[Button]
 	textMessage              MessageHandler[Text]
 	orderMessage             MessageHandler[Order]
@@ -66,6 +81,10 @@ type Handler struct {
 	stickerMessage           MediaMessageHandler
 	notificationErrors       MessageChangeValueHandler[werrors.Error]
 	messageStatusChange      MessageChangeValueHandler[Status]
+	revokeMessage            MessageHandler[Revoke]
+	editMessage              MessageHandler[Edit]
+	smbAppStateSync          MessageChangeValueHandler[SMBAppStateSync]
+	smbMessageEcho           MessageHandler[Message]
 	userPreferencesUpdate    MessageChangeValueHandler[UserPreference]
 	groupLifecycleUpdate     MessageChangeValueHandler[Group]
 	groupParticipantsUpdate  MessageChangeValueHandler[Group]
@@ -73,10 +92,13 @@ type Handler struct {
 	groupStatusUpdate        MessageChangeValueHandler[Group]
 	errorMessage             MessageErrorsHandler
 	unsupportedMessage       MessageErrorsHandler
+	historySync              MessageChangeValueHandler[HistoryEntry]
 
 	errorHandlerFunc func(ctx context.Context, err error) error
 }
 
+// NewHandler creates a Handler with all callbacks initialized to no-ops.
+// Register handlers via the Set* methods before attaching to a Listener.
 func NewHandler() *Handler {
 	return &Handler{
 		flowStatus:               NewNoOpEventHandler[FlowNotificationContext, StatusChangeDetails](),
@@ -88,6 +110,7 @@ func NewHandler() *Handler {
 		templateStatus:           NewNoOpEventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification](),
 		templateCategory:         NewNoOpEventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification](),
 		templateQuality:          NewNoOpEventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification](),
+		templateComponents:       NewNoOpEventHandler[BusinessNotificationContext, TemplateComponentsUpdateNotification](),
 		phoneNumberNameUpdate:    NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberNameUpdate](),
 		capabilityUpdate:         NewNoOpEventHandler[BusinessNotificationContext, CapabilityUpdate](),
 		accountUpdate:            NewNoOpEventHandler[BusinessNotificationContext, AccountUpdate](),
@@ -95,6 +118,7 @@ func NewHandler() *Handler {
 		phoneNumberQualityUpdate: NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate](),
 		accountReviewUpdate:      NewNoOpEventHandler[BusinessNotificationContext, AccountReviewUpdate](),
 		callStatusUpdate:         NewNoOpEventHandler[BusinessNotificationContext, CallStatusUpdate](),
+		securityUpdate:           NewNoOpEventHandler[BusinessNotificationContext, SecurityNotification](),
 		buttonMessage:            NewNoOpMessageHandler[Button](),
 		textMessage:              NewNoOpMessageHandler[Text](),
 		orderMessage:             NewNoOpMessageHandler[Order](),
@@ -117,6 +141,10 @@ func NewHandler() *Handler {
 		stickerMessage:           NewNoOpMessageHandler[message.MediaInfo](),
 		notificationErrors:       NewNoOpMessageChangeValueHandler[werrors.Error](),
 		messageStatusChange:      NewNoOpMessageChangeValueHandler[Status](),
+		revokeMessage:            NewNoOpMessageHandler[Revoke](),
+		editMessage:              NewNoOpMessageHandler[Edit](),
+		smbAppStateSync:          NewNoOpMessageChangeValueHandler[SMBAppStateSync](),
+		smbMessageEcho:           NewNoOpMessageHandler[Message](),
 		userPreferencesUpdate:    NewNoOpMessageChangeValueHandler[UserPreference](),
 		groupLifecycleUpdate:     NewNoOpMessageChangeValueHandler[Group](),
 		groupParticipantsUpdate:  NewNoOpMessageChangeValueHandler[Group](),
@@ -125,6 +153,7 @@ func NewHandler() *Handler {
 		errorMessage:             NewNoOpMessageErrorsHandler(),
 		unsupportedMessage:       NewNoOpMessageErrorsHandler(),
 		requestWelcome:           NewNoOpMessageHandler[Message](),
+		historySync:              NewNoOpMessageChangeValueHandler[HistoryEntry](),
 		errorHandlerFunc: func(_ context.Context, _ error) error {
 			return nil
 		},
@@ -173,7 +202,7 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 	return &Response{StatusCode: http.StatusOK}
 }
 
-func (handler *Handler) handleNotificationChange( //nolint:funlen // complex notification routing across entry/change/message types
+func (handler *Handler) handleNotificationChange( //nolint:funlen,gocognit,gocyclo,cyclop // complex notification routing
 	ctx context.Context,
 	notification *Notification,
 	change Change,
@@ -219,6 +248,20 @@ func (handler *Handler) handleNotificationChange( //nolint:funlen // complex not
 			return err
 		}
 
+	case ChangeFieldTemplateComponentsUpdate.String():
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.templateComponents, &TemplateComponentsUpdateNotification{
+				MessageTemplateID:       change.Value.MessageTemplateID,
+				MessageTemplateName:     change.Value.MessageTemplateName,
+				MessageTemplateLanguage: change.Value.MessageTemplateLanguage,
+				Title:                   change.Value.MessageTemplateTitle,
+				Element:                 change.Value.MessageTemplateElement,
+				Footer:                  change.Value.MessageTemplateFooter,
+				Buttons:                 change.Value.MessageTemplateButtons,
+			},
+		)
+
 	case ChangeFieldPhoneNumberNameUpdate.String():
 		return handleBusinessNotification(
 			ctx, handler, notification, change, entry,
@@ -262,22 +305,85 @@ func (handler *Handler) handleNotificationChange( //nolint:funlen // complex not
 			entry, change.Value.UserPreferences,
 		)
 
+	case ChangeFieldSMBAppStateSync.String():
+		syncs := make([]*SMBAppStateSync, len(change.Value.StateSync))
+		for i := range change.Value.StateSync {
+			syncs[i] = &change.Value.StateSync[i]
+		}
+		return handleMessageChangeNotification(
+			ctx, handler, handler.smbAppStateSync, change,
+			entry, syncs,
+		)
+
 	case ChangeFieldAccountSettingsUpdate.String():
 		return handleBusinessNotification(
 			ctx, handler, notification, change, entry,
 			handler.phoneSettingsUpdate, change.Value.PhoneNumberSettings,
 		)
 
+	case ChangeFieldSecurity.String():
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.securityUpdate, &SecurityNotification{
+				Event:              change.Value.Event,
+				DisplayPhoneNumber: change.Value.DisplayPhoneNumber,
+				Requester:          change.Value.Requester,
+			},
+		)
+
 	case ChangeFieldMessages.String():
 		return handler.handleNotificationMessageItem(ctx, entry, change)
+
+	case ChangeFieldSMBMessageEchoes.String():
+		for _, msg := range change.Value.MessageEchoes {
+			if msg == nil {
+				continue
+			}
+			notificationCtx := &MessageNotificationContext{
+				EntryID:          entry.ID,
+				MessagingProduct: change.Value.MessagingProduct,
+				Metadata:         change.Value.Metadata,
+				Contacts:         change.Value.Contacts,
+			}
+			if err := handler.handleNotificationMessage(ctx, notificationCtx, msg); err != nil {
+				return err
+			}
+		}
+		return nil
 
 	case ChangeFieldGroupLifecycleUpdate.String(),
 		ChangeFieldGroupParticipantsUpdate.String(),
 		ChangeFieldGroupSettingsUpdate.String(),
 		ChangeFieldGroupStatusUpdate.String():
 		return handler.handleGroupWebhooks(ctx, change, entry)
+
+	case ChangeFieldHistory.String():
+		entries := make([]*HistoryEntry, len(change.Value.History))
+		for i := range change.Value.History {
+			entries[i] = &change.Value.History[i]
+		}
+		if len(entries) > 0 {
+			if err := handler.historySync.Handle(ctx,
+				&MessageNotificationContext{
+					EntryID:          entry.ID,
+					MessagingProduct: change.Value.MessagingProduct,
+					Metadata:         change.Value.Metadata,
+				}, entries); err != nil {
+				return fmt.Errorf("history sync: %w", err)
+			}
+		}
+		// Media content for history messages is delivered as a
+		// separate webhook with messages in the history field.
+		if len(change.Value.Messages) > 0 {
+			return handler.handleNotificationMessageItem(ctx, entry, change)
+		}
+		return nil
 	}
 
+	// Unrecognized fields are silently dropped. This includes official
+	// WhatsApp fields not yet implemented (see ChangeField docs). Dropping
+	// is intentional — we return nil so WhatsApp receives a 200 and does
+	// not retry.
 	return nil
 }
 
@@ -518,8 +624,25 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 	return nil
 }
 
-// ChangeField represent the name of the field in which the webhook notification payload
-// is embedded.
+// ChangeField identifies the type of webhook notification. The string value
+// matches the WhatsApp API field name in the change object.
+//
+// Supported fields from the WhatsApp API:
+//   - account_alerts, account_review_update, account_update
+//   - business_capability_update, calls
+//   - flows (flow status, error rates, latency, availability)
+//   - messages (text, image, audio, video, document, sticker, interactive,
+//     button, order, location, contacts, reaction, system, referral, request_welcome)
+//   - message_template_status_update, template_category_update,
+//     message_template_quality_update, message_template_components_update
+//   - phone_number_name_update, phone_number_quality_update
+//   - user_preferences, account_settings_update, security
+//   - group_lifecycle_update, group_participants_update, group_settings_update,
+//     group_status_update
+//
+// Not yet implemented (no-ops if received):
+//
+//	automatic_events, partner_solutions, payment_configuration_update
 type ChangeField string
 
 const (
@@ -541,6 +664,11 @@ const (
 	ChangeFieldGroupParticipantsUpdate  ChangeField = "group_participants_update"
 	ChangeFieldGroupSettingsUpdate      ChangeField = "group_settings_update"
 	ChangeFieldGroupStatusUpdate        ChangeField = "group_status_update"
+	ChangeFieldHistory                  ChangeField = "history"
+	ChangeFieldSecurity                 ChangeField = "security"
+	ChangeFieldTemplateComponentsUpdate ChangeField = "message_template_components_update"
+	ChangeFieldSMBAppStateSync          ChangeField = "smb_app_state_sync"
+	ChangeFieldSMBMessageEchoes         ChangeField = "smb_message_echoes"
 )
 
 const (
@@ -760,6 +888,22 @@ func (handler *Handler) SetBusinessTemplateQualityUpdateHandler(
 	handler.templateQuality = fn
 }
 
+// OnTemplateComponentsUpdate registers a callback for template component
+// change events. Triggers when a WhatsApp template is edited — the callback
+// receives the updated header, body, footer, and button details.
+func (handler *Handler) OnTemplateComponentsUpdate(
+	fn func(ctx context.Context, notificationContext *BusinessNotificationContext,
+		details *TemplateComponentsUpdateNotification) error,
+) {
+	handler.templateComponents = EventHandlerFunc[BusinessNotificationContext, TemplateComponentsUpdateNotification](fn)
+}
+
+func (handler *Handler) SetTemplateComponentsUpdateHandler(
+	fn EventHandler[BusinessNotificationContext, TemplateComponentsUpdateNotification],
+) {
+	handler.templateComponents = fn
+}
+
 func (handler *Handler) OnBusinessPhoneNumberNameUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *PhoneNumberNameUpdate) error,
 ) {
@@ -826,6 +970,21 @@ func (handler *Handler) SetBusinessCapabilityUpdateHandler(
 	fn EventHandler[BusinessNotificationContext, CapabilityUpdate],
 ) {
 	handler.capabilityUpdate = fn
+}
+
+// OnSecurityUpdate registers a callback for security-related phone number
+// events. Triggers when a Meta Business Suite user changes the PIN, requests
+// a PIN reset, or completes a two-step verification reset.
+func (handler *Handler) OnSecurityUpdate(
+	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *SecurityNotification) error,
+) {
+	handler.securityUpdate = EventHandlerFunc[BusinessNotificationContext, SecurityNotification](fn)
+}
+
+func (handler *Handler) SetSecurityUpdateHandler(
+	fn EventHandler[BusinessNotificationContext, SecurityNotification],
+) {
+	handler.securityUpdate = fn
 }
 
 type (
@@ -906,6 +1065,26 @@ type (
 		Contacts    *message.Contacts  `json:"contacts,omitempty"`
 		Location    *message.Location  `json:"location,omitempty"`
 		Reaction    *message.Reaction  `json:"reaction,omitempty"`
+		Revoke      *Revoke            `json:"revoke,omitempty"`
+		Edit        *Edit              `json:"edit,omitempty"`
+	}
+
+	// Revoke payload when a WhatsApp user deletes a previously sent message.
+	// Triggers: user deletes a message within ~2 days of sending.
+	// The original_message_id identifies the message that was revoked.
+	Revoke struct {
+		OriginalMessageID string `json:"original_message_id"`
+	}
+
+	// Edit payload when a WhatsApp user edits a previously sent text or media
+	// caption message. The original_message_id identifies the edited message;
+	// Message contains the full replacement content.
+	// Triggers: user edits a message within 15 minutes of sending.
+	// Note: edit messages are currently unsupported by WhatsApp and may arrive
+	// as unsupported message type instead.
+	Edit struct {
+		OriginalMessageID string   `json:"original_message_id"`
+		Message           *Message `json:"message"`
 	}
 
 	Status struct {
@@ -1146,6 +1325,8 @@ type (
 	GroupParticipantsUpdateHandler = MessageChangeValueHandler[Group]
 	GroupSettingsUpdateHandler     = MessageChangeValueHandler[Group]
 	GroupStatusUpdateHandler       = MessageChangeValueHandler[Group]
+	HistorySyncHandler             = MessageChangeValueHandler[HistoryEntry]
+	SMBAppStateSyncHandler         = MessageChangeValueHandler[SMBAppStateSync]
 )
 
 func (f MessageChangeValueHandlerFunc[T]) Handle(
@@ -1172,6 +1353,36 @@ func (handler *Handler) SetUserPreferencesUpdateHandler(
 	h UserPreferenceUpdateHandler,
 ) {
 	handler.userPreferencesUpdate = h
+}
+
+// OnSMBAppStateSync registers a callback for SMB contact sync events.
+// Triggers when a solution provider syncs contacts for an onboarded business,
+// or when the business customer adds, edits, or removes a contact in their
+// WhatsApp Business app address book.
+func (handler *Handler) OnSMBAppStateSync(
+	fn func(ctx context.Context, notificationContext *MessageNotificationContext, syncs []*SMBAppStateSync) error,
+) {
+	handler.smbAppStateSync = MessageChangeValueHandlerFunc[SMBAppStateSync](fn)
+}
+
+func (handler *Handler) SetSMBAppStateSyncHandler(h SMBAppStateSyncHandler) {
+	handler.smbAppStateSync = h
+}
+
+// OnSMBMessageEcho registers a callback for messages sent by an onboarded
+// business customer via their WhatsApp Business app or companion device.
+// Triggers: business sends a message, revokes a message, or edits a message
+// using the WhatsApp Business app.
+// The payload shape is identical to incoming messages — use the same Message
+// handlers you use for regular messages.
+func (handler *Handler) OnSMBMessageEcho(
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, msg *Message) error,
+) {
+	handler.smbMessageEcho = MessageHandlerFunc[Message](fn)
+}
+
+func (handler *Handler) SetSMBMessageEchoHandler(h MessageHandler[Message]) {
+	handler.smbMessageEcho = h
 }
 
 func (handler *Handler) OnRequestWelcomeMessage(

@@ -339,7 +339,7 @@ func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, err
 //	)
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: NewBaseClient(options...),
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
 	}
 }
@@ -348,45 +348,19 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 // testing when you want to inject a mock [whttp.Sender] and bypass the default
 // HTTP stack entirely.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.SetRequestSender(sender)
+	c.sender.Sender = sender
 }
 
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	c.sender.SetMiddlewares(mws...)
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
 }
 
 // BaseClient is the low-level HTTP executor for the Calls API. It converts
 // domain [Request] values into HTTP traffic and decodes JSON responses.
 type BaseClient struct {
-	sender whttp.Sender[BaseRequest]
-}
-
-// NewBaseClient creates a low-level [BaseClient] with optional [whttp.CoreSenderOption].
-func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
-	return &BaseClient{sender: whttp.NewCoreClient[BaseRequest](options...)}
-}
-
-// SetRequestSender replaces the internal sender, ignoring any HTTP
-// configuration established by [NewBaseClient]. This is useful when you want
-// to use a custom sender implementation or a mock during testing.
-func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
-	bc.sender = sender
-}
-
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
-		core.SetMiddlewares(mws...)
-	}
+	whttp.BaseClient[BaseRequest]
 }
 
 // Send translates a high-level [Request] into an HTTP transaction and returns
@@ -422,14 +396,14 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	}
 
 	b := whttp.NewRequestBuilder(method, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(request.RequestType).
-		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, endpoint)
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.RequestType).
+		Endpoints(conf.APIVersion, conf.PhoneNumberID, endpoint)
 
 	if len(queryParams) > 0 {
-		b = b.WithQueryParams(queryParams)
+		b = b.QueryParams(queryParams)
 	}
 
 	req := whttp.BuildRequest(b, message)
@@ -439,10 +413,55 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 		InspectResponseError: true,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	return resp, nil
+}
+
+// CheckPermission checks if a business is permitted to call a user.
+func (bc *BaseClient) CheckPermission(
+	ctx context.Context,
+	conf *config.Config,
+	request *CheckPermissionRequest,
+) (*CallPermissionCheckResponse, error) {
+	req := &Request{
+		MessagingProduct:      "whatsapp",
+		RequestType:           whttp.RequestTypeCheckCallPermissions,
+		UserWaID:              request.UserWaID,
+		BizOpaqueCallbackData: request.BizOpaqueCallbackData,
+	}
+	resp, err := bc.Send(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("check permission failed: %w", err)
+	}
+	return resp.ToCallPermissionCheckResponse(), nil
+}
+
+// UpdateCallStatus transitions a call's lifecycle state.
+func (bc *BaseClient) UpdateCallStatus(
+	ctx context.Context,
+	conf *config.Config,
+	request *CallUpdateStatusRequest,
+) (*CallUpdateStatusResponse, error) {
+	req := &Request{
+		MessagingProduct:      "whatsapp",
+		CallID:                request.CallID,
+		Action:                request.Action,
+		Session:               request.Session,
+		BizOpaqueCallbackData: request.BizOpaqueCallbackData,
+		RequestType:           whttp.RequestTypeUpdateCallStatus,
+		To:                    request.To,
+	}
+	resp, err := bc.Send(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("update call status failed: %w", err)
+	}
+	return resp.ToCallUpdateResponse(), nil
+}
+
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
 }
 
 // SetBizOpaqueCallbackData attaches an opaque callback data string to the

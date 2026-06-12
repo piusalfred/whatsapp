@@ -39,6 +39,10 @@ const (
 )
 
 type (
+	// CoreClient is a type-safe HTTP client parameterized by the request body type.
+	// It is immutable after construction via [NewCoreClient] and safe for concurrent use.
+	// Fields are unexported; configure behavior through [CoreSenderOption] values passed
+	// to [NewCoreClient].
 	CoreClient[T any] struct {
 		http           *http.Client
 		reqHook        RequestInterceptorFunc
@@ -47,11 +51,11 @@ type (
 		maxHeaderBytes int64
 		timeout        time.Duration
 		sender         Sender[T]
-		middlewares    []Middleware[T]
 	}
 
-	// CoreSenderConfig holds HTTP transport configuration that is independent of
-	// the request type. This is used to create typed coreClientOption values in a single place.
+	// CoreSenderConfig bundles HTTP-level settings (client, hooks, limits) that are
+	// independent of the generic type parameter. [CoreSenderOption] implementations
+	// mutate this config, and [NewCoreClient] materializes it into a typed [CoreClient].
 	CoreSenderConfig struct {
 		httpClient        *http.Client
 		requestHook       RequestInterceptorFunc
@@ -62,37 +66,8 @@ type (
 	}
 )
 
-// SetRequestSender replaces the default implementation of the Sender[T] interface used by the CoreClient[T]
-// to send HTTP requests.
-func (core *CoreClient[T]) SetRequestSender(sender Sender[T]) {
-	if sender != nil {
-		core.sender = sender
-	}
-}
-
-// SetMiddlewares configures the middleware stack for the CoreClient[T]. Middlewares are applied in the order they
-// are provided, meaning the first middleware will be the outermost wrapper around the sender. This allows for flexible
-// composition of cross-cutting concerns like logging, retry logic, or metrics collection around the core HTTP sending
-// functionality.
-func (core *CoreClient[T]) SetMiddlewares(mws ...Middleware[T]) {
-	core.middlewares = mws
-	core.sender = WrapMiddlewares(core.sender.Send, mws)
-}
-
-// NewSender creates a CoreClient[T] with the provided options and returns it. CoreClient[T]
-// can act as a Sender[T] for sending HTTP requests with type T message structure
-// Deprecated: use NewCoreClient instead for better clarity and consistency with the builder pattern.
-func NewSender[T any](options ...CoreSenderOptionFunc) *CoreClient[T] {
-	config := defaultCoreSenderConfig()
-	for _, option := range options {
-		if option != nil {
-			option(&config)
-		}
-	}
-	return newCoreClientFromConfig[T](config)
-}
-
-// NewCoreClient creates a CoreClient[T] with the provided options.
+// NewCoreClient creates a CoreClient[T] with the provided options. The returned
+// client is safe for concurrent use and should not be mutated after construction.
 func NewCoreClient[T any](options ...CoreSenderOption) *CoreClient[T] {
 	config := defaultCoreSenderConfig()
 	for _, option := range options {
@@ -103,6 +78,8 @@ func NewCoreClient[T any](options ...CoreSenderOption) *CoreClient[T] {
 	return newCoreClientFromConfig[T](config)
 }
 
+// defaultCoreSenderConfig returns a [CoreSenderConfig] with safe defaults:
+// 30-second timeout, 10 MB body limit, and 1 MB header limit.
 func defaultCoreSenderConfig() CoreSenderConfig {
 	return CoreSenderConfig{
 		httpClient: &http.Client{
@@ -128,7 +105,7 @@ func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decode
 // SendFuncWithInterceptors returns a SenderFunc that applies request and response
 // interceptors around the actual HTTP call.
 //
-// Both request and response bodies are snapshot before the interceptor runs and
+// Both request and response bodies are snapshotted before the interceptor runs and
 // restored afterward, so interceptors can read the body freely without affecting the
 // HTTP call or downstream decoding.
 func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptorFunc,
@@ -136,36 +113,56 @@ func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterce
 	maxBodyBytes int64,
 ) SenderFunc[T] {
 	return SenderFunc[T](func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
-		req, err := RequestWithContext(ctx, request)
-		if err != nil {
-			return err
-		}
-
-		if err = applyRequestInterceptor(ctx, req, reqHook, maxBodyBytes); err != nil {
-			return err
-		}
-
-		response, err := client.Do(req) //nolint:bodyclose // body closed
-		if err != nil {
-			return fmt.Errorf("send request: %w", err)
-		}
-
-		defer func(Body io.ReadCloser) {
-			_ = Body.Close()
-		}(response.Body)
-
-		if err = applyResponseInterceptor(ctx, response, resHook, maxBodyBytes); err != nil {
-			return err
-		}
-
-		if err = decoder.Decode(ctx, response); err != nil {
-			return fmt.Errorf("core send: decode: %w", err)
-		}
-
-		return nil
+		return sendWithInterceptors(ctx, client, reqHook, resHook, maxBodyBytes, request, decoder)
 	})
 }
 
+func sendWithInterceptors[T any](
+	ctx context.Context,
+	client *http.Client,
+	reqHook RequestInterceptorFunc,
+	resHook ResponseInterceptorFunc,
+	maxBodyBytes int64,
+	request *Request[T],
+	decoder ResponseDecoder,
+) error {
+	req, err := RequestWithContext(ctx, request)
+	if err != nil {
+		return err
+	}
+
+	if err = applyRequestInterceptor(ctx, req, reqHook, maxBodyBytes); err != nil {
+		return err
+	}
+
+	response, err := client.Do(req)
+	if err != nil {
+		if response != nil {
+			_ = response.Body.Close()
+		}
+		return fmt.Errorf("send request: %w", err)
+	}
+
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	if err = applyResponseInterceptor(ctx, response, resHook, maxBodyBytes); err != nil {
+		return err
+	}
+
+	if err = decoder.Decode(ctx, response); err != nil {
+		return fmt.Errorf("core send: decode: %w", err)
+	}
+
+	return nil
+}
+
+// readAllLimited reads up to limit bytes from r.
+//
+// The LimitReader is set to limit+1 to distinguish between "exactly at the limit"
+// (allowed) and "over the limit" (rejected). This prevents rejecting a valid
+// response whose body is exactly at the boundary.
 func readAllLimited(r io.Reader, limit int64) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
@@ -239,27 +236,32 @@ func (core *CoreClient[T]) Send(ctx context.Context, request *Request[T], decode
 }
 
 type (
+	// Sender abstracts HTTP request execution. [CoreClient] implements it;
+	// callers can provide their own implementation to mock HTTP calls in tests.
 	Sender[T any] interface {
 		Send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error
 	}
 
+	// SenderFunc is a function adapter that implements [Sender] by calling itself,
+	// analogous to [http.HandlerFunc].
 	SenderFunc[T any] func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error
 
+	// Middleware wraps a [SenderFunc] to add cross-cutting behavior (logging, tracing,
+	// metrics, etc.). When composed via [WrapMiddlewares], middlewares are applied
+	// inside-out so that middlewares[0] runs outermost.
 	Middleware[T any] func(next SenderFunc[T]) SenderFunc[T]
-
-	AnySender Sender[any]
-
-	AnySenderFunc SenderFunc[any]
 )
 
 func (fn SenderFunc[T]) Send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error {
 	return fn(ctx, request, decoder)
 }
 
-func (fn AnySenderFunc) Send(ctx context.Context, request *Request[any], decoder ResponseDecoder) error {
-	return fn(ctx, request, decoder)
-}
-
+// WrapMiddlewares composes middlewares into a single SenderFunc.
+//
+// Middlewares are applied in slice order: middlewares[0] is the outermost
+// wrapper (runs first on the way in, last on the way out). The loop iterates
+// in reverse to build the chain inside-out — each middleware wraps the
+// accumulated result from the previous iteration.
 func WrapMiddlewares[T any](doFunc SenderFunc[T], middlewares []Middleware[T]) SenderFunc[T] {
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		if middlewares[i] != nil {
@@ -270,6 +272,9 @@ func WrapMiddlewares[T any](doFunc SenderFunc[T], middlewares []Middleware[T]) S
 	return doFunc
 }
 
+// CoreSenderOption is a functional option for [NewCoreClient]. It is implemented
+// by [CoreSenderOptionFunc] and the "WithSender*" helpers returned by
+// [WithSenderHTTPClient], [WithSenderRequestInterceptor], etc.
 type CoreSenderOption interface {
 	apply(client *CoreSenderConfig)
 }

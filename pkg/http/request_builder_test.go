@@ -32,17 +32,17 @@ func TestRequestBuilder_FluentBuild(t *testing.T) {
 	t.Parallel()
 
 	b := whttp.NewRequestBuilder("POST", "https://api.example.com").
-		WithRequestType(whttp.RequestTypeSendMessage).
-		WithEndpoints("v1", "messages").
-		WithBearer("test-token").
-		WithHeaders(map[string]string{"X-Custom": "value"}).
-		WithQueryParams(map[string]string{"page": "1"}).
-		WithAppSecret("shh", true).
-		WithDebugLogLevel(whttp.DebugLogLevelAll).
-		WithMetadata(types.Metadata{"key": "val"})
+		Type(whttp.RequestTypeSendMessage).
+		Endpoints("v1", "messages").
+		Bearer("test-token").
+		Headers(map[string]string{"X-Custom": "value"}).
+		QueryParams(map[string]string{"page": "1"}).
+		AppSecret("shh").Secured(true).
+		DebugLogLevel(whttp.DebugLogLevelAll).
+		Metadata(types.Metadata{"key": "val"})
 
 	msg := &TestMessage{Name: "hello", Value: 42}
-	req := whttp.BuildRequest(b, msg)
+	req := whttp.Build(b, msg)
 
 	if req.Type != whttp.RequestTypeSendMessage {
 		t.Errorf("Type = %v, want RequestTypeSendMessage", req.Type)
@@ -91,10 +91,10 @@ func TestRequestBuilder_AnyRequest(t *testing.T) {
 	t.Parallel()
 
 	b := whttp.NewRequestBuilder("GET", "https://api.example.com").
-		WithEndpoints("v1", "users").
-		WithBearer("token")
+		Endpoints("v1", "users").
+		Bearer("token")
 
-	req := whttp.BuildAnyRequest(b)
+	req := whttp.Build[any](b, nil)
 
 	if req.Method != http.MethodGet {
 		t.Errorf("Method = %q, want GET", req.Method)
@@ -111,9 +111,9 @@ func TestRequestBuilder_DownloadURL(t *testing.T) {
 	t.Parallel()
 
 	b := whttp.NewRequestBuilder("GET", "ignored").
-		WithDownloadURL("https://cdn.example.com/file.pdf")
+		DownloadURL("https://cdn.example.com/file.pdf")
 
-	req := whttp.BuildAnyRequest(b)
+	req := whttp.Build[any](b, nil)
 
 	url, err := req.URL()
 	if err != nil {
@@ -132,10 +132,10 @@ func TestRequestBuilder_FormAndBodyReader(t *testing.T) {
 	}
 
 	b := whttp.NewRequestBuilder("POST", "https://api.example.com").
-		WithForm(form).
-		WithBodyReader(strings.NewReader("raw"))
+		Form(form).
+		BodyReader(strings.NewReader("raw"))
 
-	req := whttp.BuildAnyRequest(b)
+	req := whttp.Build[any](b, nil)
 
 	if req.Form != form {
 		t.Error("Form mismatch")
@@ -149,9 +149,9 @@ func TestRequestBuilder_WithSecured(t *testing.T) {
 	t.Parallel()
 
 	b := whttp.NewRequestBuilder("GET", "https://api.example.com").
-		WithSecured(true)
+		Secured(true)
 
-	req := whttp.BuildAnyRequest(b)
+	req := whttp.Build[any](b, nil)
 	if !req.SecureRequests {
 		t.Error("expected SecureRequests to be true")
 	}

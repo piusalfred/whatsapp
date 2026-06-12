@@ -19,6 +19,9 @@
 
 package errors
 
+// Package errors provides structured error types that mirror WhatsApp Cloud API
+// error responses. Use [errors.As] to extract API-level details from wrapped errors.
+
 import (
 	"strconv"
 	"strings"
@@ -69,6 +72,10 @@ type (
 		OriginalResponse *OriginalResponse `json:"original_response,omitempty"`
 	}
 
+	// OriginalResponse captures the top-level success/failure envelope returned
+	// alongside the error body. When the API returns a 4xx/5xx status with a
+	// structured error, the outer JSON wrapper ({"success": false, "error": {...}})
+	// is preserved here.
 	OriginalResponse struct {
 		Success bool `json:"success"`
 	}
@@ -140,6 +147,10 @@ func (e *Error) Error() string {
 	return "whatsapp error: " + strings.ToLower(e.String())
 }
 
+// ValidationError represents a syntax or schema validation failure returned by
+// the WhatsApp API when a request payload does not conform to the expected
+// format. The LineStart/LineEnd and ColumnStart/ColumnEnd fields pinpoint the
+// location of the invalid content in the submitted JSON.
 type ValidationError struct {
 	Err         string `json:"error"`
 	ErrorType   string `json:"error_type"`

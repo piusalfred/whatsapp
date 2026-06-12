@@ -146,7 +146,7 @@ func TestCoreSenderConfigBuilder_BuildSender(t *testing.T) {
 		t.Parallel()
 
 		b := whttp.NewCoreSenderConfigBuilder()
-		client := whttp.BuildAnySender(b)
+		client := whttp.BuildSender[any](b)
 
 		if client == nil {
 			t.Fatal("expected non-nil any client")

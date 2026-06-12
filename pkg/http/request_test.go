@@ -485,11 +485,10 @@ func TestRequestSetters(t *testing.T) {
 		t.Parallel()
 
 		req := &whttp.Request[TestMessage]{
-			Method:  http.MethodGet,
-			BaseURL: "https://api.example.com",
+			Method:    http.MethodGet,
+			BaseURL:   "https://api.example.com",
+			Endpoints: []string{"v1", "messages", "123"},
 		}
-
-		req.SetEndpoints("v1", "messages", "123")
 
 		if len(req.Endpoints) != 3 {
 			t.Errorf("expected 3 endpoints, got %d", len(req.Endpoints))
@@ -502,13 +501,12 @@ func TestRequestSetters(t *testing.T) {
 	t.Run("SetRequestMessage", func(t *testing.T) {
 		t.Parallel()
 
+		msg := &TestMessage{Name: "test", Value: 999}
 		req := &whttp.Request[TestMessage]{
 			Method:  http.MethodPost,
 			BaseURL: "https://api.example.com",
+			Message: msg,
 		}
-
-		msg := &TestMessage{Name: "test", Value: 999}
-		req.SetRequestMessage(msg)
 
 		if req.Message != msg {
 			t.Error("expected message to be set")

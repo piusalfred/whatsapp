@@ -31,7 +31,7 @@ import (
 type (
 	Type       string
 	BaseClient struct {
-		sender whttp.Sender[BaseRequest]
+		whttp.BaseClient[BaseRequest]
 	}
 )
 
@@ -44,59 +44,68 @@ type Client struct {
 // NewClient creates a high-level Client for the Analytics API.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: NewBaseClient(options...),
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
 	}
 }
 
 // SetBaseClient replaces the underlying request sender.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.SetRequestSender(sender)
+	c.sender.Sender = sender
 }
 
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	c.sender.SetMiddlewares(mws...)
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+}
+
+// Send dispatches a raw [Request] through the underlying [BaseClient].
+func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	return response, nil
 }
 
 func (c *Client) FetchGeneralAnalytics(ctx context.Context, request *MessagingRequest) (*MessagingResponse, error) {
-	return c.sender.FetchGeneralAnalytics(ctx, c.config, request)
+	req := MakeMessagingAnalyticsQueryParams(request.Start, request.End,
+		request.Granularity, request.Options...)
+
+	resp, err := c.Send(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch general analytics: %w", err)
+	}
+
+	return resp.MessagingAnalytics(), nil
 }
 
 func (c *Client) FetchConversationAnalytics(
 	ctx context.Context,
 	request *ConversationalRequest,
 ) (*ConversationalResponse, error) {
-	return c.sender.FetchConversationAnalytics(ctx, c.config, request)
+	req := MakeConversationalAnalyticsQueryParams(request.Start, request.End,
+		request.Granularity, request.Options...)
+
+	resp, err := c.Send(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch conversation analytics: %w", err)
+	}
+
+	return resp.ConversationAnalytics(), nil
 }
 
 func (c *Client) FetchPricingAnalytics(ctx context.Context, params *PricingRequest) (*PricingResponse, error) {
-	return c.sender.FetchPricingAnalytics(ctx, c.config, params)
-}
+	req := MakePricingAnalyticsQueryParams(params.Start, params.End,
+		params.Granularity, params.Options...)
 
-// NewBaseClient creates a low-level BaseClient with optional whttp.CoreSenderOption.
-func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
-	return &BaseClient{sender: whttp.NewCoreClient[BaseRequest](options...)}
-}
-
-// SetRequestSender replaces the internal sender.
-func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
-	bc.sender = sender
-}
-
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
-		core.SetMiddlewares(mws...)
+	resp, err := c.Send(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch pricing analytics: %w", err)
 	}
+
+	return resp.PricingAnalytics(), nil
 }
 
 func (bc *BaseClient) FetchGeneralAnalytics(ctx context.Context, conf *config.Config,
@@ -153,12 +162,12 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	}
 
 	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(request.requestType).
-		WithEndpoints(conf.APIVersion, conf.BusinessAccountID).
-		WithQueryParams(queryParams)
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.requestType).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID).
+		QueryParams(queryParams)
 
 	req := whttp.BuildRequest(b, (*BaseRequest)(nil))
 
@@ -167,7 +176,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 		InspectResponseError: true,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 

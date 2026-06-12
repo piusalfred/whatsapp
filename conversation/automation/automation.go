@@ -46,13 +46,17 @@ type (
 		Prompt      string
 	}
 
+	// Request is an internal unified context data carrier mapping domain
+	// operations down to the HTTP executor. Fields tagged `json:"-"` are
+	// routing metadata and are not serialized.
 	Request struct {
-		EnableWelcomeMessage bool       `json:"enable_welcome_message"`
-		Commands             []*Command `json:"commands,omitempty"`
-		Prompts              []string   `json:"prompts,omitempty"`
+		EnableWelcomeMessage bool              `json:"enable_welcome_message,omitempty"`
+		Commands             []*Command        `json:"commands,omitempty"`
+		Prompts              []string          `json:"prompts,omitempty"`
+		RequestType          whttp.RequestType `json:"-"`
 	}
 
-	// BaseRequest is the wire-format payload for the Conversational Automation API.
+	// BaseRequest is the wire-format payload sent to the Conversational Automation API.
 	BaseRequest struct {
 		EnableWelcomeMessage bool       `json:"enable_welcome_message"`
 		Commands             []*Command `json:"commands,omitempty"`
@@ -82,91 +86,149 @@ type Client struct {
 // NewClient creates a high-level Client for the Conversational Automation API.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: NewBaseClient(options...),
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
 	}
 }
 
 // SetBaseClient replaces the underlying request sender.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.SetRequestSender(sender)
+	c.sender.Sender = sender
 }
 
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	c.sender.SetMiddlewares(mws...)
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+}
+
+// Send dispatches a Request through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	return response, nil
 }
 
 func (c *Client) AddComponents(ctx context.Context, commands []*Command, prompts []string) (*SuccessResponse, error) {
-	return c.sender.AddComponents(ctx, c.config, commands, prompts)
+	request := &Request{
+		EnableWelcomeMessage: true,
+		Commands:             commands,
+		Prompts:              prompts,
+		RequestType:          whttp.RequestTypeUpdateConversationAutomationComponents,
+	}
+
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SuccessResponse{Success: resp.Success}, nil
 }
 
 func (c *Client) UpdateWelcomeMessageStatus(ctx context.Context, shouldEnable bool) (*SuccessResponse, error) {
-	return c.sender.UpdateWelcomeMessageStatus(ctx, c.config, shouldEnable)
+	var requestType whttp.RequestType
+	if shouldEnable {
+		requestType = whttp.RequestTypeEnableWelcomeMessage
+	} else {
+		requestType = whttp.RequestTypeDisableWelcomeMessage
+	}
+
+	request := &Request{
+		EnableWelcomeMessage: shouldEnable,
+		RequestType:          requestType,
+	}
+
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SuccessResponse{Success: resp.Success}, nil
 }
 
 func (c *Client) ListComponents(ctx context.Context) (*BaseResponse, error) {
-	return c.sender.ListComponents(ctx, c.config)
+	request := &Request{
+		RequestType: whttp.RequestTypeGetConversationAutomationComponents,
+	}
+
+	return c.Send(ctx, request)
 }
 
 // BaseClient is the low-level HTTP executor for the Conversational Automation API.
 type BaseClient struct {
-	sender whttp.Sender[BaseRequest]
+	whttp.BaseClient[BaseRequest]
 }
 
-// NewBaseClient creates a low-level BaseClient with optional whttp.CoreSenderOption.
-func NewBaseClient(options ...whttp.CoreSenderOption) *BaseClient {
-	return &BaseClient{sender: whttp.NewCoreClient[BaseRequest](options...)}
-}
+// Send translates a Request into an HTTP transaction and returns the decoded BaseResponse.
+func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*BaseResponse, error) {
+	var (
+		method      string
+		queryParams map[string]string
+		message     *BaseRequest
+	)
 
-// SetRequestSender replaces the internal sender.
-func (bc *BaseClient) SetRequestSender(sender whttp.Sender[BaseRequest]) {
-	bc.sender = sender
-}
-
-// SetMiddlewares configures middlewares that wrap the underlying Sender.
-// Middlewares are applied to the sender's Send method in the order provided.
-// If a custom sender has been injected and does not support middleware
-// configuration internally, the configuration is silently discarded.
-// Apply middlewares to your custom sender before injecting it.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	if core, ok := bc.sender.(*whttp.CoreClient[BaseRequest]); ok {
-		core.SetMiddlewares(mws...)
+	switch request.RequestType {
+	case whttp.RequestTypeUpdateConversationAutomationComponents:
+		method = http.MethodPost
+		message = &BaseRequest{
+			EnableWelcomeMessage: request.EnableWelcomeMessage,
+			Commands:             request.Commands,
+			Prompts:              request.Prompts,
+		}
+	case whttp.RequestTypeEnableWelcomeMessage, whttp.RequestTypeDisableWelcomeMessage:
+		method = http.MethodPost
+		queryParams = map[string]string{
+			"enable_welcome_message": strconv.FormatBool(request.EnableWelcomeMessage),
+		}
+	case whttp.RequestTypeGetConversationAutomationComponents:
+		method = http.MethodGet
+	default:
+		return nil, fmt.Errorf("%w: %s", whttp.ErrUnknownRequestType, request.RequestType)
 	}
+
+	b := whttp.NewRequestBuilder(method, conf.BaseURL).
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.RequestType).
+		Endpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint)
+
+	if len(queryParams) > 0 {
+		b = b.QueryParams(queryParams)
+	}
+
+	req := whttp.BuildRequest(b, message)
+
+	response := &BaseResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+		InspectResponseError: true,
+	})
+
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("send: %w", err)
+	}
+
+	return response, nil
 }
 
 func (bc *BaseClient) AddComponents(ctx context.Context, conf *config.Config,
 	commands []*Command, prompts []string,
 ) (*SuccessResponse, error) {
-	message := &BaseRequest{
+	request := &Request{
 		EnableWelcomeMessage: true,
 		Commands:             commands,
 		Prompts:              prompts,
+		RequestType:          whttp.RequestTypeUpdateConversationAutomationComponents,
 	}
 
-	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(whttp.RequestTypeUpdateConversationAutomationComponents).
-		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint)
-
-	req := whttp.BuildRequest(b, message)
-
-	response := &SuccessResponse{}
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		InspectResponseError: true,
-	})
-
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
-		return nil, fmt.Errorf("send: %w", err)
+	resp, err := bc.Send(ctx, conf, request)
+	if err != nil {
+		return nil, err
 	}
 
-	return response, nil
+	return &SuccessResponse{Success: resp.Success}, nil
 }
 
 func (bc *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, conf *config.Config,
@@ -179,48 +241,23 @@ func (bc *BaseClient) UpdateWelcomeMessageStatus(ctx context.Context, conf *conf
 		requestType = whttp.RequestTypeDisableWelcomeMessage
 	}
 
-	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(requestType).
-		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint).
-		WithQueryParams(map[string]string{
-			"enable_welcome_message": strconv.FormatBool(shouldEnable),
-		})
-
-	req := whttp.BuildRequest(b, (*BaseRequest)(nil))
-
-	response := &SuccessResponse{}
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		InspectResponseError: true,
-	})
-
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
-		return nil, fmt.Errorf("send: %w", err)
+	request := &Request{
+		EnableWelcomeMessage: shouldEnable,
+		RequestType:          requestType,
 	}
 
-	return response, nil
+	resp, err := bc.Send(ctx, conf, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SuccessResponse{Success: resp.Success}, nil
 }
 
 func (bc *BaseClient) ListComponents(ctx context.Context, conf *config.Config) (*BaseResponse, error) {
-	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
-		WithBearer(conf.AccessToken).
-		WithAppSecret(conf.AppSecret, conf.SecureRequests).
-		WithDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
-		WithRequestType(whttp.RequestTypeGetConversationAutomationComponents).
-		WithEndpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint)
-
-	req := whttp.BuildRequest(b, (*BaseRequest)(nil))
-
-	response := &BaseResponse{}
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		InspectResponseError: true,
-	})
-
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
-		return nil, fmt.Errorf("send: %w", err)
+	request := &Request{
+		RequestType: whttp.RequestTypeGetConversationAutomationComponents,
 	}
 
-	return response, nil
+	return bc.Send(ctx, conf, request)
 }

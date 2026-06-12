@@ -25,7 +25,7 @@ import (
 
 // CoreSenderConfigBuilder provides a non-generic, fluent way to configure a
 // CoreSenderConfig. The generic type parameter is only needed when the client
-// is built (see BuildSender and BuildAnySender).
+// built (see BuildSender).
 type CoreSenderConfigBuilder struct {
 	cfg CoreSenderConfig
 }
@@ -94,15 +94,9 @@ func (b *CoreSenderConfigBuilder) Build() CoreSenderConfig {
 func BuildSender[T any](b *CoreSenderConfigBuilder, middlewares ...Middleware[T]) *CoreClient[T] {
 	core := newCoreClientFromConfig[T](b.cfg)
 	if len(middlewares) > 0 {
-		core.SetMiddlewares(middlewares...)
+		core.sender = WrapMiddlewares(core.sender.Send, middlewares)
 	}
 	return core
-}
-
-// BuildAnySender creates a CoreClient[any] from the builder configuration.
-// This is a convenience wrapper around BuildSender[any].
-func BuildAnySender(b *CoreSenderConfigBuilder, middlewares ...Middleware[any]) *CoreClient[any] {
-	return BuildSender[any](b, middlewares...)
 }
 
 // newCoreClientFromConfig creates a CoreClient from a CoreSenderConfig.

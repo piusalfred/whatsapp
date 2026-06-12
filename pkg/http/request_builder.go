@@ -21,33 +21,39 @@ package http
 
 import (
 	"io"
+	stdhttp "net/http"
 
 	"github.com/piusalfred/whatsapp/pkg/types"
 )
 
-// RequestBuilder provides a non-generic, fluent way to construct the
-// type-independent parts of a Request. The generic type parameter is only
-// needed when the message body is attached (see BuildRequest and
-// BuildRequestWithMessage).
+// RequestBuilder constructs a [Request[T]] without requiring a type parameter
+// until the message body is attached. This eliminates the repetitive [T]
+// annotations on type-independent options like Bearer or Headers.
+//
+// Usage:
+//
+//	req := http.NewRequestBuilder(http.MethodPost, "https://api.example.com").
+//	    Bearer("token").
+//	    Endpoints("v20", phoneID).
+//	    Message(&MyMessage{Text: "hello"}) // T inferred
 type RequestBuilder struct {
 	method        string
 	baseURL       string
-	endpoints     []string
+	reqType       RequestType
+	bearer        string
 	headers       map[string]string
 	queryParams   map[string]string
-	bearer        string
+	endpoints     []string
+	metadata      types.Metadata
 	appSecret     string
 	secure        bool
-	reqType       RequestType
-	debugLogLevel DebugLogLevel
-	metadata      types.Metadata
 	downloadURL   string
-	form          *RequestForm
 	bodyReader    io.Reader
+	form          *RequestForm
+	debugLogLevel DebugLogLevel
 }
 
-// NewRequestBuilder starts building a new request with the given HTTP method
-// and base URL.
+// NewRequestBuilder starts building a request with the given method and base URL.
 func NewRequestBuilder(method, baseURL string) *RequestBuilder {
 	return &RequestBuilder{
 		method:        method,
@@ -58,119 +64,66 @@ func NewRequestBuilder(method, baseURL string) *RequestBuilder {
 	}
 }
 
-// WithRequestType sets the request type (e.g. send_message, upload_media).
-func (b *RequestBuilder) WithRequestType(reqType RequestType) *RequestBuilder {
-	b.reqType = reqType
+// NewDownloadBuilder starts building a download request from a pre-signed URL.
+func NewDownloadBuilder(downloadURL string) *RequestBuilder {
+	return &RequestBuilder{
+		method:        stdhttp.MethodGet,
+		downloadURL:   downloadURL,
+		headers:       make(map[string]string),
+		queryParams:   make(map[string]string),
+		debugLogLevel: DebugLogLevelNone,
+	}
+}
+
+func (b *RequestBuilder) Type(t RequestType) *RequestBuilder          { b.reqType = t; return b }
+func (b *RequestBuilder) Bearer(token string) *RequestBuilder         { b.bearer = token; return b }
+func (b *RequestBuilder) Headers(h map[string]string) *RequestBuilder { b.headers = h; return b }
+func (b *RequestBuilder) QueryParams(q map[string]string) *RequestBuilder {
+	b.queryParams = q
+	return b
+}
+func (b *RequestBuilder) Endpoints(e ...string) *RequestBuilder     { b.endpoints = e; return b }
+func (b *RequestBuilder) Metadata(m types.Metadata) *RequestBuilder { b.metadata = m; return b }
+func (b *RequestBuilder) AppSecret(s string) *RequestBuilder        { b.appSecret = s; return b }
+func (b *RequestBuilder) Secured(v bool) *RequestBuilder            { b.secure = v; return b }
+func (b *RequestBuilder) BodyReader(r io.Reader) *RequestBuilder    { b.bodyReader = r; return b }
+func (b *RequestBuilder) Form(f *RequestForm) *RequestBuilder       { b.form = f; return b }
+func (b *RequestBuilder) DebugLogLevel(l DebugLogLevel) *RequestBuilder {
+	b.debugLogLevel = l
 	return b
 }
 
-// WithEndpoints appends URL path segments to the request.
-func (b *RequestBuilder) WithEndpoints(endpoints ...string) *RequestBuilder {
-	b.endpoints = endpoints
-	return b
-}
+func (b *RequestBuilder) DownloadURL(url string) *RequestBuilder { b.downloadURL = url; return b }
 
-// WithBearer sets the Authorization bearer token.
-func (b *RequestBuilder) WithBearer(bearer string) *RequestBuilder {
-	b.bearer = bearer
-	return b
-}
-
-// WithHeaders replaces the request headers with the provided map.
-func (b *RequestBuilder) WithHeaders(headers map[string]string) *RequestBuilder {
-	b.headers = headers
-	return b
-}
-
-// WithQueryParams replaces the query parameters with the provided map.
-func (b *RequestBuilder) WithQueryParams(params map[string]string) *RequestBuilder {
-	b.queryParams = params
-	return b
-}
-
-// WithAppSecret configures the app secret and toggles secure requests.
-func (b *RequestBuilder) WithAppSecret(secret string, secure bool) *RequestBuilder {
-	b.appSecret = secret
-	b.secure = secure
-	return b
-}
-
-// WithSecured sets whether the request should be marked as secure.
-func (b *RequestBuilder) WithSecured(secure bool) *RequestBuilder {
-	b.secure = secure
-	return b
-}
-
-// WithDebugLogLevel sets the debug logging level for the request.
-func (b *RequestBuilder) WithDebugLogLevel(level DebugLogLevel) *RequestBuilder {
-	b.debugLogLevel = level
-	return b
-}
-
-// WithMetadata attaches metadata to the request context.
-func (b *RequestBuilder) WithMetadata(metadata types.Metadata) *RequestBuilder {
-	b.metadata = metadata
-	return b
-}
-
-// WithDownloadURL marks this request as a download using the provided URL.
-func (b *RequestBuilder) WithDownloadURL(url string) *RequestBuilder {
-	b.downloadURL = url
-	return b
-}
-
-// WithForm sets a multipart form body.
-func (b *RequestBuilder) WithForm(form *RequestForm) *RequestBuilder {
-	b.form = form
-	return b
-}
-
-// WithBodyReader sets a raw body reader.
-func (b *RequestBuilder) WithBodyReader(r io.Reader) *RequestBuilder {
-	b.bodyReader = r
-	return b
-}
-
-// BuildRequest creates a typed Request[T] from the builder configuration and
-// the supplied message body. This is the only place a generic parameter is
-// required.
-func BuildRequest[T any](b *RequestBuilder, message *T) *Request[T] {
+// Build creates a typed [Request[T]] from the builder and message body.
+// This is the only point where a generic type parameter is required.
+func Build[T any](b *RequestBuilder, msg *T) *Request[T] {
 	return &Request[T]{
-		Type:           b.reqType,
 		Method:         b.method,
 		BaseURL:        b.baseURL,
-		Endpoints:      b.endpoints,
+		Type:           b.reqType,
+		Bearer:         b.bearer,
 		Headers:        b.headers,
 		QueryParams:    b.queryParams,
-		Bearer:         b.bearer,
+		Endpoints:      b.endpoints,
+		Metadata:       b.metadata,
 		AppSecret:      b.appSecret,
 		SecureRequests: b.secure,
-		debugLogLevel:  b.debugLogLevel,
-		Metadata:       b.metadata,
 		DownloadURL:    b.downloadURL,
-		Message:        message,
-		Form:           b.form,
 		BodyReader:     b.bodyReader,
+		Form:           b.form,
+		debugLogLevel:  b.debugLogLevel,
+		Message:        msg,
 	}
 }
 
-// BuildAnyRequest creates a Request[any] from the builder configuration. Use
-// this when no typed message body is needed (e.g. GET requests or downloads).
+// BuildRequest is a package-level helper for callers that prefer the
+// function-call style over the method-chain style.
+func BuildRequest[T any](b *RequestBuilder, message *T) *Request[T] {
+	return Build(b, message)
+}
+
+// BuildAnyRequest creates a [Request[any]] with no typed message body.
 func BuildAnyRequest(b *RequestBuilder) *Request[any] {
-	return &Request[any]{
-		Type:           b.reqType,
-		Method:         b.method,
-		BaseURL:        b.baseURL,
-		Endpoints:      b.endpoints,
-		Headers:        b.headers,
-		QueryParams:    b.queryParams,
-		Bearer:         b.bearer,
-		AppSecret:      b.appSecret,
-		SecureRequests: b.secure,
-		debugLogLevel:  b.debugLogLevel,
-		Metadata:       b.metadata,
-		DownloadURL:    b.downloadURL,
-		Form:           b.form,
-		BodyReader:     b.bodyReader,
-	}
+	return Build[any](b, nil)
 }

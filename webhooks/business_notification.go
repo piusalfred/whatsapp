@@ -99,6 +99,61 @@ type (
 		ViolationInfo   *ViolationInfo    `json:"violation_info,omitempty"`
 	}
 
+	// SecurityNotification describes a security-related event on a business
+	// phone number. Events include PIN changes and two-step verification resets.
+	// Requester is the Meta Business Suite user ID (only for PIN reset requests).
+	SecurityNotification struct {
+		Event              string `json:"event"` // PIN_CHANGED, PIN_RESET_REQUEST, PIN_REQUEST_SUCCESS
+		DisplayPhoneNumber string `json:"display_phone_number,omitempty"`
+		Requester          string `json:"requester,omitempty"` // MBS user ID, PIN reset only
+	}
+
+	// TemplateComponentsUpdateNotification describes changes to a template's
+	// components (header, body, footer, buttons). Triggers when a template is
+	// edited.
+	TemplateComponentsUpdateNotification struct {
+		MessageTemplateID       int64                     `json:"message_template_id"`
+		MessageTemplateName     string                    `json:"message_template_name,omitempty"`
+		MessageTemplateLanguage string                    `json:"message_template_language,omitempty"`
+		Title                   string                    `json:"message_template_title,omitempty"`
+		Element                 string                    `json:"message_template_element,omitempty"`
+		Footer                  string                    `json:"message_template_footer,omitempty"`
+		Buttons                 []TemplateComponentButton `json:"message_template_buttons,omitempty"`
+	}
+
+	// TemplateComponentButton describes a single button within a template
+	// component update notification.
+	TemplateComponentButton struct {
+		Type        string `json:"message_template_button_type"`
+		Text        string `json:"message_template_button_text"`
+		URL         string `json:"message_template_button_url,omitempty"`
+		PhoneNumber string `json:"message_template_button_phone_number,omitempty"`
+	}
+
+	// SMBAppStateSync describes a contact sync event from a WhatsApp Business
+	// app user onboarded via a solution provider.
+	// Triggers: provider syncs contacts, or the business customer adds, edits,
+	// or removes a contact in their WhatsApp Business app address book.
+	SMBAppStateSync struct {
+		Type     string          `json:"type"` // always "contact"
+		Contact  *SMBContactSync `json:"contact,omitempty"`
+		Action   string          `json:"action"` // "add" or "remove"
+		Metadata *SMBMetadata    `json:"metadata,omitempty"`
+	}
+
+	// SMBContactSync is the contact information within an SMB state sync event.
+	// Fields are omitted when the action is "remove".
+	SMBContactSync struct {
+		FullName    string `json:"full_name,omitempty"`
+		FirstName   string `json:"first_name,omitempty"`
+		PhoneNumber string `json:"phone_number"`
+	}
+
+	// SMBMetadata carries the timestamp of the state sync event.
+	SMBMetadata struct {
+		Timestamp int64 `json:"timestamp"`
+	}
+
 	ViolationInfo struct {
 		ViolationType string `json:"violation_type"` // e.g., "ACCOUNT_VIOLATION"
 	}

@@ -20,14 +20,22 @@ package http
 import "strings"
 
 type (
+	// DebugMessage is a single debug message returned by the WhatsApp API when
+	// debug mode is enabled on a request. Link points to related documentation
+	// and Message contains a human-readable explanation.
 	DebugMessage struct {
 		Link    string `json:"link"`
 		Message string `json:"message"`
 		Type    string `json:"type"`
 	}
 
+	// DebugLogLevel controls the verbosity of debug output appended to API
+	// responses. Set it on a Request to receive debug information. Available
+	// levels: info, all, warning, none.
 	DebugLogLevel string
 
+	// DebugDetails is a container for debug messages returned in API responses
+	// when a Request has a non-none DebugLogLevel.
 	DebugDetails struct {
 		Messages []DebugMessage `json:"messages,omitempty"`
 	}
@@ -40,13 +48,17 @@ const (
 	DebugLogLevelNone    DebugLogLevel = "none"
 )
 
+// WithRequestDebugLogLevel is a RequestOption that sets the debug log level on a
+// request. It is an alternative to calling Request.SetDebugLogLevel directly.
 func WithRequestDebugLogLevel[T any](level DebugLogLevel) RequestOption[T] {
 	return func(request *Request[T]) {
 		request.debugLogLevel = level
 	}
 }
 
-// ParseDebugLogLevel parses the debug log level from a string.
+// ParseDebugLogLevel parses a string into a DebugLogLevel. Parsing is
+// case-insensitive and trims surrounding whitespace. Unrecognized values
+// fall back to DebugLogLevelNone.
 func ParseDebugLogLevel(level string) DebugLogLevel {
 	level = strings.TrimSpace(strings.ToLower(level))
 	switch level {
