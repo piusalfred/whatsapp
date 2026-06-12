@@ -36,6 +36,7 @@ import (
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/conversation/automation"
 	"github.com/piusalfred/whatsapp/flow"
+	"github.com/piusalfred/whatsapp/media"
 	"github.com/piusalfred/whatsapp/phonenumber"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/qrcode"
@@ -56,6 +57,7 @@ type BaseClient struct {
 	qrCode   *qrcode.BaseClient
 	auto     *automation.BaseClient
 	flows    *flow.BaseClient
+	media    *media.BaseClient
 	settings *settings.BaseClient
 	phone    *phonenumber.BaseClient
 }
@@ -76,6 +78,7 @@ func NewBaseClient(opts ...whttp.CoreSenderOption) *BaseClient {
 		qrCode:   &qrcode.BaseClient{BaseClient: *whttp.NewBaseClient[qrcode.BaseRequest](opts...)},
 		auto:     &automation.BaseClient{BaseClient: *whttp.NewBaseClient[automation.BaseRequest](opts...)},
 		flows:    &flow.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
+		media:    &media.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 		settings: &settings.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 		phone:    &phonenumber.BaseClient{BaseClient: *whttp.NewBaseClient[phonenumber.BaseRequest](opts...)},
 	}
@@ -99,6 +102,10 @@ func (c *Client) SetAutomationMiddlewares(mws ...whttp.Middleware[automation.Bas
 
 func (c *Client) SetFlowsMiddlewares(mws ...whttp.Middleware[any]) {
 	c.sender.flows.SetMiddlewares(mws...)
+}
+
+func (c *Client) SetMediaMiddlewares(mws ...whttp.Middleware[any]) {
+	c.sender.media.SetMiddlewares(mws...)
 }
 
 func (c *Client) SetSettingsMiddlewares(mws ...whttp.Middleware[any]) {
@@ -355,7 +362,42 @@ func (c *Client) GenerateFlowPreview(ctx context.Context, req *flow.PreviewReque
 	return resp, nil
 }
 
-// --- BaseClient methods (multi-tenant) ---
+func (c *Client) UploadMedia(ctx context.Context, req *media.UploadRequest) (*media.UploadMediaResponse, error) {
+	resp, err := c.sender.UploadMedia(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("upload media: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) GetMediaInfo(ctx context.Context, req *media.BaseRequest) (*media.Information, error) {
+	resp, err := c.sender.GetMediaInfo(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("get media info: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) DeleteMedia(ctx context.Context, req *media.BaseRequest) (*media.DeleteMediaResponse, error) {
+	resp, err := c.sender.DeleteMedia(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("delete media: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) DownloadMedia(ctx context.Context, req *media.DownloadRequest, decoder whttp.ResponseDecoder) error {
+	return c.sender.DownloadMedia(ctx, c.config, req, decoder)
+}
+
+func (c *Client) DownloadMediaByID(
+	ctx context.Context,
+	req *media.BaseRequest,
+	decoder whttp.ResponseDecoder,
+	opts ...media.DownloadOptionFunc,
+) error {
+	return c.sender.DownloadMediaByID(ctx, c.config, req, decoder, opts...)
+}
 
 func (bc *BaseClient) CheckCallingPermission(
 	ctx context.Context,
@@ -677,4 +719,65 @@ func (bc *BaseClient) GenerateFlowPreview(
 		return nil, fmt.Errorf("generate flow preview: %w", err)
 	}
 	return resp, nil
+}
+
+func (bc *BaseClient) UploadMedia(
+	ctx context.Context,
+	conf *config.Config,
+	req *media.UploadRequest,
+) (*media.UploadMediaResponse, error) {
+	resp, err := bc.media.Upload(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("upload media: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) GetMediaInfo(
+	ctx context.Context,
+	conf *config.Config,
+	req *media.BaseRequest,
+) (*media.Information, error) {
+	resp, err := bc.media.GetInfo(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("get media info: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) DeleteMedia(
+	ctx context.Context,
+	conf *config.Config,
+	req *media.BaseRequest,
+) (*media.DeleteMediaResponse, error) {
+	resp, err := bc.media.Delete(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("delete media: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) DownloadMedia(
+	ctx context.Context,
+	conf *config.Config,
+	req *media.DownloadRequest,
+	decoder whttp.ResponseDecoder,
+) error {
+	if err := bc.media.Download(ctx, conf, req, decoder); err != nil {
+		return fmt.Errorf("download media: %w", err)
+	}
+	return nil
+}
+
+func (bc *BaseClient) DownloadMediaByID(
+	ctx context.Context,
+	conf *config.Config,
+	req *media.BaseRequest,
+	decoder whttp.ResponseDecoder,
+	opts ...media.DownloadOptionFunc,
+) error {
+	if err := bc.media.DownloadByMediaID(ctx, conf, req, decoder, opts...); err != nil {
+		return fmt.Errorf("download media by id: %w", err)
+	}
+	return nil
 }
