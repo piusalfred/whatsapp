@@ -23,29 +23,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/pkg/crypto"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
-
-type Client struct {
-	baseURL       string
-	apiVersion    string
-	sender        whttp.Sender[any]
-	debugLogLevel whttp.DebugLogLevel
-}
-
-func NewClient(baseURL, apiVersion string, sender whttp.Sender[any]) *Client {
-	return &Client{
-		baseURL:    baseURL,
-		apiVersion: apiVersion,
-		sender:     sender,
-	}
-}
-
-// SetDebugLogLevel sets the debug log level for the client.
-func (c *Client) SetDebugLogLevel(level whttp.DebugLogLevel) {
-	c.debugLogLevel = level
-}
 
 // InstallAppParams contains the parameters required to install an app for a system user.
 type InstallAppParams struct {
@@ -54,103 +35,17 @@ type InstallAppParams struct {
 	SystemUserID string // The ID of the system user for whom the app is being installed.
 }
 
-// SuccessResponse represents the response for the InstallApp API call.
+// SuccessResponse represents a generic success response.
 type SuccessResponse struct {
-	Success bool `json:"success,omitempty"` // Indicates if the app installation was successful.
+	Success bool `json:"success,omitempty"`
 }
 
-// InstallApp installs an app for a system user or an admin system user, allowing the app to make API calls
-// on behalf of the user. Both the app and the system user should belong to the same Business Manager.
-// Apps must have Ads Management API standard access or higher to be installed.
-//
-// Params:
-// - ctx: The request context.
-// - params: A struct containing:
-//   - AccessToken: The access token of an admin user, admin system user, or another system user.
-//   - AppID: The ID of the app being installed.
-//   - BaseURL: The base URL of the API.
-//   - APIVersion: The version of the API being called.
-//   - SystemUserID: The ID of the system user on whose behalf the app is installed.
-//
-// Returns:
-// - error: Any error encountered during the installation process.
-func (c *Client) InstallApp(ctx context.Context, params InstallAppParams) error {
-	req := &whttp.Request[any]{
-		Type:      whttp.RequestTypeInstallApp,
-		BaseURL:   c.baseURL,
-		Method:    http.MethodPost,
-		Endpoints: []string{c.apiVersion, params.SystemUserID, "applications"},
-		QueryParams: map[string]string{
-			"business_app": params.AppID,
-			"access_token": params.AccessToken,
-		},
-	}
-
-	req.SetDebugLogLevel(c.debugLogLevel)
-
-	res := &SuccessResponse{}
-
-	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  true,
-	})
-
-	err := c.sender.Send(ctx, req, decoder)
-	if err != nil {
-		return fmt.Errorf("install app: %w", err)
-	}
-
-	return nil
-}
-
+// TwoStepVerificationRequest contains the parameters for setting up two-step verification
+// on a WhatsApp Business API phone number.
 type TwoStepVerificationRequest struct {
 	SixDigitCode  string `json:"pin"`
 	PhoneNumberID string `json:"-"`
 	AccessToken   string `json:"-"`
-}
-
-type TwoStepVerificationClient struct {
-	baseURL       string
-	apiVersion    string
-	sender        whttp.Sender[TwoStepVerificationRequest]
-	debugLogLevel whttp.DebugLogLevel
-}
-
-// TwoStepVerification sends a request to set up two-step verification for a WhatsApp Business API
-// phone number.
-func (c *TwoStepVerificationClient) TwoStepVerification(ctx context.Context,
-	request *TwoStepVerificationRequest,
-) (*SuccessResponse, error) {
-	req := &whttp.Request[TwoStepVerificationRequest]{
-		Type:      whttp.RequestTypeTwoStepVerification,
-		BaseURL:   c.baseURL,
-		Bearer:    request.AccessToken,
-		Method:    http.MethodPost,
-		Endpoints: []string{c.apiVersion, request.PhoneNumberID},
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		// avoid leaking the phone number and access token.
-		Message: &TwoStepVerificationRequest{SixDigitCode: request.SixDigitCode},
-	}
-
-	req.SetDebugLogLevel(c.debugLogLevel)
-
-	res := &SuccessResponse{}
-	decodeOptions := whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	}
-
-	decoder := whttp.ResponseDecoderJSON(res, decodeOptions)
-
-	if err := c.sender.Send(ctx, req, decoder); err != nil {
-		return nil, fmt.Errorf("send two step verification code: %w", err)
-	}
-
-	return res, nil
 }
 
 // GenerateAccessTokenParams contains the parameters required to generate a persistent access token.
@@ -165,30 +60,145 @@ type GenerateAccessTokenParams struct {
 
 // GenerateAccessTokenResponse represents the response from generating an access token.
 type GenerateAccessTokenResponse struct {
-	AccessToken string `json:"access_token"` // The newly generated access token.
+	AccessToken string `json:"access_token"`
+}
+
+// RevokeAccessTokenParams contains the parameters for revoking an access token.
+type RevokeAccessTokenParams struct {
+	ClientID     string
+	ClientSecret string
+	RevokeToken  string // Access token to revoke.
+	AccessToken  string // Access token to identify the caller.
+}
+
+// RevokeAccessTokenResponse represents the response from revoking an access token.
+type RevokeAccessTokenResponse struct {
+	Success bool `json:"success"`
+}
+
+// RefreshAccessTokenParams contains the parameters for refreshing an access token.
+type RefreshAccessTokenParams struct {
+	ClientID            string
+	ClientSecret        string
+	FbExchangeToken     string // Current access token.
+	SetTokenExpiresIn60 bool   // Set to true to refresh for another 60 days.
+}
+
+// RefreshAccessTokenResponse contains the response from a refresh token request.
+type RefreshAccessTokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
+}
+
+// CreateSystemUserRequest contains the parameters for creating a system user.
+type CreateSystemUserRequest struct {
+	Name string // Display name for the system user.
+	Role string // Role for the system user: "ADMIN" or "EMPLOYEE".
+}
+
+// CreateSystemUserResponse represents the response from creating a system user.
+type CreateSystemUserResponse struct {
+	ID string `json:"id"`
+}
+
+// SystemUser represents a system user in the business manager.
+type SystemUser struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Role string `json:"role"`
+}
+
+// ListSystemUsersResponse represents the response from listing system users.
+type ListSystemUsersResponse struct {
+	Data []SystemUser `json:"data"`
+}
+
+// UpdateSystemUserRequest contains the parameters for updating a system user's name.
+type UpdateSystemUserRequest struct {
+	SystemUserID string // The ID of the system user to update.
+	Name         string // The new name for the system user.
+}
+
+// BaseClient is the low-level HTTP executor for auth operations. It builds requests
+// using [whttp.NewRequestBuilder] and sends them via the embedded [whttp.BaseClient].
+type BaseClient struct {
+	whttp.BaseClient[any]
+}
+
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
+
+// InstallApp installs an app for a system user or an admin system user, allowing the app to make API calls
+// on behalf of the user. Both the app and the system user should belong to the same Business Manager.
+func (bc *BaseClient) InstallApp(ctx context.Context, conf *config.Config, params *InstallAppParams) error {
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Type(whttp.RequestTypeInstallApp).
+		Endpoints(conf.APIVersion, params.SystemUserID, "applications").
+		QueryParams(map[string]string{
+			"business_app": params.AppID,
+			"access_token": params.AccessToken,
+		}).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
+	req := whttp.BuildAnyRequest(b)
+
+	res := &SuccessResponse{}
+	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: false,
+		InspectResponseError:  true,
+	})
+
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+		return fmt.Errorf("install app: %w", err)
+	}
+
+	return nil
+}
+
+// TwoStepVerification sends a request to set up two-step verification for a WhatsApp Business API
+// phone number.
+func (bc *BaseClient) TwoStepVerification(
+	ctx context.Context,
+	conf *config.Config,
+	request *TwoStepVerificationRequest,
+) (*SuccessResponse, error) {
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Bearer(request.AccessToken).
+		Type(whttp.RequestTypeTwoStepVerification).
+		Endpoints(conf.APIVersion, request.PhoneNumberID).
+		Headers(map[string]string{
+			"Content-Type": "application/json",
+		}).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
+	msg := any(&TwoStepVerificationRequest{SixDigitCode: request.SixDigitCode})
+	req := whttp.Build[any](b, &msg)
+
+	res := &SuccessResponse{}
+	decodeOptions := whttp.DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  true,
+	}
+	decoder := whttp.ResponseDecoderJSON(res, decodeOptions)
+
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("send two step verification code: %w", err)
+	}
+
+	return res, nil
 }
 
 // GenerateAccessToken generates a persistent access token for a system user.
-// The system user must have installed the app beforehand. The generated access token is needed to make API
-// calls on behalf of the system user.
-//
-// Params:
-// - ctx: The request context.
-// - params: A struct containing:
-//   - AccessToken: The access token of the user generating the new token.
-//   - AppID: The ID of the app being used for token generation.
-//   - SystemUserID: The ID of the system user generating the token.
-//   - BaseURL: The base URL of the API.
-//   - APIVersion: The version of the API being called.
-//   - AppSecret: The app secret for generating the app secret proof.
-//   - Scopes: The scopes (permissions) required for the new access token.
-//   - SetTokenExpiresIn60: Boolean flag to set the token expiration to 60 days.
-//
-// Returns:
-// - *GenerateAccessTokenResponse: Contains the newly generated access token.
-// - error: Any error encountered during the token generation process.
-func (c *Client) GenerateAccessToken(ctx context.Context,
-	params GenerateAccessTokenParams,
+// The system user must have installed the app beforehand.
+func (bc *BaseClient) GenerateAccessToken(
+	ctx context.Context,
+	conf *config.Config,
+	params *GenerateAccessTokenParams,
 ) (*GenerateAccessTokenResponse, error) {
 	appSecretProof, err := crypto.GenerateAppSecretProof(params.AccessToken, params.AppSecret)
 	if err != nil {
@@ -206,13 +216,14 @@ func (c *Client) GenerateAccessToken(ctx context.Context,
 		formData["set_token_expires_in_60_days"] = "true"
 	}
 
-	req := &whttp.Request[any]{
-		Type:        whttp.RequestTypeGenerateToken,
-		BaseURL:     c.baseURL,
-		Method:      http.MethodPost,
-		Endpoints:   []string{c.apiVersion, params.SystemUserID, "access_tokens"},
-		QueryParams: formData,
-	}
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Type(whttp.RequestTypeGenerateToken).
+		Endpoints(conf.APIVersion, params.SystemUserID, "access_tokens").
+		QueryParams(formData).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
+	req := whttp.BuildAnyRequest(b)
+
 	res := &GenerateAccessTokenResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		DisallowUnknownFields: false,
@@ -220,43 +231,31 @@ func (c *Client) GenerateAccessToken(ctx context.Context,
 		InspectResponseError:  true,
 	})
 
-	if err = c.sender.Send(ctx, req, decoder); err != nil {
+	if err = bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
 
 	return res, nil
 }
 
-// RevokeAccessTokenParams contains the parameters for revoking an access token.
-type RevokeAccessTokenParams struct {
-	ClientID        string
-	ClientSecret    string
-	RevokeToken     string // Access token to revoke
-	AccessToken     string // Access token to identify the caller
-	GraphAPIVersion string
-}
-
-type RevokeAccessTokenResponse struct {
-	Success bool `json:"success"`
-}
-
-func (c *Client) RevokeAccessToken(ctx context.Context,
-	params RevokeAccessTokenParams,
+// RevokeAccessToken revokes an access token.
+func (bc *BaseClient) RevokeAccessToken(
+	ctx context.Context,
+	conf *config.Config,
+	params *RevokeAccessTokenParams,
 ) (*RevokeAccessTokenResponse, error) {
-	queryParams := map[string]string{
-		"client_id":     params.ClientID,
-		"client_secret": params.ClientSecret,
-		"revoke_token":  params.RevokeToken,
-		"access_token":  params.AccessToken,
-	}
+	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		Type(whttp.RequestTypeRevokeToken).
+		Endpoints(conf.APIVersion, "oauth/revoke").
+		QueryParams(map[string]string{
+			"client_id":     params.ClientID,
+			"client_secret": params.ClientSecret,
+			"revoke_token":  params.RevokeToken,
+			"access_token":  params.AccessToken,
+		}).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
 
-	req := &whttp.Request[any]{
-		Type:        whttp.RequestTypeRevokeToken,
-		BaseURL:     c.baseURL,
-		Method:      http.MethodGet,
-		Endpoints:   []string{c.apiVersion, "/oauth/revoke"},
-		QueryParams: queryParams,
-	}
+	req := whttp.BuildAnyRequest(b)
 
 	res := &RevokeAccessTokenResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
@@ -265,32 +264,18 @@ func (c *Client) RevokeAccessToken(ctx context.Context,
 		InspectResponseError:  true,
 	})
 
-	if err := c.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("revoke access token: %w", err)
 	}
 
 	return res, nil
 }
 
-// RefreshAccessTokenParams contains the parameters for refreshing an access token.
-type RefreshAccessTokenParams struct {
-	ClientID            string
-	ClientSecret        string
-	FbExchangeToken     string // Current access token
-	GraphAPIVersion     string
-	SetTokenExpiresIn60 bool // Set to true to refresh for another 60 days
-}
-
-// RefreshAccessTokenResponse contains the response from the refresh token request.
-type RefreshAccessTokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
-}
-
 // RefreshAccessToken sends a request to refresh an expiring system user access token.
-func (c *Client) RefreshAccessToken(ctx context.Context,
-	params RefreshAccessTokenParams,
+func (bc *BaseClient) RefreshAccessToken(
+	ctx context.Context,
+	conf *config.Config,
+	params *RefreshAccessTokenParams,
 ) (*RefreshAccessTokenResponse, error) {
 	queryParams := map[string]string{
 		"grant_type":        "fb_exchange_token",
@@ -303,13 +288,13 @@ func (c *Client) RefreshAccessToken(ctx context.Context,
 		queryParams["set_token_expires_in_60_days"] = "true"
 	}
 
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestType[any](whttp.RequestTypeRefreshToken),
-		whttp.WithRequestEndpoints[any](c.apiVersion, "/oauth/access_token"),
-		whttp.WithRequestQueryParams[any](queryParams),
-	}
+	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		Type(whttp.RequestTypeRefreshToken).
+		Endpoints(conf.APIVersion, "oauth/access_token").
+		QueryParams(queryParams).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
 
-	req := whttp.MakeRequest[any](http.MethodGet, c.baseURL, opts...)
+	req := whttp.BuildAnyRequest(b)
 
 	res := &RefreshAccessTokenResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
@@ -318,12 +303,221 @@ func (c *Client) RefreshAccessToken(ctx context.Context,
 		InspectResponseError:  true,
 	})
 
-	if err := c.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("refresh access token: %w", err)
 	}
 
 	return res, nil
 }
+
+// CreateSystemUser creates a system user in a business manager.
+//
+//nolint:dupl // similar structure to UpdateSystemUser but different request type, params, and response
+func (bc *BaseClient) CreateSystemUser(
+	ctx context.Context,
+	conf *config.Config,
+	req *CreateSystemUserRequest,
+) (*CreateSystemUserResponse, error) {
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		Type(whttp.RequestTypeCreateSystemUser).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID, "system_users").
+		QueryParams(map[string]string{
+			"name": req.Name,
+			"role": req.Role,
+		}).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
+	httpReq := whttp.BuildAnyRequest(b)
+
+	res := &CreateSystemUserResponse{}
+	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: false,
+		InspectResponseError:  true,
+	})
+
+	if err := bc.Sender.Send(ctx, httpReq, decoder); err != nil {
+		return nil, fmt.Errorf("create system user: %w", err)
+	}
+
+	return res, nil
+}
+
+// ListSystemUsers retrieves all system users in a business manager.
+func (bc *BaseClient) ListSystemUsers(
+	ctx context.Context,
+	conf *config.Config,
+) (*ListSystemUsersResponse, error) {
+	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		Type(whttp.RequestTypeListSystemUsers).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID, "system_users").
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
+	req := whttp.BuildAnyRequest(b)
+
+	res := &ListSystemUsersResponse{}
+	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: false,
+		InspectResponseError:  true,
+	})
+
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("list system users: %w", err)
+	}
+
+	return res, nil
+}
+
+// UpdateSystemUser updates the name of an existing system user.
+//
+//nolint:dupl // similar structure to CreateSystemUser but different request type, params, and response
+func (bc *BaseClient) UpdateSystemUser(
+	ctx context.Context,
+	conf *config.Config,
+	req *UpdateSystemUserRequest,
+) (*SuccessResponse, error) {
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		Type(whttp.RequestTypeUpdateSystemUser).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID, "system_users").
+		QueryParams(map[string]string{
+			"system_user_id": req.SystemUserID,
+			"name":           req.Name,
+		}).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
+	httpReq := whttp.BuildAnyRequest(b)
+
+	res := &SuccessResponse{}
+	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: false,
+		InspectResponseError:  true,
+	})
+
+	if err := bc.Sender.Send(ctx, httpReq, decoder); err != nil {
+		return nil, fmt.Errorf("update system user: %w", err)
+	}
+
+	return res, nil
+}
+
+// InvalidateSystemUserTokens invalidates all access tokens for a system user.
+func (bc *BaseClient) InvalidateSystemUserTokens(
+	ctx context.Context,
+	conf *config.Config,
+	systemUserID string,
+) (*SuccessResponse, error) {
+	b := whttp.NewRequestBuilder(http.MethodDelete, conf.BaseURL).
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		Type(whttp.RequestTypeInvalidateSystemUserTokens).
+		Endpoints(conf.APIVersion, systemUserID, "access_tokens").
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
+	req := whttp.BuildAnyRequest(b)
+
+	res := &SuccessResponse{}
+	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: false,
+		InspectResponseError:  true,
+	})
+
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("invalidate system user tokens: %w", err)
+	}
+
+	return res, nil
+}
+
+// Client wraps BaseClient with a fixed configuration.
+type Client struct {
+	sender *BaseClient
+	config *config.Config
+}
+
+// NewClient creates a Client with a fixed configuration and sender options.
+func NewClient(conf *config.Config, opts ...whttp.CoreSenderOption) *Client {
+	return &Client{
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
+		config: conf,
+	}
+}
+
+// InstallApp installs an app for a system user, using the client's fixed configuration.
+func (c *Client) InstallApp(ctx context.Context, params *InstallAppParams) error {
+	return c.sender.InstallApp(ctx, c.config, params)
+}
+
+// TwoStepVerification sets up two-step verification for a WhatsApp Business API phone number.
+func (c *Client) TwoStepVerification(
+	ctx context.Context,
+	request *TwoStepVerificationRequest,
+) (*SuccessResponse, error) {
+	return c.sender.TwoStepVerification(ctx, c.config, request)
+}
+
+// GenerateAccessToken generates a persistent access token for a system user.
+func (c *Client) GenerateAccessToken(
+	ctx context.Context,
+	params *GenerateAccessTokenParams,
+) (*GenerateAccessTokenResponse, error) {
+	return c.sender.GenerateAccessToken(ctx, c.config, params)
+}
+
+// RevokeAccessToken revokes an access token.
+func (c *Client) RevokeAccessToken(
+	ctx context.Context,
+	params *RevokeAccessTokenParams,
+) (*RevokeAccessTokenResponse, error) {
+	return c.sender.RevokeAccessToken(ctx, c.config, params)
+}
+
+// RefreshAccessToken sends a request to refresh an expiring system user access token.
+func (c *Client) RefreshAccessToken(
+	ctx context.Context,
+	params *RefreshAccessTokenParams,
+) (*RefreshAccessTokenResponse, error) {
+	return c.sender.RefreshAccessToken(ctx, c.config, params)
+}
+
+// CreateSystemUser creates a system user in a business manager.
+func (c *Client) CreateSystemUser(
+	ctx context.Context,
+	req *CreateSystemUserRequest,
+) (*CreateSystemUserResponse, error) {
+	return c.sender.CreateSystemUser(ctx, c.config, req)
+}
+
+// ListSystemUsers retrieves all system users in a business manager.
+func (c *Client) ListSystemUsers(ctx context.Context) (*ListSystemUsersResponse, error) {
+	return c.sender.ListSystemUsers(ctx, c.config)
+}
+
+// UpdateSystemUser updates the name of an existing system user.
+func (c *Client) UpdateSystemUser(
+	ctx context.Context,
+	req *UpdateSystemUserRequest,
+) (*SuccessResponse, error) {
+	return c.sender.UpdateSystemUser(ctx, c.config, req)
+}
+
+// InvalidateSystemUserTokens invalidates all access tokens for a system user.
+func (c *Client) InvalidateSystemUserTokens(
+	ctx context.Context,
+	systemUserID string,
+) (*SuccessResponse, error) {
+	return c.sender.InvalidateSystemUserTokens(ctx, c.config, systemUserID)
+}
+
+// --- Token rotation ---
 
 type (
 	TokenRotatorFunc func(ctx context.Context, refresher TokenRefresher, revoker TokenRevoker, store TokenStore) error
@@ -337,12 +531,12 @@ func (fn TokenRotatorFunc) RotateToken(ctx context.Context, refresher TokenRefre
 
 // TokenRefresher defines an interface to refresh and fetch a new token.
 type TokenRefresher interface {
-	Refresh(ctx context.Context, currentToken string) (string, error) // Refreshes and returns the new token
+	Refresh(ctx context.Context, currentToken string) (string, error)
 }
 
 // TokenRevoker defines an interface to revoke a token.
 type TokenRevoker interface {
-	Revoke(ctx context.Context, oldToken string) error // Revokes the old token
+	Revoke(ctx context.Context, oldToken string) error
 }
 
 // TokenStore defines an interface to store the new token.
@@ -351,6 +545,7 @@ type TokenStore interface {
 	Get(ctx context.Context) (string, error)
 }
 
+// RotateAccessToken refreshes, stores the new token, and revokes the old token.
 func RotateAccessToken(
 	ctx context.Context,
 	refresher TokenRefresher,
