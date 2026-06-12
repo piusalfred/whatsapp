@@ -486,6 +486,12 @@ type BaseClient struct {
 	whttp.BaseClient[any]
 }
 
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
+
 // Send translates a high-level BaseRequest into an HTTP transaction and returns
 // the decoded BaseResponse.
 func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*BaseResponse, error) {
@@ -530,27 +536,179 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 	return resp, nil
 }
 
+func (bc *BaseClient) Get(ctx context.Context, conf *config.Config, request *GetRequest) (*SingleFlowResponse, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypeRetrieveFlowDetails,
+		Method:    http.MethodGet,
+		Endpoints: []string{request.FlowID},
+		Payload:   request,
+		QueryParams: map[string]string{
+			fieldsQueryParam: strings.Join(request.Fields, ","),
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send get request: %w", err)
+	}
+
+	return resp.FlowDetails(), nil
+}
+
+func (bc *BaseClient) GeneratePreview(
+	ctx context.Context,
+	conf *config.Config,
+	request *PreviewRequest,
+) (*PreviewResponse, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypeRetrieveFlowPreview,
+		Method:    http.MethodGet,
+		Endpoints: []string{request.FlowID},
+		Payload:   request,
+		QueryParams: map[string]string{
+			fieldsQueryParam: fmt.Sprintf("preview.invalidate(%t)", request.Invalidate),
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send preview request: %w", err)
+	}
+
+	return &PreviewResponse{
+		PreviewURL: resp.PreviewURL,
+		ExpiresAt:  resp.ExpiresAt,
+		ID:         resp.ID,
+	}, nil
+}
+
+func (bc *BaseClient) UpdateFlowJSON(ctx context.Context, conf *config.Config,
+	request *UpdateFlowJSONRequest,
+) (*UpdateFlowJSONResponse, error) {
+	form := &whttp.RequestForm{
+		Fields: map[string]string{
+			"name":       request.Name,
+			"asset_type": "FLOW_JSON",
+		},
+		FormFile: &whttp.FormFile{
+			Name: "file",
+			Path: request.File,
+		},
+	}
+
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypeUploadMedia,
+		Method:    http.MethodPost,
+		Endpoints: []string{conf.PhoneNumberID, "media"},
+		Form:      form,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update flow json: %w", err)
+	}
+
+	return &UpdateFlowJSONResponse{
+		Success:          resp.Success,
+		ValidationErrors: resp.ValidationErrors,
+	}, nil
+}
+
+func (bc *BaseClient) Update(ctx context.Context, conf *config.Config,
+	id string, request UpdateRequest,
+) (*UpdateResponse, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypeUpdateFlow,
+		Method:    http.MethodPost,
+		Endpoints: []string{id},
+		Payload:   request,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send update request: %w", err)
+	}
+
+	return &UpdateResponse{Success: resp.Success}, nil
+}
+
+func (bc *BaseClient) Create(ctx context.Context, conf *config.Config,
+	request CreateRequest,
+) (*CreateResponse, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypeCreateFlow,
+		Method:    http.MethodPost,
+		Endpoints: []string{conf.BusinessAccountID, "flows"},
+		Payload:   request,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send create request: %w", err)
+	}
+
+	return &CreateResponse{ID: resp.ID}, nil
+}
+
+func (bc *BaseClient) ListAll(ctx context.Context, conf *config.Config) (*ListResponse, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypeRetrieveFlows,
+		Method:    http.MethodGet,
+		Endpoints: []string{conf.BusinessAccountID, "flows"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send list request: %w", err)
+	}
+
+	return resp.ListResponse(), nil
+}
+
+func (bc *BaseClient) Delete(ctx context.Context, conf *config.Config, id string) (*SuccessResponse, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypeDeleteFlow,
+		Method:    http.MethodDelete,
+		Endpoints: []string{id},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send delete request: %w", err)
+	}
+
+	return &SuccessResponse{Success: resp.Success}, nil
+}
+
+func (bc *BaseClient) ListAssets(ctx context.Context, conf *config.Config, id string) (*RetrieveAssetsResponse, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypeRetrieveAssets,
+		Method:    http.MethodGet,
+		Endpoints: []string{id, "assets"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send list request: %w", err)
+	}
+
+	return resp.ListAssetsResponse(), nil
+}
+
+func (bc *BaseClient) Publish(ctx context.Context, conf *config.Config, id string) (*SuccessResponse, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypePublishFlow,
+		Method:    http.MethodPost,
+		Endpoints: []string{id, "publish"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send publish request: %w", err)
+	}
+
+	return &SuccessResponse{Success: resp.Success}, nil
+}
+
+func (bc *BaseClient) Deprecate(ctx context.Context, conf *config.Config, id string) (*SuccessResponse, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
+		Type:      whttp.RequestTypeDeprecateFlow,
+		Method:    http.MethodPost,
+		Endpoints: []string{id, "deprecate"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send deprecate request: %w", err)
+	}
+
+	return &SuccessResponse{Success: resp.Success}, nil
+}
+
 type GetRequest struct {
 	FlowID string
 	Fields []string
 }
-
-// Service is the public surface of the Flow API client.
-type Service interface {
-	Create(ctx context.Context, request CreateRequest) (*CreateResponse, error)
-	Update(ctx context.Context, id string, request UpdateRequest) (*UpdateResponse, error)
-	UpdateFlowJSON(ctx context.Context, request *UpdateFlowJSONRequest) (*UpdateFlowJSONResponse, error)
-	ListAll(ctx context.Context) (*ListResponse, error)
-	ListAssets(ctx context.Context, id string) (*RetrieveAssetsResponse, error)
-	Publish(ctx context.Context, id string) (*SuccessResponse, error)
-	Delete(ctx context.Context, id string) (*SuccessResponse, error)
-	Deprecate(ctx context.Context, id string) (*SuccessResponse, error)
-	GeneratePreview(ctx context.Context, request *PreviewRequest) (*PreviewResponse, error)
-	Get(ctx context.Context, request *GetRequest) (*SingleFlowResponse, error)
-	GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*MetricsAPIResponse, error)
-}
-
-var _ Service = (*Client)(nil)
 
 type PreviewURLConfigOptions struct {
 	Interactive       bool   // If true, the preview will run in interactive mode.
