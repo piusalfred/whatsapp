@@ -99,6 +99,37 @@ type (
 		ViolationInfo   *ViolationInfo    `json:"violation_info,omitempty"`
 	}
 
+	// SecurityNotification describes a security-related event on a business
+	// phone number. Events include PIN changes and two-step verification resets.
+	// Requester is the Meta Business Suite user ID (only for PIN reset requests).
+	SecurityNotification struct {
+		Event              string `json:"event"` // PIN_CHANGED, PIN_RESET_REQUEST, PIN_REQUEST_SUCCESS
+		DisplayPhoneNumber string `json:"display_phone_number,omitempty"`
+		Requester          string `json:"requester,omitempty"` // MBS user ID, PIN reset only
+	}
+
+	// TemplateComponentsUpdateNotification describes changes to a template's
+	// components (header, body, footer, buttons). Triggers when a template is
+	// edited.
+	TemplateComponentsUpdateNotification struct {
+		MessageTemplateID       int64                     `json:"message_template_id"`
+		MessageTemplateName     string                    `json:"message_template_name,omitempty"`
+		MessageTemplateLanguage string                    `json:"message_template_language,omitempty"`
+		Title                   string                    `json:"message_template_title,omitempty"`
+		Element                 string                    `json:"message_template_element,omitempty"`
+		Footer                  string                    `json:"message_template_footer,omitempty"`
+		Buttons                 []TemplateComponentButton `json:"message_template_buttons,omitempty"`
+	}
+
+	// TemplateComponentButton describes a single button within a template
+	// component update notification.
+	TemplateComponentButton struct {
+		Type        string `json:"message_template_button_type"`
+		Text        string `json:"message_template_button_text"`
+		URL         string `json:"message_template_button_url,omitempty"`
+		PhoneNumber string `json:"message_template_button_phone_number,omitempty"`
+	}
+
 	ViolationInfo struct {
 		ViolationType string `json:"violation_type"` // e.g., "ACCOUNT_VIOLATION"
 	}

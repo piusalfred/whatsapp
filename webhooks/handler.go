@@ -49,6 +49,7 @@ type Handler struct {
 	templateStatus           EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
 	templateCategory         EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
 	templateQuality          EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]
+	templateComponents       EventHandler[BusinessNotificationContext, TemplateComponentsUpdateNotification]
 	phoneNumberNameUpdate    EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
 	capabilityUpdate         EventHandler[BusinessNotificationContext, CapabilityUpdate]
 	accountUpdate            EventHandler[BusinessNotificationContext, AccountUpdate]
@@ -56,6 +57,7 @@ type Handler struct {
 	phoneNumberQualityUpdate EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
 	accountReviewUpdate      EventHandler[BusinessNotificationContext, AccountReviewUpdate]
 	callStatusUpdate         EventHandler[BusinessNotificationContext, CallStatusUpdate]
+	securityUpdate           EventHandler[BusinessNotificationContext, SecurityNotification]
 	buttonMessage            MessageHandler[Button]
 	textMessage              MessageHandler[Text]
 	orderMessage             MessageHandler[Order]
@@ -106,6 +108,7 @@ func NewHandler() *Handler {
 		templateStatus:           NewNoOpEventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification](),
 		templateCategory:         NewNoOpEventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification](),
 		templateQuality:          NewNoOpEventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification](),
+		templateComponents:       NewNoOpEventHandler[BusinessNotificationContext, TemplateComponentsUpdateNotification](),
 		phoneNumberNameUpdate:    NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberNameUpdate](),
 		capabilityUpdate:         NewNoOpEventHandler[BusinessNotificationContext, CapabilityUpdate](),
 		accountUpdate:            NewNoOpEventHandler[BusinessNotificationContext, AccountUpdate](),
@@ -113,6 +116,7 @@ func NewHandler() *Handler {
 		phoneNumberQualityUpdate: NewNoOpEventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate](),
 		accountReviewUpdate:      NewNoOpEventHandler[BusinessNotificationContext, AccountReviewUpdate](),
 		callStatusUpdate:         NewNoOpEventHandler[BusinessNotificationContext, CallStatusUpdate](),
+		securityUpdate:           NewNoOpEventHandler[BusinessNotificationContext, SecurityNotification](),
 		buttonMessage:            NewNoOpMessageHandler[Button](),
 		textMessage:              NewNoOpMessageHandler[Text](),
 		orderMessage:             NewNoOpMessageHandler[Order](),
@@ -240,6 +244,20 @@ func (handler *Handler) handleNotificationChange( //nolint:funlen,gocognit // co
 			return err
 		}
 
+	case ChangeFieldTemplateComponentsUpdate.String():
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.templateComponents, &TemplateComponentsUpdateNotification{
+				MessageTemplateID:       change.Value.MessageTemplateID,
+				MessageTemplateName:     change.Value.MessageTemplateName,
+				MessageTemplateLanguage: change.Value.MessageTemplateLanguage,
+				Title:                   change.Value.MessageTemplateTitle,
+				Element:                 change.Value.MessageTemplateElement,
+				Footer:                  change.Value.MessageTemplateFooter,
+				Buttons:                 change.Value.MessageTemplateButtons,
+			},
+		)
+
 	case ChangeFieldPhoneNumberNameUpdate.String():
 		return handleBusinessNotification(
 			ctx, handler, notification, change, entry,
@@ -287,6 +305,16 @@ func (handler *Handler) handleNotificationChange( //nolint:funlen,gocognit // co
 		return handleBusinessNotification(
 			ctx, handler, notification, change, entry,
 			handler.phoneSettingsUpdate, change.Value.PhoneNumberSettings,
+		)
+
+	case ChangeFieldSecurity.String():
+		return handleBusinessNotification(
+			ctx, handler, notification, change, entry,
+			handler.securityUpdate, &SecurityNotification{
+				Event:              change.Value.Event,
+				DisplayPhoneNumber: change.Value.DisplayPhoneNumber,
+				Requester:          change.Value.Requester,
+			},
 		)
 
 	case ChangeFieldMessages.String():
@@ -575,16 +603,15 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 //   - messages (text, image, audio, video, document, sticker, interactive,
 //     button, order, location, contacts, reaction, system, referral, request_welcome)
 //   - message_template_status_update, template_category_update,
-//     message_template_quality_update
+//     message_template_quality_update, message_template_components_update
 //   - phone_number_name_update, phone_number_quality_update
-//   - user_preferences, account_settings_update
+//   - user_preferences, account_settings_update, security
 //   - group_lifecycle_update, group_participants_update, group_settings_update,
 //     group_status_update
 //
 // Not yet implemented (no-ops if received):
 //
-//	automatic_events, history, message_template_components_update,
-//	partner_solutions, payment_configuration_update, security,
+//	automatic_events, partner_solutions, payment_configuration_update,
 //	smb_app_state_sync, smb_message_echoes
 type ChangeField string
 
@@ -608,6 +635,8 @@ const (
 	ChangeFieldGroupSettingsUpdate      ChangeField = "group_settings_update"
 	ChangeFieldGroupStatusUpdate        ChangeField = "group_status_update"
 	ChangeFieldHistory                  ChangeField = "history"
+	ChangeFieldSecurity                 ChangeField = "security"
+	ChangeFieldTemplateComponentsUpdate ChangeField = "message_template_components_update"
 )
 
 const (
@@ -827,6 +856,22 @@ func (handler *Handler) SetBusinessTemplateQualityUpdateHandler(
 	handler.templateQuality = fn
 }
 
+// OnTemplateComponentsUpdate registers a callback for template component
+// change events. Triggers when a WhatsApp template is edited — the callback
+// receives the updated header, body, footer, and button details.
+func (handler *Handler) OnTemplateComponentsUpdate(
+	fn func(ctx context.Context, notificationContext *BusinessNotificationContext,
+		details *TemplateComponentsUpdateNotification) error,
+) {
+	handler.templateComponents = EventHandlerFunc[BusinessNotificationContext, TemplateComponentsUpdateNotification](fn)
+}
+
+func (handler *Handler) SetTemplateComponentsUpdateHandler(
+	fn EventHandler[BusinessNotificationContext, TemplateComponentsUpdateNotification],
+) {
+	handler.templateComponents = fn
+}
+
 func (handler *Handler) OnBusinessPhoneNumberNameUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *PhoneNumberNameUpdate) error,
 ) {
@@ -893,6 +938,21 @@ func (handler *Handler) SetBusinessCapabilityUpdateHandler(
 	fn EventHandler[BusinessNotificationContext, CapabilityUpdate],
 ) {
 	handler.capabilityUpdate = fn
+}
+
+// OnSecurityUpdate registers a callback for security-related phone number
+// events. Triggers when a Meta Business Suite user changes the PIN, requests
+// a PIN reset, or completes a two-step verification reset.
+func (handler *Handler) OnSecurityUpdate(
+	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *SecurityNotification) error,
+) {
+	handler.securityUpdate = EventHandlerFunc[BusinessNotificationContext, SecurityNotification](fn)
+}
+
+func (handler *Handler) SetSecurityUpdateHandler(
+	fn EventHandler[BusinessNotificationContext, SecurityNotification],
+) {
+	handler.securityUpdate = fn
 }
 
 type (
