@@ -44,6 +44,8 @@ const (
 	MessageTypeReaction       MessageType = "reaction"
 	MessageTypeContacts       MessageType = "contacts"
 	MessageTypeRequestWelcome MessageType = "request_welcome"
+	MessageTypeRevoke         MessageType = "revoke"
+	MessageTypeEdit           MessageType = "edit"
 )
 
 // MessageType is a type of message that has been received by the business that has subscribed
@@ -72,6 +74,8 @@ func ParseMessageType(s string) MessageType {
 		"reaction":        MessageTypeReaction,
 		"contacts":        MessageTypeContacts,
 		"request_welcome": MessageTypeRequestWelcome,
+		"revoke":          MessageTypeRevoke,
+		"edit":            MessageTypeEdit,
 	}
 
 	msgType, ok := msgMap[strings.TrimSpace(strings.ToLower(s))]
@@ -118,7 +122,7 @@ func NewNoOpMessageErrorsHandler() MessageErrorsHandler {
 	)
 }
 
-func (handler *Handler) handleNotificationMessage( //nolint:gocognit // single dispatch switch over all message types; splitting further would obscure intent
+func (handler *Handler) handleNotificationMessage( //nolint:gocognit,funlen // single dispatch switch
 	ctx context.Context,
 	notificationCtx *MessageNotificationContext,
 	message *Message,
@@ -207,6 +211,20 @@ func (handler *Handler) handleNotificationMessage( //nolint:gocognit // single d
 	case MessageTypeContacts:
 		if err := handler.contactsMessage.Handle(ctx, notificationCtx, info, message.Contacts); err != nil {
 			return fmt.Errorf("handle contacts message: %w", err)
+		}
+
+		return nil
+
+	case MessageTypeRevoke:
+		if err := handler.revokeMessage.Handle(ctx, notificationCtx, info, message.Revoke); err != nil {
+			return fmt.Errorf("handle revoke message: %w", err)
+		}
+
+		return nil
+
+	case MessageTypeEdit:
+		if err := handler.editMessage.Handle(ctx, notificationCtx, info, message.Edit); err != nil {
+			return fmt.Errorf("handle edit message: %w", err)
 		}
 
 		return nil
@@ -657,4 +675,34 @@ func (handler *Handler) SetStickerMessageHandler(
 	h MediaMessageHandler,
 ) {
 	handler.stickerMessage = h
+}
+
+// OnRevokeMessage registers a callback for message deletion events. Triggers
+// when a WhatsApp user deletes a previously sent message (within ~2 days of
+// sending). The callback receives the original message ID that was revoked.
+func (handler *Handler) OnRevokeMessage(
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, revoke *Revoke) error,
+) {
+	handler.revokeMessage = MessageHandlerFunc[Revoke](fn)
+}
+
+func (handler *Handler) SetRevokeMessageHandler(h MessageHandler[Revoke]) {
+	handler.revokeMessage = h
+}
+
+// OnMessageEdit registers a callback for edit events. Triggers when a WhatsApp
+// user edits a previously sent message (text or media caption) within 15 minutes
+// of sending. The callback receives the original message ID and the replacement
+// content.
+//
+// Note: edit webhooks are temporarily unsupported by WhatsApp. Edited messages
+// may currently arrive as unsupported message type instead of edit type.
+func (handler *Handler) OnMessageEdit(
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, edit *Edit) error,
+) {
+	handler.editMessage = MessageHandlerFunc[Edit](fn)
+}
+
+func (handler *Handler) SetMessageEditHandler(h MessageHandler[Edit]) {
+	handler.editMessage = h
 }

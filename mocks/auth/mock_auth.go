@@ -13,47 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	auth "github.com/piusalfred/whatsapp/auth"
 	gomock "go.uber.org/mock/gomock"
 )
-
-// MockTokenRotator is a mock of TokenRotator interface.
-type MockTokenRotator struct {
-	ctrl     *gomock.Controller
-	recorder *MockTokenRotatorMockRecorder
-	isgomock struct{}
-}
-
-// MockTokenRotatorMockRecorder is the mock recorder for MockTokenRotator.
-type MockTokenRotatorMockRecorder struct {
-	mock *MockTokenRotator
-}
-
-// NewMockTokenRotator creates a new mock instance.
-func NewMockTokenRotator(ctrl *gomock.Controller) *MockTokenRotator {
-	mock := &MockTokenRotator{ctrl: ctrl}
-	mock.recorder = &MockTokenRotatorMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTokenRotator) EXPECT() *MockTokenRotatorMockRecorder {
-	return m.recorder
-}
-
-// RotateToken mocks base method.
-func (m *MockTokenRotator) RotateToken(ctx context.Context, refresher auth.TokenRefresher, revoker auth.TokenRevoker, store auth.TokenStore) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RotateToken", ctx, refresher, revoker, store)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RotateToken indicates an expected call of RotateToken.
-func (mr *MockTokenRotatorMockRecorder) RotateToken(ctx, refresher, revoker, store any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RotateToken", reflect.TypeOf((*MockTokenRotator)(nil).RotateToken), ctx, refresher, revoker, store)
-}
 
 // MockTokenRefresher is a mock of TokenRefresher interface.
 type MockTokenRefresher struct {

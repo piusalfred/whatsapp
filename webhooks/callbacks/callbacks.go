@@ -15,6 +15,23 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Package callbacks manages alternate webhook callback URLs for WhatsApp
+// Business Accounts and phone numbers.
+//
+// WhatsApp supports a three-tier callback routing priority:
+//  1. Phone number alternate URL (if set)
+//  2. WABA alternate URL (if set)
+//  3. App's default callback URL
+//
+// Not all webhook fields support overrides. The following are supported:
+// messages, message_echoes, calls, consumer_profile, messaging_handovers,
+// group_* updates, smb_message_echoes, smb_app_state_sync, history,
+// account_settings_update.
+//
+// Template webhooks (message_template_status_update, template_category_update,
+// etc.) and account-level webhooks (account_update, account_review_update,
+// account_alerts) do NOT support overrides and are always delivered to the
+// app's default callback URL.
 package callbacks
 
 import (
@@ -28,6 +45,7 @@ import (
 
 const EndpointSubscribedApps = "/subscribed_apps"
 
+// OverrideType specifies whether an alternate callback applies to a WABA or a phone number.
 type OverrideType string
 
 const (
@@ -37,9 +55,12 @@ const (
 
 type (
 	BaseClient struct {
-		BaseSender whttp.Sender[BaseRequest]
+		whttp.BaseClient[BaseRequest]
 	}
 
+	// WebhookConfiguration holds the callback URL and verification token for an
+	// override. When retrieving the current configuration, PhoneNumber and
+	// WhatsappBusinessAccount indicate which level has an override set.
 	WebhookConfiguration struct {
 		OverrideCallbackURI     string `json:"override_callback_uri"`
 		VerifyToken             string `json:"verify_token"`
@@ -84,83 +105,76 @@ type (
 	}
 )
 
-func (bs *BaseClient) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*BaseResponse, error) {
-	req := &whttp.Request[BaseRequest]{}
+func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*BaseResponse, error) {
+	var (
+		method      string
+		message     *BaseRequest
+		queryParams map[string]string
+		phoneNumber bool
+	)
+
 	switch request.RequestType { //nolint: exhaustive // we have only 4 request types
 	case whttp.RequestTypeSetWABAAlternateCallbackURI:
-		req = whttp.MakeRequest(http.MethodPost, conf.BaseURL,
-			whttp.WithRequestType[BaseRequest](request.RequestType),
-			whttp.WithRequestAppSecret[BaseRequest](conf.AppSecret),
-			whttp.WithRequestSecured[BaseRequest](conf.SecureRequests),
-			whttp.WithRequestHeaders[BaseRequest](map[string]string{
-				"Content-Type": "application/json",
-			}),
-			whttp.WithRequestEndpoints[BaseRequest](conf.APIVersion, conf.BusinessAccountID, EndpointSubscribedApps),
-			whttp.WithRequestMessage(&BaseRequest{
-				WebhookConfiguration: &WebhookConfiguration{
-					OverrideCallbackURI: request.OverrideCallbackURI,
-					VerifyToken:         request.VerifyToken,
-				},
-			}),
-		)
-
-	case whttp.RequestTypeSetPhoneNumberAlternateCallbackURI:
-		req = whttp.MakeRequest(http.MethodPost, conf.BaseURL,
-			whttp.WithRequestType[BaseRequest](request.RequestType),
-			whttp.WithRequestAppSecret[BaseRequest](conf.AppSecret),
-			whttp.WithRequestSecured[BaseRequest](conf.SecureRequests),
-			whttp.WithRequestHeaders[BaseRequest](map[string]string{
-				"Content-Type": "application/json",
-			}),
-			whttp.WithRequestEndpoints[BaseRequest](conf.APIVersion, conf.BusinessAccountID, EndpointSubscribedApps),
-			whttp.WithRequestMessage(&BaseRequest{
+		method = http.MethodPost
+		message = &BaseRequest{
+			WebhookConfiguration: &WebhookConfiguration{
 				OverrideCallbackURI: request.OverrideCallbackURI,
 				VerifyToken:         request.VerifyToken,
-			}),
-		)
+			},
+		}
+
+	case whttp.RequestTypeSetPhoneNumberAlternateCallbackURI:
+		method = http.MethodPost
+		message = &BaseRequest{
+			OverrideCallbackURI: request.OverrideCallbackURI,
+			VerifyToken:         request.VerifyToken,
+		}
 
 	case whttp.RequestTypeGetWABAAlternateCallbackURI:
-		req = whttp.MakeRequest(http.MethodGet, conf.BaseURL,
-			whttp.WithRequestType[BaseRequest](request.RequestType),
-			whttp.WithRequestAppSecret[BaseRequest](conf.AppSecret),
-			whttp.WithRequestSecured[BaseRequest](conf.SecureRequests),
-			whttp.WithRequestEndpoints[BaseRequest](conf.APIVersion, conf.BusinessAccountID, EndpointSubscribedApps),
-		)
+		method = http.MethodGet
 
 	case whttp.RequestTypeGetPhoneNumberAlternateCallbackURI:
-		req = whttp.MakeRequest(http.MethodGet, conf.BaseURL,
-			whttp.WithRequestType[BaseRequest](request.RequestType),
-			whttp.WithRequestAppSecret[BaseRequest](conf.AppSecret),
-			whttp.WithRequestSecured[BaseRequest](conf.SecureRequests),
-			whttp.WithRequestEndpoints[BaseRequest](conf.APIVersion, conf.PhoneNumberID, EndpointSubscribedApps),
-			whttp.WithRequestQueryParams[BaseRequest](map[string]string{
-				"fields": "webhook_configuration",
-			}),
-		)
+		method = http.MethodGet
+		queryParams = map[string]string{"fields": "webhook_configuration"}
+		phoneNumber = true
 
 	case whttp.RequestTypeDeleteWABAAlternateCallbackURI:
-		req = whttp.MakeRequest(http.MethodPost, conf.BaseURL,
-			whttp.WithRequestType[BaseRequest](request.RequestType),
-			whttp.WithRequestAppSecret[BaseRequest](conf.AppSecret),
-			whttp.WithRequestSecured[BaseRequest](conf.SecureRequests),
-			whttp.WithRequestEndpoints[BaseRequest](conf.APIVersion, conf.BusinessAccountID, EndpointSubscribedApps),
-		)
+		method = http.MethodPost
 
 	case whttp.RequestTypeDeletePhoneNumberAlternateCallbackURI:
-		req = whttp.MakeRequest(http.MethodPost, conf.BaseURL,
-			whttp.WithRequestType[BaseRequest](request.RequestType),
-			whttp.WithRequestAppSecret[BaseRequest](conf.AppSecret),
-			whttp.WithRequestSecured[BaseRequest](conf.SecureRequests),
-			whttp.WithRequestEndpoints[BaseRequest](conf.APIVersion, conf.PhoneNumberID, EndpointSubscribedApps),
-		)
+		method = http.MethodPost
+		phoneNumber = true
 	}
 
+	b := whttp.NewRequestBuilder(method, conf.BaseURL).
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.RequestType)
+
+	if message != nil {
+		b.Headers(map[string]string{"Content-Type": "application/json"})
+	}
+
+	if phoneNumber {
+		b.Endpoints(conf.APIVersion, conf.PhoneNumberID, EndpointSubscribedApps)
+	} else {
+		b.Endpoints(conf.APIVersion, conf.BusinessAccountID, EndpointSubscribedApps)
+	}
+
+	if len(queryParams) > 0 {
+		b.QueryParams(queryParams)
+	}
+
+	req := whttp.BuildRequest(b, message)
+
 	response := &BaseResponse{}
-	err := bs.BaseSender.Send(ctx, req, whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
 		DisallowEmptyResponse: true,
 		InspectResponseError:  true,
-	}))
-	if err != nil {
+	})
+
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 
@@ -181,8 +195,8 @@ func (res *BaseResponse) ListSubscribedAppsResponse() *ListSubscribedAppsRespons
 
 type (
 	Client struct {
-		BaseClient *BaseClient
-		Config     *config.Config
+		sender *BaseClient
+		config *config.Config
 	}
 
 	SetAlternativeCallbackRequest struct {
@@ -192,6 +206,41 @@ type (
 	}
 )
 
+// NewClient creates a high-level [Client] for the Callbacks API.
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
+	return &Client{
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
+		config: conf,
+	}
+}
+
+// SetBaseClient replaces the underlying request sender.
+func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
+	c.sender.Sender = sender
+}
+
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+}
+
+// Send dispatches a raw [BaseRequest] through the underlying [BaseClient].
+func (c *Client) Send(ctx context.Context, request *BaseRequest) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	return response, nil
+}
+
+// SetAlternativeCallback configures an alternate callback URL for a WABA or
+// phone number. The OverrideType determines which endpoint is used.
+// After setting, supported webhook fields will be routed to the alternate URL
+// instead of the app's default callback.
 func (c *Client) SetAlternativeCallback(
 	ctx context.Context,
 	request *SetAlternativeCallbackRequest,
@@ -211,7 +260,7 @@ func (c *Client) SetAlternativeCallback(
 		req.RequestType = whttp.RequestTypeSetPhoneNumberAlternateCallbackURI
 	}
 
-	res, err := c.BaseClient.Send(ctx, c.Config, req)
+	res, err := c.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
@@ -219,6 +268,9 @@ func (c *Client) SetAlternativeCallback(
 	return res.SuccessResponse(), nil
 }
 
+// DeleteAlternativeCallback removes the alternate callback URL for the given
+// OverrideType. After deletion, webhooks fall back to the next priority level
+// (phone number → WABA → app default).
 func (c *Client) DeleteAlternativeCallback(ctx context.Context, overrideType OverrideType) (*SuccessResponse, error) {
 	req := &BaseRequest{
 		Method: http.MethodPost,
@@ -233,7 +285,7 @@ func (c *Client) DeleteAlternativeCallback(ctx context.Context, overrideType Ove
 		req.RequestType = whttp.RequestTypeDeletePhoneNumberAlternateCallbackURI
 	}
 
-	res, err := c.BaseClient.Send(ctx, c.Config, req)
+	res, err := c.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}

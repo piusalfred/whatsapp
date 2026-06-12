@@ -27,10 +27,9 @@
 //	    http.WithSenderRequestInterceptor(logRequest),
 //	)
 //
-//	req := http.MakeRequest(http.MethodPost, "https://api.example.com",
-//	    http.WithRequestBearer[MyMessage]("token"),
-//	    http.WithRequestMessage[MyMessage](&MyMessage{Text: "hello"}),
-//	)
+//	builder := http.NewRequestBuilder(http.MethodPost, "https://api.example.com").
+//	    Bearer("token")
+//	req := http.Build(builder, &MyMessage{Text: "hello"})
 //
 //	var resp MyResponse
 //	err := client.Send(ctx, req, http.ResponseDecoderJSON(&resp, http.StrictDecode()))
@@ -39,9 +38,11 @@
 //
 // The package is organized around three layers:
 //
-//  1. Request  — builds [net/http.Request] from typed domain payloads
-//  2. Sender   — executes the request through middleware chains and interceptors
-//  3. Decoder  — deserializes [net/http.Response] into typed domain values
+//  1. Request    — builds [net/http.Request] from typed domain payloads
+//  2. Sender     — executes the request through middleware chains and interceptors
+//  3. ResponseDecoder    — deserializes [net/http.Response] into typed domain values
+//  4. BaseClient — embeddable building block that domain packages compose into
+//     their own client types, exposing a [Sender] for direct dispatch
 //
 // Middlewares wrap the sender's Send method (analogous to http.Handler middleware).
 // Interceptors are lighter hooks that snapshot and restore the body so they can

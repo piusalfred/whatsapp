@@ -2,7 +2,7 @@
  *  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
- *  and associated documentation files (the “Software”), to deal in the Software without restriction,
+ *  and associated documentation files (the "Software"), to deal in the Software without restriction,
  *  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
  *  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
  *  subject to the following conditions:
@@ -10,7 +10,7 @@
  *  The above copyright notice and this permission notice shall be included in all copies or substantial
  *  portions of the Software.
  *
- *  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
  *  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
  *  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
  *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -62,6 +62,7 @@ type (
 )
 
 type (
+	// BaseRequest carries the details needed to execute a Business Profile API HTTP call.
 	BaseRequest struct {
 		Type        whttp.RequestType
 		Method      string
@@ -69,22 +70,89 @@ type (
 		QueryFields []string
 	}
 
-	BaseSender struct {
-		Sender whttp.Sender[any]
-	}
-
+	// Response is the decoded response from the Business Profile API.
 	Response struct {
 		Profiles []*Profile `json:"data,omitempty"`
 		Success  bool       `json:"success"`
 	}
-
-	Service interface {
-		Get(ctx context.Context, fields []string) ([]*Profile, error)
-		Update(ctx context.Context, request *UpdateProfileRequest) (bool, error)
-	}
 )
 
-func (s *BaseSender) Send(ctx context.Context, config *config.Config, request *BaseRequest) (*Response, error) {
+// Client orchestrates high-level Business Profile API operations.
+type Client struct {
+	sender *BaseClient
+	config *config.Config
+}
+
+// NewClient creates a high-level Client for the Business Profile API.
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
+	return &Client{
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[any](options...)},
+		config: conf,
+	}
+}
+
+// SetBaseClient replaces the underlying request sender.
+func (c *Client) SetBaseClient(sender whttp.Sender[any]) {
+	c.sender.Sender = sender
+}
+
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+}
+
+// Send dispatches a raw BaseRequest through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *BaseRequest) (*Response, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("business client: %w", err)
+	}
+
+	return response, nil
+}
+
+// Get retrieves the business profile.
+func (c *Client) Get(ctx context.Context, fields []string) ([]*Profile, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
+		Type:        whttp.RequestTypeGetBusinessProfile,
+		Method:      http.MethodGet,
+		QueryFields: fields,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Profiles, nil
+}
+
+// Update updates the business profile.
+func (c *Client) Update(ctx context.Context, request *UpdateProfileRequest) (bool, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
+		Type:    whttp.RequestTypeUpdateBusinessProfile,
+		Method:  http.MethodPost,
+		Payload: request,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return resp.Success, nil
+}
+
+// BaseClient is the low-level HTTP executor for the Business Profile API. It
+// accepts a concrete [*config.Config] per request, making it suitable for
+// multi-tenant SaaS scenarios. For a fixed-configuration client, use [Client].
+type BaseClient struct {
+	whttp.BaseClient[any]
+}
+
+// Send translates a high-level BaseRequest into an HTTP transaction and returns
+// the decoded Response.
+func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*Response, error) {
 	if request.QueryFields == nil {
 		request.QueryFields = []string{}
 	}
@@ -95,21 +163,20 @@ func (s *BaseSender) Send(ctx context.Context, config *config.Config, request *B
 		params["fields"] = fields
 	}
 
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestEndpoints[any](config.APIVersion, config.PhoneNumberID, Endpoint),
-		whttp.WithRequestQueryParams[any](params),
-		whttp.WithRequestBearer[any](config.AccessToken),
-		whttp.WithRequestType[any](request.Type),
-		whttp.WithRequestAppSecret[any](config.AppSecret),
-		whttp.WithRequestSecured[any](config.SecureRequests),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(config.DebugLogLevel)),
-	}
+	b := whttp.NewRequestBuilder(request.Method, conf.BaseURL).
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.Type).
+		Endpoints(conf.APIVersion, conf.PhoneNumberID, Endpoint).
+		QueryParams(params)
 
+	var msg *any
 	if request.Payload != nil {
-		opts = append(opts, whttp.WithRequestMessage(&request.Payload))
+		msg = &request.Payload
 	}
 
-	req := whttp.MakeRequest(request.Method, config.BaseURL, opts...)
+	req := whttp.Build[any](b, msg)
 
 	response := &Response{}
 
@@ -119,141 +186,39 @@ func (s *BaseSender) Send(ctx context.Context, config *config.Config, request *B
 		InspectResponseError:  true,
 	})
 
-	if err := s.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
 	return response, nil
 }
 
-type BaseClient struct {
-	Sender Sender
-	Config config.Reader
-}
-
-func NewBaseClient(sender Sender, config config.Reader) *BaseClient {
-	return &BaseClient{Sender: sender, Config: config}
-}
-
-func (b *BaseClient) Get(ctx context.Context, fields []string) ([]*Profile, error) {
-	conf, err := b.Config.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
-	}
-
-	req := &BaseRequest{
+// Get retrieves the business profile for the given config.
+func (bc *BaseClient) Get(ctx context.Context, conf *config.Config, fields []string) ([]*Profile, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
 		Type:        whttp.RequestTypeGetBusinessProfile,
 		Method:      http.MethodGet,
 		QueryFields: fields,
-	}
-
-	response, err := b.Send(ctx, conf, req)
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return response.Profiles, nil
+	return resp.Profiles, nil
 }
 
-func (b *BaseClient) Update(ctx context.Context, request *UpdateProfileRequest) (bool, error) {
-	conf, err := b.Config.Read(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to read config: %w", err)
-	}
-
-	req := &BaseRequest{
+// Update updates the business profile for the given config.
+func (bc *BaseClient) Update(ctx context.Context, conf *config.Config, request *UpdateProfileRequest) (bool, error) {
+	resp, err := bc.Send(ctx, conf, &BaseRequest{
 		Type:    whttp.RequestTypeUpdateBusinessProfile,
 		Method:  http.MethodPost,
 		Payload: request,
-	}
-
-	response, err := b.Send(ctx, conf, req)
+	})
 	if err != nil {
 		return false, err
 	}
 
-	return response.Success, nil
+	return resp.Success, nil
 }
 
-func (b *BaseClient) Send(ctx context.Context, config *config.Config, request *BaseRequest) (*Response, error) {
-	response, err := b.Sender.Send(ctx, config, request)
-	if err != nil {
-		return nil, fmt.Errorf("business client: %w", err)
-	}
-
-	return response, nil
-}
-
-var (
-	_ Sender  = (*BaseClient)(nil)
-	_ Service = (*BaseClient)(nil)
-)
-
-type Client struct {
-	Sender Sender
-	Config *config.Config
-}
-
-func NewClient(ctx context.Context, reader config.Reader, sender Sender) (*Client, error) {
-	conf, err := reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
-	}
-
-	c := &Client{
-		Sender: sender,
-		Config: conf,
-	}
-
-	return c, nil
-}
-
-func (c *Client) Get(ctx context.Context, fields []string) ([]*Profile, error) {
-	req := &BaseRequest{
-		Type:        whttp.RequestTypeGetBusinessProfile,
-		Method:      http.MethodGet,
-		QueryFields: fields,
-	}
-
-	response, err := c.Send(ctx, c.Config, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return response.Profiles, nil
-}
-
-func (c *Client) Update(ctx context.Context, request *UpdateProfileRequest) (bool, error) {
-	req := &BaseRequest{
-		Type:    whttp.RequestTypeUpdateBusinessProfile,
-		Method:  http.MethodPost,
-		Payload: request,
-	}
-
-	response, err := c.Send(ctx, c.Config, req)
-	if err != nil {
-		return false, err
-	}
-
-	return response.Success, nil
-}
-
-func (c *Client) Send(ctx context.Context, config *config.Config, request *BaseRequest) (*Response, error) {
-	response, err := c.Sender.Send(ctx, config, request)
-	if err != nil {
-		return nil, fmt.Errorf("business client: %w", err)
-	}
-
-	return response, nil
-}
-
-var (
-	_ Sender  = (*Client)(nil)
-	_ Service = (*Client)(nil)
-)
-
-type (
-	Sender interface {
-		Send(ctx context.Context, config *config.Config, request *BaseRequest) (*Response, error)
-	}
-)
+var _ = (*Client)(nil)

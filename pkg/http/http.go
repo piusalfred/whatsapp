@@ -39,6 +39,10 @@ const (
 )
 
 type (
+	// CoreClient is a type-safe HTTP client parameterized by the request body type.
+	// It is immutable after construction via [NewCoreClient] and safe for concurrent use.
+	// Fields are unexported; configure behavior through [CoreSenderOption] values passed
+	// to [NewCoreClient].
 	CoreClient[T any] struct {
 		http           *http.Client
 		reqHook        RequestInterceptorFunc
@@ -49,8 +53,9 @@ type (
 		sender         Sender[T]
 	}
 
-	// CoreSenderConfig holds HTTP transport configuration that is independent of
-	// the request type. This is used to create typed coreClientOption values in a single place.
+	// CoreSenderConfig bundles HTTP-level settings (client, hooks, limits) that are
+	// independent of the generic type parameter. [CoreSenderOption] implementations
+	// mutate this config, and [NewCoreClient] materializes it into a typed [CoreClient].
 	CoreSenderConfig struct {
 		httpClient        *http.Client
 		requestHook       RequestInterceptorFunc
@@ -73,6 +78,8 @@ func NewCoreClient[T any](options ...CoreSenderOption) *CoreClient[T] {
 	return newCoreClientFromConfig[T](config)
 }
 
+// defaultCoreSenderConfig returns a [CoreSenderConfig] with safe defaults:
+// 30-second timeout, 10 MB body limit, and 1 MB header limit.
 func defaultCoreSenderConfig() CoreSenderConfig {
 	return CoreSenderConfig{
 		httpClient: &http.Client{
@@ -98,7 +105,7 @@ func (core *CoreClient[T]) send(ctx context.Context, request *Request[T], decode
 // SendFuncWithInterceptors returns a SenderFunc that applies request and response
 // interceptors around the actual HTTP call.
 //
-// Both request and response bodies are snapshot before the interceptor runs and
+// Both request and response bodies are snapshotted before the interceptor runs and
 // restored afterward, so interceptors can read the body freely without affecting the
 // HTTP call or downstream decoding.
 func SendFuncWithInterceptors[T any](client *http.Client, reqHook RequestInterceptorFunc,
@@ -229,12 +236,19 @@ func (core *CoreClient[T]) Send(ctx context.Context, request *Request[T], decode
 }
 
 type (
+	// Sender abstracts HTTP request execution. [CoreClient] implements it;
+	// callers can provide their own implementation to mock HTTP calls in tests.
 	Sender[T any] interface {
 		Send(ctx context.Context, request *Request[T], decoder ResponseDecoder) error
 	}
 
+	// SenderFunc is a function adapter that implements [Sender] by calling itself,
+	// analogous to [http.HandlerFunc].
 	SenderFunc[T any] func(ctx context.Context, request *Request[T], decoder ResponseDecoder) error
 
+	// Middleware wraps a [SenderFunc] to add cross-cutting behavior (logging, tracing,
+	// metrics, etc.). When composed via [WrapMiddlewares], middlewares are applied
+	// inside-out so that middlewares[0] runs outermost.
 	Middleware[T any] func(next SenderFunc[T]) SenderFunc[T]
 )
 
@@ -258,6 +272,9 @@ func WrapMiddlewares[T any](doFunc SenderFunc[T], middlewares []Middleware[T]) S
 	return doFunc
 }
 
+// CoreSenderOption is a functional option for [NewCoreClient]. It is implemented
+// by [CoreSenderOptionFunc] and the "WithSender*" helpers returned by
+// [WithSenderHTTPClient], [WithSenderRequestInterceptor], etc.
 type CoreSenderOption interface {
 	apply(client *CoreSenderConfig)
 }

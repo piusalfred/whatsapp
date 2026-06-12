@@ -56,9 +56,7 @@ func StrictDecode() DecodeOptions {
 // bodies, and treat error responses as opaque failures.
 func PermissiveDecode() DecodeOptions {
 	return DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  false,
+		InspectResponseError: true,
 	}
 }
 

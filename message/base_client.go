@@ -30,7 +30,7 @@ import (
 func (c *BaseClient) SendText(ctx context.Context, request *Request[Text]) (*Response, error) {
 	return sendMessage(
 		ctx,
-		c,
+		c.SendMessage,
 		request.Recipient,
 		request.ReplyTo,
 		request.RecipientType,
@@ -42,7 +42,7 @@ func (c *BaseClient) SendText(ctx context.Context, request *Request[Text]) (*Res
 func (c *BaseClient) SendLocation(ctx context.Context, request *Request[Location]) (*Response, error) {
 	return sendMessage(
 		ctx,
-		c,
+		c.SendMessage,
 		request.Recipient,
 		request.ReplyTo,
 		request.RecipientType,
@@ -52,17 +52,33 @@ func (c *BaseClient) SendLocation(ctx context.Context, request *Request[Location
 }
 
 func (c *BaseClient) SendVideo(ctx context.Context, request *Request[Video]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithVideo)
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithVideo,
+	)
 }
 
 func (c *BaseClient) SendReaction(ctx context.Context, request *Request[Reaction]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithReaction)
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithReaction,
+	)
 }
 
 func (c *BaseClient) SendTemplate(ctx context.Context, request *Request[Template]) (*Response, error) {
 	return sendMessage(
 		ctx,
-		c,
+		c.SendMessage,
 		request.Recipient,
 		request.ReplyTo,
 		request.RecipientType,
@@ -72,17 +88,33 @@ func (c *BaseClient) SendTemplate(ctx context.Context, request *Request[Template
 }
 
 func (c *BaseClient) SendImage(ctx context.Context, request *Request[Image]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithImage)
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithImage,
+	)
 }
 
 func (c *BaseClient) SendAudio(ctx context.Context, request *Request[Audio]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithAudio)
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithAudio,
+	)
 }
 
 func (c *BaseClient) RequestLocation(ctx context.Context, request *Request[string]) (*Response, error) {
 	return sendMessage(
 		ctx,
-		c,
+		c.SendMessage,
 		request.Recipient,
 		request.ReplyTo,
 		request.RecipientType,
@@ -92,21 +124,45 @@ func (c *BaseClient) RequestLocation(ctx context.Context, request *Request[strin
 }
 
 func (c *BaseClient) SendDocument(ctx context.Context, request *Request[Document]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithDocument)
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithDocument,
+	)
 }
 
 func (c *BaseClient) SendSticker(ctx context.Context, request *Request[Sticker]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithSticker)
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithSticker,
+	)
 }
 
 func (c *BaseClient) SendContacts(ctx context.Context, request *Request[Contacts]) (*Response, error) {
-	return sendMessage(ctx, c, request.Recipient, request.ReplyTo, request.RecipientType, request.Message, WithContacts)
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithContacts,
+	)
 }
 
 func (c *BaseClient) SendInteractiveMessage(ctx context.Context, request *Request[Interactive]) (*Response, error) {
 	return sendMessage(
 		ctx,
-		c,
+		c.SendMessage,
 		request.Recipient,
 		request.ReplyTo,
 		request.RecipientType,
@@ -118,7 +174,7 @@ func (c *BaseClient) SendInteractiveMessage(ctx context.Context, request *Reques
 func (c *BaseClient) PinGroupMessage(ctx context.Context, request *Request[Pin]) (*Response, error) {
 	return sendMessage(
 		ctx,
-		c,
+		c.SendMessage,
 		request.Recipient,
 		request.ReplyTo,
 		request.RecipientType,
@@ -222,10 +278,6 @@ type (
 
 	RequestSenderFunc func(ctx context.Context, conf *config.Config, request *BaseRequest) (*Response, error)
 
-	RequestSender interface {
-		SendRequest(ctx context.Context, conf *config.Config, request *BaseRequest) (*Response, error)
-	}
-
 	SenderMiddleware func(senderFunc RequestSenderFunc) RequestSenderFunc
 )
 
@@ -264,7 +316,7 @@ func (c *BaseSender) SendRequest(ctx context.Context, conf *config.Config, reque
 
 func sendMessage[T any](
 	ctx context.Context,
-	sender Sender,
+	sender SenderFunc,
 	recipient, reply string,
 	recType recipientType,
 	message *T,
@@ -310,7 +362,7 @@ type (
 	}
 
 	BaseClient struct {
-		sender RequestSender
+		sender RequestSenderFunc
 		config config.Reader
 	}
 

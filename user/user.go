@@ -251,7 +251,7 @@ func NewBlockBaseRequest(action BlockAction, options ...BlockBaseRequestOption) 
 func NewBlockClient(config *config.Config, options ...whttp.CoreSenderOption) *BlockClient {
 	return &BlockClient{
 		config: config,
-		sender: &BlockBaseClient{BaseClient: whttp.NewBaseClient[BlockBaseRequest](options...)},
+		sender: &BlockBaseClient{BaseClient: *whttp.NewBaseClient[BlockBaseRequest](options...)},
 	}
 }
 
@@ -275,7 +275,7 @@ func (client *BlockClient) SetMiddlewares(mws ...whttp.Middleware[BlockBaseReque
 // This makes it suitable for multi-tenant SaaS scenarios where each call may target a
 // different tenant. For a fixed-configuration client, use BlockClient.
 type BlockBaseClient struct {
-	*whttp.BaseClient[BlockBaseRequest]
+	whttp.BaseClient[BlockBaseRequest]
 }
 
 func (client *BlockBaseClient) Block(

@@ -14,7 +14,6 @@ import (
 	reflect "reflect"
 
 	business "github.com/piusalfred/whatsapp/business"
-	config "github.com/piusalfred/whatsapp/config"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -70,43 +69,4 @@ func (m *MockService) Update(ctx context.Context, request *business.UpdateProfil
 func (mr *MockServiceMockRecorder) Update(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockService)(nil).Update), ctx, request)
-}
-
-// MockSender is a mock of Sender interface.
-type MockSender struct {
-	ctrl     *gomock.Controller
-	recorder *MockSenderMockRecorder
-	isgomock struct{}
-}
-
-// MockSenderMockRecorder is the mock recorder for MockSender.
-type MockSenderMockRecorder struct {
-	mock *MockSender
-}
-
-// NewMockSender creates a new mock instance.
-func NewMockSender(ctrl *gomock.Controller) *MockSender {
-	mock := &MockSender{ctrl: ctrl}
-	mock.recorder = &MockSenderMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockSender) EXPECT() *MockSenderMockRecorder {
-	return m.recorder
-}
-
-// Send mocks base method.
-func (m *MockSender) Send(ctx context.Context, arg1 *config.Config, request *business.BaseRequest) (*business.Response, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Send", ctx, arg1, request)
-	ret0, _ := ret[0].(*business.Response)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Send indicates an expected call of Send.
-func (mr *MockSenderMockRecorder) Send(ctx, arg1, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockSender)(nil).Send), ctx, arg1, request)
 }

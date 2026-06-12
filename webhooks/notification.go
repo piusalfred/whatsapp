@@ -20,22 +20,33 @@ package webhooks
 import werrors "github.com/piusalfred/whatsapp/pkg/errors"
 
 type (
+	// Notification is the top-level envelope for WhatsApp webhook events.
+	// The Object field is always "whatsapp_business_account". Entries
+	// contain one or more Change records keyed by the field that triggered
+	// the event ("messages", "flows", "account_review_update", etc.).
 	Notification struct {
 		Object string  `json:"object"`
 		Entry  []Entry `json:"entry"`
 	}
 
+	// Entry groups changes under a single WhatsApp Business Account ID.
+	// Each webhook payload may contain multiple entries.
 	Entry struct {
 		ID      string   `json:"id"`
 		Time    int64    `json:"time"`
 		Changes []Change `json:"changes"`
 	}
 
+	// Change pairs a field name ("messages", "flows", etc.) with the
+	// event-specific Value. The field determines which handler is invoked.
 	Change struct {
 		Field string `json:"field"`
 		Value *Value `json:"value"`
 	}
 
+	// Value is the union type for all webhook event payloads. Only the
+	// fields relevant to the current event are populated — check the parent
+	// Change.Field to determine which subset to read.
 	Value struct {
 		Event                        string               `json:"event,omitempty"`
 		MessageTemplateID            int64                `json:"message_template_id,omitempty"`
@@ -87,8 +98,11 @@ type (
 		PhoneNumberSettings          *PhoneNumberSettings `json:"phone_number_settings,omitempty"`
 		Calls                        []*Call              `json:"calls,omitempty"`
 		Groups                       []*Group             `json:"groups,omitempty"`
+		History                      []HistoryEntry       `json:"history,omitempty"`
 	}
 
+	// ErrorInfo captures per-message or per-status error details from the
+	// WhatsApp API. Convert to a *werrors.Error via the Error() method.
 	ErrorInfo struct {
 		ErrorType  string             `json:"error_type,omitempty"`
 		ErrorRate  float64            `json:"error_rate,omitempty"`

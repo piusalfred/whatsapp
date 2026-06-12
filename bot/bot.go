@@ -113,7 +113,7 @@ type (
 	// accepts a concrete [*config.Config] per request, making it suitable for
 	// multi-tenant SaaS scenarios. For a fixed-configuration client, use [Client].
 	BaseClient struct {
-		*whttp.BaseClient[BaseRequest]
+		whttp.BaseClient[BaseRequest]
 	}
 
 	// BaseRequest is an internal unified context data carrier mapping operation
@@ -129,7 +129,7 @@ type (
 // Optional [SenderOption] functions tune the underlying HTTP transport.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: &BaseClient{BaseClient: whttp.NewBaseClient[BaseRequest](options...)},
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
 	}
 }
@@ -141,12 +141,31 @@ func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
 	c.sender.Sender = sender
 }
 
-// GetBotDetails retrieves comprehensive details about a WhatsApp Business Bot.
-func (c *Client) GetBotDetails(ctx context.Context, request *Request) (*Bot, error) {
-	return c.sender.GetBotDetails(ctx, c.config, request)
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
 }
 
-// Send translates a high-level [botRequest] into an HTTP transaction and decodes
+// GetBotDetails retrieves comprehensive details about a WhatsApp Business Bot.
+func (c *Client) GetBotDetails(ctx context.Context, request *Request) (*Bot, error) {
+	req := &BaseRequest{
+		Type:   whttp.RequestTypeGetBotDetails,
+		BotID:  request.BotID,
+		Fields: request.Fields,
+	}
+	return c.Send(ctx, req)
+}
+
+// Send dispatches a raw [BaseRequest] through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *BaseRequest) (*Bot, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+	return response, nil
+}
+
+// Send translates a high-level [BaseRequest] into an HTTP transaction and decodes
 // the response directly into a [Bot].
 func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*Bot, error) {
 	queryParams := map[string]string{}
@@ -177,24 +196,4 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 	}
 
 	return &resp, nil
-}
-
-// GetBotDetails retrieves comprehensive details about a WhatsApp Business Bot.
-func (bc *BaseClient) GetBotDetails(
-	ctx context.Context,
-	conf *config.Config,
-	req *Request,
-) (*Bot, error) {
-	request := &BaseRequest{
-		Type:   whttp.RequestTypeGetBotDetails,
-		BotID:  req.BotID,
-		Fields: req.Fields,
-	}
-
-	resp, err := bc.Send(ctx, conf, request)
-	if err != nil {
-		return nil, fmt.Errorf("get bot details failed: %w", err)
-	}
-
-	return resp, nil
 }

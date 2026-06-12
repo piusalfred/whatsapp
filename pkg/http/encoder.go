@@ -32,8 +32,12 @@ import (
 	"path/filepath"
 )
 
+// ErrMissingFormFile is returned by EncodePayload when a *RequestForm is provided
+// without a FormFile.
 var ErrMissingFormFile = errors.New("missing form file")
 
+// EncodeResponse holds the encoded body as an io.Reader together with its
+// Content-Type. It is returned by EncodePayload.
 type EncodeResponse struct {
 	Body        io.Reader
 	ContentType string
@@ -46,7 +50,23 @@ type PayloadEncoder interface {
 	EncodePayload() (*EncodeResponse, error)
 }
 
-// EncodePayload takes different types of payloads (form data, readers, JSON) and returns an EncodeResponse.
+// EncodePayload encodes payload into an EncodeResponse ready to be sent as an
+// HTTP request body. Dispatch order:
+//  1. PayloadEncoder interface — if payload implements PayloadEncoder, its
+//     EncodePayload method is called.
+//  2. Built-in types in this order: *RequestForm, io.Reader, []byte, string.
+//  3. Default — any other value is JSON-marshalled.
+//
+// A nil payload returns an EncodeResponse with a nil Body and
+// "application/json" Content-Type.
+//
+// Built-in type handling:
+//   - *RequestForm — encoded as multipart/form-data (returns ErrMissingFormFile
+//     when FormFile is nil).
+//   - io.Reader — used directly as the body with "application/octet-stream".
+//   - []byte — wrapped in a bytes.Reader with "application/octet-stream".
+//   - string — wrapped in a bytes.Reader with "text/plain".
+//   - any JSON-marshallable struct — marshalled with "application/json".
 func EncodePayload(payload any) (*EncodeResponse, error) {
 	if payload == nil {
 		return &EncodeResponse{

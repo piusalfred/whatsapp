@@ -75,14 +75,9 @@ type (
 	}
 )
 
-func (client *BaseClient) GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*MetricsAPIResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("get flow metrics failed: %w", err)
-	}
-
+func (c *Client) GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*MetricsAPIResponse, error) {
 	queryParams := map[string]string{
-		"fields": fmt.Sprintf(
+		fieldsQueryParam: fmt.Sprintf(
 			"metric.name(%s).granularity(%s).since(%s).until(%s)",
 			request.MetricName,
 			request.Granularity,
@@ -91,17 +86,15 @@ func (client *BaseClient) GetFlowMetrics(ctx context.Context, request *MetricsRe
 		),
 	}
 
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestType[any](whttp.RequestTypeGetFlowMetrics),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestQueryParams[any](queryParams),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestEndpoints[any](conf.APIVersion, request.FlowID),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	}
+	b := whttp.NewRequestBuilder(http.MethodGet, c.config.BaseURL).
+		Bearer(c.config.AccessToken).
+		AppSecret(c.config.AppSecret).Secured(c.config.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(c.config.DebugLogLevel)).
+		Type(whttp.RequestTypeGetFlowMetrics).
+		Endpoints(c.config.APIVersion, request.FlowID).
+		QueryParams(queryParams)
 
-	req := whttp.MakeRequest(http.MethodGet, conf.BaseURL, opts...)
+	req := whttp.Build[any](b, nil)
 
 	var resp MetricsAPIResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
@@ -109,7 +102,7 @@ func (client *BaseClient) GetFlowMetrics(ctx context.Context, request *MetricsRe
 		DisallowEmptyResponse: true,
 	})
 
-	if err = client.Sender.Send(ctx, req, decoder); err != nil {
+	if err := c.sender.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("get flow metrics failed: %w", err)
 	}
 

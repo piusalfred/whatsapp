@@ -326,10 +326,6 @@ func (c *Client) RefreshAccessToken(ctx context.Context,
 }
 
 type (
-	TokenRotator interface {
-		RotateToken(ctx context.Context, refresher TokenRefresher, revoker TokenRevoker, store TokenStore) error
-	}
-
 	TokenRotatorFunc func(ctx context.Context, refresher TokenRefresher, revoker TokenRevoker, store TokenStore) error
 )
 

@@ -63,19 +63,52 @@ func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
 	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
 }
 
+// Send dispatches a raw [Request] through the underlying [BaseClient].
+func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	return response, nil
+}
+
 func (c *Client) FetchGeneralAnalytics(ctx context.Context, request *MessagingRequest) (*MessagingResponse, error) {
-	return c.sender.FetchGeneralAnalytics(ctx, c.config, request)
+	req := MakeMessagingAnalyticsQueryParams(request.Start, request.End,
+		request.Granularity, request.Options...)
+
+	resp, err := c.Send(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch general analytics: %w", err)
+	}
+
+	return resp.MessagingAnalytics(), nil
 }
 
 func (c *Client) FetchConversationAnalytics(
 	ctx context.Context,
 	request *ConversationalRequest,
 ) (*ConversationalResponse, error) {
-	return c.sender.FetchConversationAnalytics(ctx, c.config, request)
+	req := MakeConversationalAnalyticsQueryParams(request.Start, request.End,
+		request.Granularity, request.Options...)
+
+	resp, err := c.Send(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch conversation analytics: %w", err)
+	}
+
+	return resp.ConversationAnalytics(), nil
 }
 
 func (c *Client) FetchPricingAnalytics(ctx context.Context, params *PricingRequest) (*PricingResponse, error) {
-	return c.sender.FetchPricingAnalytics(ctx, c.config, params)
+	req := MakePricingAnalyticsQueryParams(params.Start, params.End,
+		params.Granularity, params.Options...)
+
+	resp, err := c.Send(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch pricing analytics: %w", err)
+	}
+
+	return resp.PricingAnalytics(), nil
 }
 
 func (bc *BaseClient) FetchGeneralAnalytics(ctx context.Context, conf *config.Config,

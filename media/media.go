@@ -293,20 +293,6 @@ func (mt Type) String() string {
 type (
 	Type string
 
-	// Service defines the high-level operations available on the Media API.
-	Service interface {
-		Upload(ctx context.Context, req *UploadRequest) (*UploadMediaResponse, error)
-		GetInfo(ctx context.Context, request *BaseRequest) (*Information, error)
-		Delete(ctx context.Context, request *BaseRequest) (*DeleteMediaResponse, error)
-		Download(ctx context.Context, request *DownloadRequest, decoder whttp.ResponseDecoder) error
-		DownloadByMediaID(
-			ctx context.Context,
-			request *BaseRequest,
-			decoder whttp.ResponseDecoder,
-			options ...DownloadOptionFunc,
-		) error
-	}
-
 	// DownloadRequest carries the parameters for downloading media from a URL.
 	DownloadRequest struct {
 		URL     string
@@ -355,7 +341,7 @@ type (
 	// concrete [*config.Config] per request, making it suitable for multi-tenant
 	// SaaS scenarios. For a fixed-configuration client, use [Client].
 	BaseClient struct {
-		*whttp.BaseClient[any]
+		whttp.BaseClient[any]
 	}
 
 	// Request is an internal unified context data carrier mapping operation
@@ -392,7 +378,7 @@ type (
 // Optional [SenderOption] functions tune the underlying HTTP transport.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: &BaseClient{BaseClient: whttp.NewBaseClient[any](options...)},
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[any](options...)},
 		config: conf,
 	}
 }
@@ -415,17 +401,72 @@ func (c *Client) SetMiddlewares(mws ...whttp.Middleware[any]) {
 
 // Upload uploads a media file to WhatsApp.
 func (c *Client) Upload(ctx context.Context, req *UploadRequest) (*UploadMediaResponse, error) {
-	return c.sender.Upload(ctx, c.config, req)
+	_, ok := InfoMap[req.MediaType]
+	isAnimated := req.MediaType == TypeStickerAnimated
+	if !ok && !isAnimated {
+		return nil, fmt.Errorf("%w: media type not supported", ErrMediaUpload)
+	}
+	fp, err := filepath.Abs(req.Filepath)
+	if err != nil {
+		return nil, fmt.Errorf("determine absolute filepath for %s: %w: %w", req.Filepath, ErrMediaUpload, err)
+	}
+	form := &whttp.RequestForm{
+		Fields: map[string]string{
+			"type":              string(req.MediaType),
+			"messaging_product": "whatsapp",
+		},
+		FormFile: &whttp.FormFile{
+			Name: "file",
+			Path: fp,
+			Type: req.MediaType.String(),
+		},
+	}
+	request := &Request{
+		Type: whttp.RequestTypeUploadMedia,
+		Form: form,
+	}
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrMediaUpload, err)
+	}
+	return resp.ToUploadMediaResponse(), nil
 }
 
 // GetInfo retrieves metadata and a temporary URL for a media object.
-func (c *Client) GetInfo(ctx context.Context, request *BaseRequest) (*Information, error) {
-	return c.sender.GetInfo(ctx, c.config, request)
+func (c *Client) GetInfo(ctx context.Context, req *BaseRequest) (*Information, error) {
+	request := &Request{
+		Type:          whttp.RequestTypeGetMedia,
+		MediaID:       req.MediaID,
+		PhoneNumberID: resolvePhoneNumberID(req, c.config),
+	}
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("get media info failed: %w", err)
+	}
+	return resp.ToInformation(), nil
 }
 
 // Delete removes a media object by ID.
-func (c *Client) Delete(ctx context.Context, request *BaseRequest) (*DeleteMediaResponse, error) {
-	return c.sender.Delete(ctx, c.config, request)
+func (c *Client) Delete(ctx context.Context, req *BaseRequest) (*DeleteMediaResponse, error) {
+	request := &Request{
+		Type:          whttp.RequestTypeDeleteMedia,
+		MediaID:       req.MediaID,
+		PhoneNumberID: resolvePhoneNumberID(req, c.config),
+	}
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrMediaDelete, err)
+	}
+	return resp.ToDeleteMediaResponse(), nil
+}
+
+// Send dispatches a raw [Request] through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+	return response, nil
 }
 
 // Download downloads media from a pre-signed URL using a custom decoder.

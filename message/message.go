@@ -26,38 +26,12 @@ import (
 	"github.com/piusalfred/whatsapp/pkg/types"
 )
 
-var (
-	_ Service = (*Client)(nil)
-	_ Service = (*BaseClient)(nil)
-	_ Sender  = (*Client)(nil)
-	_ Sender  = (*BaseClient)(nil)
-)
-
 const (
 	PinOperationPinMessage   PinOperation = "pin"
 	PinOperationUnpinMessage PinOperation = "unpin"
 )
 
 type (
-	Service interface {
-		SendText(ctx context.Context, request *Request[Text]) (*Response, error)
-		SendLocation(ctx context.Context, request *Request[Location]) (*Response, error)
-		SendVideo(ctx context.Context, request *Request[Video]) (*Response, error)
-		SendReaction(ctx context.Context, request *Request[Reaction]) (*Response, error)
-		SendTemplate(ctx context.Context, request *Request[Template]) (*Response, error)
-		SendImage(ctx context.Context, request *Request[Image]) (*Response, error)
-		SendAudio(ctx context.Context, request *Request[Audio]) (*Response, error)
-		SendDocument(ctx context.Context, request *Request[Document]) (*Response, error)
-		SendSticker(ctx context.Context, request *Request[Sticker]) (*Response, error)
-		SendContacts(ctx context.Context, request *Request[Contacts]) (*Response, error)
-		RequestLocation(ctx context.Context, request *Request[string]) (*Response, error)
-		SendInteractiveMessage(ctx context.Context, request *Request[Interactive]) (*Response, error)
-	}
-
-	Sender interface {
-		SendMessage(ctx context.Context, message *Message) (*Response, error)
-	}
-
 	SenderFunc func(ctx context.Context, message *Message) (*Response, error)
 )
 

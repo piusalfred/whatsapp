@@ -48,16 +48,12 @@ test: ## run tests with race detector and coverage
 
 mocks: ## generate or refresh all mocks
 	@echo "🤖 generating mocks"
-	@$(MOCKGEN) -destination=./mocks/media/mock_media.go           -package=media         -source=./media/media.go
 	@$(MOCKGEN) -destination=./mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=./phonenumber/phonenumber.go
 	@$(MOCKGEN) -destination=./mocks/qrcode/mock_qrcode.go         -package=qrcode        -source=./qrcode/qrcode.go
 	@$(MOCKGEN) -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
 	@$(MOCKGEN) -destination=./mocks/auth/mock_auth.go             -package=auth          -source=./auth/auth.go
 	@$(MOCKGEN) -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
-	@$(MOCKGEN) -destination=./mocks/message/mock_message.go       -package=message       -source=./message/message.go
 	@$(MOCKGEN) -destination=./mocks/message/mock_status_update.go -package=message       -source=./message/status.go
-	@$(MOCKGEN) -destination=./mocks/flow/mock_flow.go             -package=flow          -source=./flow/flow.go
-	@$(MOCKGEN) -destination=./mocks/business/mock_business.go     -package=business      -source=./business/business.go
 	@$(MOCKGEN) -destination=./mocks/business/analytics/mock_templates.go -package=analytics -source=./business/analytics/templates.go
 	@$(MOCKGEN) -destination=./mocks/config/config_mock.go         -package=config        -source=./config/config.go
 	@$(MOCKGEN) -destination=./mocks/http/mock_http.go             -package=http          -source=./pkg/http/http.go

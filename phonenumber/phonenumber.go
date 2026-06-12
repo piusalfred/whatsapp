@@ -148,7 +148,7 @@ func (c *Client) Send(ctx context.Context, request *Request) (*Response, error) 
 // functions tune the underlying HTTP transport.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		sender: &BaseClient{BaseClient: whttp.NewBaseClient[BaseRequest](options...)},
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
 	}
 }
@@ -172,7 +172,7 @@ func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
 // BaseClient is the low-level HTTP executor for the Phone Number API. It
 // converts domain Request values into HTTP traffic and decodes JSON responses.
 type BaseClient struct {
-	*whttp.BaseClient[BaseRequest]
+	whttp.BaseClient[BaseRequest]
 }
 
 // Send translates a high-level Request into an HTTP transaction and returns

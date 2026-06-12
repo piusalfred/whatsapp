@@ -2,7 +2,7 @@
  *  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
- *  and associated documentation files (the “Software”), to deal in the Software without restriction,
+ *  and associated documentation files (the "Software"), to deal in the Software without restriction,
  *  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
  *  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
  *  subject to the following conditions:
@@ -10,7 +10,7 @@
  *  The above copyright notice and this permission notice shall be included in all copies or substantial
  *  portions of the Software.
  *
- *  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
  *  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
  *  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
  *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -180,14 +180,19 @@ type (
 		ExpiresAt  string `json:"expires_at"`  // The expiration time of the preview URL.
 		ID         string `json:"id"`          // The ID of the flow.
 	}
+
+	// BaseRequest carries the details needed to execute a Flow API HTTP call.
 	BaseRequest struct {
 		Type        whttp.RequestType
 		Method      string
 		Endpoints   []string // follows after baseURL/version
 		QueryParams map[string]string
 		Payload     any
+		Form        *whttp.RequestForm
 	}
 
+	// BaseResponse acts as a flexible intermediate data capture layer unmarshaling
+	// varying response structures across disparate HTTP verbs.
 	BaseResponse struct {
 		ID                      string              `json:"id,omitempty"`
 		Success                 bool                `json:"success,omitempty"`
@@ -217,19 +222,7 @@ type (
 		Categories       []string          `json:"categories,omitempty"`
 		ValidationErrors []ValidationError `json:"validation_errors,omitempty"`
 	}
-
-	Sender interface {
-		Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*BaseResponse, error)
-	}
-
-	SenderFunc func(ctx context.Context, conf *config.Config, req *BaseRequest) (*BaseResponse, error)
-
-	SenderMiddleware func(sender SenderFunc) SenderFunc
 )
-
-func (fn SenderFunc) Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*BaseResponse, error) {
-	return fn(ctx, conf, req)
-}
 
 // FlowDetails converts BaseResponse into a SingleFlowResponse.
 func (baseResp *BaseResponse) FlowDetails() *SingleFlowResponse {
@@ -285,93 +278,75 @@ func (baseResp *BaseResponse) ListResponse() *ListResponse {
 	}
 }
 
-func (client *BaseClient) Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*BaseResponse, error) {
-	if req.QueryParams == nil {
-		req.QueryParams = map[string]string{}
+// Client orchestrates high-level Flow API operations.
+type Client struct {
+	sender *BaseClient
+	config *config.Config
+}
+
+// NewClient creates a high-level Client for the Flow API. The conf argument
+// provides endpoint and credential configuration. Optional SenderOption
+// functions tune the underlying HTTP transport.
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
+	return &Client{
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[any](options...)},
+		config: conf,
 	}
+}
 
-	endpoints := []string{conf.APIVersion}
-	endpoints = append(endpoints, req.Endpoints...)
-	request := &whttp.Request[any]{
-		Type:        req.Type,
-		Method:      req.Method,
-		Bearer:      conf.AccessToken,
-		BaseURL:     conf.BaseURL,
-		Endpoints:   endpoints,
-		QueryParams: req.QueryParams,
-		Message:     &req.Payload,
-	}
+// SetBaseClient replaces the underlying request sender. This is useful during
+// testing when you want to inject a mock whttp.Sender and bypass the default
+// HTTP stack entirely.
+func (c *Client) SetBaseClient(sender whttp.Sender[any]) {
+	c.sender.Sender = sender
+}
 
-	request.SetDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+// SetMiddlewares configures middlewares that wrap the underlying Sender.
+// Middlewares are applied to the sender's Send method in the order provided.
+// If a custom sender has been injected and does not support middleware
+// configuration internally, the configuration is silently discarded.
+// Apply middlewares to your custom sender before injecting it.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+}
 
-	response := &BaseResponse{}
-
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  false,
-	})
-	if err := client.Sender.Send(ctx, request, decoder); err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+// Send dispatches a raw BaseRequest through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *BaseRequest) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
 	}
 
 	return response, nil
 }
 
-type (
-	BaseClient struct {
-		Reader config.Reader
-		Sender whttp.Sender[any]
-	}
+const fieldsQueryParam = "fields"
 
-	GetRequest struct {
-		FlowID string
-		Fields []string
-	}
-)
-
-func NewBaseClient(reader config.Reader, sender whttp.Sender[any]) *BaseClient {
-	return &BaseClient{
-		Reader: reader,
-		Sender: sender,
-	}
-}
-
-func (client *BaseClient) Get(ctx context.Context, request *GetRequest) (*SingleFlowResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	response, err := client.Send(ctx, conf, &BaseRequest{
+func (c *Client) Get(ctx context.Context, request *GetRequest) (*SingleFlowResponse, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
 		Type:      whttp.RequestTypeRetrieveFlowDetails,
 		Method:    http.MethodGet,
 		Endpoints: []string{request.FlowID},
 		Payload:   request,
 		QueryParams: map[string]string{
-			"fields": strings.Join(request.Fields, ","),
+			fieldsQueryParam: strings.Join(request.Fields, ","),
 		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("send get request: %w", err)
 	}
 
-	return response.FlowDetails(), nil
+	return resp.FlowDetails(), nil
 }
 
-func (client *BaseClient) GeneratePreview(ctx context.Context, request *PreviewRequest) (*PreviewResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	response, err := client.Send(ctx, conf, &BaseRequest{
+func (c *Client) GeneratePreview(ctx context.Context, request *PreviewRequest) (*PreviewResponse, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
 		Type:      whttp.RequestTypeRetrieveFlowPreview,
 		Method:    http.MethodGet,
 		Endpoints: []string{request.FlowID},
 		Payload:   request,
 		QueryParams: map[string]string{
-			"fields": fmt.Sprintf("preview.invalidate(%t)", request.Invalidate),
+			fieldsQueryParam: fmt.Sprintf("preview.invalidate(%t)", request.Invalidate),
 		},
 	})
 	if err != nil {
@@ -379,20 +354,15 @@ func (client *BaseClient) GeneratePreview(ctx context.Context, request *PreviewR
 	}
 
 	return &PreviewResponse{
-		PreviewURL: response.PreviewURL,
-		ExpiresAt:  response.ExpiresAt,
-		ID:         response.ID,
+		PreviewURL: resp.PreviewURL,
+		ExpiresAt:  resp.ExpiresAt,
+		ID:         resp.ID,
 	}, nil
 }
 
-func (client *BaseClient) UpdateFlowJSON(ctx context.Context,
+func (c *Client) UpdateFlowJSON(ctx context.Context,
 	request *UpdateFlowJSONRequest,
 ) (*UpdateFlowJSONResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
 	form := &whttp.RequestForm{
 		Fields: map[string]string{
 			"name":       request.Name,
@@ -404,38 +374,24 @@ func (client *BaseClient) UpdateFlowJSON(ctx context.Context,
 		},
 	}
 
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestType[any](whttp.RequestTypeUploadMedia),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestForm[any](form),
-		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.PhoneNumberID, "media"),
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	}
-
-	req := whttp.MakeRequest(http.MethodPost, conf.BaseURL, opts...)
-
-	var resp UpdateFlowJSONResponse
-	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
+	resp, err := c.Send(ctx, &BaseRequest{
+		Type:      whttp.RequestTypeUploadMedia,
+		Method:    http.MethodPost,
+		Endpoints: []string{c.config.PhoneNumberID, "media"},
+		Form:      form,
 	})
-
-	if err = client.Sender.Send(ctx, req, decoder); err != nil {
-		return nil, fmt.Errorf("upload media failed: %w", err)
+	if err != nil {
+		return nil, fmt.Errorf("update flow json: %w", err)
 	}
 
-	return &resp, nil
+	return &UpdateFlowJSONResponse{
+		Success:          resp.Success,
+		ValidationErrors: resp.ValidationErrors,
+	}, nil
 }
 
-func (client *BaseClient) Update(ctx context.Context, id string, request UpdateRequest) (*UpdateResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	response, err := client.Send(ctx, conf, &BaseRequest{
+func (c *Client) Update(ctx context.Context, id string, request UpdateRequest) (*UpdateResponse, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
 		Type:      whttp.RequestTypeUpdateFlow,
 		Method:    http.MethodPost,
 		Endpoints: []string{id},
@@ -445,53 +401,38 @@ func (client *BaseClient) Update(ctx context.Context, id string, request UpdateR
 		return nil, fmt.Errorf("send update request: %w", err)
 	}
 
-	return &UpdateResponse{Success: response.Success}, nil
+	return &UpdateResponse{Success: resp.Success}, nil
 }
 
-func (client *BaseClient) Create(ctx context.Context, request CreateRequest) (*CreateResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	response, err := client.Send(ctx, conf, &BaseRequest{
+func (c *Client) Create(ctx context.Context, request CreateRequest) (*CreateResponse, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
 		Type:      whttp.RequestTypeCreateFlow,
 		Method:    http.MethodPost,
-		Endpoints: []string{conf.BusinessAccountID, "flows"},
+		Endpoints: []string{c.config.BusinessAccountID, "flows"},
 		Payload:   request,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("send create request: %w", err)
 	}
 
-	return &CreateResponse{ID: response.ID}, nil
+	return &CreateResponse{ID: resp.ID}, nil
 }
 
-func (client *BaseClient) ListAll(ctx context.Context) (*ListResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	response, err := client.Send(ctx, conf, &BaseRequest{
+func (c *Client) ListAll(ctx context.Context) (*ListResponse, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
 		Type:      whttp.RequestTypeRetrieveFlows,
 		Method:    http.MethodGet,
-		Endpoints: []string{conf.BusinessAccountID, "flows"},
+		Endpoints: []string{c.config.BusinessAccountID, "flows"},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("send list request: %w", err)
 	}
 
-	return response.ListResponse(), nil
+	return resp.ListResponse(), nil
 }
 
-func (client *BaseClient) Delete(ctx context.Context, id string) (*SuccessResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	response, err := client.Send(ctx, conf, &BaseRequest{
+func (c *Client) Delete(ctx context.Context, id string) (*SuccessResponse, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
 		Type:      whttp.RequestTypeDeleteFlow,
 		Method:    http.MethodDelete,
 		Endpoints: []string{id},
@@ -500,16 +441,11 @@ func (client *BaseClient) Delete(ctx context.Context, id string) (*SuccessRespon
 		return nil, fmt.Errorf("send delete request: %w", err)
 	}
 
-	return &SuccessResponse{Success: response.Success}, nil
+	return &SuccessResponse{Success: resp.Success}, nil
 }
 
-func (client *BaseClient) ListAssets(ctx context.Context, id string) (*RetrieveAssetsResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	response, err := client.Send(ctx, conf, &BaseRequest{
+func (c *Client) ListAssets(ctx context.Context, id string) (*RetrieveAssetsResponse, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
 		Type:      whttp.RequestTypeRetrieveAssets,
 		Method:    http.MethodGet,
 		Endpoints: []string{id, "assets"},
@@ -518,16 +454,11 @@ func (client *BaseClient) ListAssets(ctx context.Context, id string) (*RetrieveA
 		return nil, fmt.Errorf("send list request: %w", err)
 	}
 
-	return response.ListAssetsResponse(), nil
+	return resp.ListAssetsResponse(), nil
 }
 
-func (client *BaseClient) Publish(ctx context.Context, id string) (*SuccessResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	response, err := client.Send(ctx, conf, &BaseRequest{
+func (c *Client) Publish(ctx context.Context, id string) (*SuccessResponse, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
 		Type:      whttp.RequestTypePublishFlow,
 		Method:    http.MethodPost,
 		Endpoints: []string{id, "publish"},
@@ -536,16 +467,11 @@ func (client *BaseClient) Publish(ctx context.Context, id string) (*SuccessRespo
 		return nil, fmt.Errorf("send publish request: %w", err)
 	}
 
-	return &SuccessResponse{Success: response.Success}, nil
+	return &SuccessResponse{Success: resp.Success}, nil
 }
 
-func (client *BaseClient) Deprecate(ctx context.Context, id string) (*SuccessResponse, error) {
-	conf, err := client.Reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	response, err := client.Send(ctx, conf, &BaseRequest{
+func (c *Client) Deprecate(ctx context.Context, id string) (*SuccessResponse, error) {
+	resp, err := c.Send(ctx, &BaseRequest{
 		Type:      whttp.RequestTypeDeprecateFlow,
 		Method:    http.MethodPost,
 		Endpoints: []string{id, "deprecate"},
@@ -554,26 +480,80 @@ func (client *BaseClient) Deprecate(ctx context.Context, id string) (*SuccessRes
 		return nil, fmt.Errorf("send deprecate request: %w", err)
 	}
 
-	return &SuccessResponse{Success: response.Success}, nil
+	return &SuccessResponse{Success: resp.Success}, nil
 }
 
-var _ Service = (*BaseClient)(nil)
+// BaseClient is the low-level HTTP executor for the Flow API. It converts
+// domain BaseRequest values into HTTP traffic and decodes JSON responses.
+type BaseClient struct {
+	whttp.BaseClient[any]
+}
 
-type (
-	Service interface {
-		Create(ctx context.Context, request CreateRequest) (*CreateResponse, error)
-		Update(ctx context.Context, id string, request UpdateRequest) (*UpdateResponse, error)
-		UpdateFlowJSON(ctx context.Context, request *UpdateFlowJSONRequest) (*UpdateFlowJSONResponse, error)
-		ListAll(ctx context.Context) (*ListResponse, error)
-		ListAssets(ctx context.Context, id string) (*RetrieveAssetsResponse, error)
-		Publish(ctx context.Context, id string) (*SuccessResponse, error)
-		Delete(ctx context.Context, id string) (*SuccessResponse, error)
-		Deprecate(ctx context.Context, id string) (*SuccessResponse, error)
-		GeneratePreview(ctx context.Context, request *PreviewRequest) (*PreviewResponse, error)
-		Get(ctx context.Context, request *GetRequest) (*SingleFlowResponse, error)
-		GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*MetricsAPIResponse, error)
+// Send translates a high-level BaseRequest into an HTTP transaction and returns
+// the decoded BaseResponse.
+func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*BaseResponse, error) {
+	if request.QueryParams == nil {
+		request.QueryParams = map[string]string{}
 	}
-)
+
+	endpoints := make([]string, 0, 1+len(request.Endpoints))
+	endpoints = append(endpoints, conf.APIVersion)
+	endpoints = append(endpoints, request.Endpoints...)
+
+	b := whttp.NewRequestBuilder(request.Method, conf.BaseURL).
+		Bearer(conf.AccessToken).
+		AppSecret(conf.AppSecret).Secured(conf.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel)).
+		Type(request.Type).
+		Endpoints(endpoints...).
+		QueryParams(request.QueryParams)
+
+	if request.Form != nil {
+		b = b.Form(request.Form)
+	}
+
+	var msg *any
+	if request.Payload != nil {
+		msg = &request.Payload
+	}
+
+	req := whttp.Build[any](b, msg)
+
+	resp := &BaseResponse{}
+	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
+		DisallowUnknownFields: false,
+		DisallowEmptyResponse: true,
+		InspectResponseError:  false,
+	})
+
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	return resp, nil
+}
+
+type GetRequest struct {
+	FlowID string
+	Fields []string
+}
+
+// Service is the public surface of the Flow API client.
+type Service interface {
+	Create(ctx context.Context, request CreateRequest) (*CreateResponse, error)
+	Update(ctx context.Context, id string, request UpdateRequest) (*UpdateResponse, error)
+	UpdateFlowJSON(ctx context.Context, request *UpdateFlowJSONRequest) (*UpdateFlowJSONResponse, error)
+	ListAll(ctx context.Context) (*ListResponse, error)
+	ListAssets(ctx context.Context, id string) (*RetrieveAssetsResponse, error)
+	Publish(ctx context.Context, id string) (*SuccessResponse, error)
+	Delete(ctx context.Context, id string) (*SuccessResponse, error)
+	Deprecate(ctx context.Context, id string) (*SuccessResponse, error)
+	GeneratePreview(ctx context.Context, request *PreviewRequest) (*PreviewResponse, error)
+	Get(ctx context.Context, request *GetRequest) (*SingleFlowResponse, error)
+	GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*MetricsAPIResponse, error)
+}
+
+var _ Service = (*Client)(nil)
 
 type PreviewURLConfigOptions struct {
 	Interactive       bool   // If true, the preview will run in interactive mode.
@@ -633,12 +613,8 @@ const (
 
 type (
 	DataExchangeHandlerImpl struct {
-		Handler          DataExchangeHandler
+		Handler          DataExchangeHandlerFunc
 		PrivateKeyLoader func(ctx context.Context) (*rsa.PrivateKey, error)
-	}
-
-	DataExchangeHandler interface {
-		Handle(ctx context.Context, request *DataExchangeRequest) (*Response, error)
 	}
 
 	DataExchangeHandlerFunc func(ctx context.Context, request *DataExchangeRequest) (*Response, error)
@@ -687,9 +663,9 @@ func (f DataExchangeHandlerFunc) Handle(ctx context.Context, request *DataExchan
 }
 
 func NewDataExchangeHandler(loader func(ctx context.Context) (*rsa.PrivateKey, error),
-	baseHandler DataExchangeHandler, mws ...DataExchangeRequestHandlerMiddleware,
+	baseHandler DataExchangeHandlerFunc, mws ...DataExchangeRequestHandlerMiddleware,
 ) *DataExchangeHandlerImpl {
-	handlerFunc := DataExchangeHandlerFunc(baseHandler.Handle)
+	handlerFunc := baseHandler
 
 	for i := len(mws) - 1; i >= 0; i-- {
 		handlerFunc = mws[i](handlerFunc)
