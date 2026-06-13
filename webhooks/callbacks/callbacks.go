@@ -181,6 +181,56 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 	return response, nil
 }
 
+func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
+}
+
+func (bc *BaseClient) SetAlternativeCallback(
+	ctx context.Context,
+	conf *config.Config,
+	request *SetAlternativeCallbackRequest,
+) (*SuccessResponse, error) {
+	req := &BaseRequest{
+		Method:              http.MethodPost,
+		Type:                request.OverrideType,
+		VerifyToken:         request.VerifyToken,
+		OverrideCallbackURI: request.OverrideCallbackURI,
+	}
+	if request.OverrideType == OverrideTypeWABA {
+		req.RequestType = whttp.RequestTypeSetWABAAlternateCallbackURI
+	}
+	if request.OverrideType == OverrideTypePhoneNumber {
+		req.RequestType = whttp.RequestTypeSetPhoneNumberAlternateCallbackURI
+	}
+	resp, err := bc.Send(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("set alternative callback: %w", err)
+	}
+	return resp.SuccessResponse(), nil
+}
+
+func (bc *BaseClient) DeleteAlternativeCallback(
+	ctx context.Context,
+	conf *config.Config,
+	overrideType OverrideType,
+) (*SuccessResponse, error) {
+	req := &BaseRequest{
+		Method: http.MethodPost,
+		Type:   overrideType,
+	}
+	if overrideType == OverrideTypeWABA {
+		req.RequestType = whttp.RequestTypeDeleteWABAAlternateCallbackURI
+	}
+	if overrideType == OverrideTypePhoneNumber {
+		req.RequestType = whttp.RequestTypeDeletePhoneNumberAlternateCallbackURI
+	}
+	resp, err := bc.Send(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("delete alternative callback: %w", err)
+	}
+	return resp.SuccessResponse(), nil
+}
+
 func (res *BaseResponse) SuccessResponse() *SuccessResponse {
 	return &SuccessResponse{
 		Success: res.Success,

@@ -517,10 +517,12 @@ func (c *Client) InvalidateSystemUserTokens(
 	return c.sender.InvalidateSystemUserTokens(ctx, c.config, systemUserID)
 }
 
-// --- Token rotation ---
-
 type (
 	TokenRotatorFunc func(ctx context.Context, refresher TokenRefresher, revoker TokenRevoker, store TokenStore) error
+
+	TokenRotator interface {
+		RotateToken(ctx context.Context, refresher TokenRefresher, revoker TokenRevoker, store TokenStore) error
+	}
 )
 
 func (fn TokenRotatorFunc) RotateToken(ctx context.Context, refresher TokenRefresher,
