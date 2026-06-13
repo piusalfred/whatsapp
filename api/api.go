@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/piusalfred/whatsapp/auth"
 	"github.com/piusalfred/whatsapp/business"
 	"github.com/piusalfred/whatsapp/business/analytics"
 	"github.com/piusalfred/whatsapp/calls"
@@ -68,6 +69,7 @@ type BaseClient struct {
 	biz       *business.BaseClient
 	analytics *analytics.BaseClient
 	uploads   *uploads.BaseClient
+	auth      *auth.BaseClient
 }
 
 // NewClient creates a Client with the given fixed configuration.
@@ -93,6 +95,7 @@ func NewBaseClient(opts ...whttp.CoreSenderOption) *BaseClient {
 		biz:       &business.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 		analytics: &analytics.BaseClient{BaseClient: *whttp.NewBaseClient[analytics.BaseRequest](opts...)},
 		uploads:   &uploads.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
+		auth:      &auth.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 	}
 }
 
@@ -142,6 +145,10 @@ func (c *Client) SetAnalyticsMiddlewares(mws ...whttp.Middleware[analytics.BaseR
 
 func (c *Client) SetUploadsMiddlewares(mws ...whttp.Middleware[any]) {
 	c.sender.uploads.SetMiddlewares(mws...)
+}
+
+func (c *Client) SetAuthMiddlewares(mws ...whttp.Middleware[any]) {
+	c.sender.auth.SetMiddlewares(mws...)
 }
 
 func (c *Client) CheckCallingPermission(
@@ -622,6 +629,106 @@ func (c *Client) GetUploadStatus(ctx context.Context, uploadSessionID string) (*
 	resp, err := c.sender.GetUploadStatus(ctx, c.config, uploadSessionID)
 	if err != nil {
 		return nil, fmt.Errorf("get upload status: %w", err)
+	}
+	return resp, nil
+}
+
+// --- Auth (System User) ---
+
+// InstallApp installs an app for a system user.
+func (c *Client) InstallApp(ctx context.Context, params *auth.InstallAppParams) error {
+	return c.sender.InstallApp(ctx, c.config, params)
+}
+
+// GenerateSystemUserToken generates a persistent access token for a system user.
+func (c *Client) GenerateSystemUserToken(
+	ctx context.Context,
+	params *auth.GenerateAccessTokenParams,
+) (*auth.GenerateAccessTokenResponse, error) {
+	resp, err := c.sender.GenerateAccessToken(ctx, c.config, params)
+	if err != nil {
+		return nil, fmt.Errorf("generate system user token: %w", err)
+	}
+	return resp, nil
+}
+
+// RevokeSystemUserToken revokes a system user access token.
+func (c *Client) RevokeSystemUserToken(
+	ctx context.Context,
+	params *auth.RevokeAccessTokenParams,
+) (*auth.RevokeAccessTokenResponse, error) {
+	resp, err := c.sender.RevokeAccessToken(ctx, c.config, params)
+	if err != nil {
+		return nil, fmt.Errorf("revoke system user token: %w", err)
+	}
+	return resp, nil
+}
+
+// RefreshSystemUserToken refreshes an expiring system user access token.
+func (c *Client) RefreshSystemUserToken(
+	ctx context.Context,
+	params *auth.RefreshAccessTokenParams,
+) (*auth.RefreshAccessTokenResponse, error) {
+	resp, err := c.sender.RefreshAccessToken(ctx, c.config, params)
+	if err != nil {
+		return nil, fmt.Errorf("refresh system user token: %w", err)
+	}
+	return resp, nil
+}
+
+// TwoStepVerification sets up two-step verification for a WhatsApp Business API phone number.
+func (c *Client) TwoStepVerification(
+	ctx context.Context,
+	request *auth.TwoStepVerificationRequest,
+) (*auth.SuccessResponse, error) {
+	resp, err := c.sender.TwoStepVerification(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("two step verification: %w", err)
+	}
+	return resp, nil
+}
+
+// CreateSystemUser creates a system user in a business manager.
+func (c *Client) CreateSystemUser(
+	ctx context.Context,
+	req *auth.CreateSystemUserRequest,
+) (*auth.CreateSystemUserResponse, error) {
+	resp, err := c.sender.CreateSystemUser(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("create system user: %w", err)
+	}
+	return resp, nil
+}
+
+// ListSystemUsers retrieves all system users in a business manager.
+func (c *Client) ListSystemUsers(ctx context.Context) (*auth.ListSystemUsersResponse, error) {
+	resp, err := c.sender.ListSystemUsers(ctx, c.config)
+	if err != nil {
+		return nil, fmt.Errorf("list system users: %w", err)
+	}
+	return resp, nil
+}
+
+// UpdateSystemUser updates the name of an existing system user.
+func (c *Client) UpdateSystemUser(
+	ctx context.Context,
+	req *auth.UpdateSystemUserRequest,
+) (*auth.SuccessResponse, error) {
+	resp, err := c.sender.UpdateSystemUser(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("update system user: %w", err)
+	}
+	return resp, nil
+}
+
+// InvalidateSystemUserTokens invalidates all access tokens for a system user.
+func (c *Client) InvalidateSystemUserTokens(
+	ctx context.Context,
+	systemUserID string,
+) (*auth.SuccessResponse, error) {
+	resp, err := c.sender.InvalidateSystemUserTokens(ctx, c.config, systemUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalidate system user tokens: %w", err)
 	}
 	return resp, nil
 }
@@ -1241,6 +1348,123 @@ func (bc *BaseClient) GetUploadStatus(
 	resp, err := bc.uploads.GetUploadStatus(ctx, conf, uploadSessionID)
 	if err != nil {
 		return nil, fmt.Errorf("get upload status: %w", err)
+	}
+	return resp, nil
+}
+
+// --- Auth BaseClient ---
+
+// InstallApp installs an app for a system user.
+func (bc *BaseClient) InstallApp(
+	ctx context.Context,
+	conf *config.Config,
+	params *auth.InstallAppParams,
+) error {
+	if err := bc.auth.InstallApp(ctx, conf, params); err != nil {
+		return fmt.Errorf("install app: %w", err)
+	}
+	return nil
+}
+
+// GenerateAccessToken generates a persistent access token for a system user.
+func (bc *BaseClient) GenerateAccessToken(
+	ctx context.Context,
+	conf *config.Config,
+	params *auth.GenerateAccessTokenParams,
+) (*auth.GenerateAccessTokenResponse, error) {
+	resp, err := bc.auth.GenerateAccessToken(ctx, conf, params)
+	if err != nil {
+		return nil, fmt.Errorf("generate access token: %w", err)
+	}
+	return resp, nil
+}
+
+// RevokeAccessToken revokes a system user access token.
+func (bc *BaseClient) RevokeAccessToken(
+	ctx context.Context,
+	conf *config.Config,
+	params *auth.RevokeAccessTokenParams,
+) (*auth.RevokeAccessTokenResponse, error) {
+	resp, err := bc.auth.RevokeAccessToken(ctx, conf, params)
+	if err != nil {
+		return nil, fmt.Errorf("revoke access token: %w", err)
+	}
+	return resp, nil
+}
+
+// RefreshAccessToken refreshes an expiring system user access token.
+func (bc *BaseClient) RefreshAccessToken(
+	ctx context.Context,
+	conf *config.Config,
+	params *auth.RefreshAccessTokenParams,
+) (*auth.RefreshAccessTokenResponse, error) {
+	resp, err := bc.auth.RefreshAccessToken(ctx, conf, params)
+	if err != nil {
+		return nil, fmt.Errorf("refresh access token: %w", err)
+	}
+	return resp, nil
+}
+
+// TwoStepVerification sets up two-step verification for a WhatsApp Business API phone number.
+func (bc *BaseClient) TwoStepVerification(
+	ctx context.Context,
+	conf *config.Config,
+	request *auth.TwoStepVerificationRequest,
+) (*auth.SuccessResponse, error) {
+	resp, err := bc.auth.TwoStepVerification(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("two step verification: %w", err)
+	}
+	return resp, nil
+}
+
+// CreateSystemUser creates a system user in a business manager.
+func (bc *BaseClient) CreateSystemUser(
+	ctx context.Context,
+	conf *config.Config,
+	req *auth.CreateSystemUserRequest,
+) (*auth.CreateSystemUserResponse, error) {
+	resp, err := bc.auth.CreateSystemUser(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("create system user: %w", err)
+	}
+	return resp, nil
+}
+
+// ListSystemUsers retrieves all system users in a business manager.
+func (bc *BaseClient) ListSystemUsers(
+	ctx context.Context,
+	conf *config.Config,
+) (*auth.ListSystemUsersResponse, error) {
+	resp, err := bc.auth.ListSystemUsers(ctx, conf)
+	if err != nil {
+		return nil, fmt.Errorf("list system users: %w", err)
+	}
+	return resp, nil
+}
+
+// UpdateSystemUser updates the name of an existing system user.
+func (bc *BaseClient) UpdateSystemUser(
+	ctx context.Context,
+	conf *config.Config,
+	req *auth.UpdateSystemUserRequest,
+) (*auth.SuccessResponse, error) {
+	resp, err := bc.auth.UpdateSystemUser(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("update system user: %w", err)
+	}
+	return resp, nil
+}
+
+// InvalidateSystemUserTokens invalidates all access tokens for a system user.
+func (bc *BaseClient) InvalidateSystemUserTokens(
+	ctx context.Context,
+	conf *config.Config,
+	systemUserID string,
+) (*auth.SuccessResponse, error) {
+	resp, err := bc.auth.InvalidateSystemUserTokens(ctx, conf, systemUserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalidate system user tokens: %w", err)
 	}
 	return resp, nil
 }
