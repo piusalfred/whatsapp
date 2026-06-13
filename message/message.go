@@ -285,7 +285,9 @@ type (
 	}
 
 	Audio struct {
-		ID string `json:"id,omitempty"`
+		ID    string `json:"id,omitempty"`
+		Link  string `json:"link,omitempty"`
+		Voice bool   `json:"voice,omitempty"`
 	}
 )
 

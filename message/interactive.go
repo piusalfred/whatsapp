@@ -25,6 +25,7 @@ const (
 	TypeInteractiveAddressMessage        = "address_message"
 	TypeInteractiveCarousel              = "carousel"
 	TypeInteractiveCallPermissionRequest = "call_permission_request"
+	TypeInteractiveList                  = "list"
 	InteractionActionSendLocation        = "send_location"
 	InteractiveActionCTAURL              = "cta_url"
 	InteractiveActionButtonReply         = "reply"
@@ -83,10 +84,21 @@ type (
 	}
 
 	InteractiveCardAction struct {
-		Name              string         `json:"name,omitempty"`
-		ProductRetailerID string         `json:"product_retailer_id,omitempty"`
-		CatalogID         string         `json:"catalog_id,omitempty"`
-		Parameters        map[string]any `json:"parameters,omitempty"`
+		Name              string                   `json:"name,omitempty"`
+		ProductRetailerID string                   `json:"product_retailer_id,omitempty"`
+		CatalogID         string                   `json:"catalog_id,omitempty"`
+		Parameters        map[string]any           `json:"parameters,omitempty"`
+		Buttons           []*InteractiveCardButton `json:"buttons,omitempty"`
+	}
+
+	InteractiveCardButton struct {
+		Type       string                     `json:"type,omitempty"`
+		QuickReply *InteractiveCardQuickReply `json:"quick_reply,omitempty"`
+	}
+
+	InteractiveCardQuickReply struct {
+		ID    string `json:"id,omitempty"`
+		Title string `json:"title,omitempty"`
 	}
 
 	InteractiveCardHeader struct {
@@ -161,6 +173,42 @@ type (
 	InteractiveOption func(*Interactive)
 )
 
+// InteractiveListRequest describes an interactive list message.
+//
+// List messages present users with a set of selectable options organized
+// into sections. Only text headers are supported. Up to 10 sections with
+// 10 rows total across all sections.
+type InteractiveListRequest struct {
+	Body     string
+	Button   string
+	Footer   string
+	Header   string
+	Sections []*InteractiveSection
+}
+
+// WithInteractiveList sets the message type to interactive list and populates
+// the payload from the given request.
+func WithInteractiveList(req *InteractiveListRequest) Option {
+	return func(message *Message) {
+		content := NewInteractiveMessageContent(
+			TypeInteractiveList,
+			WithInteractiveBody(req.Body),
+			WithInteractiveHeader(&InteractiveHeader{
+				Type: "text",
+				Text: req.Header,
+			}),
+			WithInteractiveFooter(req.Footer),
+			WithInteractiveAction(&InteractiveAction{
+				Button:   req.Button,
+				Sections: req.Sections,
+			}),
+		)
+
+		message.Type = TypeInteractive
+		message.Interactive = content
+	}
+}
+
 type InteractiveFlowRequest struct {
 	Body               string             `json:"body"`
 	Header             *InteractiveHeader `json:"header"`
@@ -231,6 +279,28 @@ func WithInteractiveReplyButtons(params *InteractiveReplyButtonsRequest) Option 
 		message.Interactive = content
 		message.Type = TypeInteractive
 	}
+}
+
+// NewInteractiveReplyButtons creates an interactive reply buttons message.
+// Supports up to 3 buttons with an optional header (image, video, document,
+// or text) and footer.
+func NewInteractiveReplyButtons(params *InteractiveReplyButtonsRequest) *Interactive {
+	buttons := make([]*InteractiveButton, 0, len(params.Buttons))
+	for _, button := range params.Buttons {
+		buttons = append(buttons, &InteractiveButton{
+			Type:  InteractiveActionButtonReply,
+			Reply: button,
+		})
+	}
+	return NewInteractiveMessageContent(
+		TypeInteractiveButton,
+		WithInteractiveAction(&InteractiveAction{
+			Buttons: buttons,
+		}),
+		WithInteractiveFooter(params.Footer),
+		WithInteractiveBody(params.Body),
+		WithInteractiveHeader(params.Header),
+	)
 }
 
 type InteractiveCTARequest struct {
@@ -492,6 +562,99 @@ func NewInteractiveCallPermissionRequest(message string) *Interactive {
 		Type:   TypeInteractiveCallPermissionRequest,
 		Action: &InteractiveAction{Name: "call_permission_request"},
 		Body:   &InteractiveBody{Text: message},
+	}
+}
+
+// MediaCarouselCard describes a single card in an interactive media carousel.
+//
+// Each card must have either an image or video header. Use HeaderType "image"
+// or "video" and set HeaderLink to the media URL. Body text is optional.
+//
+// For a URL button, set URLButtonLabel and URLButtonURL. For quick-reply
+// buttons, populate QuickReplyButtons — this takes priority over URL button
+// if both are set.
+type MediaCarouselCard struct {
+	HeaderType string
+	HeaderLink string
+	BodyText   string
+	// URL button (ignored if QuickReplyButtons is non-empty)
+	URLButtonLabel string
+	URLButtonURL   string
+	// Quick-reply buttons (takes priority over URL button fields)
+	QuickReplyButtons []MediaCarouselButton
+}
+
+// MediaCarouselButton describes a quick-reply button on a media carousel card.
+type MediaCarouselButton struct {
+	ID    string
+	Title string
+}
+
+// NewInteractiveMediaCarousel creates an interactive media carousel message.
+// body is the main message text displayed above the scrollable cards.
+//
+// Cards must have either an image or video header. All cards in the same
+// carousel must use the same button type (all URL or all quick-reply).
+func NewInteractiveMediaCarousel(body string, cards []*MediaCarouselCard) *Interactive {
+	icards := make([]*InteractiveCard, 0, len(cards))
+	for i, card := range cards {
+		c := &InteractiveCard{
+			CardIndex: i,
+			Type:      "cta_url",
+			Body:      &InteractiveCardBody{Text: card.BodyText},
+		}
+
+		switch card.HeaderType {
+		case "image":
+			c.Header = &InteractiveCardHeader{
+				Type:  "image",
+				Image: &InteractiveCardHeaderImage{Link: card.HeaderLink},
+			}
+		case "video":
+			c.Header = &InteractiveCardHeader{
+				Type:  "video",
+				Video: &InteractiveCardHeaderVideo{Link: card.HeaderLink},
+			}
+		}
+
+		if len(card.QuickReplyButtons) > 0 {
+			btns := make([]*InteractiveCardButton, 0, len(card.QuickReplyButtons))
+			for _, b := range card.QuickReplyButtons {
+				btns = append(btns, &InteractiveCardButton{
+					Type: "quick_reply",
+					QuickReply: &InteractiveCardQuickReply{
+						ID:    b.ID,
+						Title: b.Title,
+					},
+				})
+			}
+			c.Action = &InteractiveCardAction{Buttons: btns}
+		} else {
+			c.Action = &InteractiveCardAction{
+				Name: "cta_url",
+				Parameters: map[string]any{
+					"url":          card.URLButtonURL,
+					"display_text": card.URLButtonLabel,
+				},
+			}
+		}
+
+		icards = append(icards, c)
+	}
+
+	return NewInteractiveMessageContent(
+		TypeInteractiveCarousel,
+		WithInteractiveBody(body),
+		WithInteractiveAction(&InteractiveAction{Cards: icards}),
+	)
+}
+
+// WithInteractiveMediaCarousel is an Option that sets the message to a media
+// carousel using the given body text and cards.
+func WithInteractiveMediaCarousel(body string, cards []*MediaCarouselCard) Option {
+	return func(message *Message) {
+		message.Type = TypeInteractive
+		message.Interactive = NewInteractiveMediaCarousel(body, cards)
 	}
 }
 
