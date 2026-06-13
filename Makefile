@@ -53,7 +53,6 @@ mocks: ## generate or refresh all mocks
 	@$(MOCKGEN) -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
 	@$(MOCKGEN) -destination=./mocks/auth/mock_auth.go             -package=auth          -source=./auth/auth.go
 	@$(MOCKGEN) -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
-	@$(MOCKGEN) -destination=./mocks/message/mock_status_update.go -package=message       -source=./message/status.go
 	@$(MOCKGEN) -destination=./mocks/business/analytics/mock_templates.go -package=analytics -source=./business/analytics/templates.go
 	@$(MOCKGEN) -destination=./mocks/config/config_mock.go         -package=config        -source=./config/config.go
 	@$(MOCKGEN) -destination=./mocks/http/mock_http.go             -package=http          -source=./pkg/http/http.go
