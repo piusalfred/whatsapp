@@ -24,7 +24,7 @@
 //
 // Usage:
 //
-//	msg, _ := v2.New("+16505551234", v2.WithTextMessage(&v2.Text{Body: "Hello"}))
+//	msg, _ := message.New("+16505551234", message.WithTextMessage(&message.Text{Body: "Hello"}))
 //	resp, _ := client.SendMessage(ctx, conf, msg)
 package message
 
