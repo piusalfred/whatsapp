@@ -22,13 +22,13 @@ import (
 	"fmt"
 
 	"github.com/piusalfred/whatsapp/config"
-	messagev2 "github.com/piusalfred/whatsapp/message"
+	message "github.com/piusalfred/whatsapp/message"
 )
 
 // SendMessage sends a WhatsApp message using the fixed configuration.
-// Build the message with [messagev2.New] and the available Option helpers,
+// Build the message with [message.New] and the available Option helpers,
 // or construct it directly.
-func (c *Client) SendMessage(ctx context.Context, msg *messagev2.Message) (*messagev2.SendMessageResponse, error) {
+func (c *Client) SendMessage(ctx context.Context, msg *message.Message) (*message.SendMessageResponse, error) {
 	resp, err := c.sender.SendMessage(ctx, c.config, msg)
 	if err != nil {
 		return nil, fmt.Errorf("send message: %w", err)
@@ -40,8 +40,8 @@ func (c *Client) SendMessage(ctx context.Context, msg *messagev2.Message) (*mess
 // the fixed configuration.
 func (c *Client) UpdateMessageStatus(
 	ctx context.Context,
-	req *messagev2.StatusUpdateRequest,
-) (*messagev2.StatusUpdateResponse, error) {
+	req *message.StatusUpdateRequest,
+) (*message.StatusUpdateResponse, error) {
 	resp, err := c.sender.UpdateMessageStatus(ctx, c.config, req)
 	if err != nil {
 		return nil, fmt.Errorf("update message status: %w", err)
@@ -53,8 +53,8 @@ func (c *Client) UpdateMessageStatus(
 func (bc *BaseClient) SendMessage(
 	ctx context.Context,
 	conf *config.Config,
-	msg *messagev2.Message,
-) (*messagev2.SendMessageResponse, error) {
+	msg *message.Message,
+) (*message.SendMessageResponse, error) {
 	resp, err := bc.message.SendMessage(ctx, conf, msg)
 	if err != nil {
 		return nil, fmt.Errorf("send message: %w", err)
@@ -67,8 +67,8 @@ func (bc *BaseClient) SendMessage(
 func (bc *BaseClient) UpdateMessageStatus(
 	ctx context.Context,
 	conf *config.Config,
-	req *messagev2.StatusUpdateRequest,
-) (*messagev2.StatusUpdateResponse, error) {
+	req *message.StatusUpdateRequest,
+) (*message.StatusUpdateResponse, error) {
 	resp, err := bc.message.UpdateMessageStatus(ctx, conf, req)
 	if err != nil {
 		return nil, fmt.Errorf("update message status: %w", err)

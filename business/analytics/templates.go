@@ -215,16 +215,3 @@ func (bc *BaseClient) Fetch(ctx context.Context, conf *config.Config, params *Te
 
 	return response, nil
 }
-
-// TemplatesAnalytics is the public surface of the Template Analytics API client.
-type TemplatesAnalytics interface {
-	DisableButtonClickTracking(ctx context.Context,
-		req *DisableButtonClickTrackingRequest,
-	) (*DisableButtonClickTrackingResponse, error)
-	Enable(ctx context.Context) (string, error)
-	Fetch(ctx context.Context, params *TemplateAnalyticsRequest) (
-		*TemplateAnalyticsResponse, error,
-	)
-}
-
-var _ TemplatesAnalytics = (*Client)(nil)

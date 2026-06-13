@@ -41,7 +41,7 @@ import (
 	"github.com/piusalfred/whatsapp/flow"
 	"github.com/piusalfred/whatsapp/groups"
 	"github.com/piusalfred/whatsapp/media"
-	messagev2 "github.com/piusalfred/whatsapp/message/v2"
+	"github.com/piusalfred/whatsapp/message"
 	"github.com/piusalfred/whatsapp/phonenumber"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/qrcode"
@@ -73,7 +73,9 @@ type BaseClient struct {
 	uploads   *uploads.BaseClient
 	auth      *auth.BaseClient
 	callbacks *callbacks.BaseClient
-	message   *messagev2.BaseClient
+	message   *message.BaseClient
+
+	opts []whttp.CoreSenderOption
 }
 
 // NewClient creates a Client with the given fixed configuration.
@@ -101,7 +103,9 @@ func NewBaseClient(opts ...whttp.CoreSenderOption) *BaseClient {
 		uploads:   &uploads.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 		auth:      &auth.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 		callbacks: &callbacks.BaseClient{BaseClient: *whttp.NewBaseClient[callbacks.BaseRequest](opts...)},
-		message:   &messagev2.BaseClient{BaseClient: *whttp.NewBaseClient[messagev2.BaseRequest](opts...)},
+		message:   &message.BaseClient{BaseClient: *whttp.NewBaseClient[message.BaseRequest](opts...)},
+
+		opts: opts,
 	}
 }
 
@@ -161,7 +165,7 @@ func (c *Client) SetCallbacksMiddlewares(mws ...whttp.Middleware[callbacks.BaseR
 	c.sender.callbacks.SetMiddlewares(mws...)
 }
 
-func (c *Client) SetMessagesMiddlewares(mws ...whttp.Middleware[messagev2.BaseRequest]) {
+func (c *Client) SetMessagesMiddlewares(mws ...whttp.Middleware[message.BaseRequest]) {
 	c.sender.message.SetMiddlewares(mws...)
 }
 
@@ -562,8 +566,6 @@ func (c *Client) RejectJoinRequests(
 	return resp, nil
 }
 
-// --- Business ---
-
 func (c *Client) GetBusinessProfile(ctx context.Context, fields []string) ([]*business.Profile, error) {
 	resp, err := c.sender.GetBusinessProfile(ctx, c.config, fields)
 	if err != nil {
@@ -579,8 +581,6 @@ func (c *Client) UpdateBusinessProfile(ctx context.Context, req *business.Update
 	}
 	return resp, nil
 }
-
-// --- Analytics ---
 
 func (c *Client) FetchMessagingAnalytics(
 	ctx context.Context,
@@ -611,6 +611,36 @@ func (c *Client) FetchPricingAnalytics(
 	resp, err := c.sender.FetchPricingAnalytics(ctx, c.config, req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch pricing analytics: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) EnableTemplatesAnalytics(ctx context.Context) (string, error) {
+	id, err := c.sender.analytics.Enable(ctx, c.config)
+	if err != nil {
+		return "", fmt.Errorf("enable templates analytics: %w", err)
+	}
+	return id, nil
+}
+
+func (c *Client) DisableButtonClickTracking(
+	ctx context.Context,
+	req *analytics.DisableButtonClickTrackingRequest,
+) (*analytics.DisableButtonClickTrackingResponse, error) {
+	resp, err := c.sender.analytics.DisableButtonClickTracking(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("disable button click tracking: %w", err)
+	}
+	return resp, nil
+}
+
+func (c *Client) FetchTemplateAnalytics(
+	ctx context.Context,
+	req *analytics.TemplateAnalyticsRequest,
+) (*analytics.TemplateAnalyticsResponse, error) {
+	resp, err := c.sender.analytics.Fetch(ctx, c.config, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch template analytics: %w", err)
 	}
 	return resp, nil
 }
@@ -1352,6 +1382,38 @@ func (bc *BaseClient) FetchPricingAnalytics(
 	resp, err := bc.analytics.FetchPricingAnalytics(ctx, conf, req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch pricing analytics: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) EnableTemplatesAnalytics(ctx context.Context, conf *config.Config) (string, error) {
+	id, err := bc.analytics.Enable(ctx, conf)
+	if err != nil {
+		return "", fmt.Errorf("enable templates analytics: %w", err)
+	}
+	return id, nil
+}
+
+func (bc *BaseClient) DisableButtonClickTracking(
+	ctx context.Context,
+	conf *config.Config,
+	req *analytics.DisableButtonClickTrackingRequest,
+) (*analytics.DisableButtonClickTrackingResponse, error) {
+	resp, err := bc.analytics.DisableButtonClickTracking(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("disable button click tracking: %w", err)
+	}
+	return resp, nil
+}
+
+func (bc *BaseClient) FetchTemplateAnalytics(
+	ctx context.Context,
+	conf *config.Config,
+	req *analytics.TemplateAnalyticsRequest,
+) (*analytics.TemplateAnalyticsResponse, error) {
+	resp, err := bc.analytics.Fetch(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch template analytics: %w", err)
 	}
 	return resp, nil
 }
