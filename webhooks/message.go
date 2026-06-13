@@ -24,6 +24,7 @@ import (
 
 	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/message"
+	"github.com/piusalfred/whatsapp/message/media"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
 
@@ -399,7 +400,7 @@ func (handler *Handler) handleInteractiveNotification(ctx context.Context,
 }
 
 type (
-	MediaMessageHandler MessageHandler[message.MediaInfo]
+	MediaMessageHandler MessageHandler[media.Info]
 
 	MessageHandlerFunc[T any] func(
 		ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, message *T) error
@@ -411,9 +412,9 @@ type (
 	ButtonMessageHandler         = MessageHandler[Button]
 	TextMessageHandler           = MessageHandler[Text]
 	OrderMessageHandler          = MessageHandler[Order]
-	LocationMessageHandler       = MessageHandler[message.Location]
+	LocationMessageHandler       = MessageHandler[media.Location]
 	ContactsMessageHandler       = MessageHandler[message.Contacts]
-	ReactionHandler              = MessageHandler[message.Reaction]
+	ReactionHandler              = MessageHandler[media.Reaction]
 	ProductEnquiryHandler        = MessageHandler[Text]
 	InteractiveMessageHandler    = MessageHandler[Interactive]
 	ButtonReplyMessageHandler    = MessageHandler[ButtonReply]
@@ -474,9 +475,9 @@ func (handler *Handler) SetOrderMessageHandler(
 }
 
 func (handler *Handler) OnLocationMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, loc *message.Location) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, loc *media.Location) error,
 ) {
-	handler.locationMessage = MessageHandlerFunc[message.Location](fn)
+	handler.locationMessage = MessageHandlerFunc[media.Location](fn)
 }
 
 func (handler *Handler) SetLocationMessageHandler(
@@ -498,9 +499,9 @@ func (handler *Handler) SetContactsMessageHandler(
 }
 
 func (handler *Handler) OnReactionMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, reaction *message.Reaction) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, reaction *media.Reaction) error,
 ) {
-	handler.reactionMessage = MessageHandlerFunc[message.Reaction](fn)
+	handler.reactionMessage = MessageHandlerFunc[media.Reaction](fn)
 }
 
 func (handler *Handler) SetReactionMessageHandler(
@@ -618,9 +619,9 @@ func (handler *Handler) SetSystemMessageHandler(
 }
 
 func (handler *Handler) OnAudioMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
-	handler.audioMessage = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.audioMessage = MessageHandlerFunc[media.Info](fn)
 }
 
 func (handler *Handler) SetAudioMessageHandler(
@@ -630,9 +631,9 @@ func (handler *Handler) SetAudioMessageHandler(
 }
 
 func (handler *Handler) OnVideoMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
-	handler.videoMessage = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.videoMessage = MessageHandlerFunc[media.Info](fn)
 }
 
 func (handler *Handler) SetVideoMessageHandler(
@@ -642,9 +643,9 @@ func (handler *Handler) SetVideoMessageHandler(
 }
 
 func (handler *Handler) OnImageMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
-	handler.imageMessage = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.imageMessage = MessageHandlerFunc[media.Info](fn)
 }
 
 func (handler *Handler) SetImageMessageHandler(
@@ -654,9 +655,9 @@ func (handler *Handler) SetImageMessageHandler(
 }
 
 func (handler *Handler) OnDocumentMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
-	handler.documentMessage = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.documentMessage = MessageHandlerFunc[media.Info](fn)
 }
 
 func (handler *Handler) SetDocumentMessageHandler(
@@ -666,9 +667,9 @@ func (handler *Handler) SetDocumentMessageHandler(
 }
 
 func (handler *Handler) OnStickerMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *message.MediaInfo) error,
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
-	handler.stickerMessage = MessageHandlerFunc[message.MediaInfo](fn)
+	handler.stickerMessage = MessageHandlerFunc[media.Info](fn)
 }
 
 func (handler *Handler) SetStickerMessageHandler(

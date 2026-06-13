@@ -28,7 +28,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/piusalfred/whatsapp/message"
+	"github.com/piusalfred/whatsapp/message/media"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 	"github.com/piusalfred/whatsapp/webhooks"
 )
@@ -283,7 +283,7 @@ func TestListener_HandleNotification_MultipleMessages(t *testing.T) {
 	)
 
 	handler.OnReactionMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, reaction *message.Reaction) error {
+		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, reaction *media.Reaction) error {
 			reactionHandled = true
 
 			if reaction.Emoji != "👍" {
@@ -595,7 +595,7 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 		},
 	)
 	handler.OnLocationMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, loc *message.Location) error {
+		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, loc *media.Location) error {
 			locationHandled = true
 			if loc.Name != "San Francisco" {
 				t.Errorf("Location name mismatch, got=%s, want=%s", loc.Name, "San Francisco")
@@ -605,7 +605,7 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 	)
 
 	handler.OnReactionMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, reaction *message.Reaction) error {
+		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, reaction *media.Reaction) error {
 			reactionHandled = true
 			if reaction.Emoji != "👍" {
 				t.Errorf("Reaction emoji mismatch, got=%s, want=%s", reaction.Emoji, "👍")
@@ -630,7 +630,7 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 		})
 
 	handler.OnStickerMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, sticker *message.MediaInfo) error {
+		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, sticker *media.Info) error {
 			stickerHandled = true
 			if sticker.MimeType != "image/webp" {
 				t.Errorf("Sticker mime type mismatch, got=%s, want=%s", sticker.MimeType, "image/webp")

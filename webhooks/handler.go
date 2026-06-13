@@ -24,6 +24,7 @@ import (
 	"net/http"
 
 	"github.com/piusalfred/whatsapp/message"
+	"github.com/piusalfred/whatsapp/message/media"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
 
@@ -61,9 +62,9 @@ type Handler struct {
 	buttonMessage            MessageHandler[Button]
 	textMessage              MessageHandler[Text]
 	orderMessage             MessageHandler[Order]
-	locationMessage          MessageHandler[message.Location]
+	locationMessage          MessageHandler[media.Location]
 	contactsMessage          MessageHandler[message.Contacts]
-	reactionMessage          MessageHandler[message.Reaction]
+	reactionMessage          MessageHandler[media.Reaction]
 	productInquiry           MessageHandler[Text]
 	interactiveMessage       MessageHandler[Interactive]
 	buttonReplyMessage       MessageHandler[ButtonReply]
@@ -122,9 +123,9 @@ func NewHandler() *Handler {
 		buttonMessage:            NewNoOpMessageHandler[Button](),
 		textMessage:              NewNoOpMessageHandler[Text](),
 		orderMessage:             NewNoOpMessageHandler[Order](),
-		locationMessage:          NewNoOpMessageHandler[message.Location](),
+		locationMessage:          NewNoOpMessageHandler[media.Location](),
 		contactsMessage:          NewNoOpMessageHandler[message.Contacts](),
-		reactionMessage:          NewNoOpMessageHandler[message.Reaction](),
+		reactionMessage:          NewNoOpMessageHandler[media.Reaction](),
 		productInquiry:           NewNoOpMessageHandler[Text](),
 		interactiveMessage:       NewNoOpMessageHandler[Interactive](),
 		buttonReplyMessage:       NewNoOpMessageHandler[ButtonReply](),
@@ -134,11 +135,11 @@ func NewHandler() *Handler {
 		referralMessage:          NewNoOpMessageHandler[ReferralNotification](),
 		customerIDChange:         NewNoOpMessageHandler[Identity](),
 		systemMessage:            NewNoOpMessageHandler[System](),
-		audioMessage:             NewNoOpMessageHandler[message.MediaInfo](),
-		videoMessage:             NewNoOpMessageHandler[message.MediaInfo](),
-		imageMessage:             NewNoOpMessageHandler[message.MediaInfo](),
-		documentMessage:          NewNoOpMessageHandler[message.MediaInfo](),
-		stickerMessage:           NewNoOpMessageHandler[message.MediaInfo](),
+		audioMessage:             NewNoOpMessageHandler[media.Info](),
+		videoMessage:             NewNoOpMessageHandler[media.Info](),
+		imageMessage:             NewNoOpMessageHandler[media.Info](),
+		documentMessage:          NewNoOpMessageHandler[media.Info](),
+		stickerMessage:           NewNoOpMessageHandler[media.Info](),
 		notificationErrors:       NewNoOpMessageChangeValueHandler[werrors.Error](),
 		messageStatusChange:      NewNoOpMessageChangeValueHandler[Status](),
 		revokeMessage:            NewNoOpMessageHandler[Revoke](),
@@ -1043,30 +1044,30 @@ type (
 
 	// Message contains the information of a message. It is embedded in the Value object.
 	Message struct {
-		Audio       *message.MediaInfo `json:"audio,omitempty"`
-		Button      *Button            `json:"button,omitempty"`
-		Context     *Context           `json:"context,omitempty"`
-		Document    *message.MediaInfo `json:"document,omitempty"`
-		Errors      []*werrors.Error   `json:"errors,omitempty"`
-		From        string             `json:"from,omitempty"`
-		ID          string             `json:"id,omitempty"`
-		GroupID     string             `json:"group_id,omitempty"`
-		Identity    *Identity          `json:"identity,omitempty"`
-		Image       *message.MediaInfo `json:"image,omitempty"`
-		Interactive *Interactive       `json:"interactive,omitempty"`
-		Order       *Order             `json:"order,omitempty"`
-		Referral    *Referral          `json:"referral,omitempty"`
-		Sticker     *message.MediaInfo `json:"sticker,omitempty"`
-		System      *System            `json:"system,omitempty"`
-		Text        *Text              `json:"text,omitempty"`
-		Timestamp   string             `json:"timestamp,omitempty"`
-		Type        string             `json:"type,omitempty"`
-		Video       *message.MediaInfo `json:"video,omitempty"`
-		Contacts    *message.Contacts  `json:"contacts,omitempty"`
-		Location    *message.Location  `json:"location,omitempty"`
-		Reaction    *message.Reaction  `json:"reaction,omitempty"`
-		Revoke      *Revoke            `json:"revoke,omitempty"`
-		Edit        *Edit              `json:"edit,omitempty"`
+		Audio       *media.Info       `json:"audio,omitempty"`
+		Button      *Button           `json:"button,omitempty"`
+		Context     *Context          `json:"context,omitempty"`
+		Document    *media.Info       `json:"document,omitempty"`
+		Errors      []*werrors.Error  `json:"errors,omitempty"`
+		From        string            `json:"from,omitempty"`
+		ID          string            `json:"id,omitempty"`
+		GroupID     string            `json:"group_id,omitempty"`
+		Identity    *Identity         `json:"identity,omitempty"`
+		Image       *media.Info       `json:"image,omitempty"`
+		Interactive *Interactive      `json:"interactive,omitempty"`
+		Order       *Order            `json:"order,omitempty"`
+		Referral    *Referral         `json:"referral,omitempty"`
+		Sticker     *media.Info       `json:"sticker,omitempty"`
+		System      *System           `json:"system,omitempty"`
+		Text        *Text             `json:"text,omitempty"`
+		Timestamp   string            `json:"timestamp,omitempty"`
+		Type        string            `json:"type,omitempty"`
+		Video       *media.Info       `json:"video,omitempty"`
+		Contacts    *message.Contacts `json:"contacts,omitempty"`
+		Location    *media.Location   `json:"location,omitempty"`
+		Reaction    *media.Reaction   `json:"reaction,omitempty"`
+		Revoke      *Revoke           `json:"revoke,omitempty"`
+		Edit        *Edit             `json:"edit,omitempty"`
 	}
 
 	// Revoke payload when a WhatsApp user deletes a previously sent message.

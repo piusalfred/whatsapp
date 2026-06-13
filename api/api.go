@@ -41,6 +41,7 @@ import (
 	"github.com/piusalfred/whatsapp/flow"
 	"github.com/piusalfred/whatsapp/groups"
 	"github.com/piusalfred/whatsapp/media"
+	messagev2 "github.com/piusalfred/whatsapp/message/v2"
 	"github.com/piusalfred/whatsapp/phonenumber"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/qrcode"
@@ -72,6 +73,7 @@ type BaseClient struct {
 	uploads   *uploads.BaseClient
 	auth      *auth.BaseClient
 	callbacks *callbacks.BaseClient
+	message   *messagev2.BaseClient
 }
 
 // NewClient creates a Client with the given fixed configuration.
@@ -99,6 +101,7 @@ func NewBaseClient(opts ...whttp.CoreSenderOption) *BaseClient {
 		uploads:   &uploads.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 		auth:      &auth.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 		callbacks: &callbacks.BaseClient{BaseClient: *whttp.NewBaseClient[callbacks.BaseRequest](opts...)},
+		message:   &messagev2.BaseClient{BaseClient: *whttp.NewBaseClient[messagev2.BaseRequest](opts...)},
 	}
 }
 
@@ -156,6 +159,10 @@ func (c *Client) SetAuthMiddlewares(mws ...whttp.Middleware[any]) {
 
 func (c *Client) SetCallbacksMiddlewares(mws ...whttp.Middleware[callbacks.BaseRequest]) {
 	c.sender.callbacks.SetMiddlewares(mws...)
+}
+
+func (c *Client) SetMessagesMiddlewares(mws ...whttp.Middleware[messagev2.BaseRequest]) {
+	c.sender.message.SetMiddlewares(mws...)
 }
 
 func (c *Client) CheckCallingPermission(
