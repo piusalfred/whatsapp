@@ -47,6 +47,7 @@ import (
 	"github.com/piusalfred/whatsapp/settings"
 	"github.com/piusalfred/whatsapp/uploads"
 	"github.com/piusalfred/whatsapp/user"
+	"github.com/piusalfred/whatsapp/webhooks/callbacks"
 )
 
 // Client wraps BaseClient with a fixed configuration.
@@ -70,6 +71,7 @@ type BaseClient struct {
 	analytics *analytics.BaseClient
 	uploads   *uploads.BaseClient
 	auth      *auth.BaseClient
+	callbacks *callbacks.BaseClient
 }
 
 // NewClient creates a Client with the given fixed configuration.
@@ -96,6 +98,7 @@ func NewBaseClient(opts ...whttp.CoreSenderOption) *BaseClient {
 		analytics: &analytics.BaseClient{BaseClient: *whttp.NewBaseClient[analytics.BaseRequest](opts...)},
 		uploads:   &uploads.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
 		auth:      &auth.BaseClient{BaseClient: *whttp.NewBaseClient[any](opts...)},
+		callbacks: &callbacks.BaseClient{BaseClient: *whttp.NewBaseClient[callbacks.BaseRequest](opts...)},
 	}
 }
 
@@ -149,6 +152,10 @@ func (c *Client) SetUploadsMiddlewares(mws ...whttp.Middleware[any]) {
 
 func (c *Client) SetAuthMiddlewares(mws ...whttp.Middleware[any]) {
 	c.sender.auth.SetMiddlewares(mws...)
+}
+
+func (c *Client) SetCallbacksMiddlewares(mws ...whttp.Middleware[callbacks.BaseRequest]) {
+	c.sender.callbacks.SetMiddlewares(mws...)
 }
 
 func (c *Client) CheckCallingPermission(
@@ -729,6 +736,34 @@ func (c *Client) InvalidateSystemUserTokens(
 	resp, err := c.sender.InvalidateSystemUserTokens(ctx, c.config, systemUserID)
 	if err != nil {
 		return nil, fmt.Errorf("invalidate system user tokens: %w", err)
+	}
+	return resp, nil
+}
+
+// SetAlternativeCallback configures an alternate callback URL for a WABA or
+// phone number. After setting, supported webhook fields route to the alternate
+// URL instead of the app's default callback.
+func (c *Client) SetAlternativeCallback(
+	ctx context.Context,
+	request *callbacks.SetAlternativeCallbackRequest,
+) (*callbacks.SuccessResponse, error) {
+	resp, err := c.sender.SetAlternativeCallback(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("set alternative callback: %w", err)
+	}
+	return resp, nil
+}
+
+// DeleteAlternativeCallback removes the alternate callback URL for the given
+// OverrideType. After deletion, webhooks fall back to the next priority level
+// (phone number → WABA → app default).
+func (c *Client) DeleteAlternativeCallback(
+	ctx context.Context,
+	overrideType callbacks.OverrideType,
+) (*callbacks.SuccessResponse, error) {
+	resp, err := c.sender.DeleteAlternativeCallback(ctx, c.config, overrideType)
+	if err != nil {
+		return nil, fmt.Errorf("delete alternative callback: %w", err)
 	}
 	return resp, nil
 }
@@ -1465,6 +1500,34 @@ func (bc *BaseClient) InvalidateSystemUserTokens(
 	resp, err := bc.auth.InvalidateSystemUserTokens(ctx, conf, systemUserID)
 	if err != nil {
 		return nil, fmt.Errorf("invalidate system user tokens: %w", err)
+	}
+	return resp, nil
+}
+
+// SetAlternativeCallback configures an alternate callback URL for a WABA or
+// phone number.
+func (bc *BaseClient) SetAlternativeCallback(
+	ctx context.Context,
+	conf *config.Config,
+	request *callbacks.SetAlternativeCallbackRequest,
+) (*callbacks.SuccessResponse, error) {
+	resp, err := bc.callbacks.SetAlternativeCallback(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("set alternative callback: %w", err)
+	}
+	return resp, nil
+}
+
+// DeleteAlternativeCallback removes the alternate callback URL for the given
+// OverrideType.
+func (bc *BaseClient) DeleteAlternativeCallback(
+	ctx context.Context,
+	conf *config.Config,
+	overrideType callbacks.OverrideType,
+) (*callbacks.SuccessResponse, error) {
+	resp, err := bc.callbacks.DeleteAlternativeCallback(ctx, conf, overrideType)
+	if err != nil {
+		return nil, fmt.Errorf("delete alternative callback: %w", err)
 	}
 	return resp, nil
 }
