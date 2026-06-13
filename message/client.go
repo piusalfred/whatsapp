@@ -178,6 +178,45 @@ func (c *Client) SendInteractiveMessage(ctx context.Context, request *Request[In
 	)
 }
 
+func (c *Client) SendInteractiveList(ctx context.Context, request *Request[InteractiveListRequest]) (*Response, error) {
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithInteractiveList,
+	)
+}
+
+func (c *Client) SendInteractiveCarousel(ctx context.Context, request *Request[Interactive]) (*Response, error) {
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithInteractiveMessage,
+	)
+}
+
+func (c *Client) SendReplyButtons(
+	ctx context.Context,
+	request *Request[InteractiveReplyButtonsRequest],
+) (*Response, error) {
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithInteractiveReplyButtons,
+	)
+}
+
 func (c *Client) ReloadConfig(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

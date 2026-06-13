@@ -171,6 +171,48 @@ func (c *BaseClient) SendInteractiveMessage(ctx context.Context, request *Reques
 	)
 }
 
+func (c *BaseClient) SendInteractiveList(
+	ctx context.Context,
+	request *Request[InteractiveListRequest],
+) (*Response, error) {
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithInteractiveList,
+	)
+}
+
+func (c *BaseClient) SendInteractiveCarousel(ctx context.Context, request *Request[Interactive]) (*Response, error) {
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithInteractiveMessage,
+	)
+}
+
+func (c *BaseClient) SendReplyButtons(
+	ctx context.Context,
+	request *Request[InteractiveReplyButtonsRequest],
+) (*Response, error) {
+	return sendMessage(
+		ctx,
+		c.SendMessage,
+		request.Recipient,
+		request.ReplyTo,
+		request.RecipientType,
+		request.Message,
+		WithInteractiveReplyButtons,
+	)
+}
+
 func (c *BaseClient) PinGroupMessage(ctx context.Context, request *Request[Pin]) (*Response, error) {
 	return sendMessage(
 		ctx,
