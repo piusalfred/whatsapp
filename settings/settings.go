@@ -150,13 +150,13 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 
 // SetBaseClient replaces the underlying request sender.
 func (c *Client) SetBaseClient(sender whttp.Sender[any]) {
-	c.sender.Sender = sender
+	c.sender.SetSender(sender)
 }
 
 // SetMiddlewares wraps the underlying Sender with the provided middlewares.
 // Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[any]) {
-	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+	c.sender.SetMiddlewares(mws...)
 }
 
 // GetSettings retrieves calling settings.
@@ -266,10 +266,6 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 	}
 
 	return response, nil
-}
-
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
-	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
 }
 
 type (

@@ -51,13 +51,13 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 
 // SetBaseClient replaces the underlying request sender.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.Sender = sender
+	c.sender.SetSender(sender)
 }
 
 // SetMiddlewares wraps the underlying Sender with the provided middlewares.
 // Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+	c.sender.SetMiddlewares(mws...)
 }
 
 // Send dispatches a raw [Request] through the underlying [BaseClient].
@@ -181,11 +181,6 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	}
 
 	return response, nil
-}
-
-// SetMiddlewares wraps the underlying Sender with the provided middlewares.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
 }
 
 // BaseResponse is the general response struct for the Analytics API.

@@ -438,240 +438,280 @@ func NewNoOpMessageHandler[T any]() MessageHandler[T] {
 	})
 }
 
+// OnTextMessage registers a handler for text messages in the messages webhook.
 func (handler *Handler) OnTextMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, text *Text) error,
 ) {
 	handler.textMessage = MessageHandlerFunc[Text](fn)
 }
 
+// SetTextMessageHandler sets the handler for text messages.
 func (handler *Handler) SetTextMessageHandler(
 	h TextMessageHandler,
 ) {
 	handler.textMessage = h
 }
 
+// OnButtonMessage registers a handler for button messages in the messages webhook.
 func (handler *Handler) OnButtonMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, button *Button) error,
 ) {
 	handler.buttonMessage = MessageHandlerFunc[Button](fn)
 }
 
+// SetButtonMessageHandler sets the handler for button messages.
 func (handler *Handler) SetButtonMessageHandler(
 	h ButtonMessageHandler,
 ) {
 	handler.buttonMessage = h
 }
 
+// OnOrderMessage registers a handler for order messages in the messages webhook.
 func (handler *Handler) OnOrderMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, order *Order) error,
 ) {
 	handler.orderMessage = MessageHandlerFunc[Order](fn)
 }
 
+// SetOrderMessageHandler sets the handler for order messages.
 func (handler *Handler) SetOrderMessageHandler(
 	h OrderMessageHandler,
 ) {
 	handler.orderMessage = h
 }
 
+// OnLocationMessage registers a handler for location messages in the messages webhook.
 func (handler *Handler) OnLocationMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, loc *media.Location) error,
 ) {
 	handler.locationMessage = MessageHandlerFunc[media.Location](fn)
 }
 
+// SetLocationMessageHandler sets the handler for location messages.
 func (handler *Handler) SetLocationMessageHandler(
 	h LocationMessageHandler,
 ) {
 	handler.locationMessage = h
 }
 
+// OnContactsMessage registers a handler for contacts messages in the messages webhook.
 func (handler *Handler) OnContactsMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, contacts *message.Contacts) error,
 ) {
 	handler.contactsMessage = MessageHandlerFunc[message.Contacts](fn)
 }
 
+// SetContactsMessageHandler sets the handler for contacts messages.
 func (handler *Handler) SetContactsMessageHandler(
 	h ContactsMessageHandler,
 ) {
 	handler.contactsMessage = h
 }
 
+// OnReactionMessage registers a handler for reaction messages in the messages webhook.
 func (handler *Handler) OnReactionMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, reaction *media.Reaction) error,
 ) {
 	handler.reactionMessage = MessageHandlerFunc[media.Reaction](fn)
 }
 
+// SetReactionMessageHandler sets the handler for reaction messages.
 func (handler *Handler) SetReactionMessageHandler(
 	h ReactionHandler,
 ) {
 	handler.reactionMessage = h
 }
 
+// OnProductEnquiryMessage registers a handler for product enquiry messages in the messages webhook.
 func (handler *Handler) OnProductEnquiryMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, txt *Text) error,
 ) {
 	handler.productInquiry = MessageHandlerFunc[Text](fn)
 }
 
+// SetProductEnquiryMessageHandler sets the handler for product enquiry messages.
 func (handler *Handler) SetProductEnquiryMessageHandler(
 	h ProductEnquiryHandler,
 ) {
 	handler.productInquiry = h
 }
 
+// OnInteractiveMessage registers a handler for interactive messages in the messages webhook.
 func (handler *Handler) OnInteractiveMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, itv *Interactive) error,
 ) {
 	handler.interactiveMessage = MessageHandlerFunc[Interactive](fn)
 }
 
+// SetInteractiveMessageHandler sets the handler for interactive messages.
 func (handler *Handler) SetInteractiveMessageHandler(
 	h InteractiveMessageHandler,
 ) {
 	handler.interactiveMessage = h
 }
 
+// OnButtonReplyMessage registers a handler for button reply messages in the messages webhook.
 func (handler *Handler) OnButtonReplyMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, br *ButtonReply) error,
 ) {
 	handler.buttonReplyMessage = MessageHandlerFunc[ButtonReply](fn)
 }
 
+// SetButtonReplyMessageHandler sets the handler for button reply messages.
 func (handler *Handler) SetButtonReplyMessageHandler(
 	h ButtonReplyMessageHandler,
 ) {
 	handler.buttonReplyMessage = h
 }
 
+// OnListReplyMessage registers a handler for list reply messages in the messages webhook.
 func (handler *Handler) OnListReplyMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, lr *ListReply) error,
 ) {
 	handler.listReplyMessage = MessageHandlerFunc[ListReply](fn)
 }
 
+// SetListReplyMessageHandler sets the handler for list reply messages.
 func (handler *Handler) SetListReplyMessageHandler(
 	h ListReplyMessageHandler,
 ) {
 	handler.listReplyMessage = h
 }
 
+// OnFlowCompletionMessage registers a handler for flow completion messages in the messages webhook.
 func (handler *Handler) OnFlowCompletionMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, nfm *NFMReply) error,
 ) {
 	handler.flowCompletionUpdate = MessageHandlerFunc[NFMReply](fn)
 }
 
+// SetFlowCompletionMessageHandler sets the handler for flow completion messages.
 func (handler *Handler) SetFlowCompletionMessageHandler(
 	h NativeFlowCompletionHandler,
 ) {
 	handler.flowCompletionUpdate = h
 }
 
+// OnAddressSubmissionMessage registers a handler for address submission messages in the messages webhook.
 func (handler *Handler) OnAddressSubmissionMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, nfm *NFMReply) error,
 ) {
 	handler.addressSubmission = MessageHandlerFunc[NFMReply](fn)
 }
 
+// SetAddressSubmissionHandler sets the handler for address submission messages.
 func (handler *Handler) SetAddressSubmissionHandler(
 	h NativeFlowCompletionHandler,
 ) {
 	handler.addressSubmission = h
 }
 
+// OnReferralMessage registers a handler for referral messages in the messages webhook.
 func (handler *Handler) OnReferralMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, ref *ReferralNotification) error,
 ) {
 	handler.referralMessage = MessageHandlerFunc[ReferralNotification](fn)
 }
 
+// SetReferralMessageHandler sets the handler for referral messages.
 func (handler *Handler) SetReferralMessageHandler(
 	h ReferralMessageHandler,
 ) {
 	handler.referralMessage = h
 }
 
+// OnCustomerIDChangeMessage registers a handler for customer identity change messages in the messages webhook.
 func (handler *Handler) OnCustomerIDChangeMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, identity *Identity) error,
 ) {
 	handler.customerIDChange = MessageHandlerFunc[Identity](fn)
 }
 
+// SetCustomerIDChangeMessageHandler sets the handler for customer identity change messages.
 func (handler *Handler) SetCustomerIDChangeMessageHandler(
 	h CustomerIDChangeHandler,
 ) {
 	handler.customerIDChange = h
 }
 
+// OnSystemMessage registers a handler for system messages in the messages webhook.
 func (handler *Handler) OnSystemMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, sys *System) error,
 ) {
 	handler.systemMessage = MessageHandlerFunc[System](fn)
 }
 
+// SetSystemMessageHandler sets the handler for system messages.
 func (handler *Handler) SetSystemMessageHandler(
 	h SystemMessageHandler,
 ) {
 	handler.systemMessage = h
 }
 
+// OnAudioMessage registers a handler for audio messages in the messages webhook.
 func (handler *Handler) OnAudioMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
 	handler.audioMessage = MessageHandlerFunc[media.Info](fn)
 }
 
+// SetAudioMessageHandler sets the handler for audio messages.
 func (handler *Handler) SetAudioMessageHandler(
 	h MediaMessageHandler,
 ) {
 	handler.audioMessage = h
 }
 
+// OnVideoMessage registers a handler for video messages in the messages webhook.
 func (handler *Handler) OnVideoMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
 	handler.videoMessage = MessageHandlerFunc[media.Info](fn)
 }
 
+// SetVideoMessageHandler sets the handler for video messages.
 func (handler *Handler) SetVideoMessageHandler(
 	h MediaMessageHandler,
 ) {
 	handler.videoMessage = h
 }
 
+// OnImageMessage registers a handler for image messages in the messages webhook.
 func (handler *Handler) OnImageMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
 	handler.imageMessage = MessageHandlerFunc[media.Info](fn)
 }
 
+// SetImageMessageHandler sets the handler for image messages.
 func (handler *Handler) SetImageMessageHandler(
 	h MediaMessageHandler,
 ) {
 	handler.imageMessage = h
 }
 
+// OnDocumentMessage registers a handler for document messages in the messages webhook.
 func (handler *Handler) OnDocumentMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
 	handler.documentMessage = MessageHandlerFunc[media.Info](fn)
 }
 
+// SetDocumentMessageHandler sets the handler for document messages.
 func (handler *Handler) SetDocumentMessageHandler(
 	h MediaMessageHandler,
 ) {
 	handler.documentMessage = h
 }
 
+// OnStickerMessage registers a handler for sticker messages in the messages webhook.
 func (handler *Handler) OnStickerMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
 	handler.stickerMessage = MessageHandlerFunc[media.Info](fn)
 }
 
+// SetStickerMessageHandler sets the handler for sticker messages.
 func (handler *Handler) SetStickerMessageHandler(
 	h MediaMessageHandler,
 ) {
@@ -687,6 +727,7 @@ func (handler *Handler) OnRevokeMessage(
 	handler.revokeMessage = MessageHandlerFunc[Revoke](fn)
 }
 
+// SetRevokeMessageHandler sets the handler for message revoke events.
 func (handler *Handler) SetRevokeMessageHandler(h MessageHandler[Revoke]) {
 	handler.revokeMessage = h
 }
@@ -704,6 +745,7 @@ func (handler *Handler) OnMessageEdit(
 	handler.editMessage = MessageHandlerFunc[Edit](fn)
 }
 
+// SetMessageEditHandler sets the handler for message edit events.
 func (handler *Handler) SetMessageEditHandler(h MessageHandler[Edit]) {
 	handler.editMessage = h
 }

@@ -115,13 +115,13 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 
 // SetBaseClient replaces the underlying request sender.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.Sender = sender
+	c.sender.SetSender(sender)
 }
 
 // SetMiddlewares wraps the underlying Sender with the provided middlewares.
 // Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+	c.sender.SetMiddlewares(mws...)
 }
 
 // Send dispatches a Request through the underlying BaseClient.
@@ -291,12 +291,6 @@ func (bc *BaseClient) ListConversationComponents(ctx context.Context, conf *conf
 	}
 
 	return bc.Send(ctx, conf, request)
-}
-
-// SetMiddlewares wraps the underlying Sender with the provided middlewares.
-// Middlewares are applied in order: middlewares[0] runs outermost.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
 }
 
 // sendBot translates a BotBaseRequest into an HTTP transaction and decodes the

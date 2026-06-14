@@ -52,9 +52,11 @@ func (fn ReaderFunc) Read(ctx context.Context) (*Config, error) {
 }
 
 const (
-	ErrInvalidConfig     = whatsapp.Error("invalid config")
-	ErrInvalidAPIVersion = whatsapp.Error("invalid API version")
-	ErrAppSecretRequired = whatsapp.Error("app secret is required for secure requests")
+	ErrInvalidConfig       = whatsapp.Error("invalid config")
+	ErrInvalidAPIVersion   = whatsapp.Error("invalid API version")
+	ErrAppSecretRequired   = whatsapp.Error("app secret is required for secure requests")
+	ErrAccessTokenRequired = whatsapp.Error("access token is required")
+	ErrPhoneNumberRequired = whatsapp.Error("phone number ID is required")
 )
 
 func Validate(conf *Config) error {
@@ -63,7 +65,12 @@ func Validate(conf *Config) error {
 		errs = append(errs, fmt.Errorf("%w: got %s, minimum is %s",
 			ErrInvalidAPIVersion, conf.APIVersion, whatsapp.LowestSupportedAPIVersion))
 	}
-
+	if conf.AccessToken == "" {
+		errs = append(errs, ErrAccessTokenRequired)
+	}
+	if conf.PhoneNumberID == "" {
+		errs = append(errs, ErrPhoneNumberRequired)
+	}
 	if conf.SecureRequests && conf.AppSecret == "" {
 		errs = append(errs, ErrAppSecretRequired)
 	}

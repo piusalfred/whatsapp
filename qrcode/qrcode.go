@@ -231,12 +231,12 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 // testing when you want to inject a mock [whttp.Sender] and bypass the default
 // HTTP stack entirely.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.Sender = sender
+	c.sender.SetSender(sender)
 }
 
 // SetMiddlewares configures middlewares that wrap the underlying Sender.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+	c.sender.SetMiddlewares(mws...)
 }
 
 // Create generates a new QR code for the given prefilled message and image format.
@@ -493,8 +493,4 @@ func (bc *BaseClient) Update(ctx context.Context, conf *config.Config, req *Upda
 	}
 
 	return &SuccessResponse{Success: resp.Success}, nil
-}
-
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
 }
