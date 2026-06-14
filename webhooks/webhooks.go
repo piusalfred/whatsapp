@@ -42,9 +42,9 @@
 // trigger retries with decreasing frequency for up to 7 days. This can cause
 // duplicate deliveries — your handler should be idempotent.
 //
-// Webhook payloads can be up to 3 MB. Notifications are batched (up to
-// 1000 per request) but batching is not guaranteed — design for
-// individual payload handling.
+// Webhook payloads can be up to 3 MB (enforced at 4 MB for a 1 MB grace
+// margin). Notifications are batched (up to 1000 per request) but batching
+// is not guaranteed — design for individual payload handling.
 //
 // There is no API for fetching historical webhook data. Capture and store
 // payloads you need to keep.
@@ -267,9 +267,12 @@ type ValidateOptions struct {
 // decoding will produce empty Change.Value fields.
 func ExtractAndValidatePayload(request *http.Request, options *ValidateOptions) (*Notification, error) {
 	var buff bytes.Buffer
-	_, err := io.Copy(&buff, request.Body)
+	_, err := io.Copy(&buff, io.LimitReader(request.Body, MaxPayloadBytes))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrReadNotification, err)
+	}
+	if buff.Len() >= MaxPayloadBytes {
+		return nil, ErrPayloadTooLarge
 	}
 
 	request.Body = io.NopCloser(&buff)
@@ -433,4 +436,9 @@ const (
 	ErrReadNotification      = whatsapp.Error("error reading request body")
 	ErrMessageDecode         = whatsapp.Error("error decoding message")
 	ErrBadRequest            = whatsapp.Error("could not retrieve the notification content")
+	ErrPayloadTooLarge       = whatsapp.Error("webhook payload exceeds 4 MB limit")
 )
+
+// MaxPayloadBytes is the maximum webhook payload size (4 MB).
+// WhatsApp's documented limit is 3 MB; we allow an extra 1 MB as grace.
+const MaxPayloadBytes = 4 << 20

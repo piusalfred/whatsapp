@@ -157,13 +157,13 @@ func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 // testing when you want to inject a mock whttp.Sender and bypass the default
 // HTTP stack entirely.
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.Sender = sender
+	c.sender.SetSender(sender)
 }
 
 // SetMiddlewares wraps the underlying Sender with the provided middlewares.
 // Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+	c.sender.SetMiddlewares(mws...)
 }
 
 // BaseClient is the low-level HTTP executor for the Phone Number API. It
@@ -212,9 +212,3 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 
 	return resp, nil
 }
-
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
-}
-
-var _ = (*Client)(nil)

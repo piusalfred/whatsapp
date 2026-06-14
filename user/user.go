@@ -259,13 +259,13 @@ func NewBlockClient(config *config.Config, options ...whttp.CoreSenderOption) *B
 // testing when you want to inject a mock [whttp.Sender] and bypass the default
 // HTTP stack entirely.
 func (client *BlockClient) SetBaseClient(sender whttp.Sender[BlockBaseRequest]) {
-	client.sender.Sender = sender
+	client.sender.SetSender(sender)
 }
 
 // SetMiddlewares wraps the underlying Sender with the provided middlewares.
 // Middlewares are applied in order: middlewares[0] runs outermost.
 func (client *BlockClient) SetMiddlewares(mws ...whttp.Middleware[BlockBaseRequest]) {
-	client.sender.Sender = whttp.WrapMiddlewareSender(client.sender.Sender, mws...)
+	client.sender.SetMiddlewares(mws...)
 }
 
 // BlockBaseClient is a base client that accepts a concrete *config.Config per request.
@@ -383,8 +383,4 @@ func (client *BlockBaseClient) Send(ctx context.Context, conf *config.Config, re
 	}
 
 	return response, nil
-}
-
-func (client *BlockBaseClient) SetMiddlewares(mws ...whttp.Middleware[BlockBaseRequest]) {
-	client.Sender = whttp.WrapMiddlewareSender(client.Sender, mws...)
 }

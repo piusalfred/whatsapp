@@ -72,12 +72,15 @@ func (value *Value) CallStatusUpdate() *CallStatusUpdate {
 	}
 }
 
+// SetBusinessCallStatusUpdateHandler sets the handler for calls webhooks.
 func (handler *Handler) SetBusinessCallStatusUpdateHandler(
 	fn EventHandler[BusinessNotificationContext, CallStatusUpdate],
 ) {
 	handler.callStatusUpdate = fn
 }
 
+// OnCallStatusUpdate registers a handler for calls webhooks
+// (call status changes: ringing, answered, completed, etc.).
 func (handler *Handler) OnCallStatusUpdate(
 	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *CallStatusUpdate) error,
 ) {

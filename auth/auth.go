@@ -126,11 +126,6 @@ type BaseClient struct {
 	whttp.BaseClient[any]
 }
 
-// SetMiddlewares wraps the underlying Sender with the provided middlewares.
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[any]) {
-	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
-}
-
 // InstallApp installs an app for a system user or an admin system user, allowing the app to make API calls
 // on behalf of the user. Both the app and the system user should belong to the same Business Manager.
 func (bc *BaseClient) InstallApp(ctx context.Context, conf *config.Config, params *InstallAppParams) error {

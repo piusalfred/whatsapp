@@ -42,6 +42,17 @@ func NewBaseClient[T any](opts ...CoreSenderOption) *BaseClient[T] {
 	return &BaseClient[T]{Sender: NewCoreClient[T](opts...)}
 }
 
+// SetMiddlewares wraps the [Sender] with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
+func (bc *BaseClient[T]) SetMiddlewares(mws ...Middleware[T]) {
+	bc.Sender = WrapMiddlewareSender(bc.Sender, mws...)
+}
+
+// SetSender replaces the [Sender], useful for injecting mocks in tests.
+func (bc *BaseClient[T]) SetSender(sender Sender[T]) {
+	bc.Sender = sender
+}
+
 // WrapMiddlewareSender wraps a [Sender] with the provided middlewares and returns
 // a new [Sender]. Middlewares are applied in the order provided.
 func WrapMiddlewareSender[T any](sender Sender[T], mws ...Middleware[T]) Sender[T] {

@@ -464,10 +464,6 @@ func (bc *BaseClient) updateStatus(ctx context.Context, conf *config.Config, req
 	return resp, nil
 }
 
-func (bc *BaseClient) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	bc.Sender = whttp.WrapMiddlewareSender(bc.Sender, mws...)
-}
-
 func (bc *BaseClient) SendMessage(
 	ctx context.Context,
 	conf *config.Config,
@@ -521,11 +517,11 @@ func NewClient(conf *config.Config, opts ...whttp.CoreSenderOption) *Client {
 }
 
 func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
-	c.sender.Sender = sender
+	c.sender.SetSender(sender)
 }
 
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
-	c.sender.Sender = whttp.WrapMiddlewareSender(c.sender.Sender, mws...)
+	c.sender.SetMiddlewares(mws...)
 }
 
 func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
@@ -581,7 +577,7 @@ func (c *Client) SendInteractiveMessage(
 	to string,
 	inter *interactive.Message,
 ) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, func(m *Message) { m.Type = TypeInteractive; m.Interactive = inter }))
+	return c.SendMessage(ctx, New(to, WithInteractiveMessage(inter)))
 }
 
 func (c *Client) SendTemplateMessage(

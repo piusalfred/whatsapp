@@ -250,3 +250,6 @@ linters:
                   - govet
                   - revive
                   - gocognit
+            - path: api/
+              linters:
+                  - dupl

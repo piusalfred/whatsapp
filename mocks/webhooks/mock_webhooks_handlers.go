@@ -13,7 +13,6 @@ import (
 	context "context"
 	reflect "reflect"
 
-	webhooks "github.com/piusalfred/whatsapp/webhooks"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -53,42 +52,4 @@ func (m *MockEventHandler[S, T]) HandleEvent(ctx context.Context, ntx *S, notifi
 func (mr *MockEventHandlerMockRecorder[S, T]) HandleEvent(ctx, ntx, notification any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleEvent", reflect.TypeOf((*MockEventHandler[S, T])(nil).HandleEvent), ctx, ntx, notification)
-}
-
-// MockMessageChangeValueHandler is a mock of MessageChangeValueHandler interface.
-type MockMessageChangeValueHandler[T any] struct {
-	ctrl     *gomock.Controller
-	recorder *MockMessageChangeValueHandlerMockRecorder[T]
-	isgomock struct{}
-}
-
-// MockMessageChangeValueHandlerMockRecorder is the mock recorder for MockMessageChangeValueHandler.
-type MockMessageChangeValueHandlerMockRecorder[T any] struct {
-	mock *MockMessageChangeValueHandler[T]
-}
-
-// NewMockMessageChangeValueHandler creates a new mock instance.
-func NewMockMessageChangeValueHandler[T any](ctrl *gomock.Controller) *MockMessageChangeValueHandler[T] {
-	mock := &MockMessageChangeValueHandler[T]{ctrl: ctrl}
-	mock.recorder = &MockMessageChangeValueHandlerMockRecorder[T]{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockMessageChangeValueHandler[T]) EXPECT() *MockMessageChangeValueHandlerMockRecorder[T] {
-	return m.recorder
-}
-
-// Handle mocks base method.
-func (m *MockMessageChangeValueHandler[T]) Handle(ctx context.Context, notificationCtx *webhooks.MessageNotificationContext, value []*T) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Handle", ctx, notificationCtx, value)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Handle indicates an expected call of Handle.
-func (mr *MockMessageChangeValueHandlerMockRecorder[T]) Handle(ctx, notificationCtx, value any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockMessageChangeValueHandler[T])(nil).Handle), ctx, notificationCtx, value)
 }

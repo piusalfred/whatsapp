@@ -55,7 +55,7 @@ func (bc *BaseClient) SendMessage(
 	conf *config.Config,
 	msg *message.Message,
 ) (*message.SendMessageResponse, error) {
-	resp, err := bc.message.SendMessage(ctx, conf, msg)
+	resp, err := bc.getMessage().SendMessage(ctx, conf, msg)
 	if err != nil {
 		return nil, fmt.Errorf("send message: %w", err)
 	}
@@ -69,7 +69,7 @@ func (bc *BaseClient) UpdateMessageStatus(
 	conf *config.Config,
 	req *message.StatusUpdateRequest,
 ) (*message.StatusUpdateResponse, error) {
-	resp, err := bc.message.UpdateMessageStatus(ctx, conf, req)
+	resp, err := bc.getMessage().UpdateMessageStatus(ctx, conf, req)
 	if err != nil {
 		return nil, fmt.Errorf("update message status: %w", err)
 	}
