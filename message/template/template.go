@@ -15,6 +15,14 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Package template provides types and constructors for WhatsApp message
+// templates — the only message type that can be sent outside customer service
+// windows.
+//
+// Templates must be approved before sending. Categories are authentication,
+// marketing, or utility. Parameters use named ({{first_name}}) or positional
+// ({{1}}) format. Each WABA can have up to 250 templates (6,000 if verified),
+// with a creation limit of 100 per hour.
 package template
 
 import (

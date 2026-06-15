@@ -133,6 +133,7 @@ func (handler *Handler) handleNotificationMessage( //nolint:gocognit,funlen // s
 		MessageID:        message.ID,
 		Timestamp:        message.Timestamp,
 		Type:             message.Type,
+		GroupID:          message.GroupID,
 		Context:          message.Context,
 		IsAReply:         message.IsAReply(),
 		IsForwarded:      message.IsForwarded(),
@@ -480,7 +481,9 @@ func (handler *Handler) SetOrderMessageHandler(
 	handler.orderMessage = h
 }
 
-// OnLocationMessage registers a handler for location messages in the messages webhook.
+// OnLocationMessage registers a handler for shared location messages in the
+// messages webhook. The location includes latitude, longitude, name, address,
+// and optionally a URL (usually only for business locations).
 func (handler *Handler) OnLocationMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, loc *media.Location) error,
 ) {
@@ -494,7 +497,11 @@ func (handler *Handler) SetLocationMessageHandler(
 	handler.locationMessage = h
 }
 
-// OnContactsMessage registers a handler for contacts messages in the messages webhook.
+// OnContactsMessage registers a handler for contacts messages in the messages
+// webhook. Contact payloads contain name, phone, email, address, URL, and
+// organization fields — all optional since the WhatsApp user chooses what to
+// share. If the message came via a Click to WhatsApp ad, the referral data is
+// delivered to [OnReferralMessage] instead.
 func (handler *Handler) OnContactsMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, contacts *message.Contacts) error,
 ) {
@@ -606,7 +613,10 @@ func (handler *Handler) SetAddressSubmissionHandler(
 	handler.addressSubmission = h
 }
 
-// OnReferralMessage registers a handler for referral messages in the messages webhook.
+// OnReferralMessage registers a handler for messages originating from Click to
+// WhatsApp ads. The referral object carries the ad ID, source URL, headline,
+// body, media URLs, and click tracking ID (ctwa_clid). Present on any incoming
+// message type (text, image, contacts, etc.) sent via a Click to WhatsApp ad.
 func (handler *Handler) OnReferralMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, ref *ReferralNotification) error,
 ) {
@@ -648,7 +658,9 @@ func (handler *Handler) SetSystemMessageHandler(
 	handler.systemMessage = h
 }
 
-// OnAudioMessage registers a handler for audio messages in the messages webhook.
+// OnAudioMessage registers a handler for audio messages in the messages
+// webhook. Metadata includes MIME type, SHA-256 hash, and download URL.
+// For voice messages, check the voice field via the Media API.
 func (handler *Handler) OnAudioMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
@@ -662,7 +674,10 @@ func (handler *Handler) SetAudioMessageHandler(
 	handler.audioMessage = h
 }
 
-// OnVideoMessage registers a handler for video messages in the messages webhook.
+// OnVideoMessage registers a handler for video messages in the messages
+// webhook. Metadata includes MIME type, SHA-256 hash, caption, and download
+// URL (v2025.11+). Use the ID with the Media API or the URL directly with
+// your access token to retrieve the asset.
 func (handler *Handler) OnVideoMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
@@ -676,7 +691,9 @@ func (handler *Handler) SetVideoMessageHandler(
 	handler.videoMessage = h
 }
 
-// OnImageMessage registers a handler for image messages in the messages webhook.
+// OnImageMessage registers a handler for image messages in the messages
+// webhook. Metadata includes MIME type, SHA-256 hash, caption, and download
+// URL (v2025.11+).
 func (handler *Handler) OnImageMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
@@ -690,7 +707,9 @@ func (handler *Handler) SetImageMessageHandler(
 	handler.imageMessage = h
 }
 
-// OnDocumentMessage registers a handler for document messages in the messages webhook.
+// OnDocumentMessage registers a handler for document messages in the messages
+// webhook. Metadata includes filename, MIME type, SHA-256 hash, caption, and
+// download URL.
 func (handler *Handler) OnDocumentMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {
@@ -704,7 +723,8 @@ func (handler *Handler) SetDocumentMessageHandler(
 	handler.documentMessage = h
 }
 
-// OnStickerMessage registers a handler for sticker messages in the messages webhook.
+// OnStickerMessage registers a handler for sticker messages in the messages
+// webhook. Metadata includes MIME type, SHA-256 hash, and an animated flag.
 func (handler *Handler) OnStickerMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, media *media.Info) error,
 ) {

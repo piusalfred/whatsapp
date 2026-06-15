@@ -54,6 +54,7 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 	"github.com/piusalfred/whatsapp/qrcode"
 	"github.com/piusalfred/whatsapp/settings"
+	"github.com/piusalfred/whatsapp/templates"
 	"github.com/piusalfred/whatsapp/uploads"
 	"github.com/piusalfred/whatsapp/user"
 	"github.com/piusalfred/whatsapp/webhooks/callbacks"
@@ -97,6 +98,8 @@ type BaseClient struct {
 	callbacksOnce sync.Once
 	message       *message.BaseClient
 	messageOnce   sync.Once
+	templates     *templates.BaseClient
+	templatesOnce sync.Once
 
 	opts []whttp.CoreSenderOption
 }
@@ -217,6 +220,13 @@ func (bc *BaseClient) getCallbacks() *callbacks.BaseClient {
 	return bc.callbacks
 }
 
+func (bc *BaseClient) getTemplates() *templates.BaseClient {
+	bc.templatesOnce.Do(func() {
+		bc.templates = &templates.BaseClient{BaseClient: *whttp.NewBaseClient[templates.BaseRequest](bc.opts...)}
+	})
+	return bc.templates
+}
+
 func (bc *BaseClient) getMessage() *message.BaseClient {
 	bc.messageOnce.Do(func() {
 		bc.message = &message.BaseClient{BaseClient: *whttp.NewBaseClient[message.BaseRequest](bc.opts...)}
@@ -282,4 +292,9 @@ func (c *Client) SetCallbacksMiddlewares(mws ...whttp.Middleware[callbacks.BaseR
 
 func (c *Client) SetMessagesMiddlewares(mws ...whttp.Middleware[message.BaseRequest]) {
 	c.sender.getMessage().SetMiddlewares(mws...)
+}
+
+// SetTemplatesMiddlewares configures middlewares for the templates sub-client.
+func (c *Client) SetTemplatesMiddlewares(mws ...whttp.Middleware[templates.BaseRequest]) {
+	c.sender.getTemplates().SetMiddlewares(mws...)
 }

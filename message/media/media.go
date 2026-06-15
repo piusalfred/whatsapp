@@ -18,6 +18,9 @@
 package media
 
 type (
+	// Info contains metadata about a media attachment received via webhooks.
+	// URL is a direct download link (use with access token). ID can be used
+	// with the Media API to retrieve the asset.
 	Info struct {
 		ID       string `json:"id,omitempty"`
 		Caption  string `json:"caption,omitempty"`
@@ -25,6 +28,7 @@ type (
 		Sha256   string `json:"sha256,omitempty"`
 		Filename string `json:"filename,omitempty"`
 		Animated bool   `json:"animated,omitempty"` // used with stickers true if animated
+		URL      string `json:"url,omitempty"`      // direct download URL (v2025.11+)
 	}
 
 	Media struct {
@@ -70,6 +74,7 @@ type (
 		Latitude  float64 `json:"latitude"`
 		Name      string  `json:"name"`
 		Address   string  `json:"address"`
+		URL       string  `json:"url,omitempty"`
 	}
 
 	Reaction struct {

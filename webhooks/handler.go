@@ -540,16 +540,26 @@ type (
 		Referral *Referral
 	}
 
+	// Pricing provides billing information for a message status event.
+	// Present only on sent status and one of delivered or read.
+	// Category values: authentication, authentication-international, marketing,
+	// marketing_lite, referral_conversion, service, utility.
+	// PricingModel is "CBP" (conversation-based) or "PMP" (per-message).
 	Pricing struct {
 		Billable     bool   `json:"billable,omitempty"` // Deprecated
 		Category     string `json:"category,omitempty"`
 		PricingModel string `json:"pricing_model,omitempty"`
 	}
 
+	// ConversationOrigin identifies how a conversation was started (e.g.,
+	// "authentication", "marketing", "service").
 	ConversationOrigin struct {
 		Type string `json:"type,omitempty"`
 	}
 
+	// Conversation holds metadata about the conversation associated with
+	// a message. Omitted for v24.0+ unless the message was sent within an
+	// open free entry point window. The ID is unique per window.
 	Conversation struct {
 		ID     string              `json:"id,omitempty"`
 		Origin *ConversationOrigin `json:"origin,omitempty"`
@@ -677,11 +687,13 @@ type (
 	// Type The type of message that was received by the business.
 	// Context The context of the message. Only included when a user replies or interacts with one
 	// of your messages.
+	// GroupID is set when the message was sent to or from a group chat.
 	MessageInfo struct {
 		From             string
 		MessageID        string
 		Timestamp        string
 		Type             string
+		GroupID          string
 		Context          *Context
 		IsAReply         bool
 		IsForwarded      bool

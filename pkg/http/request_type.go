@@ -99,6 +99,11 @@ const (
 	RequestTypeListSystemUsers
 	RequestTypeUpdateSystemUser
 	RequestTypeInvalidateSystemUserTokens
+	RequestTypeCreateTemplate
+	RequestTypeListTemplates
+	RequestTypeGetTemplate
+	RequestTypeEditTemplate
+	RequestTypeDeleteTemplate
 
 	// Sentinel (NOT a real request type): keep this last for testing purposes.
 	requestTypeCount
@@ -185,6 +190,11 @@ var requestTypeStrings = [...]string{ //nolint:gochecknoglobals // immutable str
 	"list_system_users",
 	"update_system_user",
 	"invalidate_system_user_tokens",
+	"create_template",
+	"list_templates",
+	"get_template",
+	"edit_template",
+	"delete_template",
 }
 
 func (r RequestType) Name() string {
