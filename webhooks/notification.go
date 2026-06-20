@@ -47,6 +47,16 @@ type (
 	// Value is the union type for all webhook event payloads. Only the
 	// fields relevant to the current event are populated — check the parent
 	// Change.Field to determine which subset to read.
+	//
+	// For messages webhooks, there are two distinct payload shapes:
+	//   - Messages populated — an incoming message from a WhatsApp user.
+	//   - Statuses populated — a status update for an outgoing message
+	//     (sent, delivered, read, failed).
+	//
+	// Errors appear in three possible locations:
+	//   - Value.Errors — system-, app-, or account-level errors.
+	//   - Message.Errors — per-incoming-message errors (type "unsupported").
+	//   - Status.Errors — per-outgoing-message errors.
 	Value struct {
 		Event                        string                    `json:"event,omitempty"`
 		MessageTemplateID            int64                     `json:"message_template_id,omitempty"`

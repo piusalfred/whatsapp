@@ -102,6 +102,24 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 }
 
 type (
+	// Status represents a delivery status event for an outgoing message.
+	//
+	// StatusValue indicates the current state:
+	//   sent      — message accepted by WhatsApp servers (one checkmark).
+	//   delivered — message reached the user's device (two checkmarks).
+	//              May be skipped if the message is read immediately.
+	//   read      — message displayed in an open chat (two blue checkmarks).
+	//   failed    — message could not be sent or delivered.
+	//   played    — voice message was played by recipient (blue microphone).
+	//
+	// Conditional fields:
+	//   Conversation — included with sent and one of delivered/read.
+	//                  Omitted for v24.0+ unless sent within a free entry
+	//                  point window.
+	//   Pricing      — included with sent and one of delivered/read.
+	//   Errors       — present only on failed status.
+	//   RecipientType, RecipientParticipantID — present for group messages.
+	//   BizOpaqueCallbackData — present if set when sending the message.
 	Status struct {
 		ID                     string             `json:"id,omitempty"`
 		RecipientID            string             `json:"recipient_id,omitempty"`
@@ -225,8 +243,10 @@ func (handler *Handler) SetNotificationErrorsHandler(
 	handler.notificationErrors = fn
 }
 
-// OnMessageStatusChange registers a handler for message status changes in the messages webhook
-// (sent, delivered, read, failed).
+// OnMessageStatusChange registers a handler for message delivery status updates
+// (sent, delivered, read, played, failed). A single outgoing message may trigger
+// up to three status webhooks. The "delivered" webhook may be skipped if the
+// message is read immediately.
 func (handler *Handler) OnMessageStatusChange(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, status []*Status) error,
 ) {
