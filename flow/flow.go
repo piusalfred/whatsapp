@@ -873,11 +873,7 @@ func (h *DataExchangeHandlerImpl) Handle(w http.ResponseWriter, request *http.Re
 	ctx := request.Context()
 
 	var req Request
-	if err := whttp.DecodeRequestJSON(request, &req, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  false,
-	}); err != nil {
+	if err := whttp.DecodeRequestJSON(request, &req, whttp.DecodeOptionsNoOp()); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 
 		return

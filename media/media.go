@@ -374,6 +374,12 @@ type (
 	}
 )
 
+func ID(mediaID string) *BaseRequest {
+	return &BaseRequest{
+		MediaID: mediaID,
+	}
+}
+
 // NewClient creates a high-level [Client] with a fixed configuration.
 // Optional [SenderOption] functions tune the underlying HTTP transport.
 func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
@@ -557,9 +563,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	req := whttp.Build[any](bld, nil)
 
 	resp := &BaseResponse{}
-	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
-		InspectResponseError: true,
-	})
+	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive())
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)

@@ -35,16 +35,11 @@ type DecodeOptions struct {
 	MaxBodyBytes          int64 // 0 = use package default (DefaultMaxBodyBytes)
 }
 
-func effectiveMaxBodyBytes(opts DecodeOptions) int64 {
-	if opts.MaxBodyBytes > 0 {
-		return opts.MaxBodyBytes
-	}
-	return DefaultMaxBodyBytes
-}
-
-// StrictDecode returns options that reject unknown JSON fields, require a
-// non-empty response body, and parse error bodies into structured types.
-func StrictDecode() DecodeOptions {
+// DecodeOptionsStrict returns options that reject unknown JSON fields, require
+// a non-empty response body, and parse error responses into structured types.
+// Use this when you expect a well-known response schema and want to catch
+// unexpected fields early.
+func DecodeOptionsStrict() DecodeOptions {
 	return DecodeOptions{
 		DisallowUnknownFields: true,
 		DisallowEmptyResponse: true,
@@ -52,12 +47,38 @@ func StrictDecode() DecodeOptions {
 	}
 }
 
-// PermissiveDecode returns options that accept unknown fields, allow empty
-// bodies, and treat error responses as opaque failures.
-func PermissiveDecode() DecodeOptions {
+// DecodeOptionsPermissive returns options that accept unknown fields, allow
+// empty response bodies, and parse error responses into structured types.
+// This is the safest default for most API calls — it won't reject responses
+// due to unexpected fields or missing bodies, but will still surface API
+// errors as typed [ResponseError] values.
+func DecodeOptionsPermissive() DecodeOptions {
 	return DecodeOptions{
 		InspectResponseError: true,
 	}
+}
+
+// DecodeOptionsNoOp returns options that accept unknown fields, allow empty
+// bodies, and treat error responses as opaque failures. Use this when you
+// don't need error inspection and want the raw JSON decode with no
+// validation whatsoever.
+func DecodeOptionsNoOp() DecodeOptions {
+	return DecodeOptions{}
+}
+
+// SetMaxBodyBytesSize sets the maximum body size in bytes for decoding.
+// When 0 or unset, [DefaultMaxBodyBytes] is used. Returns the receiver
+// for chaining at the call site.
+func (opts *DecodeOptions) SetMaxBodyBytesSize(size int64) *DecodeOptions {
+	opts.MaxBodyBytes = size
+	return opts
+}
+
+func effectiveMaxBodyBytes(opts DecodeOptions) int64 {
+	if opts.MaxBodyBytes > 0 {
+		return opts.MaxBodyBytes
+	}
+	return DefaultMaxBodyBytes
 }
 
 func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions) error {
@@ -199,4 +220,52 @@ func BodyReaderResponseDecoder(fn ResponseBodyReaderFunc) ResponseDecoderFunc {
 
 		return nil
 	}
+}
+
+// ResponseCapturer wraps a ResponseDecoder and retains a copy of the response
+// body, status code, and headers so callers can inspect the raw HTTP response
+// after decoding completes.
+type ResponseCapturer struct {
+	inner      ResponseDecoder
+	Body       []byte
+	StatusCode int
+	Header     http.Header
+}
+
+// NewResponseCapturer returns a ResponseCapturer that delegates to inner after
+// capturing the response details.
+func NewResponseCapturer(inner ResponseDecoder) *ResponseCapturer {
+	return &ResponseCapturer{inner: inner}
+}
+
+// Decode captures status code, headers, and a copy of the body, then delegates
+// to the inner decoder. The response body is restored so the inner decoder sees
+// the original content.
+func (c *ResponseCapturer) Decode(ctx context.Context, response *http.Response) error {
+	c.StatusCode = response.StatusCode
+	c.Header = response.Header.Clone()
+
+	if response.Body != nil {
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return fmt.Errorf("capture response body: %w", err)
+		}
+		c.Body = body
+		response.Body = io.NopCloser(bytes.NewReader(body))
+	}
+
+	if c.inner != nil {
+		if err := c.inner.Decode(ctx, response); err != nil {
+			return fmt.Errorf("inner decoder: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Reset clears captured data so the capturer can be reused.
+func (c *ResponseCapturer) Reset() {
+	c.Body = nil
+	c.StatusCode = 0
+	c.Header = nil
 }

@@ -26,6 +26,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -750,4 +751,226 @@ func TestDecodeResponseJSON_MaxBodyBytes(t *testing.T) {
 		test.AssertError(t, "should error when body exceeds limit", err)
 		test.AssertErrorIs(t, "should be ErrBodyTooLarge", err, whttp.ErrBodyTooLarge)
 	})
+}
+
+// mockDecoder is a simple spy/stub for testing the inner ResponseDecoder.
+type mockDecoder struct {
+	err          error
+	receivedBody []byte
+	called       bool
+}
+
+func (m *mockDecoder) Decode(ctx context.Context, response *http.Response) error {
+	m.called = true
+	if response.Body != nil {
+		// Read the body to verify the capturer properly restored it
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return fmt.Errorf("mock decoder read error: %w", err)
+		}
+		m.receivedBody = body
+	}
+	return m.err
+}
+
+var (
+	errSimulatedRead      = errors.New("simulated read error")
+	errInnerDecoderFailed = errors.New("inner decoder failed")
+)
+
+// errReader simulates a network failure during body reading.
+type errReader struct{}
+
+func (errReader) Read(p []byte) (int, error) {
+	return 0, errSimulatedRead
+}
+
+func (errReader) Close() error { return nil }
+
+func TestResponseCapturer_Decode(t *testing.T) {
+	tests := []struct {
+		name         string
+		response     *http.Response
+		innerDecoder *mockDecoder
+		wantErr      bool
+		errContains  string
+		wantBody     []byte
+		wantStatus   int
+		wantHeader   http.Header
+	}{
+		{
+			name: "successful capture with inner decoder",
+			response: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"key":"value"}`))),
+			},
+			innerDecoder: &mockDecoder{},
+			wantErr:      false,
+			wantBody:     []byte(`{"key":"value"}`),
+			wantStatus:   http.StatusOK,
+			wantHeader:   http.Header{"Content-Type": []string{"application/json"}},
+		},
+		{
+			name: "nil response body",
+			response: &http.Response{
+				StatusCode: http.StatusNoContent,
+				Header:     http.Header{"X-Custom": []string{"test"}},
+				Body:       nil,
+			},
+			innerDecoder: &mockDecoder{},
+			wantErr:      false,
+			wantBody:     nil,
+			wantStatus:   http.StatusNoContent,
+			wantHeader:   http.Header{"X-Custom": []string{"test"}},
+		},
+		{
+			name: "nil inner decoder",
+			response: &http.Response{
+				StatusCode: http.StatusAccepted,
+				Header:     http.Header{},
+				Body:       io.NopCloser(bytes.NewReader([]byte("data"))),
+			},
+			innerDecoder: nil, // Tests c.inner != nil check
+			wantErr:      false,
+			wantBody:     []byte("data"),
+			wantStatus:   http.StatusAccepted,
+			wantHeader:   http.Header{},
+		},
+		{
+			name: "inner decoder returns error",
+			response: &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Header:     http.Header{},
+				Body:       io.NopCloser(bytes.NewReader([]byte("error details"))),
+			},
+			innerDecoder: &mockDecoder{err: errInnerDecoderFailed},
+			wantErr:      true,
+			errContains:  "inner decoder failed",
+			wantBody:     []byte("error details"),
+			wantStatus:   http.StatusBadRequest,
+			wantHeader:   http.Header{},
+		},
+		{
+			name: "body read failure",
+			response: &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Header:     http.Header{},
+				Body:       errReader{}, // Will fail on io.ReadAll
+			},
+			innerDecoder: &mockDecoder{},
+			wantErr:      true,
+			errContains:  "capture response body",
+			wantBody:     nil,
+			wantStatus:   http.StatusInternalServerError,
+			wantHeader:   http.Header{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var inner whttp.ResponseDecoder
+			if tt.innerDecoder != nil {
+				inner = tt.innerDecoder
+			}
+			capturer := whttp.NewResponseCapturer(inner)
+
+			err := capturer.Decode(context.Background(), tt.response)
+
+			if tt.wantErr {
+				test.AssertError(t, "Decode", err)
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("Decode() error = %v, expected to contain %q", err, tt.errContains)
+				}
+			} else {
+				test.AssertNoError(t, "Decode", err)
+			}
+
+			if tt.name == "body read failure" {
+				return
+			}
+
+			if capturer.StatusCode != tt.wantStatus {
+				t.Errorf("StatusCode = %v, want %v", capturer.StatusCode, tt.wantStatus)
+			}
+			if !reflect.DeepEqual(capturer.Header, tt.wantHeader) {
+				t.Errorf("Header = %v, want %v", capturer.Header, tt.wantHeader)
+			}
+			if !bytes.Equal(capturer.Body, tt.wantBody) {
+				t.Errorf("Body = %q, want %q", capturer.Body, tt.wantBody)
+			}
+
+			if tt.innerDecoder != nil {
+				if !tt.innerDecoder.called {
+					t.Error("expected inner decoder to be called, but it was not")
+				}
+				if tt.response.Body != nil && !bytes.Equal(tt.innerDecoder.receivedBody, tt.wantBody) {
+					t.Errorf("Inner decoder received body = %q, want %q (body not restored properly)",
+						tt.innerDecoder.receivedBody, tt.wantBody)
+				}
+			}
+		})
+	}
+}
+
+func TestResponseCapturer_Reset(t *testing.T) {
+	t.Parallel()
+
+	capturer := whttp.NewResponseCapturer(nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusTeapot,
+		Header:     http.Header{"Dirty-Header": []string{"true"}},
+		Body:       io.NopCloser(strings.NewReader("dirty body")),
+	}
+	test.AssertNoError(t, "dirtying capturer", capturer.Decode(context.Background(), resp))
+
+	if capturer.Body == nil || capturer.StatusCode == 0 || capturer.Header == nil {
+		t.Fatal("expected dirty state before Reset")
+	}
+
+	capturer.Reset()
+
+	if capturer.Body != nil {
+		t.Errorf("Expected Body to be nil after Reset, got %q", capturer.Body)
+	}
+	if capturer.StatusCode != 0 {
+		t.Errorf("Expected StatusCode to be 0 after Reset, got %d", capturer.StatusCode)
+	}
+	if capturer.Header != nil {
+		t.Errorf("Expected Header to be nil after Reset, got %v", capturer.Header)
+	}
+
+	resp2 := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"After-Reset": []string{"yes"}},
+		Body:       io.NopCloser(strings.NewReader("fresh data")),
+	}
+	test.AssertNoError(t, "capturer should still work after Reset", capturer.Decode(context.Background(), resp2))
+	if capturer.StatusCode != http.StatusOK {
+		t.Errorf("StatusCode after reset = %d, want %d", capturer.StatusCode, http.StatusOK)
+	}
+	if !bytes.Equal(capturer.Body, []byte("fresh data")) {
+		t.Errorf("Body after reset = %q, want %q", capturer.Body, "fresh data")
+	}
+}
+
+func TestResponseCapturer_HeaderCloning(t *testing.T) {
+	t.Parallel()
+
+	originalHeader := http.Header{"X-Test": []string{"original"}}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     originalHeader,
+		Body:       nil,
+	}
+	capturer := whttp.NewResponseCapturer(nil)
+
+	test.AssertNoError(t, "HeaderCloning", capturer.Decode(context.Background(), resp))
+
+	resp.Header.Set("X-Test", "mutated")
+
+	if capturedVal := capturer.Header.Get("X-Test"); capturedVal != "original" {
+		t.Errorf("capturer Header was affected by mutation. Got %q, want %q", capturedVal, "original")
+	}
 }

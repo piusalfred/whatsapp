@@ -209,19 +209,69 @@ type (
 	}
 )
 
-func New(recipient string, options ...Option) *Message {
+// SendInfo bundles everything needed to route and track a message: recipient
+// identity, type, reply-to context, metadata, and opaque callback data. Use
+// [SendTo] to create one, then chain methods as needed.
+type SendInfo struct {
+	recipientID           string
+	recipientType         recipientType
+	replyTo               string
+	metadata              types.Metadata
+	bizOpaqueCallbackData string
+}
+
+// SendTo creates a SendInfo for the given recipient ID, defaulting to
+// [RecipientTypeIndividual].
+func SendTo(recipientID string) *SendInfo {
+	return &SendInfo{recipientID: recipientID, recipientType: RecipientTypeIndividual}
+}
+
+// AsGroupMessage marks this send as targeting a group. Returns the receiver for chaining.
+func (s *SendInfo) AsGroupMessage() *SendInfo {
+	return s.RecipientType(RecipientTypeGroup)
+}
+
+// RecipientType sets the recipient type for this send. Returns the receiver for chaining.
+func (s *SendInfo) RecipientType(recipientType recipientType) *SendInfo {
+	s.recipientType = recipientType
+	return s
+}
+
+// ReplyTo sets the message ID this message is in reply to. Returns the
+// receiver for chaining.
+func (s *SendInfo) ReplyTo(messageID string) *SendInfo {
+	s.replyTo = messageID
+	return s
+}
+
+// Metadata attaches request-scoped metadata that travels with the send
+// and is echoed back in the response. Returns the receiver for chaining.
+func (s *SendInfo) Metadata(metadata types.Metadata) *SendInfo {
+	s.metadata = metadata
+	return s
+}
+
+// BizOpaqueCallbackData attaches opaque data that WhatsApp echoes back in status
+// webhooks for correlation. Returns the receiver for chaining.
+func (s *SendInfo) BizOpaqueCallbackData(data string) *SendInfo {
+	s.bizOpaqueCallbackData = data
+	return s
+}
+
+func New(si *SendInfo, options ...Option) *Message {
 	msg := &Message{
 		Product:       MessagingProduct,
-		To:            recipient,
-		RecipientType: string(RecipientTypeIndividual),
+		To:            si.recipientID,
+		RecipientType: string(si.recipientType),
 	}
-
+	if si.replyTo != "" {
+		msg.Context = &Context{MessageID: si.replyTo}
+	}
 	for _, option := range options {
 		if option != nil {
 			option(msg)
 		}
 	}
-
 	return msg
 }
 
@@ -231,12 +281,6 @@ const (
 	RecipientTypeIndividual recipientType = "individual"
 	RecipientTypeGroup      recipientType = "group"
 )
-
-func WithRecipientType(recipientType recipientType) Option {
-	return func(message *Message) {
-		message.RecipientType = string(recipientType)
-	}
-}
 
 func WithImage(image *Image) Option {
 	return func(message *Message) {
@@ -287,12 +331,6 @@ func WithReaction(reaction *Reaction) Option {
 	}
 }
 
-func WithMessageAsReplyTo(messageID string) Option {
-	return func(message *Message) {
-		message.Context = &Context{MessageID: messageID}
-	}
-}
-
 func WithTextMessage(text *Text) Option {
 	return func(message *Message) {
 		message.Type = TypeText
@@ -338,33 +376,36 @@ const (
 )
 
 type Request struct {
-	RequestType RequestType `json:"-"`
-	Message     *Message    `json:"-"`
-	Status      string      `json:"-"`
-	MessageID   string      `json:"-"`
+	RequestType           RequestType    `json:"-"`
+	Message               *Message       `json:"-"`
+	Status                string         `json:"-"`
+	MessageID             string         `json:"-"`
+	Metadata              types.Metadata `json:"-"`
+	BizOpaqueCallbackData string         `json:"-"`
 }
 
 type BaseRequest struct {
-	MessagingProduct string               `json:"messaging_product"`
-	To               string               `json:"to,omitempty"`
-	RecipientType    string               `json:"recipient_type,omitempty"`
-	Type             string               `json:"type,omitempty"`
-	PreviewURL       bool                 `json:"preview_url,omitempty"`
-	Context          *Context             `json:"context,omitempty"`
-	Text             *Text                `json:"text,omitempty"`
-	Image            *Image               `json:"image,omitempty"`
-	Video            *Video               `json:"video,omitempty"`
-	Audio            *Audio               `json:"audio,omitempty"`
-	Document         *Document            `json:"document,omitempty"`
-	Sticker          *Sticker             `json:"sticker,omitempty"`
-	Location         *Location            `json:"location,omitempty"`
-	Reaction         *Reaction            `json:"reaction,omitempty"`
-	Contacts         Contacts             `json:"contacts,omitempty"`
-	Interactive      *interactive.Message `json:"interactive,omitempty"`
-	Template         *template.Template   `json:"template,omitempty"`
-	Pin              *Pin                 `json:"pin,omitempty"`
-	Status           string               `json:"status,omitempty"`
-	MessageID        string               `json:"message_id,omitempty"`
+	MessagingProduct      string               `json:"messaging_product"`
+	To                    string               `json:"to,omitempty"`
+	RecipientType         string               `json:"recipient_type,omitempty"`
+	Type                  string               `json:"type,omitempty"`
+	PreviewURL            bool                 `json:"preview_url,omitempty"`
+	Context               *Context             `json:"context,omitempty"`
+	Text                  *Text                `json:"text,omitempty"`
+	Image                 *Image               `json:"image,omitempty"`
+	Video                 *Video               `json:"video,omitempty"`
+	Audio                 *Audio               `json:"audio,omitempty"`
+	Document              *Document            `json:"document,omitempty"`
+	Sticker               *Sticker             `json:"sticker,omitempty"`
+	Location              *Location            `json:"location,omitempty"`
+	Reaction              *Reaction            `json:"reaction,omitempty"`
+	Contacts              Contacts             `json:"contacts,omitempty"`
+	Interactive           *interactive.Message `json:"interactive,omitempty"`
+	Template              *template.Template   `json:"template,omitempty"`
+	Pin                   *Pin                 `json:"pin,omitempty"`
+	Status                string               `json:"status,omitempty"`
+	MessageID             string               `json:"message_id,omitempty"`
+	BizOpaqueCallbackData string               `json:"biz_opaque_callback_data,omitempty"`
 }
 
 type BaseResponse struct {
@@ -394,24 +435,25 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 func (bc *BaseClient) sendMessage(ctx context.Context, conf *config.Config, request *Request) (*BaseResponse, error) {
 	msg := request.Message
 	body := &BaseRequest{
-		MessagingProduct: "whatsapp",
-		To:               msg.To,
-		RecipientType:    msg.RecipientType,
-		Type:             msg.Type,
-		PreviewURL:       msg.PreviewURL,
-		Context:          msg.Context,
-		Text:             msg.Text,
-		Image:            msg.Image,
-		Video:            msg.Video,
-		Audio:            msg.Audio,
-		Document:         msg.Document,
-		Sticker:          msg.Sticker,
-		Location:         msg.Location,
-		Reaction:         msg.Reaction,
-		Contacts:         msg.Contacts,
-		Interactive:      msg.Interactive,
-		Template:         msg.Template,
-		Pin:              msg.Pin,
+		MessagingProduct:      "whatsapp",
+		To:                    msg.To,
+		RecipientType:         msg.RecipientType,
+		Type:                  msg.Type,
+		PreviewURL:            msg.PreviewURL,
+		Context:               msg.Context,
+		Text:                  msg.Text,
+		Image:                 msg.Image,
+		Video:                 msg.Video,
+		Audio:                 msg.Audio,
+		Document:              msg.Document,
+		Sticker:               msg.Sticker,
+		Location:              msg.Location,
+		Reaction:              msg.Reaction,
+		Contacts:              msg.Contacts,
+		Interactive:           msg.Interactive,
+		Template:              msg.Template,
+		Pin:                   msg.Pin,
+		BizOpaqueCallbackData: request.BizOpaqueCallbackData,
 	}
 
 	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
@@ -422,17 +464,17 @@ func (bc *BaseClient) sendMessage(ctx context.Context, conf *config.Config, requ
 		Endpoints(conf.APIVersion, conf.PhoneNumberID, endpoint)
 
 	req := whttp.BuildRequest(b, body)
+	if request.Metadata != nil {
+		req.Metadata = request.Metadata
+	}
 
 	resp := &BaseResponse{}
-	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
+	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsStrict())
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send message: %w", err)
 	}
+	resp.MessageMetadata = request.Metadata
 	return resp, nil
 }
 
@@ -467,11 +509,14 @@ func (bc *BaseClient) updateStatus(ctx context.Context, conf *config.Config, req
 func (bc *BaseClient) SendMessage(
 	ctx context.Context,
 	conf *config.Config,
+	si *SendInfo,
 	msg *Message,
 ) (*SendMessageResponse, error) {
 	req := &Request{
-		RequestType: RequestTypeSendMessage,
-		Message:     msg,
+		RequestType:           RequestTypeSendMessage,
+		Message:               msg,
+		Metadata:              si.metadata,
+		BizOpaqueCallbackData: si.bizOpaqueCallbackData,
 	}
 	resp, err := bc.Send(ctx, conf, req)
 	if err != nil {
@@ -528,66 +573,98 @@ func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, err
 	return c.sender.Send(ctx, c.config, request)
 }
 
-func (c *Client) SendMessage(ctx context.Context, msg *Message) (*SendMessageResponse, error) {
-	return c.sender.SendMessage(ctx, c.config, msg)
+func (c *Client) SendMessage(ctx context.Context, si *SendInfo, msg *Message) (*SendMessageResponse, error) {
+	return c.sender.SendMessage(ctx, c.config, si, msg)
 }
 
 func (c *Client) UpdateMessageStatus(ctx context.Context, req *StatusUpdateRequest) (*StatusUpdateResponse, error) {
 	return c.sender.UpdateMessageStatus(ctx, c.config, req)
 }
 
-func (c *Client) SendTextMessage(ctx context.Context, to string, text *Text) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithTextMessage(text)))
+func (c *Client) SendTextMessage(ctx context.Context, si *SendInfo, text *Text) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithTextMessage(text)))
 }
 
-func (c *Client) SendImageMessage(ctx context.Context, to string, image *Image) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithImage(image)))
+func (c *Client) SendImageMessage(
+	ctx context.Context,
+	si *SendInfo,
+	image *Image,
+) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithImage(image)))
 }
 
-func (c *Client) SendAudioMessage(ctx context.Context, to string, audio *Audio) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithAudio(audio)))
+func (c *Client) SendAudioMessage(
+	ctx context.Context,
+	si *SendInfo,
+	audio *Audio,
+) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithAudio(audio)))
 }
 
-func (c *Client) SendVideoMessage(ctx context.Context, to string, video *Video) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithVideo(video)))
+func (c *Client) SendVideoMessage(
+	ctx context.Context,
+	si *SendInfo,
+	video *Video,
+) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithVideo(video)))
 }
 
-func (c *Client) SendDocumentMessage(ctx context.Context, to string, doc *Document) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithDocument(doc)))
+func (c *Client) SendDocumentMessage(
+	ctx context.Context,
+	si *SendInfo,
+	doc *Document,
+) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithDocument(doc)))
 }
 
-func (c *Client) SendStickerMessage(ctx context.Context, to string, sticker *Sticker) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithSticker(sticker)))
+func (c *Client) SendStickerMessage(
+	ctx context.Context,
+	si *SendInfo,
+	sticker *Sticker,
+) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithSticker(sticker)))
 }
 
-func (c *Client) SendLocationMessage(ctx context.Context, to string, loc *Location) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithLocationMessage(loc)))
+func (c *Client) SendLocationMessage(
+	ctx context.Context,
+	si *SendInfo,
+	loc *Location,
+) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithLocationMessage(loc)))
 }
 
-func (c *Client) SendReactionMessage(ctx context.Context, to string, reaction *Reaction) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithReaction(reaction)))
+func (c *Client) SendReactionMessage(
+	ctx context.Context,
+	si *SendInfo,
+	reaction *Reaction,
+) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithReaction(reaction)))
 }
 
-func (c *Client) SendContactsMessage(ctx context.Context, to string, contacts *Contacts) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithContacts(contacts)))
+func (c *Client) SendContactsMessage(
+	ctx context.Context,
+	si *SendInfo,
+	contacts *Contacts,
+) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithContacts(contacts)))
 }
 
 func (c *Client) SendInteractiveMessage(
 	ctx context.Context,
-	to string,
+	si *SendInfo,
 	inter *interactive.Message,
 ) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithInteractiveMessage(inter)))
+	return c.SendMessage(ctx, si, New(si, WithInteractiveMessage(inter)))
 }
 
 func (c *Client) SendTemplateMessage(
 	ctx context.Context,
-	to string,
+	si *SendInfo,
 	tmpl *template.Template,
 ) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithTemplateMessage(tmpl)))
+	return c.SendMessage(ctx, si, New(si, WithTemplateMessage(tmpl)))
 }
 
-func (c *Client) SendPinMessage(ctx context.Context, to string, pin *Pin) (*SendMessageResponse, error) {
-	return c.SendMessage(ctx, New(to, WithPinGroupMessageInfo(pin)))
+func (c *Client) SendPinMessage(ctx context.Context, si *SendInfo, pin *Pin) (*SendMessageResponse, error) {
+	return c.SendMessage(ctx, si, New(si, WithPinGroupMessageInfo(pin)))
 }

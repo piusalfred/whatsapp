@@ -36,10 +36,15 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	conf := &config.Config{
-		BaseURL:       os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
-		APIVersion:    os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
-		AccessToken:   os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
-		PhoneNumberID: os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
+		BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
+		APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
+		AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
+		PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
+		BusinessAccountID: os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID"),
+		AppSecret:         os.Getenv("WHATSAPP_CLOUD_API_APP_SECRET"),
+		AppID:             os.Getenv("WHATSAPP_CLOUD_API_APP_ID"),
+		SecureRequests:    os.Getenv("WHATSAPP_CLOUD_API_SECURE_REQUESTS") == "true",
+		DebugLogLevel:     os.Getenv("WHATSAPP_CLOUD_API_DEBUG_LOG_LEVEL"),
 	}
 
 	lm := whttp.Middleware[message.BaseRequest](
@@ -66,7 +71,7 @@ func main() {
 	client := message.NewClient(conf, whttp.WithSenderTimeout(30*time.Second))
 	client.SetMiddlewares(lm)
 
-	recipient := os.Getenv("WHATSAPP_CLOUD_API_TEST_NUMBER")
+	si := message.SendTo(os.Getenv("WHATSAPP_CLOUD_API_TEST_NUMBER"))
 	ctx := context.Background()
 
 	tmpl := template.NewInteractiveTemplate(
@@ -74,14 +79,14 @@ func main() {
 		&template.Language{Code: "en_US"},
 		nil, nil, nil,
 	)
-	resp, err := client.SendTemplateMessage(ctx, recipient, tmpl)
+	resp, err := client.SendTemplateMessage(ctx, si, tmpl)
 	if err != nil {
 		logger.Error("template message", "error", err)
 		return
 	}
 	logger.Info("template message sent", "id", resp.Messages[0].ID)
 
-	resp, err = client.SendTextMessage(ctx, recipient, &message.Text{
+	resp, err = client.SendTextMessage(ctx, si, &message.Text{
 		PreviewURL: true,
 		Body:       "Visit the repo at https://github.com/piusalfred/whatsapp",
 	})
@@ -91,7 +96,7 @@ func main() {
 	}
 	logger.Info("text message sent", "id", resp.Messages[0].ID)
 
-	resp, err = client.SendInteractiveMessage(ctx, recipient,
+	resp, err = client.SendInteractiveMessage(ctx, si,
 		interactive.CTAURLButton(&interactive.CTAURLRequest{
 			DisplayText: "Github Link",
 			URL:         "https://github.com/piusalfred/whatsapp",
@@ -106,7 +111,7 @@ func main() {
 	}
 	logger.Info("interactive CTA sent", "id", resp.Messages[0].ID)
 
-	resp, err = client.SendInteractiveMessage(ctx, recipient,
+	resp, err = client.SendInteractiveMessage(ctx, si,
 		interactive.LocationRequest("Where are you?"),
 	)
 	if err != nil {
@@ -115,7 +120,7 @@ func main() {
 	}
 	logger.Info("location request sent", "id", resp.Messages[0].ID)
 
-	resp, err = client.SendLocationMessage(ctx, recipient, &message.Location{
+	resp, err = client.SendLocationMessage(ctx, si, &message.Location{
 		Longitude: -3.688344,
 		Latitude:  40.453053,
 		Name:      "Estadio Santiago Bernabéu",
@@ -140,14 +145,14 @@ func main() {
 			}),
 		),
 	}
-	resp, err = client.SendContactsMessage(ctx, recipient, contacts)
+	resp, err = client.SendContactsMessage(ctx, si, contacts)
 	if err != nil {
 		logger.Error("contacts", "error", err)
 		return
 	}
 	logger.Info("contacts sent", "id", resp.Messages[0].ID)
 
-	resp, err = client.SendReactionMessage(ctx, recipient, &message.Reaction{
+	resp, err = client.SendReactionMessage(ctx, si, &message.Reaction{
 		MessageID: resp.Messages[0].ID,
 		Emoji:     "🤝",
 	})

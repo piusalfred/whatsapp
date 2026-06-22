@@ -27,9 +27,13 @@ import (
 
 // SendMessage sends a WhatsApp message using the fixed configuration.
 // Build the message with [message.New] and the available Option helpers,
-// or construct it directly.
-func (c *Client) SendMessage(ctx context.Context, msg *message.Message) (*message.SendMessageResponse, error) {
-	resp, err := c.sender.SendMessage(ctx, c.config, msg)
+// or construct it directly. The SendInfo carries routing metadata.
+func (c *Client) SendMessage(
+	ctx context.Context,
+	si *message.SendInfo,
+	msg *message.Message,
+) (*message.SendMessageResponse, error) {
+	resp, err := c.sender.SendMessage(ctx, c.config, si, msg)
 	if err != nil {
 		return nil, fmt.Errorf("send message: %w", err)
 	}
@@ -53,9 +57,10 @@ func (c *Client) UpdateMessageStatus(
 func (bc *BaseClient) SendMessage(
 	ctx context.Context,
 	conf *config.Config,
+	si *message.SendInfo,
 	msg *message.Message,
 ) (*message.SendMessageResponse, error) {
-	resp, err := bc.getMessage().SendMessage(ctx, conf, msg)
+	resp, err := bc.getMessage().SendMessage(ctx, conf, si, msg)
 	if err != nil {
 		return nil, fmt.Errorf("send message: %w", err)
 	}

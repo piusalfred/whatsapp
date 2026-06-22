@@ -28,6 +28,11 @@ import (
 )
 
 type (
+	// Config ....
+	// DebugLogLevel have 3 acceptable values which are "all", "info" and "warning"
+	// all - All available debug messages.
+	// info - Debug messages with type info and warning.
+	// warning - Only debug messages with type warning.
 	Config struct {
 		BaseURL           string
 		APIVersion        string

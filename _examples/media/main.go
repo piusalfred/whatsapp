@@ -142,20 +142,14 @@ func main() {
 		return nil
 	})
 
-	if err := ms.client.DownloadByMediaID(ctx, &media.BaseRequest{
-		MediaID:            info.ID,
-		RestrictToOwnMedia: false,
-		PhoneNumberID:      "",
-	}, decoder, media.WithDownloadRetries(1)); err != nil {
+	if err := ms.client.DownloadByMediaID(ctx, media.ID(info.ID), decoder, media.WithDownloadRetries(1)); err != nil {
 		ms.logger.LogAttrs(ctx, slog.LevelError, "failed to download media", slog.String("error", err.Error()))
 	}
 
 	ms.logger.LogAttrs(ctx, slog.LevelInfo, "media downloaded successfully")
 
 	// delete the file
-	deleteMediaResponse, err := ms.client.Delete(ctx, &media.BaseRequest{
-		MediaID: info.ID,
-	})
+	deleteMediaResponse, err := ms.client.Delete(ctx, media.ID(info.ID))
 	if err != nil {
 		ms.logger.LogAttrs(ctx, slog.LevelError, "failed to delete media", slog.String("error", err.Error()))
 		return
