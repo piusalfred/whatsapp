@@ -32,7 +32,7 @@
 //	req := http.Build(builder, &MyMessage{Text: "hello"})
 //
 //	var resp MyResponse
-//	err := client.Send(ctx, req, http.ResponseDecoderJSON(&resp, http.StrictDecode()))
+//	err := client.Send(ctx, req, http.ResponseDecoderJSON(&resp, http.DecodeOptions{Flags: http.JSONDecodeStrict}))
 //
 // # Architecture
 //

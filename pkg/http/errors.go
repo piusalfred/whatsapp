@@ -28,10 +28,12 @@ import (
 
 // ResponseError wraps a WhatsApp API error response. It implements [error] and
 // provides [Unwrap] so callers can use [errors.As] to extract the inner
-// [werrors.Error] when needed.
+// [werrors.Error] when needed. It also implements [DebugHeadersCapturer] to
+// capture debug response headers on error responses.
 type ResponseError struct {
-	Code int            `json:"code,omitempty"`
-	Err  *werrors.Error `json:"error,omitempty"`
+	Code         int            `json:"code,omitempty"`
+	Err          *werrors.Error `json:"error,omitempty"`
+	DebugHeaders DebugHeaders   `json:"debug_headers"`
 }
 
 func (e *ResponseError) Error() string {
@@ -43,6 +45,10 @@ func (e *ResponseError) Error() string {
 
 func (e *ResponseError) Unwrap() error {
 	return e.Err
+}
+
+func (e *ResponseError) OnDebugHeaders(h DebugHeaders) {
+	e.DebugHeaders = h
 }
 
 // Package-level sentinels returned by decoder and request functions. Callers can

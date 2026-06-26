@@ -134,10 +134,17 @@ func ExampleNewBaseClient() {
 
 			return
 		}
-		defer r.Body.Close()
+		defer func(Body io.ReadCloser) {
+			closeErr := Body.Close()
+			if closeErr != nil {
+				fmt.Println("could not close body:", closeErr)
+			}
+		}(r.Body)
 
 		w.WriteHeader(http.StatusOK)
-		w.Write(bodyBytes)
+		if _, err := w.Write(bodyBytes); err != nil {
+			fmt.Printf("could not write response: %v", err)
+		}
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(echoHandler))
@@ -224,7 +231,10 @@ func TestMiddlewareExecution(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"name":"test","value":1}`))
+			_, err := w.Write([]byte(`{"name":"test","value":1}`))
+			if err != nil {
+				t.Fatal(err)
+			}
 		}))
 		defer server.Close()
 
@@ -264,7 +274,9 @@ func TestNewSenderIntegration(t *testing.T) {
 			}
 
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(TestMessage{Name: "response", Value: 200})
+			if err := json.NewEncoder(w).Encode(TestMessage{Name: "response", Value: 200}); err != nil {
+				t.Fatal(err)
+			}
 		}))
 		defer server.Close()
 
@@ -513,7 +525,9 @@ func TestSendFuncWithInterceptors_ErrorPaths(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"name":"test","value":123}`))
+			if _, err := w.Write([]byte(`{"name":"test","value":123}`)); err != nil {
+				t.Fatal(err)
+			}
 		}))
 		defer server.Close()
 
@@ -544,7 +558,7 @@ func TestSendFuncWithInterceptors_ErrorPaths(t *testing.T) {
 
 type errorTransport struct{}
 
-func (t *errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *errorTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
 	return nil, errTransport
 }
 
@@ -553,7 +567,9 @@ func TestSendFuncWithInterceptors_RequestHookError(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"name":"test","value":123}`))
+		if _, err := w.Write([]byte(`{"name":"test","value":123}`)); err != nil {
+			t.Fatal(err)
+		}
 	}))
 	defer server.Close()
 
@@ -583,7 +599,9 @@ func TestSendFuncWithInterceptors_ResponseHookError(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"name":"test","value":123}`))
+		if _, err := w.Write([]byte(`{"name":"test","value":123}`)); err != nil {
+			t.Fatal(err)
+		}
 	}))
 	defer server.Close()
 
@@ -613,7 +631,9 @@ func TestSendFuncWithInterceptors_DecoderError(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`not valid json`))
+		if _, err := w.Write([]byte(`not valid json`)); err != nil {
+			t.Fatal(err)
+		}
 	}))
 	defer server.Close()
 
@@ -624,7 +644,7 @@ func TestSendFuncWithInterceptors_DecoderError(t *testing.T) {
 	}
 
 	result := &TestMessage{}
-	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{DisallowUnknownFields: true})
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowUnknownFields})
 
 	sendFunc := whttp.SendFuncWithInterceptors[TestMessage](client, nil, nil, whttp.DefaultMaxBodyBytes)
 	err := sendFunc(context.Background(), req, decoder)
@@ -645,7 +665,9 @@ func TestCoreClient_SendWithMiddlewareChain(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"name":"success","value":200}`))
+		if _, err := w.Write([]byte(`{"name":"success","value":200}`)); err != nil {
+			t.Fatal(err)
+		}
 	}))
 	defer server.Close()
 
@@ -732,7 +754,9 @@ func TestCoreClient_InterceptorsWithBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(responseBody))
+		if _, err := w.Write([]byte(responseBody)); err != nil {
+			t.Fatal(err)
+		}
 	}))
 	defer server.Close()
 
@@ -961,11 +985,13 @@ func TestCoreClient_NilMiddlewaresSkipped(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"name":"test","value":1}`))
+		if _, err := w.Write([]byte(`{"name":"test","value":1}`)); err != nil {
+			t.Fatal(err)
+		}
 	}))
 	defer server.Close()
 
-	executionOrder := []string{}
+	var executionOrder []string
 
 	mw1 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
 		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {

@@ -98,8 +98,7 @@ func (c *Client) GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*
 
 	var resp MetricsAPIResponse
 	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
+		Flags: whttp.JSONDecodeDisallowUnknownFields | whttp.JSONDecodeDisallowEmptyResponse,
 	})
 
 	if err := c.sender.Sender.Send(ctx, req, decoder); err != nil {
