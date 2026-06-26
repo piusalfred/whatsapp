@@ -111,6 +111,8 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 				return fmt.Errorf("%w: %w, status code: %d", ErrDecodeErrorResponse, err, response.StatusCode)
 			}
 
+			deliverDebugHeaders(response, &errorResponse)
+
 			return &errorResponse
 		}
 
@@ -135,11 +137,21 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		decoder.DisallowUnknownFields()
 	}
 
-	if err = decoder.Decode(v); err != nil {
-		return fmt.Errorf("%w: %w", ErrDecodeResponseBody, err)
+	if decodeErr := decoder.Decode(v); decodeErr != nil {
+		return fmt.Errorf("%w: %w", ErrDecodeResponseBody, decodeErr)
 	}
 
+	deliverDebugHeaders(response, any(v))
+
 	return nil
+}
+
+// deliverDebugHeaders reads debug headers from the response and delivers them
+// to target if it implements [DebugHeadersCapturer].
+func deliverDebugHeaders(resp *http.Response, target any) {
+	if capturer, ok := target.(DebugHeadersCapturer); ok {
+		capturer.OnDebugHeaders(debugHeadersFromResponse(resp))
+	}
 }
 
 func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) error {

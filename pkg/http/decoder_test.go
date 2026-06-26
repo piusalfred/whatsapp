@@ -757,3 +757,156 @@ func TestDecodeResponseJSON_MaxBodyBytes(t *testing.T) {
 		test.AssertErrorIs(t, "should be ErrBodyTooLarge", err, whttp.ErrBodyTooLarge)
 	})
 }
+
+// debugHeadersTarget implements whttp.DebugHeadersCapturer for testing.
+type debugHeadersTarget struct {
+	Name         string `json:"name"`
+	Value        int    `json:"value"`
+	Captured     whttp.DebugHeaders
+	CaptureCount int
+}
+
+func (d *debugHeadersTarget) OnDebugHeaders(h whttp.DebugHeaders) {
+	d.Captured = h
+	d.CaptureCount++
+}
+
+func TestDecodeResponseJSON_DebugHeadersDelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success with body", func(t *testing.T) {
+		t.Parallel()
+
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Facebook-Api-Version": []string{"v22.0"},
+				"X-Fb-Trace-Id":        []string{"trace-abc", "trace-def"},
+				"X-Fb-Rev":             []string{"1001"},
+				"X-Fb-Debug":           []string{"debug-info"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"name":"test","value":42}`)),
+		}
+
+		var result debugHeadersTarget
+		err := whttp.DecodeResponseJSON[debugHeadersTarget](resp, &result, whttp.DecodeOptions{})
+
+		test.AssertNoError(t, "decode", err)
+		if result.CaptureCount != 1 {
+			t.Errorf("expected 1 capture, got %d", result.CaptureCount)
+		}
+		if result.Captured.FacebookAPIVersion != "v22.0" {
+			t.Errorf("expected API version v22.0, got %q", result.Captured.FacebookAPIVersion)
+		}
+		if len(result.Captured.FBTraceID) != 2 {
+			t.Errorf("expected 2 trace IDs, got %d", len(result.Captured.FBTraceID))
+		}
+		if gcmp.Diff(result.Captured.FBTraceID, []string{"trace-abc", "trace-def"}) != "" {
+			t.Errorf("trace IDs mismatch: %s", gcmp.Diff(result.Captured.FBTraceID, []string{"trace-abc", "trace-def"}))
+		}
+		if gcmp.Diff(result.Captured.FBRev, []string{"1001"}) != "" {
+			t.Errorf("FBRev mismatch: %s", gcmp.Diff(result.Captured.FBRev, []string{"1001"}))
+		}
+		if gcmp.Diff(result.Captured.FBDebug, []string{"debug-info"}) != "" {
+			t.Errorf("FBDebug mismatch: %s", gcmp.Diff(result.Captured.FBDebug, []string{"debug-info"}))
+		}
+		// Verify body was also decoded.
+		if result.Name != "test" || result.Value != 42 {
+			t.Errorf("body not decoded: name=%q value=%d", result.Name, result.Value)
+		}
+	})
+
+	t.Run("success with empty body skips delivery", func(t *testing.T) {
+		t.Parallel()
+
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Facebook-Api-Version": []string{"v22.0"},
+			},
+			Body: io.NopCloser(strings.NewReader("")),
+		}
+
+		var result debugHeadersTarget
+		err := whttp.DecodeResponseJSON[debugHeadersTarget](resp, &result, whttp.DecodeOptions{})
+
+		test.AssertNoError(t, "decode", err)
+		if result.CaptureCount != 0 {
+			t.Errorf("expected 0 captures for empty body, got %d", result.CaptureCount)
+		}
+	})
+
+	t.Run("error response with body delivers headers", func(t *testing.T) {
+		t.Parallel()
+
+		resp := &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header: http.Header{
+				"Facebook-Api-Version": []string{"v22.0"},
+				"X-Fb-Trace-Id":        []string{"err-trace"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"error":{"message":"bad request"}}`)),
+		}
+
+		var result debugHeadersTarget
+		err := whttp.DecodeResponseJSON[debugHeadersTarget](resp, &result, whttp.DecodeOptions{
+			Flags: whttp.JSONDecodeInspectResponseError,
+		})
+
+		// The error response path delivers headers to the errorResponse, not the target.
+		// Verify the error is returned.
+		test.AssertError(t, "should return error for non-2xx", err)
+		var respErr *whttp.ResponseError
+		if !errors.As(err, &respErr) {
+			t.Fatalf("expected *whttp.ResponseError, got %T", err)
+		}
+		// Verify the error response received headers.
+		if respErr.DebugHeaders.FacebookAPIVersion != "v22.0" {
+			t.Errorf("expected API version v22.0 on error response, got %q", respErr.DebugHeaders.FacebookAPIVersion)
+		}
+	})
+
+	t.Run("error response with empty body skips delivery", func(t *testing.T) {
+		t.Parallel()
+
+		resp := &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header: http.Header{
+				"Facebook-Api-Version": []string{"v22.0"},
+			},
+			Body: io.NopCloser(strings.NewReader("")),
+		}
+
+		var result debugHeadersTarget
+		err := whttp.DecodeResponseJSON[debugHeadersTarget](resp, &result, whttp.DecodeOptions{
+			Flags: whttp.JSONDecodeInspectResponseError,
+		})
+
+		test.AssertError(t, "should return error for non-2xx with empty body", err)
+		test.AssertErrorIs(t, "should be ErrRequestFailure", err, whttp.ErrRequestFailure)
+		if result.CaptureCount != 0 {
+			t.Errorf("expected 0 captures for error with empty body, got %d", result.CaptureCount)
+		}
+	})
+
+	t.Run("error without inspect skips delivery", func(t *testing.T) {
+		t.Parallel()
+
+		resp := &http.Response{
+			StatusCode: http.StatusInternalServerError,
+			Header: http.Header{
+				"Facebook-Api-Version": []string{"v22.0"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"error":"boom"}`)),
+		}
+
+		var result debugHeadersTarget
+		err := whttp.DecodeResponseJSON[debugHeadersTarget](resp, &result, whttp.DecodeOptions{})
+
+		test.AssertError(t, "should return error for non-2xx", err)
+		test.AssertErrorIs(t, "should be ErrRequestFailure", err, whttp.ErrRequestFailure)
+		if result.CaptureCount != 0 {
+			t.Errorf("expected 0 captures without inspect, got %d", result.CaptureCount)
+		}
+	})
+}

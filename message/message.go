@@ -67,6 +67,11 @@ type SendMessageResponse struct {
 	MessageMetadata types.Metadata      `json:"-"`
 	Success         bool                `json:"success"`
 	Debug           *whttp.DebugDetails `json:"__debug__,omitempty"`
+	DebugHeaders    whttp.DebugHeaders  `json:"debug_headers"`
+}
+
+func (r *SendMessageResponse) OnDebugHeaders(h whttp.DebugHeaders) {
+	r.DebugHeaders = h
 }
 
 const (
@@ -153,6 +158,7 @@ type (
 		MessageMetadata types.Metadata      `json:"-"`
 		Success         bool                `json:"success"`
 		Debug           *whttp.DebugDetails `json:"__debug__,omitempty"`
+		DebugHeaders    whttp.DebugHeaders  `json:"debug_headers"`
 	}
 
 	ID struct {
@@ -208,6 +214,10 @@ type (
 		Voice bool   `json:"voice,omitempty"`
 	}
 )
+
+func (r *Response) OnDebugHeaders(h whttp.DebugHeaders) {
+	r.DebugHeaders = h
+}
 
 func New(recipient string, options ...Option) *Message {
 	msg := &Message{
@@ -374,6 +384,11 @@ type BaseResponse struct {
 	Success          bool                `json:"success,omitempty"`
 	MessageMetadata  types.Metadata      `json:"-"`
 	Debug            *whttp.DebugDetails `json:"__debug__,omitempty"`
+	DebugHeaders     whttp.DebugHeaders  `json:"debug_headers"`
+}
+
+func (r *BaseResponse) OnDebugHeaders(h whttp.DebugHeaders) {
+	r.DebugHeaders = h
 }
 
 type BaseClient struct {

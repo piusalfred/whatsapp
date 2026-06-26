@@ -22,10 +22,12 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/message"
 	"github.com/piusalfred/whatsapp/message/interactive"
@@ -42,8 +44,8 @@ func main() {
 	defer func() { _ = telemetry.Close(context.Background()) }()
 
 	conf := &config.Config{
-		BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
-		APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
+		BaseURL:           whatsapp.BaseURL,
+		APIVersion:        whatsapp.LowestSupportedAPIVersion,
 		AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
 		PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
 		BusinessAccountID: "",
@@ -90,7 +92,11 @@ func main() {
 		telemetry.Logger.Error("text message", "error", err)
 		return
 	}
-	telemetry.Logger.Info("text message sent", "id", resp.Messages[0].ID)
+	telemetry.Logger.InfoContext(ctx, "text message sent",
+		slog.String("id", resp.Messages[0].ID),
+		slog.Any("debug", resp.Debug),
+		slog.Any("debug_headers", resp.DebugHeaders),
+	)
 
 	resp, err = client.SendInteractiveMessage(ctx, recipient,
 		interactive.CTAURLButton(&interactive.CTAURLRequest{
