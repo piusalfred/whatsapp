@@ -46,11 +46,11 @@ type (
 		GroupDescription    *GroupSettingText        `json:"group_description,omitempty"`
 	}
 	GroupParticipant struct {
-		WaID  string `json:"wa_id"`
-		Input string `json:"input"`
+		WaID  string `json:"wa_id,omitempty"`
+		Input string `json:"input,omitempty"`
 	}
 	FailedGroupParticipant struct {
-		Input  string          `json:"input"`
+		Input  string          `json:"input,omitempty"`
 		Errors []werrors.Error `json:"errors,omitempty"`
 	}
 	GroupProfilePicture struct {
@@ -67,7 +67,7 @@ type (
 )
 
 // OnGroupLifecycleUpdate registers a handler for group_lifecycle_update webhooks
-// (group creation, deletion, subject/icon changes).
+// (group creation and deletion, with success and failure variants).
 func (handler *Handler) OnGroupLifecycleUpdate(
 	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
 ) {
@@ -82,7 +82,8 @@ func (handler *Handler) SetGroupLifecycleUpdateHandler(
 }
 
 // OnGroupParticipantsUpdate registers a handler for group_participants_update webhooks
-// (members added, removed, promoted to admin, or demoted).
+// (participants joining via invite, requesting to join, cancelling requests, join
+// request approval, participant removal, and participant departures).
 func (handler *Handler) OnGroupParticipantsUpdate(
 	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
 ) {
@@ -97,7 +98,8 @@ func (handler *Handler) SetGroupParticipantsUpdateHandler(
 }
 
 // OnGroupSettingsUpdate registers a handler for group_settings_update webhooks
-// (group subject, description, or join approval mode changes).
+// (group subject, description, and profile picture changes with per-field
+// success/failure reporting).
 func (handler *Handler) OnGroupSettingsUpdate(
 	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
 ) {
@@ -112,7 +114,7 @@ func (handler *Handler) SetGroupSettingsUpdateHandler(
 }
 
 // OnGroupStatusUpdate registers a handler for group_status_update webhooks
-// (group invite link or profile picture changes).
+// (group suspension and suspension clearance).
 func (handler *Handler) OnGroupStatusUpdate(
 	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
 ) {

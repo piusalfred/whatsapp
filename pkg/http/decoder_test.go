@@ -63,7 +63,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString("")),
 			},
-			opts:    whttp.DecodeOptions{DisallowEmptyResponse: true},
+			opts:    whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowEmptyResponse},
 			wantErr: true,
 			want:    nil,
 		},
@@ -83,7 +83,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 				StatusCode: http.StatusInternalServerError,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"error": "internal server error"}`)),
 			},
-			opts:    whttp.DecodeOptions{InspectResponseError: false},
+			opts:    whttp.DecodeOptions{},
 			wantErr: true,
 			want:    nil,
 		},
@@ -93,7 +93,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"name": "test", "value": 123, "extra": "unknown"}`)),
 			},
-			opts:    whttp.DecodeOptions{DisallowUnknownFields: true},
+			opts:    whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowUnknownFields},
 			wantErr: true,
 			want:    nil,
 		},
@@ -103,7 +103,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"name": "test", "value": 123, "extra": "unknown"}`)),
 			},
-			opts:    whttp.DecodeOptions{DisallowUnknownFields: false},
+			opts:    whttp.DecodeOptions{},
 			wantErr: false,
 			want:    &TestMessage{Name: "test", Value: 123}, // "extra" field should be ignored
 		},
@@ -138,7 +138,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 					}
 				}`)),
 			},
-			opts:    whttp.DecodeOptions{InspectResponseError: true},
+			opts:    whttp.DecodeOptionsPermissive(),
 			wantErr: true,
 			want:    nil,
 		},
@@ -160,7 +160,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 				}
 			}
 
-			if tt.wantErr && tt.opts.InspectResponseError {
+			if tt.wantErr && tt.opts.Has(whttp.JSONDecodeInspectResponseError) {
 				var respErr *whttp.ResponseError
 				test.AssertErrorAs(t, "expected ResponseError", err, &respErr)
 			}
@@ -196,7 +196,7 @@ func TestDecodeRequestJSON(t *testing.T) {
 			request: &http.Request{
 				Body: io.NopCloser(bytes.NewBufferString("")),
 			},
-			opts:    whttp.DecodeOptions{DisallowEmptyResponse: true},
+			opts:    whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowEmptyResponse},
 			wantErr: true,
 			want:    nil,
 		},
@@ -214,7 +214,7 @@ func TestDecodeRequestJSON(t *testing.T) {
 			request: &http.Request{
 				Body: io.NopCloser(bytes.NewBufferString(`{"name": "test", "value": 123, "extra": "unknown"}`)),
 			},
-			opts:    whttp.DecodeOptions{DisallowUnknownFields: true},
+			opts:    whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowUnknownFields},
 			wantErr: true,
 			want:    nil,
 		},
@@ -223,7 +223,7 @@ func TestDecodeRequestJSON(t *testing.T) {
 			request: &http.Request{
 				Body: io.NopCloser(bytes.NewBufferString(`{"name": "test", "value": 123, "extra": "unknown"}`)),
 			},
-			opts:    whttp.DecodeOptions{DisallowUnknownFields: false},
+			opts:    whttp.DecodeOptions{},
 			wantErr: false,
 			want:    &Data{Name: "test", Value: 123}, // "extra" field should be ignored
 		},
@@ -431,7 +431,7 @@ func TestDecodeResponseJSON_ErrorCases(t *testing.T) {
 			}`)),
 		}
 
-		err := whttp.DecodeResponseJSON[TestMessage](resp, &msg, whttp.DecodeOptions{InspectResponseError: true})
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &msg, whttp.DecodeOptionsPermissive())
 
 		test.AssertError(t, "should return error", err)
 
@@ -457,7 +457,7 @@ func TestDecodeResponseJSON_MoreEdgeCases(t *testing.T) {
 
 		var result TestMessage
 		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
-			DisallowEmptyResponse: true,
+			Flags: whttp.JSONDecodeDisallowEmptyResponse,
 		})
 
 		test.AssertError(t, "should error on empty body with DisallowEmptyResponse", err)
@@ -472,7 +472,7 @@ func TestDecodeResponseJSON_MoreEdgeCases(t *testing.T) {
 		}
 
 		var result TestMessage
-		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{InspectResponseError: false})
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{})
 
 		test.AssertError(t, "should error on non-2xx status", err)
 	})
@@ -486,7 +486,7 @@ func TestDecodeResponseJSON_MoreEdgeCases(t *testing.T) {
 		}
 
 		var result TestMessage
-		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{InspectResponseError: true})
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptionsPermissive())
 
 		test.AssertError(t, "should error when can't decode error response", err)
 	})
@@ -513,7 +513,7 @@ func TestDecodeRequestJSON_EdgeCases(t *testing.T) {
 
 		var result TestMessage
 		err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{
-			DisallowEmptyResponse: true,
+			Flags: whttp.JSONDecodeDisallowEmptyResponse,
 		})
 
 		test.AssertError(t, "should error on empty body with DisallowEmptyResponse", err)
@@ -620,9 +620,7 @@ func TestDecodeResponseJSON_InspectErrorWithEmptyBody(t *testing.T) {
 	}
 
 	var result TestMessage
-	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
-		InspectResponseError: true,
-	})
+	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptionsPermissive())
 
 	test.AssertError(t, "should error on non-2xx with empty body", err)
 	test.AssertErrorIs(t, "should be ErrRequestFailure", err, whttp.ErrRequestFailure)
@@ -637,9 +635,7 @@ func TestDecodeResponseJSON_InspectErrorWithInvalidJSON(t *testing.T) {
 	}
 
 	var result TestMessage
-	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
-		InspectResponseError: true,
-	})
+	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptionsPermissive())
 
 	test.AssertError(t, "should error on invalid JSON in error response", err)
 	test.AssertErrorIs(t, "should be ErrDecodeErrorResponse", err, whttp.ErrDecodeErrorResponse)
@@ -672,9 +668,7 @@ func TestDecodeRequestJSON_EmptyBodyAllowed(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodPost, "http://example.com", strings.NewReader(""))
 
 	var result TestMessage
-	err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{
-		DisallowEmptyResponse: false,
-	})
+	err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{})
 
 	test.AssertNoError(t, "should allow empty body when not disallowed", err)
 }
@@ -687,7 +681,7 @@ func TestDecodeRequestJSON_WithDisallowUnknownFields(t *testing.T) {
 
 	var result TestMessage
 	err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
+		Flags: whttp.JSONDecodeDisallowUnknownFields,
 	})
 
 	test.AssertError(t, "should error on unknown fields", err)

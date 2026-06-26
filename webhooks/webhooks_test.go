@@ -1404,3 +1404,325 @@ func TestListener_HandleNotification_PhoneNumberSettingsUpdate(t *testing.T) {
 		t.Error("phone settings update was not handled by OnPhoneSettingsUpdate")
 	}
 }
+
+func TestListener_HandleNotification_GroupLifecycleUpdate(t *testing.T) {
+	payload := `{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550783881",
+              "phone_number_id": "106540352242922"
+            },
+            "groups": [
+              {
+                "timestamp": "1739321024",
+                "group_id": "GROUP_ID_123",
+                "type": "group_create",
+                "request_id": "REQ_001",
+                "subject": "SDK Test Group",
+                "invite_link": "https://chat.whatsapp.com/ABC123",
+                "join_approval_mode": "auto_approve"
+              }
+            ]
+          },
+          "field": "group_lifecycle_update"
+        }
+      ]
+    }
+  ]
+}`
+
+	var handled bool
+	handler := webhooks.NewHandler()
+	handler.OnGroupLifecycleUpdate(
+		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+			handled = true
+			if len(groups) != 1 {
+				t.Errorf("expected 1 group, got %d", len(groups))
+				return nil
+			}
+			g := groups[0]
+			if g.GroupID != "GROUP_ID_123" {
+				t.Errorf("GroupID = %q, want %q", g.GroupID, "GROUP_ID_123")
+			}
+			if g.Type != "group_create" {
+				t.Errorf("Type = %q, want %q", g.Type, "group_create")
+			}
+			if g.Subject != "SDK Test Group" {
+				t.Errorf("Subject = %q, want %q", g.Subject, "SDK Test Group")
+			}
+			if g.InviteLink != "https://chat.whatsapp.com/ABC123" {
+				t.Errorf("InviteLink = %q", g.InviteLink)
+			}
+			return nil
+		},
+	)
+
+	cfg := TestServerConfig{
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
+	}
+	ts := NewTestWebhookServer(t, cfg)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/webhook", "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST request failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", resp.StatusCode)
+	}
+	if !handled {
+		t.Error("group_lifecycle_update was not handled by OnGroupLifecycleUpdate")
+	}
+}
+
+func TestListener_HandleNotification_GroupParticipantsUpdate(t *testing.T) {
+	payload := `{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550783881",
+              "phone_number_id": "106540352242922"
+            },
+            "groups": [
+              {
+                "timestamp": "1739321024",
+                "group_id": "GROUP_ID_456",
+                "type": "group_participants_add",
+                "reason": "invite_link",
+                "added_participants": [
+                  {
+                    "wa_id": "16505551234"
+                  }
+                ]
+              }
+            ]
+          },
+          "field": "group_participants_update"
+        }
+      ]
+    }
+  ]
+}`
+
+	var handled bool
+	handler := webhooks.NewHandler()
+	handler.OnGroupParticipantsUpdate(
+		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+			handled = true
+			if len(groups) != 1 {
+				t.Errorf("expected 1 group, got %d", len(groups))
+				return nil
+			}
+			g := groups[0]
+			if g.Type != "group_participants_add" {
+				t.Errorf("Type = %q, want group_participants_add", g.Type)
+			}
+			if g.Reason != "invite_link" {
+				t.Errorf("Reason = %q, want invite_link", g.Reason)
+			}
+			if len(g.AddedParticipants) != 1 || g.AddedParticipants[0].WaID != "16505551234" {
+				t.Errorf("AddedParticipants mismatch: %+v", g.AddedParticipants)
+			}
+			return nil
+		},
+	)
+
+	cfg := TestServerConfig{
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
+	}
+	ts := NewTestWebhookServer(t, cfg)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/webhook", "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST request failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", resp.StatusCode)
+	}
+	if !handled {
+		t.Error("group_participants_update was not handled by OnGroupParticipantsUpdate")
+	}
+}
+
+func TestListener_HandleNotification_GroupSettingsUpdate(t *testing.T) {
+	payload := `{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550783881",
+              "phone_number_id": "106540352242922"
+            },
+            "groups": [
+              {
+                "timestamp": "1739321024",
+                "group_id": "GROUP_ID_789",
+                "type": "group_settings_update",
+                "request_id": "REQ_003",
+                "group_subject": {
+                  "text": "New Subject",
+                  "update_successful": true
+                },
+                "group_description": {
+                  "text": "New Description",
+                  "update_successful": false,
+                  "errors": [
+                    {
+                      "code": 100,
+                      "message": "Invalid description",
+                      "title": "Update Failed",
+                      "error_data": {"details": "Description too long"}
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "field": "group_settings_update"
+        }
+      ]
+    }
+  ]
+}`
+
+	var handled bool
+	handler := webhooks.NewHandler()
+	handler.OnGroupSettingsUpdate(
+		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+			handled = true
+			if len(groups) != 1 {
+				t.Errorf("expected 1 group, got %d", len(groups))
+				return nil
+			}
+			g := groups[0]
+			if g.Type != "group_settings_update" {
+				t.Errorf("Type = %q, want group_settings_update", g.Type)
+			}
+			if g.GroupSubject == nil || g.GroupSubject.Text != "New Subject" || !g.GroupSubject.UpdateSuccessful {
+				t.Errorf("GroupSubject mismatch: %+v", g.GroupSubject)
+			}
+			if g.GroupDescription == nil || g.GroupDescription.UpdateSuccessful {
+				t.Errorf("GroupDescription should have failed: %+v", g.GroupDescription)
+			}
+			if len(g.GroupDescription.Errors) != 1 {
+				t.Errorf("expected 1 error on GroupDescription, got %d", len(g.GroupDescription.Errors))
+			}
+			return nil
+		},
+	)
+
+	cfg := TestServerConfig{
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
+	}
+	ts := NewTestWebhookServer(t, cfg)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/webhook", "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST request failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", resp.StatusCode)
+	}
+	if !handled {
+		t.Error("group_settings_update was not handled by OnGroupSettingsUpdate")
+	}
+}
+
+func TestListener_HandleNotification_GroupStatusUpdate(t *testing.T) {
+	payload := `{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550783881",
+              "phone_number_id": "106540352242922"
+            },
+            "groups": [
+              {
+                "timestamp": "1739321024",
+                "type": "group_suspend",
+                "group_id": "GROUP_ID_999"
+              }
+            ]
+          },
+          "field": "group_status_update"
+        }
+      ]
+    }
+  ]
+}`
+
+	var handled bool
+	handler := webhooks.NewHandler()
+	handler.OnGroupStatusUpdate(
+		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+			handled = true
+			if len(groups) != 1 {
+				t.Errorf("expected 1 group, got %d", len(groups))
+				return nil
+			}
+			g := groups[0]
+			if g.Type != "group_suspend" {
+				t.Errorf("Type = %q, want group_suspend", g.Type)
+			}
+			if g.GroupID != "GROUP_ID_999" {
+				t.Errorf("GroupID = %q, want GROUP_ID_999", g.GroupID)
+			}
+			return nil
+		},
+	)
+
+	cfg := TestServerConfig{
+		Handler: handler,
+		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
+			return &webhooks.Config{}, nil
+		}),
+	}
+	ts := NewTestWebhookServer(t, cfg)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/webhook", "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST request failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", resp.StatusCode)
+	}
+	if !handled {
+		t.Error("group_status_update was not handled by OnGroupStatusUpdate")
+	}
+}

@@ -496,8 +496,7 @@ func (bc *BaseClient) updateStatus(ctx context.Context, conf *config.Config, req
 
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: false,
+		Flags: whttp.JSONDecodeDisallowUnknownFields | whttp.JSONDecodeInspectResponseError,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {

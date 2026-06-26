@@ -46,6 +46,10 @@ const (
 	TemplateComponentTypeLimitedTimeOffer = "limited_time_offer"
 	TemplateButtonSubTypeCopyCode         = "copy_code"
 	TemplateButtonSubTypeURL              = "url"
+
+	// HeaderFormatLocation declares the header component as a location map.
+	// Used when creating location templates.
+	HeaderFormatLocation = "LOCATION"
 )
 
 type (
@@ -67,14 +71,15 @@ type (
 
 	Language struct {
 		Code   string `json:"code"`
-		Policy string `json:"policy"`
+		Policy string `json:"policy,omitempty"`
 	}
 
 	Component struct {
 		Type       string       `json:"type"`
+		Format     string       `json:"format,omitempty"`
 		SubType    string       `json:"sub_type,omitempty"`
-		Index      int          `json:"index"`
-		Parameters []*Parameter `json:"parameters"`
+		Index      int          `json:"index,omitempty"`
+		Parameters []*Parameter `json:"parameters,omitempty"`
 		Buttons    []*Button    `json:"buttons,omitempty"`
 		Text       string       `json:"text,omitempty"`
 		Cards      []*MediaCard `json:"cards,omitempty"`
@@ -82,16 +87,16 @@ type (
 
 	Parameter struct {
 		Type             string            `json:"type"`
-		Text             string            `json:"text"`
+		Text             string            `json:"text,omitempty"`
 		Name             string            `json:"parameter_name,omitempty"`
 		Payload          string            `json:"payload,omitempty"`
-		Currency         *Currency         `json:"currency"`
-		DateTime         *DateTime         `json:"date_time"`
+		Currency         *Currency         `json:"currency,omitempty"`
+		DateTime         *DateTime         `json:"date_time,omitempty"`
 		LimitedTimeOffer *LimitedTimeOffer `json:"limited_time_offer,omitempty"`
-		Image            *media.Image      `json:"image"`
-		Document         *media.Document   `json:"document"`
-		Video            *media.Video      `json:"video"`
-		Location         *media.Location   `json:"location"`
+		Image            *media.Image      `json:"image,omitempty"`
+		Document         *media.Document   `json:"document,omitempty"`
+		Video            *media.Video      `json:"video,omitempty"`
+		Location         *media.Location   `json:"location,omitempty"`
 		CouponCode       string            `json:"coupon_code,omitempty"`
 	}
 
@@ -130,6 +135,27 @@ type (
 		FlowAction     string `json:"flow_action"`
 	}
 )
+
+// NewLocationHeader returns a location header component for template creation.
+// The actual coordinates (latitude, longitude, name, address) are provided at
+// send time via [Parameter] with Type=[TemplateParameterTypeLocation] and
+// a [media.Location] value.
+func NewLocationHeader() *Component {
+	return &Component{
+		Type:   TemplateComponentTypeHeader,
+		Format: HeaderFormatLocation,
+	}
+}
+
+// NewLocationParameter creates a location parameter for send time. Use this
+// with a location template built via [NewLocationHeader] to provide the
+// actual coordinates at message send time.
+func NewLocationParameter(loc *media.Location) *Parameter {
+	return &Parameter{
+		Type:     TemplateParameterTypeLocation,
+		Location: loc,
+	}
+}
 
 func NewInteractiveTemplate(name string, language *Language, headers []*Parameter,
 	bodies []*Parameter, buttons []*InteractiveButtonTemplate,

@@ -9,12 +9,49 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Package auth provides a client for the Meta system user and access token API.
+//
+// # Lifecycle
+//
+// System users follow a least-privilege pattern enforced by Meta:
+//
+//	REAL ADMIN (human)
+//	  │
+//	  ├─ 1. Create ADMIN SYSTEM USER ─── one per business, kept safe
+//	  │     │
+//	  │     ├─ 2. Install app on it ──── TOS acceptance (prerequisite for tokens)
+//	  │     ├─ 3. Generate its token ─── now you can automate without the human token
+//	  │     │
+//	  │     └─ 4. Create REGULAR SYSTEM USER ─── one per access type, scoped
+//	  │           │
+//	  │           ├─ 5. Install app on it ──── same TOS step
+//	  │           ├─ 6. Grant asset permissions ─── scoped to what it needs
+//	  │           └─ 7. Generate its token ─── use this for daily API calls
+//	  │
+//	  └─ 8. Invalidate tokens ─── security escape hatch (can't delete users)
+//
+// Use the admin system user token only to manage other system users.
+// Use regular system user tokens for all API calls. This way, if a token
+// is compromised, the blast radius is limited to its scope.
+//
+// # Limits
+//
+// Standard access: 1 admin system user + 1 regular system user.
+// Advanced access: 1 admin system user + 10 regular system users.
+//
+// # Token Lifecycle
+//
+// Tokens expire. Use [RefreshAccessToken] to extend without creating a new
+// user, [RevokeAccessToken] to kill a single token, or
+// [InvalidateSystemUserTokens] to kill all tokens for a user.
+// [RotateAccessToken] provides atomic rotation: refresh → store new → revoke
+// old, with no downtime.
 package auth
 
 import (
@@ -48,14 +85,19 @@ type TwoStepVerificationRequest struct {
 	AccessToken   string `json:"-"`
 }
 
-// GenerateAccessTokenParams contains the parameters required to generate a persistent access token.
+// GenerateAccessTokenParams contains the parameters required to generate an
+// access token for a system user.
+//
+// Non-expiring tokens are deprecated — Meta recommends expiring tokens.
+// Set [GenerateAccessTokenParams.SetTokenExpiresIn60] to true; omitting it
+// may result in an error for businesses required to use expiring tokens.
 type GenerateAccessTokenParams struct {
-	AccessToken         string   // The access token of the user generating the new access token.
-	AppID               string   // The ID of the app for which the token is generated.
-	SystemUserID        string   // The system user ID that is generating the token.
-	AppSecret           string   // The app secret associated with the app.
-	Scopes              []string // A list of permissions (scopes) to be granted to the new token.
-	SetTokenExpiresIn60 bool     // If true, sets the token to expire in 60 days.
+	AccessToken         string   // Token of the admin/system user generating this token.
+	AppID               string   // App to associate the token with.
+	SystemUserID        string   // System user receiving the token.
+	AppSecret           string   // App secret used to compute appsecret_proof.
+	Scopes              []string // Permissions to grant (e.g., whatsapp_business_messaging).
+	SetTokenExpiresIn60 bool     // Set to true for a 60-day expiring token (recommended).
 }
 
 // GenerateAccessTokenResponse represents the response from generating an access token.
@@ -64,11 +106,14 @@ type GenerateAccessTokenResponse struct {
 }
 
 // RevokeAccessTokenParams contains the parameters for revoking an access token.
+// Used for token rotation (refresh → deploy new → revoke old) or as a security
+// measure when a token is compromised. Revocation is immediate and cannot be
+// undone.
 type RevokeAccessTokenParams struct {
-	ClientID     string
-	ClientSecret string
-	RevokeToken  string // Access token to revoke.
-	AccessToken  string // Access token to identify the caller.
+	ClientID     string // App ID.
+	ClientSecret string // App secret.
+	RevokeToken  string // The access token to revoke.
+	AccessToken  string // A valid token identifying the caller.
 }
 
 // RevokeAccessTokenResponse represents the response from revoking an access token.
@@ -77,11 +122,13 @@ type RevokeAccessTokenResponse struct {
 }
 
 // RefreshAccessTokenParams contains the parameters for refreshing an access token.
+// An expiring token is valid for 60 days from creation or last refresh. You must
+// refresh within 60 days or the token is forfeited and a new one must be generated.
 type RefreshAccessTokenParams struct {
-	ClientID            string
-	ClientSecret        string
-	FbExchangeToken     string // Current access token.
-	SetTokenExpiresIn60 bool   // Set to true to refresh for another 60 days.
+	ClientID            string // App ID.
+	ClientSecret        string // App secret.
+	FbExchangeToken     string // The current, still-valid access token to refresh.
+	SetTokenExpiresIn60 bool   // Set to true to extend for another 60 days.
 }
 
 // RefreshAccessTokenResponse contains the response from a refresh token request.
@@ -126,8 +173,10 @@ type BaseClient struct {
 	whttp.BaseClient[any]
 }
 
-// InstallApp installs an app for a system user or an admin system user, allowing the app to make API calls
-// on behalf of the user. Both the app and the system user should belong to the same Business Manager.
+// InstallApp accepts the TOS for an app on behalf of a system user. This is a
+// prerequisite for [GenerateAccessToken] — tokens cannot be generated for a
+// user until the app is installed. Both the app and the system user must
+// belong to the same Business Manager.
 func (bc *BaseClient) InstallApp(ctx context.Context, conf *config.Config, params *InstallAppParams) error {
 	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
 		Type(whttp.RequestTypeInstallApp).
@@ -185,7 +234,9 @@ func (bc *BaseClient) TwoStepVerification(
 }
 
 // GenerateAccessToken generates a persistent access token for a system user.
-// The system user must have installed the app beforehand.
+// The system user must have installed the app via [InstallApp] beforehand.
+// Use admin system user tokens only to manage other users; use regular
+// system user tokens for all API calls.
 func (bc *BaseClient) GenerateAccessToken(
 	ctx context.Context,
 	conf *config.Config,
@@ -227,7 +278,9 @@ func (bc *BaseClient) GenerateAccessToken(
 	return res, nil
 }
 
-// RevokeAccessToken revokes an access token.
+// RevokeAccessToken revokes a single access token. For bulk invalidation of
+// all tokens belonging to a system user, use [InvalidateSystemUserTokens]
+// instead.
 func (bc *BaseClient) RevokeAccessToken(
 	ctx context.Context,
 	conf *config.Config,
@@ -258,7 +311,10 @@ func (bc *BaseClient) RevokeAccessToken(
 	return res, nil
 }
 
-// RefreshAccessToken sends a request to refresh an expiring system user access token.
+// RefreshAccessToken sends a request to refresh an expiring system user access
+// token. Tokens expire 60 days after creation or last refresh — failing to
+// refresh within that window forfeits the token and a new one must be generated
+// via [GenerateAccessToken].
 func (bc *BaseClient) RefreshAccessToken(
 	ctx context.Context,
 	conf *config.Config,
@@ -295,7 +351,10 @@ func (bc *BaseClient) RefreshAccessToken(
 	return res, nil
 }
 
-// CreateSystemUser creates a system user in a business manager.
+// CreateSystemUser creates a system user in a business manager. Create one
+// admin system user first (role="ADMIN"), then create regular system users
+// (role="EMPLOYEE") for each access scope you need. This limits the blast
+// radius if a token is compromised.
 //
 //nolint:dupl // similar structure to UpdateSystemUser but different request type, params, and response
 func (bc *BaseClient) CreateSystemUser(
@@ -328,7 +387,8 @@ func (bc *BaseClient) CreateSystemUser(
 	return res, nil
 }
 
-// ListSystemUsers retrieves all system users in a business manager.
+// ListSystemUsers retrieves all system users in a business manager. Useful
+// for auditing who exists and finding app-scoped IDs.
 func (bc *BaseClient) ListSystemUsers(
 	ctx context.Context,
 	conf *config.Config,
@@ -354,7 +414,8 @@ func (bc *BaseClient) ListSystemUsers(
 	return res, nil
 }
 
-// UpdateSystemUser updates the name of an existing system user.
+// UpdateSystemUser renames an existing system user. The role cannot be
+// changed — create a new system user with the desired role instead.
 //
 //nolint:dupl // similar structure to CreateSystemUser but different request type, params, and response
 func (bc *BaseClient) UpdateSystemUser(
@@ -388,6 +449,9 @@ func (bc *BaseClient) UpdateSystemUser(
 }
 
 // InvalidateSystemUserTokens invalidates all access tokens for a system user.
+// This is the security escape hatch — system users cannot be deleted, but you
+// can kill all their tokens. After invalidation, generate new tokens via
+// [GenerateAccessToken].
 func (bc *BaseClient) InvalidateSystemUserTokens(
 	ctx context.Context,
 	conf *config.Config,
@@ -524,7 +588,14 @@ type TokenStore interface {
 	Get(ctx context.Context) (string, error)
 }
 
-// RotateAccessToken refreshes, stores the new token, and revokes the old token.
+// RotateAccessToken performs atomic token rotation with no downtime:
+//  1. Read the current token from the store
+//  2. Refresh it to get a new token (old token still works)
+//  3. Store the new token
+//  4. Revoke the old token (immediate invalidation)
+//
+// This pattern limits the damage to leaked tokens, the old token is revoked as soon
+// as the new one is deployed.
 func RotateAccessToken(
 	ctx context.Context,
 	refresher TokenRefresher,

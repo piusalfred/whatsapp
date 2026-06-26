@@ -41,6 +41,7 @@ type (
 		BusinessAccountID string
 		AppSecret         string
 		AppID             string
+		SystemUserID      string
 		SecureRequests    bool
 		DebugLogLevel     string
 	}
