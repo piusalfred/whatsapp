@@ -375,7 +375,7 @@ func (client *BlockBaseClient) Send(ctx context.Context, conf *config.Config, re
 
 	response := &BlockBaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		InspectResponseError: true,
+		Flags: whttp.JSONDecodeInspectResponseError,
 	})
 
 	if err := client.Sender.Send(ctx, req, decoder); err != nil {

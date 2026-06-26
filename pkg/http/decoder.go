@@ -1,20 +1,20 @@
 /*
- *  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+ * Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
  *
- *  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
- *  and associated documentation files (the "Software"), to deal in the Software without restriction,
- *  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
- *  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
- *  subject to the following conditions:
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
  *
- *  The above copyright notice and this permission notice shall be included in all copies or substantial
- *  portions of the Software.
+ * The above copyright notice and this permission notice shall be included in all copies or substantial
+ * portions of the Software.
  *
- *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
- *  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- *  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ * LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 package http
@@ -28,36 +28,52 @@ import (
 	"net/http"
 )
 
+type JSONDecodeFlag uint8
+
+const (
+	// JSONDecodeDefault represents the zero-value configuration where no extra validation behavior is enabled.
+	JSONDecodeDefault               JSONDecodeFlag = 0
+	JSONDecodeDisallowUnknownFields JSONDecodeFlag = 1 << 0
+	JSONDecodeDisallowEmptyResponse JSONDecodeFlag = 1 << 1
+	JSONDecodeInspectResponseError  JSONDecodeFlag = 1 << 2
+)
+
+const (
+	// JSONDecodeStrict combines all validation and inspection behaviors.
+	JSONDecodeStrict JSONDecodeFlag = JSONDecodeDisallowUnknownFields |
+		JSONDecodeDisallowEmptyResponse |
+		JSONDecodeInspectResponseError
+
+	// JSONDecodePermissive only inspects response errors.
+	JSONDecodePermissive JSONDecodeFlag = JSONDecodeInspectResponseError
+)
+
 type DecodeOptions struct {
-	DisallowUnknownFields bool
-	DisallowEmptyResponse bool
-	InspectResponseError  bool
-	MaxBodyBytes          int64 // 0 = use package default (DefaultMaxBodyBytes)
+	Flags        JSONDecodeFlag
+	MaxBodyBytes int64 // 0 = use package default (DefaultMaxBodyBytes)
 }
 
-func effectiveMaxBodyBytes(opts DecodeOptions) int64 {
-	if opts.MaxBodyBytes > 0 {
-		return opts.MaxBodyBytes
-	}
-	return DefaultMaxBodyBytes
-}
-
-// StrictDecode returns options that reject unknown JSON fields, require a
-// non-empty response body, and parse error bodies into structured types.
-func StrictDecode() DecodeOptions {
+func MakeDecodeOptions() DecodeOptions {
 	return DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
+		Flags:        JSONDecodeDefault,
+		MaxBodyBytes: DefaultMaxBodyBytes,
 	}
 }
 
-// PermissiveDecode returns options that accept unknown fields, allow empty
-// bodies, and treat error responses as opaque failures.
-func PermissiveDecode() DecodeOptions {
-	return DecodeOptions{
-		InspectResponseError: true,
-	}
+func (o *DecodeOptions) Has(f JSONDecodeFlag) bool {
+	return (o.Flags & f) == f
+}
+
+func (o *DecodeOptions) Set(f JSONDecodeFlag) {
+	o.Flags |= f
+}
+
+func (o *DecodeOptions) Unset(f JSONDecodeFlag) {
+	o.Flags &^= f
+}
+
+func (o *DecodeOptions) SetMaxBodyBytes(maxBodyBytes int64) {
+	o.MaxBodyBytes = maxBodyBytes
 }
 
 func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions) error {
@@ -65,23 +81,27 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		return ErrNilResponse
 	}
 
-	limit := effectiveMaxBodyBytes(opts)
-	responseBody, err := readAllLimited(response.Body, limit)
+	maxBytes := opts.MaxBodyBytes
+	if maxBytes <= 0 {
+		maxBytes = DefaultMaxBodyBytes
+	}
+
+	responseBody, err := readAllLimited(response.Body, maxBytes)
 	if err != nil {
 		return fmt.Errorf("read response: %w", err)
 	}
 	defer func() {
-		response.Body = io.NopCloser(bytes.NewReader(responseBody))
+		response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 	}()
 
-	if len(responseBody) == 0 && opts.DisallowEmptyResponse {
+	if len(responseBody) == 0 && opts.Has(JSONDecodeDisallowEmptyResponse) {
 		return fmt.Errorf("%w: expected non-empty response body", ErrEmptyResponseBody)
 	}
 
-	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
+	isResponseOk := response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusPermanentRedirect
 
 	if !isResponseOk { //nolint:nestif // no need to nest
-		if opts.InspectResponseError {
+		if opts.Has(JSONDecodeInspectResponseError) {
 			if len(responseBody) == 0 {
 				return fmt.Errorf("%w: status code: %d", ErrRequestFailure, response.StatusCode)
 			}
@@ -97,10 +117,10 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 		return fmt.Errorf("%w: status code: %d", ErrRequestFailure, response.StatusCode)
 	}
 
-	//	At this point, we know the response is 2xx
-	//	If the body is empty here, that means empty bodies are allowed, so we return early.
-	//	If the body is not empty but `v` is nil, we return an error as there is no target to decode into.
-	//	Otherwise, we proceed with decoding the body into `v` if the body is not empty and `v` is provided.
+	// At this point, we know the response is 2xx
+	// If the body is empty here, that means empty bodies are allowed, so we return early.
+	// If the body is not empty but `v` is nil, we return an error as there is no target to decode into.
+	// Otherwise, we proceed with decoding the body into `v` if the body is not empty and `v` is provided.
 
 	if len(responseBody) == 0 {
 		return nil
@@ -111,7 +131,7 @@ func DecodeResponseJSON[T any](response *http.Response, v *T, opts DecodeOptions
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(responseBody))
-	if opts.DisallowUnknownFields {
+	if opts.Has(JSONDecodeDisallowUnknownFields) {
 		decoder.DisallowUnknownFields()
 	}
 
@@ -127,8 +147,7 @@ func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) e
 		return ErrNilRequest
 	}
 
-	limit := effectiveMaxBodyBytes(opts)
-	requestBody, err := readAllLimited(request.Body, limit)
+	requestBody, err := io.ReadAll(request.Body)
 	if err != nil {
 		return fmt.Errorf("read request: %w", err)
 	}
@@ -136,14 +155,14 @@ func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) e
 		request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 	}()
 
-	if len(requestBody) == 0 && opts.DisallowEmptyResponse {
+	if len(requestBody) == 0 && opts.Has(JSONDecodeDisallowEmptyResponse) {
 		return fmt.Errorf("%w: expected non-empty request body", ErrEmptyResponseBody)
 	}
 
-	//	At this point, we know:
-	//	- If the body is empty, it's allowed based on `DisallowEmptyResponse`.
-	//	- If the body is not empty and `v == nil`, return an error as there's no target to decode into.
-	//	- Otherwise, proceed with decoding into `v` if the body is not empty and `v` is provided.
+	// At this point, we know:
+	// - If the body is empty, it's allowed based on `DisallowEmptyResponse`.
+	// - If the body is not empty and `v == nil`, return an error as there’s no target to decode into.
+	// - Otherwise, proceed with decoding into `v` if the body is not empty and `v` is provided.
 
 	if len(requestBody) == 0 {
 		return nil
@@ -154,7 +173,7 @@ func DecodeRequestJSON[T any](request *http.Request, v *T, opts DecodeOptions) e
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(requestBody))
-	if opts.DisallowUnknownFields {
+	if opts.Has(JSONDecodeDisallowUnknownFields) {
 		decoder.DisallowUnknownFields()
 	}
 
@@ -193,7 +212,16 @@ func ResponseDecoderJSON[T any](v *T, options DecodeOptions) ResponseDecoderFunc
 
 func BodyReaderResponseDecoder(fn ResponseBodyReaderFunc) ResponseDecoderFunc {
 	return func(ctx context.Context, response *http.Response) error {
-		if err := fn(ctx, response.Body); err != nil {
+		responseBody, err := io.ReadAll(response.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read response body: %w", err)
+		}
+
+		defer func() {
+			response.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		}()
+
+		if err = fn(ctx, bytes.NewReader(responseBody)); err != nil {
 			return err
 		}
 

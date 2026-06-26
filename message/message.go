@@ -425,9 +425,7 @@ func (bc *BaseClient) sendMessage(ctx context.Context, conf *config.Config, requ
 
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodeStrict,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
@@ -454,8 +452,7 @@ func (bc *BaseClient) updateStatus(ctx context.Context, conf *config.Config, req
 
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: false,
+		Flags: whttp.JSONDecodeDisallowUnknownFields,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {

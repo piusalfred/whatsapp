@@ -219,9 +219,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 
 	response := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodeDisallowEmptyResponse | whttp.JSONDecodeInspectResponseError,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {

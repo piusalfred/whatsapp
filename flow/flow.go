@@ -518,9 +518,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  false,
+		Flags: whttp.JSONDecodeDisallowEmptyResponse,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
@@ -874,9 +872,7 @@ func (h *DataExchangeHandlerImpl) Handle(w http.ResponseWriter, request *http.Re
 
 	var req Request
 	if err := whttp.DecodeRequestJSON(request, &req, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  false,
+		Flags: whttp.JSONDecodeDefault,
 	}); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 

@@ -142,9 +142,7 @@ func (bc *BaseClient) InstallApp(ctx context.Context, conf *config.Config, param
 
 	res := &SuccessResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodePermissive,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
@@ -175,9 +173,7 @@ func (bc *BaseClient) TwoStepVerification(
 
 	res := &SuccessResponse{}
 	decodeOptions := whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodeDisallowEmptyResponse | whttp.JSONDecodeInspectResponseError,
 	}
 	decoder := whttp.ResponseDecoderJSON(res, decodeOptions)
 
@@ -221,9 +217,7 @@ func (bc *BaseClient) GenerateAccessToken(
 
 	res := &GenerateAccessTokenResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodePermissive,
 	})
 
 	if err = bc.Sender.Send(ctx, req, decoder); err != nil {
@@ -254,9 +248,7 @@ func (bc *BaseClient) RevokeAccessToken(
 
 	res := &RevokeAccessTokenResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodePermissive,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
@@ -293,9 +285,7 @@ func (bc *BaseClient) RefreshAccessToken(
 
 	res := &RefreshAccessTokenResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodePermissive,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
@@ -328,9 +318,7 @@ func (bc *BaseClient) CreateSystemUser(
 
 	res := &CreateSystemUserResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodePermissive,
 	})
 
 	if err := bc.Sender.Send(ctx, httpReq, decoder); err != nil {
@@ -356,9 +344,7 @@ func (bc *BaseClient) ListSystemUsers(
 
 	res := &ListSystemUsersResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodePermissive,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
@@ -391,9 +377,7 @@ func (bc *BaseClient) UpdateSystemUser(
 
 	res := &SuccessResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodePermissive,
 	})
 
 	if err := bc.Sender.Send(ctx, httpReq, decoder); err != nil {
@@ -420,9 +404,7 @@ func (bc *BaseClient) InvalidateSystemUserTokens(
 
 	res := &SuccessResponse{}
 	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: false,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodePermissive,
 	})
 
 	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
