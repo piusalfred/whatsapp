@@ -21,10 +21,13 @@ package main
 
 import (
 	"context"
+	"log"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
+	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/message"
 	"github.com/piusalfred/whatsapp/message/interactive"
@@ -33,70 +36,69 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	ctx := context.Background()
+	telemetry, err := InitTelemetry(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() { _ = telemetry.Close(context.Background()) }()
 
 	conf := &config.Config{
-		BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
-		APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
+		BaseURL:           whatsapp.BaseURL,
+		APIVersion:        whatsapp.LowestSupportedAPIVersion,
 		AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
 		PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
-		BusinessAccountID: os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID"),
-		AppSecret:         os.Getenv("WHATSAPP_CLOUD_API_APP_SECRET"),
-		AppID:             os.Getenv("WHATSAPP_CLOUD_API_APP_ID"),
-		SecureRequests:    os.Getenv("WHATSAPP_CLOUD_API_SECURE_REQUESTS") == "true",
-		DebugLogLevel:     os.Getenv("WHATSAPP_CLOUD_API_DEBUG_LOG_LEVEL"),
+		BusinessAccountID: "",
+		AppSecret:         "",
+		AppID:             "",
+		SecureRequests:    false,
+		DebugLogLevel:     "",
 	}
 
-	lm := whttp.Middleware[message.BaseRequest](
-		func(next whttp.SenderFunc[message.BaseRequest]) whttp.SenderFunc[message.BaseRequest] {
-			fn := whttp.SenderFunc[message.BaseRequest](
-				func(ctx context.Context, request *whttp.Request[message.BaseRequest], decoder whttp.ResponseDecoder) error {
-					logger.Info("sending message", "request", request)
-					err := next(ctx, request, decoder)
-					if err != nil {
-						logger.Error("send message", "error", err)
-						return err
-					}
-
-					logger.Info("message sent successfully")
-
-					return nil
-				},
-			)
-
-			return fn
-		},
+	// Client with OTEL-instrumented transport and sender middleware.
+	client := message.NewClient(conf,
+		whttp.WithSenderHTTPClient(&http.Client{
+			Transport: OTelHTTPTransport(&TransportParams{
+				Propagators:    telemetry.Propagator,
+				MeterProvider:  telemetry.MeterProvider,
+				TracerProvider: telemetry.TraceProvider,
+				ServerName:     "whatsapp-cloud-api-server",
+			}),
+			Timeout: 30 * time.Second,
+		}),
 	)
 
-	client := message.NewClient(conf, whttp.WithSenderTimeout(30*time.Second))
-	client.SetMiddlewares(lm)
+	client.SetMiddlewares(telemetry.Middleware())
 
-	si := message.SendTo(os.Getenv("WHATSAPP_CLOUD_API_TEST_NUMBER"))
-	ctx := context.Background()
+	recipient := message.SendTo(os.Getenv("WHATSAPP_CLOUD_API_TEST_NUMBER"))
 
 	tmpl := template.NewInteractiveTemplate(
 		"hello_world",
 		&template.Language{Code: "en_US"},
 		nil, nil, nil,
 	)
-	resp, err := client.SendTemplateMessage(ctx, si, tmpl)
+	resp, err := client.SendTemplateMessage(ctx, recipient, tmpl)
 	if err != nil {
-		logger.Error("template message", "error", err)
+		telemetry.Logger.Error("template message", "error", err)
 		return
 	}
-	logger.Info("template message sent", "id", resp.Messages[0].ID)
+	telemetry.Logger.Info("template message sent", "id", resp.Messages[0].ID)
 
-	resp, err = client.SendTextMessage(ctx, si, &message.Text{
+	resp, err = client.SendTextMessage(ctx, recipient, &message.Text{
 		PreviewURL: true,
 		Body:       "Visit the repo at https://github.com/piusalfred/whatsapp",
 	})
 	if err != nil {
-		logger.Error("text message", "error", err)
+		telemetry.Logger.Error("text message", "error", err)
 		return
 	}
-	logger.Info("text message sent", "id", resp.Messages[0].ID)
+	telemetry.Logger.InfoContext(ctx, "text message sent",
+		slog.String("id", resp.Messages[0].ID),
+		slog.Any("debug", resp.Debug),
+		slog.Any("debug_headers", resp.DebugHeaders),
+	)
 
-	resp, err = client.SendInteractiveMessage(ctx, si,
+	resp, err = client.SendInteractiveMessage(ctx, recipient,
 		interactive.CTAURLButton(&interactive.CTAURLRequest{
 			DisplayText: "Github Link",
 			URL:         "https://github.com/piusalfred/whatsapp",
@@ -106,31 +108,33 @@ func main() {
 		}),
 	)
 	if err != nil {
-		logger.Error("interactive CTA", "error", err)
+		telemetry.Logger.Error("interactive CTA", "error", err)
 		return
 	}
-	logger.Info("interactive CTA sent", "id", resp.Messages[0].ID)
 
-	resp, err = client.SendInteractiveMessage(ctx, si,
+	telemetry.Logger.Info("interactive CTA sent", "id", resp.Messages[0].ID)
+
+	resp, err = client.SendInteractiveMessage(ctx, recipient,
 		interactive.LocationRequest("Where are you?"),
 	)
 	if err != nil {
-		logger.Error("location request", "error", err)
+		telemetry.Logger.Error("location request", "error", err)
 		return
 	}
-	logger.Info("location request sent", "id", resp.Messages[0].ID)
 
-	resp, err = client.SendLocationMessage(ctx, si, &message.Location{
+	telemetry.Logger.Info("location request sent", "id", resp.Messages[0].ID)
+
+	resp, err = client.SendLocationMessage(ctx, recipient, &message.Location{
 		Longitude: -3.688344,
 		Latitude:  40.453053,
 		Name:      "Estadio Santiago Bernabéu",
 		Address:   "Av. de Concha Espina, 1, Chamartín, 28036 Madrid, Spain",
 	})
 	if err != nil {
-		logger.Error("location", "error", err)
+		telemetry.Logger.Error("location", "error", err)
 		return
 	}
-	logger.Info("location sent", "id", resp.Messages[0].ID)
+	telemetry.Logger.Info("location sent", "id", resp.Messages[0].ID)
 
 	contacts := &message.Contacts{
 		message.NewContact(
@@ -145,20 +149,20 @@ func main() {
 			}),
 		),
 	}
-	resp, err = client.SendContactsMessage(ctx, si, contacts)
+	resp, err = client.SendContactsMessage(ctx, recipient, contacts)
 	if err != nil {
-		logger.Error("contacts", "error", err)
+		telemetry.Logger.Error("contacts", "error", err)
 		return
 	}
-	logger.Info("contacts sent", "id", resp.Messages[0].ID)
+	telemetry.Logger.Info("contacts sent", "id", resp.Messages[0].ID)
 
-	resp, err = client.SendReactionMessage(ctx, si, &message.Reaction{
+	resp, err = client.SendReactionMessage(ctx, recipient, &message.Reaction{
 		MessageID: resp.Messages[0].ID,
 		Emoji:     "🤝",
 	})
 	if err != nil {
-		logger.Error("reaction", "error", err)
+		telemetry.Logger.Error("reaction", "error", err)
 		return
 	}
-	logger.Info("reaction sent", "id", resp.Messages[0].ID)
+	telemetry.Logger.Info("reaction sent", "id", resp.Messages[0].ID)
 }
