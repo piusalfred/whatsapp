@@ -41,11 +41,7 @@ import (
 // account notifications, message types (text, image, interactive, etc.),
 // status changes, and group events.
 type Handler struct {
-	flowStatus               EventHandler[FlowNotificationContext, StatusChangeDetails]
-	flowClientErrorRate      EventHandler[FlowNotificationContext, ClientErrorRateDetails]
-	flowEndpointErrorRate    EventHandler[FlowNotificationContext, EndpointErrorRateDetails]
-	flowEndpointLatency      EventHandler[FlowNotificationContext, EndpointLatencyDetails]
-	flowEndpointAvailability EventHandler[FlowNotificationContext, EndpointAvailabilityDetails]
+	flows                    *FlowNotificationHandler
 	alerts                   EventHandler[BusinessNotificationContext, AlertNotification]
 	templateStatus           EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
 	templateCategory         EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
@@ -109,11 +105,7 @@ type Handler struct {
 // Register handlers via the Set* methods before attaching to a Listener.
 func NewHandler() *Handler {
 	return &Handler{
-		flowStatus:               newFlowEventHandler[StatusChangeDetails](),
-		flowClientErrorRate:      newFlowEventHandler[ClientErrorRateDetails](),
-		flowEndpointErrorRate:    newFlowEventHandler[EndpointErrorRateDetails](),
-		flowEndpointLatency:      newFlowEventHandler[EndpointLatencyDetails](),
-		flowEndpointAvailability: newFlowEventHandler[EndpointAvailabilityDetails](),
+		flows:                    &FlowNotificationHandler{},
 		alerts:                   newBusinessEventHandler[AlertNotification](),
 		templateStatus:           newBusinessEventHandler[TemplateStatusUpdateNotification](),
 		templateCategory:         newBusinessEventHandler[TemplateCategoryUpdateNotification](),
@@ -170,10 +162,6 @@ func NewHandler() *Handler {
 
 func newBusinessEventHandler[T any]() EventHandler[BusinessNotificationContext, T] {
 	return NewNoOpEventHandler[BusinessNotificationContext, T]()
-}
-
-func newFlowEventHandler[T any]() EventHandler[FlowNotificationContext, T] {
-	return NewNoOpEventHandler[FlowNotificationContext, T]()
 }
 
 func newMessageEventHandler[T any]() MessageHandler[T] {
@@ -320,7 +308,7 @@ func (handler *Handler) handleFlowsChange(
 		EventMessage:       change.Value.Message,
 		FlowID:             change.Value.FlowID,
 	}
-	if err := handler.handleFlowNotification(ctx, notificationCtx, change.Value); err != nil {
+	if err := handler.flows.Handle(ctx, notificationCtx, change.Value); err != nil {
 		if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 			return handlerErr
 		}
