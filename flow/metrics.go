@@ -1,0 +1,109 @@
+//  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+//  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+//  subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in all copies or substantial
+//  portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+//  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+package flow
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
+)
+
+type metricEndpoint string
+
+const (
+	MetricEndpointRequestCount              metricEndpoint = "ENDPOINT_REQUEST_COUNT"
+	MetricEndpointRequestError              metricEndpoint = "ENDPOINT_REQUEST_ERROR"
+	MetricEndpointRequestErrorRate          metricEndpoint = "ENDPOINT_REQUEST_ERROR_RATE"
+	MetricEndpointRequestLatencySecondsCeil metricEndpoint = "ENDPOINT_REQUEST_LATENCY_SECONDS_CEIL"
+	MetricEndpointAvailability              metricEndpoint = "ENDPOINT_AVAILABILITY"
+)
+
+type granularity string
+
+const (
+	GranularityDay      granularity = "DAY"
+	GranularityHour     granularity = "HOUR"
+	GranularityLifetime granularity = "LIFETIME"
+)
+
+type (
+	MetricsAPIResponse struct {
+		ID     string  `json:"id"`
+		Metric *Metric `json:"metric"`
+	}
+
+	Metric struct {
+		Name        string       `json:"name"`
+		Granularity string       `json:"granularity"`
+		DataPoints  []*DataPoint `json:"data_points"`
+	}
+
+	DataPoint struct {
+		Timestamp string        `json:"timestamp"`
+		Data      []*MetricData `json:"data"`
+	}
+
+	MetricData struct {
+		Key   string `json:"key"`
+		Value int64  `json:"value"`
+	}
+
+	MetricsRequest struct {
+		FlowID      string         `json:"flow_id"`     // Flow ID to get metrics for
+		MetricName  metricEndpoint `json:"name"`        // Metric name (e.g., ENDPOINT_REQUEST_ERROR)
+		Granularity granularity    `json:"granularity"` // Time granularity (DAY, HOUR, LIFETIME)
+		Since       time.Time      `json:"since"`       // Start of the time period (optional, YYYY-MM-DD)
+		Until       time.Time      `json:"until"`       // End of the time period (optional, YYYY-MM-DD)
+	}
+)
+
+func (c *Client) GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*MetricsAPIResponse, error) {
+	queryParams := map[string]string{
+		fieldsQueryParam: fmt.Sprintf(
+			"metric.name(%s).granularity(%s).since(%s).until(%s)",
+			request.MetricName,
+			request.Granularity,
+			request.Since.Format(time.DateOnly),
+			request.Until.Format(time.DateOnly),
+		),
+	}
+
+	b := whttp.NewRequestBuilder(http.MethodGet, c.config.BaseURL).
+		Bearer(c.config.AccessToken).
+		AppSecret(c.config.AppSecret).Secured(c.config.SecureRequests).
+		DebugLogLevel(whttp.ParseDebugLogLevel(c.config.DebugLogLevel)).
+		Type(whttp.RequestTypeGetFlowMetrics).
+		Endpoints(c.config.APIVersion, request.FlowID).
+		QueryParams(queryParams)
+
+	req := whttp.Build[any](b, nil)
+
+	var resp MetricsAPIResponse
+	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
+		Flags: whttp.JSONDecodeDisallowUnknownFields | whttp.JSONDecodeDisallowEmptyResponse,
+	})
+
+	if err := c.sender.Sender.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("get flow metrics failed: %w", err)
+	}
+
+	return &resp, nil
+}

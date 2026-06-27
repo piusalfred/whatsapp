@@ -1,0 +1,55 @@
+/*
+ *  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+ *
+ *  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ *  and associated documentation files (the "Software"), to deal in the Software without restriction,
+ *  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ *  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+ *  subject to the following conditions:
+ *
+ *  The above copyright notice and this permission notice shall be included in all copies or substantial
+ *  portions of the Software.
+ *
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ *  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ *  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+package http
+
+import (
+	"context"
+	"net/http"
+)
+
+type (
+	// RequestInterceptorFunc intercepts an outgoing HTTP request before it is sent.
+	//
+	// The framework snapshots the request body before calling the interceptor and
+	// restores the original body afterward, so reading req.Body does not affect the
+	// actual HTTP call.
+	RequestInterceptorFunc func(ctx context.Context, request *http.Request) error
+	RequestInterceptor     interface {
+		InterceptRequest(ctx context.Context, request *http.Request) error
+	}
+
+	// ResponseInterceptorFunc intercepts an HTTP response before it is decoded.
+	//
+	// The framework snapshots the response body before calling the interceptor and
+	// restores the original body afterward, so reading resp.Body does not affect
+	// downstream decoding.
+	ResponseInterceptorFunc func(ctx context.Context, response *http.Response) error
+	ResponseInterceptor     interface {
+		InterceptResponse(ctx context.Context, response *http.Response) error
+	}
+)
+
+func (fn RequestInterceptorFunc) InterceptRequest(ctx context.Context, request *http.Request) error {
+	return fn(ctx, request)
+}
+
+func (fn ResponseInterceptorFunc) InterceptResponse(ctx context.Context, response *http.Response) error {
+	return fn(ctx, response)
+}

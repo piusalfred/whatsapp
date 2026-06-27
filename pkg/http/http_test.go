@@ -1,0 +1,1172 @@
+//  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
+//  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+//  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+//  subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in all copies or substantial
+//  portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+//  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+package http_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	gcmp "github.com/google/go-cmp/cmp"
+
+	"github.com/piusalfred/whatsapp/internal/test"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
+)
+
+var (
+	errUnexpectedStatus = errors.New("unexpected status code")
+	errInterceptor      = errors.New("interceptor error")
+	errTransport        = errors.New("transport error")
+	errRequestHook      = errors.New("request hook failed")
+	errResponseHook     = errors.New("response hook failed")
+	errMiddleware       = errors.New("middleware error")
+)
+
+func ExampleNewBaseClient() {
+	customHTTPClient := &http.Client{
+		Timeout: 2 * time.Second,
+	}
+
+	// Define middleware that logs request information
+	loggingMiddleware := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			fmt.Println("request logger init called before core middlewares")
+
+			return next(ctx, req, decoder)
+		}
+	}
+
+	methodPrinter := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			fmt.Printf("from core middleware request method is: %s\n", req.Method)
+
+			return next(ctx, req, decoder)
+		}
+	}
+
+	loggingMiddleware2 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			fmt.Println("called after core middleware request logger final")
+
+			return next(ctx, req, decoder)
+		}
+	}
+
+	loggingMiddleware3 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			err := next(ctx, req, decoder)
+			fmt.Println("called after request send execution and the err is:", err)
+
+			return err
+		}
+	}
+
+	reqInterceptor := func(_ context.Context, req *http.Request) error {
+		fmt.Println("Just intercepted the request and the method is:", req.Method)
+
+		return nil
+	}
+
+	resInterceptor := func(_ context.Context, res *http.Response) error {
+		fmt.Println("Just intercepted the response and status code:", res.StatusCode)
+
+		return nil
+	}
+
+	resBodyInterceptor := func(_ context.Context, res *http.Response) error {
+		body, _ := io.ReadAll(res.Body)
+		defer func() {
+			res.Body = io.NopCloser(bytes.NewReader(body))
+		}()
+		fmt.Println("from response body interceptor:", string(body))
+
+		return nil
+	}
+
+	longLiveClient := &http.Client{Timeout: time.Hour}
+
+	options := []whttp.CoreSenderOption{
+		whttp.WithSenderHTTPClient(customHTTPClient),
+		whttp.WithSenderRequestInterceptor(nil),
+		whttp.WithSenderResponseInterceptor(resBodyInterceptor),
+	}
+
+	base := whttp.NewBaseClient[TestMessage](options...)
+	base.Sender = whttp.WrapMiddlewareSender(
+		base.Sender,
+		loggingMiddleware,
+		methodPrinter,
+		loggingMiddleware2,
+		loggingMiddleware3,
+	)
+
+	_ = longLiveClient
+	_ = reqInterceptor
+	_ = resInterceptor
+
+	echoHandler := func(w http.ResponseWriter, r *http.Request) {
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "could not read body", http.StatusInternalServerError)
+
+			return
+		}
+		defer func(Body io.ReadCloser) {
+			closeErr := Body.Close()
+			if closeErr != nil {
+				fmt.Println("could not close body:", closeErr)
+			}
+		}(r.Body)
+
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write(bodyBytes); err != nil {
+			fmt.Printf("could not write response: %v", err)
+		}
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(echoHandler))
+	defer server.Close()
+
+	req := &whttp.Request[TestMessage]{
+		Method:    http.MethodPost,
+		BaseURL:   server.URL,
+		Endpoints: []string{"send"},
+		Message:   &TestMessage{Name: "Hello", Value: 123},
+		Bearer:    "example-token",
+	}
+
+	// Response decoder to handle the response
+	decoder := whttp.ResponseDecoderJSON(&TestMessage{}, whttp.DecodeOptions{})
+
+	// Send the request using the sender
+	err := base.Sender.Send(context.Background(), req, decoder)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+	}
+
+	// Output:
+	// request logger init called before core middlewares
+	// from core middleware request method is: POST
+	// called after core middleware request logger final
+	// from response body interceptor: {"name":"Hello","value":123}
+	// called after request send execution and the err is: <nil>
+}
+
+func TestSenderFunc_Send(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	sender := whttp.SenderFunc[TestMessage](
+		func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			called = true
+			return nil
+		},
+	)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodGet,
+		BaseURL: "https://api.example.com",
+	}
+
+	decoder := whttp.ResponseDecoderFunc(func(ctx context.Context, resp *http.Response) error {
+		return nil
+	})
+
+	err := sender.Send(context.Background(), req, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	if !called {
+		t.Error("expected sender function to be called")
+	}
+}
+
+func TestMiddlewareExecution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("middleware execution order", func(t *testing.T) {
+		t.Parallel()
+
+		var order []int
+
+		middleware1 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+			return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+				order = append(order, 1)
+				err := next(ctx, req, decoder)
+				order = append(order, 4)
+				return err
+			}
+		}
+
+		middleware2 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+			return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+				order = append(order, 2)
+				err := next(ctx, req, decoder)
+				order = append(order, 3)
+				return err
+			}
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte(`{"name":"test","value":1}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}))
+		defer server.Close()
+
+		client := whttp.NewBaseClient[TestMessage]()
+		client.Sender = whttp.WrapMiddlewareSender(client.Sender, middleware1, middleware2)
+
+		req := &whttp.Request[TestMessage]{
+			Method:  http.MethodGet,
+			BaseURL: server.URL,
+		}
+
+		msg := &TestMessage{}
+		decoder := whttp.ResponseDecoderJSON(msg, whttp.DecodeOptions{})
+
+		err := client.Sender.Send(context.Background(), req, decoder)
+		test.AssertNoError(t, "Send", err)
+
+		expectedOrder := []int{1, 2, 3, 4}
+		if diff := gcmp.Diff(expectedOrder, order); diff != "" {
+			t.Errorf("middleware execution order mismatch (-want +got):\n%s", diff)
+		}
+	})
+}
+
+func TestNewSenderIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("complete request lifecycle with interceptors", func(t *testing.T) {
+		t.Parallel()
+
+		requestIntercepted := false
+		responseIntercepted := false
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-Custom-Header") != "custom-value" {
+				t.Error("expected custom header to be present")
+			}
+
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(TestMessage{Name: "response", Value: 200}); err != nil {
+				t.Fatal(err)
+			}
+		}))
+		defer server.Close()
+
+		reqInterceptor := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
+			requestIntercepted = true
+			req.Header.Set("X-Custom-Header", "custom-value")
+			return nil
+		})
+
+		resInterceptor := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
+			responseIntercepted = true
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("%w: %d", errUnexpectedStatus, resp.StatusCode)
+			}
+			return nil
+		})
+
+		sender := whttp.NewCoreClient[TestMessage](
+			whttp.WithSenderRequestInterceptor(reqInterceptor),
+			whttp.WithSenderResponseInterceptor(resInterceptor),
+		)
+
+		req := &whttp.Request[TestMessage]{
+			Method:    http.MethodPost,
+			BaseURL:   server.URL,
+			Endpoints: []string{"api", "messages"},
+			Message:   &TestMessage{Name: "request", Value: 100},
+			Bearer:    "test-token",
+		}
+
+		result := &TestMessage{}
+		decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+		err := sender.Send(context.Background(), req, decoder)
+		test.AssertNoError(t, "Send", err)
+
+		if !requestIntercepted {
+			t.Error("expected request interceptor to be called")
+		}
+		if !responseIntercepted {
+			t.Error("expected response interceptor to be called")
+		}
+		if result.Name != "response" || result.Value != 200 {
+			t.Errorf("expected Name=response and Value=200, got Name=%s and Value=%d", result.Name, result.Value)
+		}
+	})
+
+	t.Run("error handling in interceptors", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		reqInterceptor := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
+			return errInterceptor
+		})
+
+		sender := whttp.NewCoreClient[TestMessage](
+			whttp.WithSenderRequestInterceptor(reqInterceptor),
+		)
+
+		req := &whttp.Request[TestMessage]{
+			Method:  http.MethodGet,
+			BaseURL: server.URL,
+		}
+
+		decoder := whttp.ResponseDecoderJSON(&TestMessage{}, whttp.DecodeOptions{})
+
+		err := sender.Send(context.Background(), req, decoder)
+		test.AssertError(t, "should return interceptor error", err)
+		if !strings.Contains(err.Error(), "interceptor error") {
+			t.Errorf("expected error to contain 'interceptor error', got %v", err)
+		}
+	})
+}
+
+func TestCoreClientOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WithSenderHTTPClient", func(t *testing.T) {
+		t.Parallel()
+
+		customClient := &http.Client{Timeout: 10 * time.Second}
+		sender := whttp.NewCoreClient[TestMessage](
+			whttp.WithSenderHTTPClient(customClient),
+		)
+
+		if sender == nil {
+			t.Error("expected sender to be created")
+		}
+	})
+
+	t.Run("all options combined", func(t *testing.T) {
+		t.Parallel()
+
+		customClient := &http.Client{Timeout: 5 * time.Second}
+		reqInterceptor := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
+			return nil
+		})
+		resInterceptor := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
+			return nil
+		})
+		middleware := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+			return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+				return next(ctx, req, decoder)
+			}
+		}
+
+		sender := whttp.NewBaseClient[TestMessage](
+			whttp.WithSenderHTTPClient(customClient),
+			whttp.WithSenderRequestInterceptor(reqInterceptor),
+			whttp.WithSenderResponseInterceptor(resInterceptor),
+		)
+		if sender == nil {
+			t.Error("expected sender to be created with all options")
+			return
+		}
+		sender.Sender = whttp.WrapMiddlewareSender(sender.Sender, middleware)
+	})
+}
+
+func TestAnySender(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AnySenderFunc", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		sender := whttp.SenderFunc[any](
+			func(ctx context.Context, req *whttp.Request[any], decoder whttp.ResponseDecoder) error {
+				called = true
+				return nil
+			},
+		)
+
+		req := &whttp.Request[any]{
+			Method:  http.MethodGet,
+			BaseURL: "https://api.example.com",
+		}
+
+		decoder := whttp.ResponseDecoderFunc(func(ctx context.Context, resp *http.Response) error {
+			return nil
+		})
+
+		err := sender.Send(context.Background(), req, decoder)
+		test.AssertNoError(t, "Send", err)
+
+		if !called {
+			t.Error("expected sender to be called")
+		}
+	})
+
+	t.Run("NewSender[any]", func(t *testing.T) {
+		t.Parallel()
+
+		sender := whttp.NewCoreClient[any]()
+		if sender == nil {
+			t.Error("expected non-nil sender")
+		}
+	})
+}
+
+func TestCoreClientWithSenderOption(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	baseSender := whttp.SenderFunc[TestMessage](
+		func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			called = true
+			return nil
+		},
+	)
+
+	client := whttp.NewBaseClient[TestMessage]()
+	client.Sender = baseSender
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodGet,
+		BaseURL: "https://api.example.com",
+	}
+
+	decoder := whttp.ResponseDecoderFunc(func(ctx context.Context, resp *http.Response) error {
+		return nil
+	})
+
+	err := client.Sender.Send(context.Background(), req, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	if !called {
+		t.Error("expected base sender to be called")
+	}
+}
+
+func TestNewSender_WithOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with nil option", func(t *testing.T) {
+		t.Parallel()
+
+		sender := whttp.NewCoreClient[TestMessage](nil)
+		if sender == nil {
+			t.Error("expected non-nil sender even with nil option")
+		}
+	})
+
+	t.Run("with custom http client", func(t *testing.T) {
+		t.Parallel()
+
+		customClient := &http.Client{Timeout: 30 * time.Second}
+		sender := whttp.NewCoreClient[TestMessage](
+			whttp.WithSenderHTTPClient(customClient),
+		)
+		if sender == nil {
+			t.Error("expected non-nil sender")
+		}
+	})
+}
+
+func TestSendFuncWithInterceptors_ErrorPaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("http client Do error", func(t *testing.T) {
+		t.Parallel()
+
+		client := &http.Client{
+			Transport: &errorTransport{},
+		}
+
+		req := &whttp.Request[TestMessage]{
+			Method:  http.MethodGet,
+			BaseURL: "https://api.example.com",
+		}
+
+		decoder := whttp.ResponseDecoderJSON(&TestMessage{}, whttp.DecodeOptions{})
+
+		sendFunc := whttp.SendFuncWithInterceptors[TestMessage](client, nil, nil, whttp.DefaultMaxBodyBytes)
+		err := sendFunc(context.Background(), req, decoder)
+
+		test.AssertError(t, "should return HTTP client error", err)
+	})
+
+	t.Run("response hook read error handling", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			if _, err := w.Write([]byte(`{"name":"test","value":123}`)); err != nil {
+				t.Fatal(err)
+			}
+		}))
+		defer server.Close()
+
+		responseHookCalled := false
+		resHook := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
+			responseHookCalled = true
+			return nil
+		})
+
+		client := &http.Client{}
+		req := &whttp.Request[TestMessage]{
+			Method:  http.MethodGet,
+			BaseURL: server.URL,
+		}
+
+		result := &TestMessage{}
+		decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+		sendFunc := whttp.SendFuncWithInterceptors[TestMessage](client, nil, resHook, whttp.DefaultMaxBodyBytes)
+		err := sendFunc(context.Background(), req, decoder)
+
+		test.AssertNoError(t, "Send", err)
+		if !responseHookCalled {
+			t.Error("expected response hook to be called")
+		}
+	})
+}
+
+type errorTransport struct{}
+
+func (t *errorTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return nil, errTransport
+}
+
+func TestSendFuncWithInterceptors_RequestHookError(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"name":"test","value":123}`)); err != nil {
+			t.Fatal(err)
+		}
+	}))
+	defer server.Close()
+
+	expectedErr := errRequestHook
+	reqHook := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
+		return expectedErr
+	})
+
+	client := &http.Client{}
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodGet,
+		BaseURL: server.URL,
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+	sendFunc := whttp.SendFuncWithInterceptors[TestMessage](client, reqHook, nil, whttp.DefaultMaxBodyBytes)
+	err := sendFunc(context.Background(), req, decoder)
+
+	test.AssertError(t, "should return request hook error", err)
+	test.AssertErrorIs(t, "should be the expected error", err, expectedErr)
+}
+
+func TestSendFuncWithInterceptors_ResponseHookError(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"name":"test","value":123}`)); err != nil {
+			t.Fatal(err)
+		}
+	}))
+	defer server.Close()
+
+	expectedErr := errResponseHook
+	resHook := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
+		return expectedErr
+	})
+
+	client := &http.Client{}
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodGet,
+		BaseURL: server.URL,
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+	sendFunc := whttp.SendFuncWithInterceptors[TestMessage](client, nil, resHook, whttp.DefaultMaxBodyBytes)
+	err := sendFunc(context.Background(), req, decoder)
+
+	test.AssertError(t, "should return response hook error", err)
+	test.AssertErrorIs(t, "should be the expected error", err, expectedErr)
+}
+
+func TestSendFuncWithInterceptors_DecoderError(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`not valid json`)); err != nil {
+			t.Fatal(err)
+		}
+	}))
+	defer server.Close()
+
+	client := &http.Client{}
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodGet,
+		BaseURL: server.URL,
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowUnknownFields})
+
+	sendFunc := whttp.SendFuncWithInterceptors[TestMessage](client, nil, nil, whttp.DefaultMaxBodyBytes)
+	err := sendFunc(context.Background(), req, decoder)
+
+	test.AssertError(t, "should return decoder error", err)
+}
+
+func TestCoreClient_SendWithMiddlewareChain(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Middleware-1") != "applied" {
+			http.Error(w, "middleware 1 not applied", http.StatusBadRequest)
+			return
+		}
+		if r.Header.Get("X-Middleware-2") != "applied" {
+			http.Error(w, "middleware 2 not applied", http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"name":"success","value":200}`)); err != nil {
+			t.Fatal(err)
+		}
+	}))
+	defer server.Close()
+
+	middleware1 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			if req.Headers == nil {
+				req.Headers = make(map[string]string)
+			}
+			req.Headers["X-Middleware-1"] = "applied"
+			return next(ctx, req, decoder)
+		}
+	}
+
+	middleware2 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			if req.Headers == nil {
+				req.Headers = make(map[string]string)
+			}
+			req.Headers["X-Middleware-2"] = "applied"
+			return next(ctx, req, decoder)
+		}
+	}
+
+	sender := whttp.NewBaseClient[TestMessage]()
+	sender.Sender = whttp.WrapMiddlewareSender(sender.Sender, middleware1, middleware2)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodGet,
+		BaseURL: server.URL,
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+	err := sender.Sender.Send(context.Background(), req, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	if result.Name != "success" || result.Value != 200 {
+		t.Errorf("expected Name=success and Value=200, got Name=%s and Value=%d", result.Name, result.Value)
+	}
+}
+
+func TestCoreClient_MiddlewareErrorShortCircuit(t *testing.T) {
+	t.Parallel()
+
+	serverCalled := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	expectedErr := errMiddleware
+	errorMiddleware := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			return expectedErr
+		}
+	}
+
+	sender := whttp.NewBaseClient[TestMessage]()
+	sender.Sender = whttp.WrapMiddlewareSender(sender.Sender, errorMiddleware)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodGet,
+		BaseURL: server.URL,
+	}
+
+	decoder := whttp.ResponseDecoderJSON(&TestMessage{}, whttp.DecodeOptions{})
+
+	err := sender.Sender.Send(context.Background(), req, decoder)
+	test.AssertError(t, "should return middleware error", err)
+	test.AssertErrorIs(t, "should be the expected error", err, expectedErr)
+
+	if serverCalled {
+		t.Error("server should not have been called when middleware returns error")
+	}
+}
+
+func TestCoreClient_InterceptorsWithBody(t *testing.T) {
+	t.Parallel()
+
+	responseBody := `{"name":"response","value":999}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(responseBody)); err != nil {
+			t.Fatal(err)
+		}
+	}))
+	defer server.Close()
+
+	var interceptedReqBody string
+	var interceptedResBody string
+
+	reqHook := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
+		if req.Body != nil {
+			body, _ := io.ReadAll(req.Body)
+			interceptedReqBody = string(body)
+		}
+		return nil
+	})
+
+	resHook := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
+		body, _ := io.ReadAll(resp.Body)
+		interceptedResBody = string(body)
+		return nil
+	})
+
+	sender := whttp.NewCoreClient[TestMessage](
+		whttp.WithSenderRequestInterceptor(reqHook),
+		whttp.WithSenderResponseInterceptor(resHook),
+	)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodPost,
+		BaseURL: server.URL,
+		Message: &TestMessage{Name: "request", Value: 42},
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+	err := sender.Send(context.Background(), req, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	if interceptedReqBody == "" {
+		t.Error("request body should have been intercepted")
+	}
+
+	if interceptedResBody != responseBody {
+		t.Errorf("expected intercepted response body %q, got %q", responseBody, interceptedResBody)
+	}
+
+	if result.Name != "response" || result.Value != 999 {
+		t.Errorf("expected Name=response and Value=999, got Name=%s and Value=%d", result.Name, result.Value)
+	}
+}
+
+func TestRequestInterceptor_ConsumesBodyWithoutRestoring(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if len(body) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"name":"empty-body","value":0}`))
+
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"name":"ok","value":1}`))
+	}))
+	defer server.Close()
+
+	reqHook := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
+		// Consume body but DO NOT restore it — the framework now handles restoration.
+		_, _ = io.ReadAll(req.Body)
+		return nil
+	})
+
+	sender := whttp.NewCoreClient[TestMessage](
+		whttp.WithSenderRequestInterceptor(reqHook),
+	)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodPost,
+		BaseURL: server.URL,
+		Message: &TestMessage{Name: "request", Value: 42},
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+	err := sender.Send(context.Background(), req, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	// The server received the full body because the framework restored it.
+	if result.Name != "ok" || result.Value != 1 {
+		t.Errorf("expected server to receive full body (ok response), got Name=%q Value=%d", result.Name, result.Value)
+	}
+}
+
+func TestResponseInterceptor_ConsumesBodyWithoutRestoring(t *testing.T) {
+	t.Parallel()
+
+	responseBody := `{"name":"response","value":999}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(responseBody))
+	}))
+	defer server.Close()
+
+	reqHook := whttp.RequestInterceptorFunc(func(ctx context.Context, req *http.Request) error {
+		// Restore request body so the server gets it.
+		if req.Body != nil {
+			body, _ := io.ReadAll(req.Body)
+			req.Body = io.NopCloser(bytes.NewReader(body))
+		}
+		return nil
+	})
+
+	resHook := whttp.ResponseInterceptorFunc(func(ctx context.Context, resp *http.Response) error {
+		// Consume body but DO NOT restore it — the framework should still protect
+		// downstream decoding.
+		_, _ = io.ReadAll(resp.Body)
+		return nil
+	})
+
+	sender := whttp.NewCoreClient[TestMessage](
+		whttp.WithSenderRequestInterceptor(reqHook),
+		whttp.WithSenderResponseInterceptor(resHook),
+	)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodPost,
+		BaseURL: server.URL,
+		Message: &TestMessage{Name: "request", Value: 42},
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+	err := sender.Send(context.Background(), req, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	// Decoder still gets the full body because the framework restored it.
+	if result.Name != "response" || result.Value != 999 {
+		t.Errorf(
+			"expected decoder to receive full body despite interceptor not restoring, got Name=%s Value=%d",
+			result.Name,
+			result.Value,
+		)
+	}
+}
+
+func Example_interceptorBodyGotcha() {
+	// This example demonstrates safe body handling in interceptors.
+	//
+	// Both request and response interceptors are body-safe: the framework snapshots
+	// the body before the interceptor runs and restores it afterwards. You can read
+	// req.Body or resp.Body freely without breaking the downstream call or decoder.
+
+	echoHandler := func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(echoHandler))
+	defer server.Close()
+
+	// Read the request body freely — the framework restores it automatically.
+	reqInterceptor := func(_ context.Context, req *http.Request) error {
+		if req.Body == nil {
+			return nil
+		}
+		body, _ := io.ReadAll(req.Body)
+		fmt.Println("request body length:", len(body))
+		return nil
+	}
+
+	// Read the response body freely — the framework restores it automatically.
+	resInterceptor := func(_ context.Context, res *http.Response) error {
+		_, _ = io.ReadAll(res.Body)
+		fmt.Println("response status:", res.StatusCode)
+		return nil
+	}
+
+	sender := whttp.NewCoreClient[TestMessage](
+		whttp.WithSenderRequestInterceptor(reqInterceptor),
+		whttp.WithSenderResponseInterceptor(resInterceptor),
+	)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodPost,
+		BaseURL: server.URL,
+		Message: &TestMessage{Name: "hello", Value: 1},
+	}
+
+	decoder := whttp.ResponseDecoderJSON(&TestMessage{}, whttp.DecodeOptions{})
+	_ = sender.Send(context.Background(), req, decoder)
+
+	// Output:
+	// request body length: 26
+	// response status: 200
+}
+
+func TestAnySenderFunc_Send(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	fn := whttp.SenderFunc[any](
+		func(ctx context.Context, req *whttp.Request[any], decoder whttp.ResponseDecoder) error {
+			called = true
+			return nil
+		},
+	)
+
+	decoder := whttp.ResponseDecoderFunc(func(ctx context.Context, resp *http.Response) error {
+		return nil
+	})
+
+	err := fn.Send(context.Background(), &whttp.Request[any]{}, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	if !called {
+		t.Error("expected AnySenderFunc to be called")
+	}
+}
+
+func TestCoreClient_NilMiddlewaresSkipped(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"name":"test","value":1}`)); err != nil {
+			t.Fatal(err)
+		}
+	}))
+	defer server.Close()
+
+	var executionOrder []string
+
+	mw1 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			executionOrder = append(executionOrder, "mw1")
+			return next(ctx, req, decoder)
+		}
+	}
+
+	mw3 := func(next whttp.SenderFunc[TestMessage]) whttp.SenderFunc[TestMessage] {
+		return func(ctx context.Context, req *whttp.Request[TestMessage], decoder whttp.ResponseDecoder) error {
+			executionOrder = append(executionOrder, "mw3")
+			return next(ctx, req, decoder)
+		}
+	}
+
+	sender := whttp.NewBaseClient[TestMessage]()
+	sender.Sender = whttp.WrapMiddlewareSender(sender.Sender, mw1, nil, mw3)
+
+	req := &whttp.Request[TestMessage]{
+		Method:  http.MethodGet,
+		BaseURL: server.URL,
+	}
+
+	result := &TestMessage{}
+	decoder := whttp.ResponseDecoderJSON(result, whttp.DecodeOptions{})
+
+	err := sender.Sender.Send(context.Background(), req, decoder)
+	test.AssertNoError(t, "Send", err)
+
+	if len(executionOrder) != 2 || executionOrder[0] != "mw1" || executionOrder[1] != "mw3" {
+		t.Errorf("expected execution order [mw1, mw3], got %v", executionOrder)
+	}
+}
+
+func TestSendFuncWithInterceptors_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
+	client := &http.Client{}
+
+	sendFunc := whttp.SendFuncWithInterceptors[TestMessage](client, nil, nil, whttp.DefaultMaxBodyBytes)
+	err := sendFunc(context.Background(), nil, nil)
+
+	test.AssertError(t, "should return error for nil request", err)
+}
+
+// closeTracker is an io.ReadCloser that records whether Close was called.
+type closeTracker struct {
+	io.Reader
+	closed bool
+}
+
+func (c *closeTracker) Close() error {
+	c.closed = true
+	return nil
+}
+
+// bodyTrackingTransport returns a response whose body is the provided closeTracker.
+type bodyTrackingTransport struct {
+	tracker *closeTracker
+}
+
+func (t *bodyTrackingTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       t.tracker,
+		Header:     make(http.Header),
+	}, nil
+}
+
+func TestResponseInterceptor_ClosesOriginalBody(t *testing.T) {
+	t.Parallel()
+
+	tracker := &closeTracker{Reader: strings.NewReader(`{"ok":true}`)}
+	transport := &bodyTrackingTransport{tracker: tracker}
+	client := &http.Client{Transport: transport}
+
+	hook := whttp.ResponseInterceptorFunc(func(_ context.Context, _ *http.Response) error {
+		return nil
+	})
+
+	sendFunc := whttp.SendFuncWithInterceptors[any](client, nil, hook, whttp.DefaultMaxBodyBytes)
+
+	req := &whttp.Request[any]{
+		Method:  http.MethodGet,
+		BaseURL: "https://example.com",
+	}
+
+	decoder := whttp.ResponseDecoderFunc(func(_ context.Context, _ *http.Response) error {
+		return nil
+	})
+
+	_ = sendFunc(context.Background(), req, decoder)
+
+	if !tracker.closed {
+		t.Error(
+			"BUG: original response body was not closed after interceptor snapshot — HTTP connection cannot be reused",
+		)
+	}
+}
+
+func TestRequestInterceptor_ClosesOriginalBody(t *testing.T) {
+	t.Parallel()
+
+	tracker := &closeTracker{Reader: strings.NewReader(`{"name":"test"}`)}
+	transport := &bodyTrackingTransport{tracker: &closeTracker{Reader: strings.NewReader(`{"ok":true}`)}}
+	client := &http.Client{Transport: transport}
+
+	reqHook := whttp.RequestInterceptorFunc(func(_ context.Context, _ *http.Request) error {
+		return nil
+	})
+
+	sendFunc := whttp.SendFuncWithInterceptors[any](client, reqHook, nil, whttp.DefaultMaxBodyBytes)
+
+	// Pass the closeTracker directly rather than wrapping with io.NopCloser,
+	// because io.NopCloser does not delegate Close() to the underlying reader
+	// even when it implements io.Closer.
+	req := &whttp.Request[any]{
+		Method:     http.MethodPost,
+		BaseURL:    "https://example.com",
+		BodyReader: tracker,
+	}
+
+	decoder := whttp.ResponseDecoderFunc(func(_ context.Context, _ *http.Response) error {
+		return nil
+	})
+
+	_ = sendFunc(context.Background(), req, decoder)
+
+	if !tracker.closed {
+		t.Error("BUG: original request body was not closed after interceptor snapshot")
+	}
+}
+
+func TestMiddlewarePanicPropagates(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	panicMsg := "middleware bug"
+	panickingMW := whttp.Middleware[any](func(next whttp.SenderFunc[any]) whttp.SenderFunc[any] {
+		return whttp.SenderFunc[any](
+			func(ctx context.Context, req *whttp.Request[any], dec whttp.ResponseDecoder) error {
+				panic(panicMsg)
+			},
+		)
+	})
+
+	sender := whttp.NewCoreClient[any]()
+	wrapped := whttp.WrapMiddlewareSender(sender, panickingMW)
+
+	req := &whttp.Request[any]{
+		Method:  http.MethodGet,
+		BaseURL: server.URL,
+	}
+	decoder := whttp.ResponseDecoderFunc(func(_ context.Context, _ *http.Response) error {
+		return nil
+	})
+
+	// A thin library does not swallow panics in user-supplied callbacks.
+	// Verify the panic propagates to the caller.
+	done := make(chan bool)
+	go func() {
+		defer func() {
+			if recover() != nil {
+				done <- true
+			}
+		}()
+		_ = wrapped.Send(context.Background(), req, decoder)
+		done <- false
+	}()
+
+	if !<-done {
+		t.Error("expected panic to propagate from panicking middleware")
+	}
+}

@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: fmt
+        name: Format Code
+        language: system
+        entry: make fmt
+        pass_filenames: false
+        types: [go]

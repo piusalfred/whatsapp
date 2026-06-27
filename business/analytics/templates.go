@@ -1,0 +1,196 @@
+//  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
+//  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+//  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+//  subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in all copies or substantial
+//  portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+//  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+package analytics
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/piusalfred/whatsapp/config"
+	whttp "github.com/piusalfred/whatsapp/pkg/http"
+)
+
+type (
+	TemplateCostMetric struct {
+		Type  string  `json:"type,omitempty"`
+		Value float64 `json:"value,omitempty"`
+	}
+
+	TemplateClicked struct {
+		Type          string `json:"type,omitempty"`
+		ButtonContent string `json:"button_content,omitempty"`
+		Count         int64  `json:"count,omitempty"`
+	}
+
+	TemplateAnalyticsPoint struct {
+		TemplateID string               `json:"template_id,omitempty"`
+		Start      int64                `json:"start,omitempty"`
+		End        int64                `json:"end,omitempty"`
+		Sent       int64                `json:"sent,omitempty"`
+		Delivered  int64                `json:"delivered,omitempty"`
+		Read       int64                `json:"read,omitempty"`
+		Clicked    []TemplateClicked    `json:"clicked,omitempty"`
+		Cost       []TemplateCostMetric `json:"cost,omitempty"`
+	}
+
+	TemplateAnalyticsData struct {
+		Granularity string                   `json:"granularity,omitempty"`
+		ProductType string                   `json:"product_type,omitempty"`
+		DataPoints  []TemplateAnalyticsPoint `json:"data_points,omitempty"`
+	}
+
+	TemplateAnalyticsResponse struct {
+		Data   []TemplateAnalyticsData `json:"data,omitempty"`
+		Paging *whttp.Paging           `json:"paging,omitempty"`
+	}
+)
+
+// DisableButtonClickTracking disables button click tracking for a template.
+func (c *Client) DisableButtonClickTracking(ctx context.Context,
+	req *DisableButtonClickTrackingRequest,
+) (*DisableButtonClickTrackingResponse, error) {
+	return c.sender.DisableButtonClickTracking(ctx, c.config, req)
+}
+
+// Enable confirms template analytics on your WhatsApp Business Account. Once confirmed,
+// template analytics cannot be disabled.
+func (c *Client) Enable(ctx context.Context) (string, error) {
+	return c.sender.Enable(ctx, c.config)
+}
+
+// Fetch fetches template analytics for the specified templates within the specified date range.
+func (c *Client) Fetch(ctx context.Context, params *TemplateAnalyticsRequest) (
+	*TemplateAnalyticsResponse, error,
+) {
+	return c.sender.Fetch(ctx, c.config, params)
+}
+
+type DisableButtonClickTrackingRequest struct {
+	TemplateID string `json:"template_id"`
+	OptOut     bool   `json:"cta_url_link_tracking_opted_out"`
+	Category   string `json:"category"`
+}
+
+type DisableButtonClickTrackingResponse struct {
+	Success bool `json:"success"`
+}
+
+func (bc *BaseClient) DisableButtonClickTracking(ctx context.Context,
+	conf *config.Config,
+	req *DisableButtonClickTrackingRequest,
+) (*DisableButtonClickTrackingResponse, error) {
+	queryParams := map[string]string{
+		"cta_url_link_tracking_opted_out": strconv.FormatBool(req.OptOut),
+		"category":                        req.Category,
+	}
+
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeDisableButtonClickTracking).
+		Endpoints(conf.APIVersion, req.TemplateID).
+		QueryParams(queryParams)
+
+	request := whttp.BuildRequest(b, (*BaseRequest)(nil))
+
+	response := &DisableButtonClickTrackingResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
+
+	if err := bc.Sender.Send(ctx, request, decoder); err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	return response, nil
+}
+
+type EnableTemplateAnalyticsResponse struct {
+	ID string `json:"id"`
+}
+
+// Enable confirms template analytics on your WhatsApp Business Account. Once confirmed,
+// template analytics cannot be disabled.
+func (bc *BaseClient) Enable(ctx context.Context, conf *config.Config) (string, error) {
+	queryParams := map[string]string{
+		"is_enabled_for_insights": "true",
+	}
+
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeEnableTemplatesAnalytics).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID).
+		QueryParams(queryParams)
+
+	request := whttp.BuildRequest(b, (*BaseRequest)(nil))
+
+	response := &EnableTemplateAnalyticsResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
+
+	if err := bc.Sender.Send(ctx, request, decoder); err != nil {
+		return "", fmt.Errorf("send request: %w", err)
+	}
+
+	return response.ID, nil
+}
+
+type TemplateAnalyticsRequest struct {
+	Start       int64    `json:"start"`
+	End         int64    `json:"end"`
+	Templates   []string `json:"template_ids"`
+	MetricTypes []string `json:"metric_types,omitempty"`
+}
+
+var ErrInvalidTemplatesCount = errors.New("invalid number of templates")
+
+// Fetch fetches template analytics for the specified templates within the specified date range.
+func (bc *BaseClient) Fetch(ctx context.Context, conf *config.Config, params *TemplateAnalyticsRequest) (
+	*TemplateAnalyticsResponse, error,
+) {
+	queryParams := map[string]string{}
+	queryParams["start"] = strconv.FormatInt(params.Start, 10)
+	queryParams["end"] = strconv.FormatInt(params.End, 10)
+	queryParams["granularity"] = GranularityDaily.String()
+	if len(params.Templates) > 0 && len(params.Templates) <= 10 {
+		queryParams["template_ids"] = "[" + strings.Join(params.Templates, ",") + "]"
+	} else {
+		return nil, fmt.Errorf("%w: count: %d: shold be >0 and < 11", ErrInvalidTemplatesCount, len(params.Templates))
+	}
+
+	if len(params.MetricTypes) > 0 {
+		queryParams["metric_types"] = strings.Join(params.MetricTypes, ",")
+	}
+
+	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeFetchTemplateAnalytics).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID, string(TypeTemplateAnalytics)).
+		QueryParams(queryParams)
+
+	request := whttp.BuildRequest(b, (*BaseRequest)(nil))
+
+	response := &TemplateAnalyticsResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
+
+	if err := bc.Sender.Send(ctx, request, decoder); err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	return response, nil
+}

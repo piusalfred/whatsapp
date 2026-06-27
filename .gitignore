@@ -1,0 +1,12 @@
+.idea
+.vscode
+playground
+bin
+play.go
+coverage.out
+./examples/bin
+./examples/api.env
+TODO.md
+findings.md
+http_fix_list.md
+code-review
