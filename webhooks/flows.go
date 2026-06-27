@@ -46,18 +46,49 @@ type FlowNotificationContext struct {
 	FlowID             string // Corresponds to 'flow_id' field in Value
 }
 
-// FlowStatusHandler is a legacy alias for flow status change handlers.
-// Prefer [FlowEventHandler[StatusChangeDetails]] for new code.
+type FlowStatusHandler = FlowEventHandler[StatusChangeDetails]
+
+type FlowClientErrorRateHandler = FlowEventHandler[ClientErrorRateDetails]
+
+type FlowEndpointErrorRateHandler = FlowEventHandler[EndpointErrorRateDetails]
+
+type FlowEndpointLatencyHandler = FlowEventHandler[EndpointLatencyDetails]
+
+type FlowEndpointAvailabilityHandler = FlowEventHandler[EndpointAvailabilityDetails]
+
 type (
-	FlowStatusHandler = FlowEventHandler[StatusChangeDetails]
-	// FlowClientErrorRateHandler is a legacy alias for flow client error rate handlers.
-	FlowClientErrorRateHandler = FlowEventHandler[ClientErrorRateDetails]
-	// FlowEndpointErrorRateHandler is a legacy alias for flow endpoint error rate handlers.
-	FlowEndpointErrorRateHandler = FlowEventHandler[EndpointErrorRateDetails]
-	// FlowEndpointLatencyHandler is a legacy alias for flow endpoint latency handlers.
-	FlowEndpointLatencyHandler = FlowEventHandler[EndpointLatencyDetails]
-	// FlowEndpointAvailabilityHandler is a legacy alias for flow endpoint availability handlers.
-	FlowEndpointAvailabilityHandler = FlowEventHandler[EndpointAvailabilityDetails]
+	StatusChangeDetails struct {
+		OldStatus string `json:"old_status,omitempty"`
+		NewStatus string `json:"new_status,omitempty"`
+	}
+
+	ClientErrorRateDetails struct {
+		ErrorRate  float64     `json:"error_rate,omitempty"`
+		Threshold  int         `json:"threshold,omitempty"`
+		AlertState string      `json:"alert_state,omitempty"`
+		Errors     []ErrorInfo `json:"errors,omitempty"`
+	}
+
+	EndpointErrorRateDetails struct {
+		ErrorRate  float64     `json:"error_rate,omitempty"`
+		Threshold  int         `json:"threshold,omitempty"`
+		AlertState string      `json:"alert_state,omitempty"`
+		Errors     []ErrorInfo `json:"errors,omitempty"`
+	}
+
+	EndpointLatencyDetails struct {
+		P50Latency    int    `json:"p50_latency,omitempty"`
+		P90Latency    int    `json:"p90_latency,omitempty"`
+		RequestsCount int    `json:"requests_count,omitempty"`
+		Threshold     int    `json:"threshold,omitempty"`
+		AlertState    string `json:"alert_state,omitempty"`
+	}
+
+	EndpointAvailabilityDetails struct {
+		Availability int    `json:"availability"`
+		Threshold    int    `json:"threshold,omitempty"`
+		AlertState   string `json:"alert_state,omitempty"`
+	}
 )
 
 // FlowNotificationHandler groups all per-event-type handlers for the flows

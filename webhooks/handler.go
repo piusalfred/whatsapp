@@ -41,55 +41,43 @@ import (
 // account notifications, message types (text, image, interactive, etc.),
 // status changes, and group events.
 type Handler struct {
-	flows                    *FlowNotificationHandler
-	alerts                   EventHandler[BusinessNotificationContext, AlertNotification]
-	templateStatus           EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification]
-	templateCategory         EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification]
-	templateQuality          EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification]
-	templateComponents       EventHandler[BusinessNotificationContext, TemplateComponentsUpdateNotification]
-	phoneNumberNameUpdate    EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate]
-	capabilityUpdate         EventHandler[BusinessNotificationContext, CapabilityUpdate]
-	accountUpdate            EventHandler[BusinessNotificationContext, AccountUpdate]
-	phoneSettingsUpdate      EventHandler[BusinessNotificationContext, PhoneNumberSettings]
-	phoneNumberQualityUpdate EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate]
-	accountReviewUpdate      EventHandler[BusinessNotificationContext, AccountReviewUpdate]
-	callStatusUpdate         EventHandler[BusinessNotificationContext, CallStatusUpdate]
-	securityUpdate           EventHandler[BusinessNotificationContext, SecurityNotification]
-	buttonMessage            MessageHandler[Button]
-	textMessage              MessageHandler[Text]
-	orderMessage             MessageHandler[Order]
-	locationMessage          MessageHandler[media.Location]
-	contactsMessage          MessageHandler[message.Contacts]
-	reactionMessage          MessageHandler[media.Reaction]
-	productInquiry           MessageHandler[Text]
-	interactiveMessage       MessageHandler[Interactive]
-	buttonReplyMessage       MessageHandler[ButtonReply]
-	listReplyMessage         MessageHandler[ListReply]
-	flowCompletionUpdate     NativeFlowCompletionHandler
-	addressSubmission        NativeFlowCompletionHandler
-	referralMessage          MessageHandler[ReferralNotification]
-	customerIDChange         MessageHandler[Identity]
-	systemMessage            MessageHandler[System]
-	requestWelcome           MessageHandler[Message]
-	audioMessage             MediaMessageHandler
-	videoMessage             MediaMessageHandler
-	imageMessage             MediaMessageHandler
-	documentMessage          MediaMessageHandler
-	stickerMessage           MediaMessageHandler
-	notificationErrors       MessageChangeValueHandler[werrors.Error]
-	messageStatusChange      MessageChangeValueHandler[Status]
-	revokeMessage            MessageHandler[Revoke]
-	editMessage              MessageHandler[Edit]
-	smbAppStateSync          MessageChangeValueHandler[SMBAppStateSync]
-	smbMessageEcho           MessageHandler[Message]
-	userPreferencesUpdate    MessageChangeValueHandler[UserPreference]
-	groupLifecycleUpdate     MessageChangeValueHandler[Group]
-	groupParticipantsUpdate  MessageChangeValueHandler[Group]
-	groupSettingsUpdate      MessageChangeValueHandler[Group]
-	groupStatusUpdate        MessageChangeValueHandler[Group]
-	errorMessage             MessageErrorsHandler
-	unsupportedMessage       MessageErrorsHandler
-	historySync              MessageChangeValueHandler[HistoryEntry]
+	flows                   *FlowNotificationHandler
+	business                *BusinessNotificationHandler
+	buttonMessage           MessageHandler[Button]
+	textMessage             MessageHandler[Text]
+	orderMessage            MessageHandler[Order]
+	locationMessage         MessageHandler[media.Location]
+	contactsMessage         MessageHandler[message.Contacts]
+	reactionMessage         MessageHandler[media.Reaction]
+	productInquiry          MessageHandler[Text]
+	interactiveMessage      MessageHandler[Interactive]
+	buttonReplyMessage      MessageHandler[ButtonReply]
+	listReplyMessage        MessageHandler[ListReply]
+	flowCompletionUpdate    NativeFlowCompletionHandler
+	addressSubmission       NativeFlowCompletionHandler
+	referralMessage         MessageHandler[ReferralNotification]
+	customerIDChange        MessageHandler[Identity]
+	systemMessage           MessageHandler[System]
+	requestWelcome          MessageHandler[Message]
+	audioMessage            MediaMessageHandler
+	videoMessage            MediaMessageHandler
+	imageMessage            MediaMessageHandler
+	documentMessage         MediaMessageHandler
+	stickerMessage          MediaMessageHandler
+	notificationErrors      MessageChangeValueHandler[werrors.Error]
+	messageStatusChange     MessageChangeValueHandler[Status]
+	revokeMessage           MessageHandler[Revoke]
+	editMessage             MessageHandler[Edit]
+	smbAppStateSync         MessageChangeValueHandler[SMBAppStateSync]
+	smbMessageEcho          MessageHandler[Message]
+	userPreferencesUpdate   MessageChangeValueHandler[UserPreference]
+	groupLifecycleUpdate    MessageChangeValueHandler[Group]
+	groupParticipantsUpdate MessageChangeValueHandler[Group]
+	groupSettingsUpdate     MessageChangeValueHandler[Group]
+	groupStatusUpdate       MessageChangeValueHandler[Group]
+	errorMessage            MessageErrorsHandler
+	unsupportedMessage      MessageErrorsHandler
+	historySync             MessageChangeValueHandler[HistoryEntry]
 
 	errorHandlerFunc func(ctx context.Context, err error) error
 
@@ -105,63 +93,47 @@ type Handler struct {
 // Register handlers via the Set* methods before attaching to a Listener.
 func NewHandler() *Handler {
 	return &Handler{
-		flows:                    &FlowNotificationHandler{},
-		alerts:                   newBusinessEventHandler[AlertNotification](),
-		templateStatus:           newBusinessEventHandler[TemplateStatusUpdateNotification](),
-		templateCategory:         newBusinessEventHandler[TemplateCategoryUpdateNotification](),
-		templateQuality:          newBusinessEventHandler[TemplateQualityUpdateNotification](),
-		templateComponents:       newBusinessEventHandler[TemplateComponentsUpdateNotification](),
-		phoneNumberNameUpdate:    newBusinessEventHandler[PhoneNumberNameUpdate](),
-		capabilityUpdate:         newBusinessEventHandler[CapabilityUpdate](),
-		accountUpdate:            newBusinessEventHandler[AccountUpdate](),
-		phoneSettingsUpdate:      newBusinessEventHandler[PhoneNumberSettings](),
-		phoneNumberQualityUpdate: newBusinessEventHandler[PhoneNumberQualityUpdate](),
-		accountReviewUpdate:      newBusinessEventHandler[AccountReviewUpdate](),
-		callStatusUpdate:         newBusinessEventHandler[CallStatusUpdate](),
-		securityUpdate:           newBusinessEventHandler[SecurityNotification](),
-		buttonMessage:            newMessageEventHandler[Button](),
-		textMessage:              newMessageEventHandler[Text](),
-		orderMessage:             newMessageEventHandler[Order](),
-		locationMessage:          newMessageEventHandler[media.Location](),
-		contactsMessage:          newMessageEventHandler[message.Contacts](),
-		reactionMessage:          newMessageEventHandler[media.Reaction](),
-		productInquiry:           newMessageEventHandler[Text](),
-		interactiveMessage:       newMessageEventHandler[Interactive](),
-		buttonReplyMessage:       newMessageEventHandler[ButtonReply](),
-		listReplyMessage:         newMessageEventHandler[ListReply](),
-		flowCompletionUpdate:     newMessageEventHandler[NFMReply](),
-		addressSubmission:        newMessageEventHandler[NFMReply](),
-		referralMessage:          newMessageEventHandler[ReferralNotification](),
-		customerIDChange:         newMessageEventHandler[Identity](),
-		systemMessage:            newMessageEventHandler[System](),
-		audioMessage:             newMessageEventHandler[media.Info](),
-		videoMessage:             newMessageEventHandler[media.Info](),
-		imageMessage:             newMessageEventHandler[media.Info](),
-		documentMessage:          newMessageEventHandler[media.Info](),
-		stickerMessage:           newMessageEventHandler[media.Info](),
-		notificationErrors:       newMessageValueEventHandler[werrors.Error](),
-		messageStatusChange:      newMessageValueEventHandler[Status](),
-		revokeMessage:            newMessageEventHandler[Revoke](),
-		editMessage:              newMessageEventHandler[Edit](),
-		smbAppStateSync:          newMessageValueEventHandler[SMBAppStateSync](),
-		smbMessageEcho:           newMessageEventHandler[Message](),
-		userPreferencesUpdate:    newMessageValueEventHandler[UserPreference](),
-		groupLifecycleUpdate:     newMessageValueEventHandler[Group](),
-		groupParticipantsUpdate:  newMessageValueEventHandler[Group](),
-		groupSettingsUpdate:      newMessageValueEventHandler[Group](),
-		groupStatusUpdate:        newMessageValueEventHandler[Group](),
-		errorMessage:             NewNoOpMessageErrorsHandler(),
-		unsupportedMessage:       NewNoOpMessageErrorsHandler(),
-		requestWelcome:           newMessageEventHandler[Message](),
-		historySync:              newMessageValueEventHandler[HistoryEntry](),
+		flows:                   &FlowNotificationHandler{},
+		business:                &BusinessNotificationHandler{},
+		buttonMessage:           newMessageEventHandler[Button](),
+		textMessage:             newMessageEventHandler[Text](),
+		orderMessage:            newMessageEventHandler[Order](),
+		locationMessage:         newMessageEventHandler[media.Location](),
+		contactsMessage:         newMessageEventHandler[message.Contacts](),
+		reactionMessage:         newMessageEventHandler[media.Reaction](),
+		productInquiry:          newMessageEventHandler[Text](),
+		interactiveMessage:      newMessageEventHandler[Interactive](),
+		buttonReplyMessage:      newMessageEventHandler[ButtonReply](),
+		listReplyMessage:        newMessageEventHandler[ListReply](),
+		flowCompletionUpdate:    newMessageEventHandler[NFMReply](),
+		addressSubmission:       newMessageEventHandler[NFMReply](),
+		referralMessage:         newMessageEventHandler[ReferralNotification](),
+		customerIDChange:        newMessageEventHandler[Identity](),
+		systemMessage:           newMessageEventHandler[System](),
+		audioMessage:            newMessageEventHandler[media.Info](),
+		videoMessage:            newMessageEventHandler[media.Info](),
+		imageMessage:            newMessageEventHandler[media.Info](),
+		documentMessage:         newMessageEventHandler[media.Info](),
+		stickerMessage:          newMessageEventHandler[media.Info](),
+		notificationErrors:      newMessageValueEventHandler[werrors.Error](),
+		messageStatusChange:     newMessageValueEventHandler[Status](),
+		revokeMessage:           newMessageEventHandler[Revoke](),
+		editMessage:             newMessageEventHandler[Edit](),
+		smbAppStateSync:         newMessageValueEventHandler[SMBAppStateSync](),
+		smbMessageEcho:          newMessageEventHandler[Message](),
+		userPreferencesUpdate:   newMessageValueEventHandler[UserPreference](),
+		groupLifecycleUpdate:    newMessageValueEventHandler[Group](),
+		groupParticipantsUpdate: newMessageValueEventHandler[Group](),
+		groupSettingsUpdate:     newMessageValueEventHandler[Group](),
+		groupStatusUpdate:       newMessageValueEventHandler[Group](),
+		errorMessage:            NewNoOpMessageErrorsHandler(),
+		unsupportedMessage:      NewNoOpMessageErrorsHandler(),
+		requestWelcome:          newMessageEventHandler[Message](),
+		historySync:             newMessageValueEventHandler[HistoryEntry](),
 		errorHandlerFunc: func(_ context.Context, _ error) error {
 			return nil
 		},
 	}
-}
-
-func newBusinessEventHandler[T any]() EventHandler[BusinessNotificationContext, T] {
-	return NewNoOpEventHandler[BusinessNotificationContext, T]()
 }
 
 func newMessageEventHandler[T any]() MessageHandler[T] {
@@ -247,36 +219,24 @@ func (handler *Handler) handleNotificationChange(
 	switch change.Field {
 	case ChangeFieldFlows.String():
 		return handler.handleFlowsChange(ctx, notification, change, entry)
-	case ChangeFieldAccountAlerts.String():
-		return handler.handleAccountAlerts(ctx, notification, change, entry)
-	case ChangeFieldTemplateStatusUpdate.String():
-		return handler.handleTemplateStatusUpdate(ctx, notification, change, entry)
-	case ChangeFieldTemplateCategoryUpdate.String():
-		return handler.handleTemplateCategoryUpdate(ctx, notification, change, entry)
-	case ChangeFieldTemplateQualityUpdate.String():
-		return handler.handleTemplateQualityUpdate(ctx, notification, change, entry)
-	case ChangeFieldTemplateComponentsUpdate.String():
-		return handler.handleTemplateComponentsChange(ctx, notification, change, entry)
-	case ChangeFieldPhoneNumberNameUpdate.String():
-		return handler.handlePhoneNumberNameUpdateChange(ctx, notification, change, entry)
-	case ChangeFieldPhoneNumberQualityUpdate.String():
-		return handler.handlePhoneNumberQualityUpdateChange(ctx, notification, change, entry)
-	case ChangeFieldAccountUpdate.String():
-		return handler.handleAccountUpdateChange(ctx, notification, change, entry)
-	case ChangeFieldAccountReviewUpdate.String():
-		return handler.handleAccountReviewUpdateChange(ctx, notification, change, entry)
-	case ChangeFieldCalls.String():
-		return handler.handleCallsChange(ctx, notification, change, entry)
-	case ChangeFieldBusinessCapabilityUpdate.String():
-		return handler.handleBusinessCapabilityChange(ctx, notification, change, entry)
+	case ChangeFieldAccountAlerts.String(),
+		ChangeFieldTemplateStatusUpdate.String(),
+		ChangeFieldTemplateCategoryUpdate.String(),
+		ChangeFieldTemplateQualityUpdate.String(),
+		ChangeFieldTemplateComponentsUpdate.String(),
+		ChangeFieldPhoneNumberNameUpdate.String(),
+		ChangeFieldPhoneNumberQualityUpdate.String(),
+		ChangeFieldAccountUpdate.String(),
+		ChangeFieldAccountReviewUpdate.String(),
+		ChangeFieldCalls.String(),
+		ChangeFieldBusinessCapabilityUpdate.String(),
+		ChangeFieldAccountSettingsUpdate.String(),
+		ChangeFieldSecurity.String():
+		return handler.business.Handle(ctx, notification, change, entry, handler.errorHandlerFunc)
 	case ChangeFieldUserPreferences.String():
 		return handler.handleUserPreferencesChange(ctx, notification, change, entry)
 	case ChangeFieldSMBAppStateSync.String():
 		return handler.handleSMBAppStateSyncChange(ctx, notification, change, entry)
-	case ChangeFieldAccountSettingsUpdate.String():
-		return handler.handleAccountSettingsChange(ctx, notification, change, entry)
-	case ChangeFieldSecurity.String():
-		return handler.handleSecurityChange(ctx, notification, change, entry)
 	case ChangeFieldMessages.String():
 		return handler.handleNotificationMessageItem(ctx, entry, change)
 	case ChangeFieldSMBMessageEchoes.String():
@@ -316,99 +276,6 @@ func (handler *Handler) handleFlowsChange(
 	return nil
 }
 
-func (handler *Handler) handleTemplateComponentsChange(
-	ctx context.Context,
-	notification *Notification,
-	change Change,
-	entry Entry,
-) error {
-	return handleBusinessNotification(
-		ctx, handler, notification, change, entry,
-		handler.templateComponents, &TemplateComponentsUpdateNotification{
-			MessageTemplateID:       change.Value.MessageTemplateID,
-			MessageTemplateName:     change.Value.MessageTemplateName,
-			MessageTemplateLanguage: change.Value.MessageTemplateLanguage,
-			Title:                   change.Value.MessageTemplateTitle,
-			Element:                 change.Value.MessageTemplateElement,
-			Footer:                  change.Value.MessageTemplateFooter,
-			Buttons:                 change.Value.MessageTemplateButtons,
-		},
-	)
-}
-
-func (handler *Handler) handlePhoneNumberNameUpdateChange(
-	ctx context.Context,
-	notification *Notification,
-	change Change,
-	entry Entry,
-) error {
-	return handleBusinessNotification(
-		ctx, handler, notification, change, entry,
-		handler.phoneNumberNameUpdate, change.Value.PhoneNumberNameUpdate(),
-	)
-}
-
-func (handler *Handler) handlePhoneNumberQualityUpdateChange(
-	ctx context.Context,
-	notification *Notification,
-	change Change,
-	entry Entry,
-) error {
-	return handleBusinessNotification(
-		ctx, handler, notification,
-		change, entry, handler.phoneNumberQualityUpdate,
-		change.Value.PhoneNumberQualityUpdate(),
-	)
-}
-
-func (handler *Handler) handleAccountUpdateChange(
-	ctx context.Context,
-	notification *Notification,
-	change Change,
-	entry Entry,
-) error {
-	return handleBusinessNotification(
-		ctx, handler, notification, change, entry,
-		handler.accountUpdate, change.Value.AccountUpdate(),
-	)
-}
-
-func (handler *Handler) handleAccountReviewUpdateChange(
-	ctx context.Context,
-	notification *Notification,
-	change Change,
-	entry Entry,
-) error {
-	return handleBusinessNotification(
-		ctx, handler, notification, change, entry,
-		handler.accountReviewUpdate, change.Value.AccountReviewUpdate(),
-	)
-}
-
-func (handler *Handler) handleCallsChange(
-	ctx context.Context,
-	notification *Notification,
-	change Change,
-	entry Entry,
-) error {
-	return handleBusinessNotification(
-		ctx, handler, notification, change, entry,
-		handler.callStatusUpdate, change.Value.CallStatusUpdate(),
-	)
-}
-
-func (handler *Handler) handleBusinessCapabilityChange(
-	ctx context.Context,
-	notification *Notification,
-	change Change,
-	entry Entry,
-) error {
-	return handleBusinessNotification(
-		ctx, handler, notification, change, entry,
-		handler.capabilityUpdate, change.Value.CapabilityUpdate(),
-	)
-}
-
 func (handler *Handler) handleUserPreferencesChange(
 	ctx context.Context,
 	_ *Notification,
@@ -434,34 +301,6 @@ func (handler *Handler) handleSMBAppStateSyncChange(
 	return handleMessageChangeNotification(
 		ctx, handler, handler.smbAppStateSync, change,
 		entry, syncs,
-	)
-}
-
-func (handler *Handler) handleAccountSettingsChange(
-	ctx context.Context,
-	notification *Notification,
-	change Change,
-	entry Entry,
-) error {
-	return handleBusinessNotification(
-		ctx, handler, notification, change, entry,
-		handler.phoneSettingsUpdate, change.Value.PhoneNumberSettings,
-	)
-}
-
-func (handler *Handler) handleSecurityChange(
-	ctx context.Context,
-	notification *Notification,
-	change Change,
-	entry Entry,
-) error {
-	return handleBusinessNotification(
-		ctx, handler, notification, change, entry,
-		handler.securityUpdate, &SecurityNotification{
-			Event:              change.Value.Event,
-			DisplayPhoneNumber: change.Value.DisplayPhoneNumber,
-			Requester:          change.Value.Requester,
-		},
 	)
 }
 
