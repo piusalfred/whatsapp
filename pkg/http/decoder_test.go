@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,7 +9,7 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -26,6 +26,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -62,7 +63,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString("")),
 			},
-			opts:    whttp.DecodeOptions{DisallowEmptyResponse: true},
+			opts:    whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowEmptyResponse},
 			wantErr: true,
 			want:    nil,
 		},
@@ -82,7 +83,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 				StatusCode: http.StatusInternalServerError,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"error": "internal server error"}`)),
 			},
-			opts:    whttp.DecodeOptions{InspectResponseError: false},
+			opts:    whttp.DecodeOptions{},
 			wantErr: true,
 			want:    nil,
 		},
@@ -92,7 +93,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"name": "test", "value": 123, "extra": "unknown"}`)),
 			},
-			opts:    whttp.DecodeOptions{DisallowUnknownFields: true},
+			opts:    whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowUnknownFields},
 			wantErr: true,
 			want:    nil,
 		},
@@ -102,7 +103,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"name": "test", "value": 123, "extra": "unknown"}`)),
 			},
-			opts:    whttp.DecodeOptions{DisallowUnknownFields: false},
+			opts:    whttp.DecodeOptions{},
 			wantErr: false,
 			want:    &TestMessage{Name: "test", Value: 123}, // "extra" field should be ignored
 		},
@@ -137,7 +138,7 @@ func TestDecodeResponseJSON(t *testing.T) {
 					}
 				}`)),
 			},
-			opts:    whttp.DecodeOptions{InspectResponseError: true},
+			opts:    whttp.DecodeOptionsPermissive(),
 			wantErr: true,
 			want:    nil,
 		},
@@ -159,11 +160,9 @@ func TestDecodeResponseJSON(t *testing.T) {
 				}
 			}
 
-			if tt.wantErr && tt.opts.InspectResponseError {
+			if tt.wantErr && tt.opts.Has(whttp.JSONDecodeInspectResponseError) {
 				var respErr *whttp.ResponseError
-				if !errors.As(err, &respErr) {
-					t.Errorf("expected error of type ResponseError, got %T", err)
-				}
+				test.AssertErrorAs(t, "expected ResponseError", err, &respErr)
 			}
 		})
 	}
@@ -197,7 +196,7 @@ func TestDecodeRequestJSON(t *testing.T) {
 			request: &http.Request{
 				Body: io.NopCloser(bytes.NewBufferString("")),
 			},
-			opts:    whttp.DecodeOptions{DisallowEmptyResponse: true},
+			opts:    whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowEmptyResponse},
 			wantErr: true,
 			want:    nil,
 		},
@@ -215,7 +214,7 @@ func TestDecodeRequestJSON(t *testing.T) {
 			request: &http.Request{
 				Body: io.NopCloser(bytes.NewBufferString(`{"name": "test", "value": 123, "extra": "unknown"}`)),
 			},
-			opts:    whttp.DecodeOptions{DisallowUnknownFields: true},
+			opts:    whttp.DecodeOptions{Flags: whttp.JSONDecodeDisallowUnknownFields},
 			wantErr: true,
 			want:    nil,
 		},
@@ -224,7 +223,7 @@ func TestDecodeRequestJSON(t *testing.T) {
 			request: &http.Request{
 				Body: io.NopCloser(bytes.NewBufferString(`{"name": "test", "value": 123, "extra": "unknown"}`)),
 			},
-			opts:    whttp.DecodeOptions{DisallowUnknownFields: false},
+			opts:    whttp.DecodeOptions{},
 			wantErr: false,
 			want:    &Data{Name: "test", Value: 123}, // "extra" field should be ignored
 		},
@@ -347,16 +346,6 @@ func TestBodyReaderResponseDecoder(t *testing.T) {
 
 				return
 			}
-
-			if tt.response.Body != nil {
-				reReadBody, err := io.ReadAll(tt.response.Body)
-				if err != nil {
-					t.Fatalf("failed to re-read response body: %v", err)
-				}
-				if string(reReadBody) != tt.expectedBody {
-					t.Errorf("expected re-read body = %v, got %v", tt.expectedBody, string(reReadBody))
-				}
-			}
 		})
 	}
 }
@@ -442,14 +431,12 @@ func TestDecodeResponseJSON_ErrorCases(t *testing.T) {
 			}`)),
 		}
 
-		err := whttp.DecodeResponseJSON[TestMessage](resp, &msg, whttp.DecodeOptions{InspectResponseError: true})
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &msg, whttp.DecodeOptionsPermissive())
 
 		test.AssertError(t, "should return error", err)
 
 		var respErr *whttp.ResponseError
-		if !errors.As(err, &respErr) {
-			t.Fatalf("expected error to be ResponseError type, got %T", err)
-		}
+		test.AssertErrorAs(t, "expected ResponseError", err, &respErr)
 
 		if respErr.Code != http.StatusBadRequest {
 			t.Errorf("expected Code=%d, got %d", http.StatusBadRequest, respErr.Code)
@@ -470,7 +457,7 @@ func TestDecodeResponseJSON_MoreEdgeCases(t *testing.T) {
 
 		var result TestMessage
 		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
-			DisallowEmptyResponse: true,
+			Flags: whttp.JSONDecodeDisallowEmptyResponse,
 		})
 
 		test.AssertError(t, "should error on empty body with DisallowEmptyResponse", err)
@@ -485,7 +472,7 @@ func TestDecodeResponseJSON_MoreEdgeCases(t *testing.T) {
 		}
 
 		var result TestMessage
-		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{InspectResponseError: false})
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{})
 
 		test.AssertError(t, "should error on non-2xx status", err)
 	})
@@ -499,7 +486,7 @@ func TestDecodeResponseJSON_MoreEdgeCases(t *testing.T) {
 		}
 
 		var result TestMessage
-		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{InspectResponseError: true})
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptionsPermissive())
 
 		test.AssertError(t, "should error when can't decode error response", err)
 	})
@@ -526,7 +513,7 @@ func TestDecodeRequestJSON_EdgeCases(t *testing.T) {
 
 		var result TestMessage
 		err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{
-			DisallowEmptyResponse: true,
+			Flags: whttp.JSONDecodeDisallowEmptyResponse,
 		})
 
 		test.AssertError(t, "should error on empty body with DisallowEmptyResponse", err)
@@ -633,9 +620,7 @@ func TestDecodeResponseJSON_InspectErrorWithEmptyBody(t *testing.T) {
 	}
 
 	var result TestMessage
-	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
-		InspectResponseError: true,
-	})
+	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptionsPermissive())
 
 	test.AssertError(t, "should error on non-2xx with empty body", err)
 	test.AssertErrorIs(t, "should be ErrRequestFailure", err, whttp.ErrRequestFailure)
@@ -650,9 +635,7 @@ func TestDecodeResponseJSON_InspectErrorWithInvalidJSON(t *testing.T) {
 	}
 
 	var result TestMessage
-	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
-		InspectResponseError: true,
-	})
+	err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptionsPermissive())
 
 	test.AssertError(t, "should error on invalid JSON in error response", err)
 	test.AssertErrorIs(t, "should be ErrDecodeErrorResponse", err, whttp.ErrDecodeErrorResponse)
@@ -665,7 +648,7 @@ func TestDecodeRequestJSON_NilRequest(t *testing.T) {
 	err := whttp.DecodeRequestJSON[TestMessage](nil, &result, whttp.DecodeOptions{})
 
 	test.AssertError(t, "should error on nil request", err)
-	test.AssertErrorIs(t, "should be ErrNilResponse", err, whttp.ErrNilResponse)
+	test.AssertErrorIs(t, "should be ErrNilRequest", err, whttp.ErrNilRequest)
 }
 
 func TestDecodeRequestJSON_NilTarget(t *testing.T) {
@@ -685,9 +668,7 @@ func TestDecodeRequestJSON_EmptyBodyAllowed(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodPost, "http://example.com", strings.NewReader(""))
 
 	var result TestMessage
-	err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{
-		DisallowEmptyResponse: false,
-	})
+	err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{})
 
 	test.AssertNoError(t, "should allow empty body when not disallowed", err)
 }
@@ -700,7 +681,7 @@ func TestDecodeRequestJSON_WithDisallowUnknownFields(t *testing.T) {
 
 	var result TestMessage
 	err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
+		Flags: whttp.JSONDecodeDisallowUnknownFields,
 	})
 
 	test.AssertError(t, "should error on unknown fields", err)
@@ -726,5 +707,264 @@ func TestResponseDecoderFunc_Decode(t *testing.T) {
 	test.AssertNoError(t, "Decode", err)
 	if !decodeCalled {
 		t.Error("expected decoder function to be called")
+	}
+}
+
+func TestDecodeResponseJSON_MaxBodyBytes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("body within limit", func(t *testing.T) {
+		t.Parallel()
+
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"name":"test","value":123}`)),
+		}
+
+		var result TestMessage
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
+			MaxBodyBytes: 100,
+		})
+
+		test.AssertNoError(t, "should decode within limit", err)
+	})
+
+	t.Run("body exceeds limit", func(t *testing.T) {
+		t.Parallel()
+
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"name":"test","value":123}`)),
+		}
+
+		var result TestMessage
+		err := whttp.DecodeResponseJSON[TestMessage](resp, &result, whttp.DecodeOptions{
+			MaxBodyBytes: 10,
+		})
+
+		test.AssertError(t, "should error when body exceeds limit", err)
+		test.AssertErrorIs(t, "should be ErrBodyTooLarge", err, whttp.ErrBodyTooLarge)
+	})
+}
+
+// mockDecoder is a simple spy/stub for testing the inner ResponseDecoder.
+type mockDecoder struct {
+	err          error
+	receivedBody []byte
+	called       bool
+}
+
+func (m *mockDecoder) Decode(ctx context.Context, response *http.Response) error {
+	m.called = true
+	if response.Body != nil {
+		// Read the body to verify the capturer properly restored it
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return fmt.Errorf("mock decoder read error: %w", err)
+		}
+		m.receivedBody = body
+	}
+	return m.err
+}
+
+var (
+	errSimulatedRead      = errors.New("simulated read error")
+	errInnerDecoderFailed = errors.New("inner decoder failed")
+)
+
+// errReader simulates a network failure during body reading.
+type errReader struct{}
+
+func (errReader) Read(p []byte) (int, error) {
+	return 0, errSimulatedRead
+}
+
+func (errReader) Close() error { return nil }
+
+func TestResponseCapturer_Decode(t *testing.T) {
+	tests := []struct {
+		name         string
+		response     *http.Response
+		innerDecoder *mockDecoder
+		wantErr      bool
+		errContains  string
+		wantBody     []byte
+		wantStatus   int
+		wantHeader   http.Header
+	}{
+		{
+			name: "successful capture with inner decoder",
+			response: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"key":"value"}`))),
+			},
+			innerDecoder: &mockDecoder{},
+			wantErr:      false,
+			wantBody:     []byte(`{"key":"value"}`),
+			wantStatus:   http.StatusOK,
+			wantHeader:   http.Header{"Content-Type": []string{"application/json"}},
+		},
+		{
+			name: "nil response body",
+			response: &http.Response{
+				StatusCode: http.StatusNoContent,
+				Header:     http.Header{"X-Custom": []string{"test"}},
+				Body:       nil,
+			},
+			innerDecoder: &mockDecoder{},
+			wantErr:      false,
+			wantBody:     nil,
+			wantStatus:   http.StatusNoContent,
+			wantHeader:   http.Header{"X-Custom": []string{"test"}},
+		},
+		{
+			name: "nil inner decoder",
+			response: &http.Response{
+				StatusCode: http.StatusAccepted,
+				Header:     http.Header{},
+				Body:       io.NopCloser(bytes.NewReader([]byte("data"))),
+			},
+			innerDecoder: nil, // Tests c.inner != nil check
+			wantErr:      false,
+			wantBody:     []byte("data"),
+			wantStatus:   http.StatusAccepted,
+			wantHeader:   http.Header{},
+		},
+		{
+			name: "inner decoder returns error",
+			response: &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Header:     http.Header{},
+				Body:       io.NopCloser(bytes.NewReader([]byte("error details"))),
+			},
+			innerDecoder: &mockDecoder{err: errInnerDecoderFailed},
+			wantErr:      true,
+			errContains:  "inner decoder failed",
+			wantBody:     []byte("error details"),
+			wantStatus:   http.StatusBadRequest,
+			wantHeader:   http.Header{},
+		},
+		{
+			name: "body read failure",
+			response: &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Header:     http.Header{},
+				Body:       errReader{}, // Will fail on io.ReadAll
+			},
+			innerDecoder: &mockDecoder{},
+			wantErr:      true,
+			errContains:  "capture response body",
+			wantBody:     nil,
+			wantStatus:   http.StatusInternalServerError,
+			wantHeader:   http.Header{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var inner whttp.ResponseDecoder
+			if tt.innerDecoder != nil {
+				inner = tt.innerDecoder
+			}
+			capturer := whttp.NewResponseCapturer(inner)
+
+			err := capturer.Decode(context.Background(), tt.response)
+
+			if tt.wantErr {
+				test.AssertError(t, "Decode", err)
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("Decode() error = %v, expected to contain %q", err, tt.errContains)
+				}
+			} else {
+				test.AssertNoError(t, "Decode", err)
+			}
+
+			if tt.name == "body read failure" {
+				return
+			}
+
+			if capturer.StatusCode != tt.wantStatus {
+				t.Errorf("StatusCode = %v, want %v", capturer.StatusCode, tt.wantStatus)
+			}
+			if !reflect.DeepEqual(capturer.Header, tt.wantHeader) {
+				t.Errorf("Header = %v, want %v", capturer.Header, tt.wantHeader)
+			}
+			if !bytes.Equal(capturer.Body, tt.wantBody) {
+				t.Errorf("Body = %q, want %q", capturer.Body, tt.wantBody)
+			}
+
+			if tt.innerDecoder != nil {
+				if !tt.innerDecoder.called {
+					t.Error("expected inner decoder to be called, but it was not")
+				}
+				if tt.response.Body != nil && !bytes.Equal(tt.innerDecoder.receivedBody, tt.wantBody) {
+					t.Errorf("Inner decoder received body = %q, want %q (body not restored properly)",
+						tt.innerDecoder.receivedBody, tt.wantBody)
+				}
+			}
+		})
+	}
+}
+
+func TestResponseCapturer_Reset(t *testing.T) {
+	t.Parallel()
+
+	capturer := whttp.NewResponseCapturer(nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusTeapot,
+		Header:     http.Header{"Dirty-Header": []string{"true"}},
+		Body:       io.NopCloser(strings.NewReader("dirty body")),
+	}
+	test.AssertNoError(t, "dirtying capturer", capturer.Decode(context.Background(), resp))
+
+	if capturer.Body == nil || capturer.StatusCode == 0 || capturer.Header == nil {
+		t.Fatal("expected dirty state before Reset")
+	}
+
+	capturer.Reset()
+
+	if capturer.Body != nil {
+		t.Errorf("Expected Body to be nil after Reset, got %q", capturer.Body)
+	}
+	if capturer.StatusCode != 0 {
+		t.Errorf("Expected StatusCode to be 0 after Reset, got %d", capturer.StatusCode)
+	}
+	if capturer.Header != nil {
+		t.Errorf("Expected Header to be nil after Reset, got %v", capturer.Header)
+	}
+
+	resp2 := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"After-Reset": []string{"yes"}},
+		Body:       io.NopCloser(strings.NewReader("fresh data")),
+	}
+	test.AssertNoError(t, "capturer should still work after Reset", capturer.Decode(context.Background(), resp2))
+	if capturer.StatusCode != http.StatusOK {
+		t.Errorf("StatusCode after reset = %d, want %d", capturer.StatusCode, http.StatusOK)
+	}
+	if !bytes.Equal(capturer.Body, []byte("fresh data")) {
+		t.Errorf("Body after reset = %q, want %q", capturer.Body, "fresh data")
+	}
+}
+
+func TestResponseCapturer_HeaderCloning(t *testing.T) {
+	t.Parallel()
+
+	originalHeader := http.Header{"X-Test": []string{"original"}}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     originalHeader,
+		Body:       nil,
+	}
+	capturer := whttp.NewResponseCapturer(nil)
+
+	test.AssertNoError(t, "HeaderCloning", capturer.Decode(context.Background(), resp))
+
+	resp.Header.Set("X-Test", "mutated")
+
+	if capturedVal := capturer.Header.Get("X-Test"); capturedVal != "original" {
+		t.Errorf("capturer Header was affected by mutation. Got %q, want %q", capturedVal, "original")
 	}
 }

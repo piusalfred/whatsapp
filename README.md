@@ -12,47 +12,31 @@ A highly configurable golang client for [Whatsapp Cloud API](https://www.postman
 
 ## Supported API
 
-- [Message](./message)
-  - [Text](./message)
-  - [Media](./message)
-  - [Templates](./message)
-  - [Interactive Messages](./message)
-  - [Replies and Reactions](./message)
-- [QR Code Management](./qrcode)
-- [Phone Number Management](./phonenumber)
-  - [Get Phone Number Information](./phonenumber)
-  - [Update Phone Number](./phonenumber)
-- [Media Management](./media)
-- [Webhooks](./webhooks)
-- [User Management](./user)
-  - [Block Users](./user)
-  - [Unblock Users](./user)
-  - [Get Blocked Users](./user)
-- [Conversation Automation](./conversation/automation)
-- [File Uploads](./uploads)
-- [Call Settings](./settings)
+- **Messages** — text, image, video, audio, document, sticker, location, reaction, contacts, pin
+  - **Interactive** — CTA URL, reply buttons, list picker, flow, media carousel, address, location request, call permission
+  - **Templates** — text, media, carousel, coupon, limited-time offer, authentication
+- **QR Code Management** — create, read, update, delete, list
+- **Phone Number Management** — list, get, settings
+- **Media Management** — upload, retrieve, delete, download
+- **Webhooks** — messages, statuses, calls, flows, groups, security, templates, account alerts
+- **User Management** — block, unblock, list blocked
+- **Conversation Automation** — components, welcome messages, bot details
+- **Groups** — create, delete, manage participants, invite links, join requests
+- **Business Profile** — get, update
+- **Analytics** — messaging, conversation, pricing
+- **Auth (System Users)** — create, list, update, tokens, 2FA
+- **Uploads** — chunked upload sessions
+- **Callbacks** — alternate webhook URLs
+- **Settings** — business settings
 
 
-## Initial Steps
-Start by reading the official [WhatsApp Cloud API Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started) then go to [Get Started Guide](./docs/README.md) 
-for initial steps in setting up your developing environment.
-
-> [!NOTE]
-> You will find `BaseClient` and `Client`.
-> `Client` provides a stateful approach, reusing the same configuration across multiple requests until manually refreshed, making it ideal for long-running services where consistency and thread safety are required.
-> `BaseClient` is stateless, reloading the configuration on each request, making it more flexible for dynamic environments like multi-tenancy, where different configurations may be needed for each request.
-
-
-### Usage
-Install the library by running
+## Quick Start
 
 ```bash
 go get github.com/piusalfred/whatsapp
 ```
 
-> [!NOTE]
-> The webhooks and messaging clients are separated to allow for different configurations and use cases. The webhooks client is designed to handle incoming notifications,
-> while the messaging client is focused on sending messages.
+### Send a text message
 
 ```go
 package main
@@ -60,68 +44,122 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/message"
-	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-const recipient = "XXXXXXXXXXXXX" // Placeholder for recipient number
-
 func main() {
-	ctx := context.Background()
-
-	coreClient := whttp.NewSender[message.Message]()
-	coreClient.SetHTTPClient(http.DefaultClient)
-
-	reader := config.ReaderFunc(func(ctx context.Context) (*config.Config, error) {
-		// TODO: Replace with your config reader implementation
-		conf := &config.Config{
-			BaseURL:           "",
-			APIVersion:        "",
-			AccessToken:       "",
-			PhoneNumberID:     "",
-			BusinessAccountID: "",
-			AppSecret:         "",
-			AppID:             "",
-			SecureRequests:    false,
-		}
-
-		return conf, nil
-	})
-
-	baseClient, err := message.NewBaseClient(coreClient, reader)
-	if err != nil {
-		fmt.Printf("error creating base client: %v\n", err)
-		os.Exit(1)
+	conf := &config.Config{
+		BaseURL:       "https://graph.facebook.com",
+		APIVersion:    "v22.0",
+		AccessToken:   os.Getenv("WHATSAPP_TOKEN"),
+		PhoneNumberID: os.Getenv("WHATSAPP_PHONE_NUMBER_ID"),
 	}
 
-	initTmpl := message.WithTemplateMessage(&message.Template{
-		Name: "hello_world",
-		Language: &message.TemplateLanguage{
-			Code: "en_US",
-		},
-	})
+	client := message.NewClient(conf)
 
-	initTmplMessage, err := message.New(recipient, initTmpl)
+	resp, err := client.SendTextMessage(
+		context.Background(),
+		message.SendTo("+16505551234"),
+		&message.Text{Body: "Hello from Go!"},
+	)
 	if err != nil {
-		fmt.Printf("error creating initial template message: %v\n", err)
-		os.Exit(1)
+		panic(err)
 	}
-
-	response, err := baseClient.SendMessage(ctx, initTmplMessage)
-	if err != nil {
-		fmt.Printf("error sending initial template message: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("response: %+v\n", response)
+	fmt.Println("Message ID:", resp.Messages[0].ID)
 }
 ```
 
+### Send an interactive list
+
+```go
+import (
+	"github.com/piusalfred/whatsapp/message"
+	"github.com/piusalfred/whatsapp/message/interactive"
+)
+
+resp, err := client.SendInteractiveMessage(ctx, message.SendTo("+16505551234"),
+	interactive.List(&interactive.ListRequest{
+		Body:   "Which shipping option do you prefer?",
+		Button: "Shipping Options",
+		Sections: []*interactive.Section{{
+			Title: "I want it ASAP!",
+			Rows: []*interactive.SectionRow{
+				{ID: "priority_express", Title: "Priority Mail Express", Description: "Next Day to 2 Days"},
+			},
+		}},
+	}),
+)
+```
+
+### Send a template
+
+```go
+import "github.com/piusalfred/whatsapp/message/template"
+
+tmpl := template.NewInteractiveTemplate("hello_world",
+	&template.Language{Code: "en_US"},
+	nil, nil, nil,
+)
+resp, err := client.SendTemplateMessage(ctx, message.SendTo("+16505551234"), tmpl)
+```
+
+### Mark a message as read
+
+```go
+resp, err := client.UpdateMessageStatus(ctx, &message.StatusUpdateRequest{
+	MessageID: "wamid.xxx",
+	Status:    message.StatusRead,
+})
+```
+
+### Unified client (all APIs)
+
+```go
+import "github.com/piusalfred/whatsapp/api"
+
+client := api.NewClient(conf)
+
+// Messages
+client.SendMessage(ctx, message.New(
+	message.SendTo("+16505551234"),
+	message.WithTextMessage(&message.Text{Body: "Hello"}),
+))
+
+// Groups
+client.CreateGroup(ctx, &groups.CreateGroupRequest{Name: "Team Chat"})
+
+// QR Codes
+client.CreateQR(ctx, &qrcode.CreateRequest{PrefilledMessage: "Hi"})
+
+// Media
+client.UploadMedia(ctx, &media.UploadRequest{...})
+
+// System users
+client.CreateSystemUser(ctx, &auth.CreateSystemUserRequest{Name: "bot"})
+```
+
 See more in [examples](./_examples/) and [docs](./docs/README.md)
+
+> [!NOTE]
+> Every domain package exposes both `Client` and `BaseClient`.
+> `Client` holds a fixed `*config.Config` — ideal for single-tenant services.
+> `BaseClient` accepts a per-call config — ideal for multi-tenant workloads
+> or dynamic credential rotation.
+
+> [!NOTE]
+> The [webhooks](./webhooks) package is an HTTP server that receives inbound
+> notifications from WhatsApp (messages, statuses, calls, flows, groups,
+> templates, account alerts). It validates signatures and dispatches events
+> to your handlers.
+> The [message](./message) package is the outbound client for sending messages.
+> They serve opposite directions and are configured independently.
+
+
+## Initial Steps
+Start by reading the official [WhatsApp Cloud API Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started) then go to [Get Started Guide](./docs/README.md) for initial steps in setting up your developing environment.
 
 
 ## Testing

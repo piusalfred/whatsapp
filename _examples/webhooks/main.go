@@ -28,7 +28,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/piusalfred/whatsapp/message"
+	"github.com/piusalfred/whatsapp/message/media"
 	"github.com/piusalfred/whatsapp/webhooks"
 	"github.com/piusalfred/whatsapp/webhooks/router"
 )
@@ -63,7 +63,7 @@ func (r *ReactionHandler) Handle(
 	ctx context.Context,
 	nctx *webhooks.MessageNotificationContext,
 	mctx *webhooks.MessageInfo,
-	reaction *message.Reaction,
+	reaction *media.Reaction,
 ) error {
 	r.Logger.Info("Received reaction message",
 		"context", nctx,
@@ -99,7 +99,7 @@ func main() {
 
 	// In case of complex handlers you can implement a certain notification type handler interface
 	// for example for reaction messages you can implement the webhooks.ReactionHandler interface
-	// which is an alias for MessageHandler[message.Reaction]
+	// which is an alias for MessageHandler[media.Reaction]
 	reactionHandler := &ReactionHandler{
 		Logger: slog.Default(),
 		Store:  make(map[string]any),

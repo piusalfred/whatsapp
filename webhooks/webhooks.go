@@ -17,6 +17,64 @@
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+// Package webhooks implements a WhatsApp Cloud API webhook listener.
+//
+// Your endpoint must have a valid TLS certificate (self-signed is not
+// supported). Mutual TLS (mTLS) is also supported for additional security.
+//
+// WhatsApp sends two kinds of HTTPS requests:
+//
+//  1. Subscription verification — a GET request with hub.mode, hub.challenge,
+//     and hub.verify_token query parameters. You must respond with the
+//     challenge value to prove you control the endpoint.
+//
+//  2. Event notifications — POST requests with a JSON body containing
+//     {"object": "whatsapp_business_account", "entry": [...]}. Entries carry
+//     changes keyed by field ("messages", "flows", "account_review_update",
+//     etc.). Each change's value holds the event-specific payload.
+//
+// The package validates X-Hub-Signature-256 headers when configured, decodes
+// the notification, and routes each change to the appropriate handler callback.
+//
+// # Webhook Delivery
+//
+// WhatsApp expects a 200 response to acknowledge receipt. Non-200 responses
+// trigger retries with decreasing frequency for up to 7 days. This can cause
+// duplicate deliveries — your handler should be idempotent.
+//
+// Webhook payloads can be up to 3 MB (enforced at 4 MB for a 1 MB grace
+// margin). Notifications are batched (up to 1000 per request) but batching
+// is not guaranteed — design for individual payload handling.
+//
+// There is no API for fetching historical webhook data. Capture and store
+// payloads you need to keep.
+//
+// Reference: https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks
+//
+// # Quick Start
+//
+//	handler := webhooks.NewHandler()
+//	handler.OnTextMessage(func(ctx context.Context, nc *webhooks.MessageNotificationContext, text *webhooks.Text) error {
+//	    log.Printf("from %s: %s", nc.SenderInfo().WaID, text.Body)
+//	    return nil
+//	})
+//
+//	listener := webhooks.NewListener(handler, webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
+//	    return &webhooks.Config{
+//	        Token:     os.Getenv("WEBHOOK_TOKEN"),
+//	        AppSecret: os.Getenv("APP_SECRET"),
+//	        Validate:  true,
+//	    }, nil
+//	}))
+//
+//	http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
+//	    switch r.Method {
+//	    case http.MethodGet:
+//	        listener.HandleSubscriptionVerification(w, r)
+//	    case http.MethodPost:
+//	        listener.HandleNotification(w, r)
+//	    }
+//	})
 package webhooks
 
 import (
@@ -32,13 +90,16 @@ import (
 	"io"
 	"net/http"
 	"strings"
-
-	"github.com/piusalfred/whatsapp"
 )
 
 type (
+	// Middleware wraps a NotificationHandler to add cross-cutting behavior.
+	// Applied inside-out by NewListener so middlewares[0] runs outermost.
 	Middleware func(NotificationHandler) NotificationHandler
 
+	// Listener is the HTTP entry point for WhatsApp webhook callbacks. It
+	// validates signatures, decodes the notification payload, and delegates
+	// to the wrapped NotificationHandler. Construct via NewListener.
 	Listener struct {
 		middlewares     []Middleware
 		originalHandler NotificationHandler
@@ -48,6 +109,17 @@ type (
 )
 
 type (
+	// Config holds the webhook configuration for a single business account.
+	//
+	// Token is the verify token used during subscription verification.
+	// WhatsApp sends this value as hub.verify_token; the listener compares
+	// it to confirm the request is authentic.
+	//
+	// AppSecret is used to validate X-Hub-Signature-256 headers on incoming
+	// notifications. Leave empty to skip validation.
+	//
+	// Validate enables HMAC signature verification. When true, every POST
+	// notification must carry a valid X-Hub-Signature-256 header.
 	Config struct {
 		Token     string
 		Validate  bool
@@ -72,6 +144,9 @@ func (fn ConfigReaderFunc) ReadConfig(request *http.Request) (*Config, error) {
 	return fn(request)
 }
 
+// NewListener creates a Listener that wraps handler with the given middlewares.
+// Middlewares are applied inside-out so middlewares[0] is the outermost wrapper.
+// The ConfigReader is called on every HTTP request to resolve per-tenant config.
 func NewListener(
 	handler NotificationHandler,
 	reader ConfigReader,
@@ -91,6 +166,9 @@ func NewListener(
 	}
 }
 
+// HandleSubscriptionVerification responds to WhatsApp's GET handshake.
+// It reads the hub.mode, hub.challenge, and hub.verify_token query parameters,
+// validates the token, and writes the challenge back to complete verification.
 func (listener *Listener) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
 	config, err := listener.configReader.ReadConfig(request)
 	if err != nil {
@@ -109,6 +187,14 @@ func (listener *Listener) HandleSubscriptionVerification(writer http.ResponseWri
 	_, _ = writer.Write([]byte(html.EscapeString(challenge)))
 }
 
+// HandleNotification processes an incoming POST webhook event. It reads the
+// request body, optionally validates the X-Hub-Signature-256 header, decodes
+// the notification JSON, and dispatches to the wrapped handler.
+//
+// WhatsApp retries non-200 responses for up to 7 days with decreasing
+// frequency. Ensure your handler is idempotent — the same notification may
+// be delivered more than once. Unrecognized webhook fields are silently
+// dropped (no error) so retries are not triggered for unimplemented types.
 func (listener *Listener) HandleNotification(writer http.ResponseWriter, request *http.Request) {
 	var (
 		notification *Notification
@@ -139,12 +225,21 @@ func (listener *Listener) HandleNotification(writer http.ResponseWriter, request
 }
 
 type (
+	// Response carries the HTTP status code to return to WhatsApp after
+	// processing a notification. Return 200 to acknowledge receipt.
 	Response struct {
 		StatusCode int
 	}
+)
 
+type (
+	// NotificationHandlerFunc adapts a bare function to the NotificationHandler
+	// interface so callers can pass inline functions where an interface is expected.
 	NotificationHandlerFunc func(ctx context.Context, notification *Notification) *Response
 
+	// NotificationHandler processes a decoded webhook notification.
+	// Implementations route the notification to domain-specific handlers
+	// based on the entry changes.
 	NotificationHandler interface {
 		HandleNotification(ctx context.Context, notification *Notification) *Response
 	}
@@ -154,16 +249,28 @@ func (fn NotificationHandlerFunc) HandleNotification(ctx context.Context, notifi
 	return fn(ctx, notification)
 }
 
+// ValidateOptions controls whether and how incoming payloads are authenticated.
 type ValidateOptions struct {
 	Validate  bool
 	AppSecret string
 }
 
+// ExtractAndValidatePayload reads the request body, optionally validates the
+// signature header against the app secret, and decodes the JSON into a
+// Notification. The request body is restored afterward so it can be re-read.
+//
+// This function assumes the Webhooks "Include Values" setting is enabled in
+// the App Dashboard. If values are disabled, changes arrive as
+// "changed_fields" arrays instead of "changes" objects with values, and
+// decoding will produce empty Change.Value fields.
 func ExtractAndValidatePayload(request *http.Request, options *ValidateOptions) (*Notification, error) {
 	var buff bytes.Buffer
-	_, err := io.Copy(&buff, request.Body)
+	_, err := io.Copy(&buff, io.LimitReader(request.Body, MaxPayloadBytes))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrReadNotification, err)
+	}
+	if buff.Len() >= MaxPayloadBytes {
+		return nil, ErrPayloadTooLarge
 	}
 
 	request.Body = io.NopCloser(&buff)
@@ -294,8 +401,15 @@ func ValidateRequestPayloadSignature(request *http.Request, secret string) error
 
 	var buff bytes.Buffer
 	_, err = io.Copy(&buff, request.Body)
+	// Close the original request body after copying its contents.
+	// The body is an io.ReadCloser; failing to close it prevents the
+	// underlying transport from reusing the connection.
+	closeErr := request.Body.Close()
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrBadRequest, err)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("%w: close request body: %w", ErrBadRequest, closeErr)
 	}
 
 	request.Body = io.NopCloser(&buff)
@@ -320,11 +434,16 @@ func verifySubscriptionRequest(request *http.Request, token string) (string, err
 	return challenge, nil
 }
 
-const (
-	ErrInvalidSignature      = whatsapp.Error("signature is invalid")
-	ErrSignatureNotFound     = whatsapp.Error("signature not found")
-	ErrSignatureVerification = whatsapp.Error("signature verification failed")
-	ErrReadNotification      = whatsapp.Error("error reading request body")
-	ErrMessageDecode         = whatsapp.Error("error decoding message")
-	ErrBadRequest            = whatsapp.Error("could not retrieve the notification content")
+var (
+	ErrInvalidSignature      = errors.New("signature is invalid")
+	ErrSignatureNotFound     = errors.New("signature not found")
+	ErrSignatureVerification = errors.New("signature verification failed")
+	ErrReadNotification      = errors.New("error reading request body")
+	ErrMessageDecode         = errors.New("error decoding message")
+	ErrBadRequest            = errors.New("could not retrieve the notification content")
+	ErrPayloadTooLarge       = errors.New("webhook payload exceeds 4 MB limit")
 )
+
+// MaxPayloadBytes is the maximum webhook payload size (4 MB).
+// WhatsApp's documented limit is 3 MB; we allow an extra 1 MB as grace.
+const MaxPayloadBytes = 4 << 20

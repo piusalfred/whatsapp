@@ -20,75 +20,106 @@ package webhooks
 import werrors "github.com/piusalfred/whatsapp/pkg/errors"
 
 type (
+	// Notification is the top-level envelope for WhatsApp webhook events.
+	// The Object field is always "whatsapp_business_account". Entries
+	// contain one or more Change records keyed by the field that triggered
+	// the event ("messages", "flows", "account_review_update", etc.).
 	Notification struct {
 		Object string  `json:"object"`
 		Entry  []Entry `json:"entry"`
 	}
 
+	// Entry groups changes under a single WhatsApp Business Account ID.
+	// Each webhook payload may contain multiple entries.
 	Entry struct {
 		ID      string   `json:"id"`
 		Time    int64    `json:"time"`
 		Changes []Change `json:"changes"`
 	}
 
+	// Change pairs a field name ("messages", "flows", etc.) with the
+	// event-specific Value. The field determines which handler is invoked.
 	Change struct {
 		Field string `json:"field"`
 		Value *Value `json:"value"`
 	}
 
+	// Value is the union type for all webhook event payloads. Only the
+	// fields relevant to the current event are populated — check the parent
+	// Change.Field to determine which subset to read.
+	//
+	// For messages webhooks, there are two distinct payload shapes:
+	//   - Messages populated — an incoming message from a WhatsApp user.
+	//   - Statuses populated — a status update for an outgoing message
+	//     (sent, delivered, read, failed).
+	//
+	// Errors appear in three possible locations:
+	//   - Value.Errors — system-, app-, or account-level errors.
+	//   - Message.Errors — per-incoming-message errors (type "unsupported").
+	//   - Status.Errors — per-outgoing-message errors.
 	Value struct {
-		Event                        string               `json:"event,omitempty"`
-		MessageTemplateID            int64                `json:"message_template_id,omitempty"`
-		MessageTemplateName          string               `json:"message_template_name,omitempty"`
-		MessageTemplateLanguage      string               `json:"message_template_language,omitempty"`
-		Reason                       *string              `json:"reason,omitempty"`
-		PreviousCategory             string               `json:"previous_category,omitempty"`
-		PreviousQualityScore         string               `json:"previous_quality_score,omitempty"`
-		NewQualityScore              string               `json:"new_quality_score,omitempty"`
-		NewCategory                  string               `json:"new_category,omitempty"`
-		DisplayPhoneNumber           string               `json:"display_phone_number,omitempty"`
-		PhoneNumber                  string               `json:"phone_number,omitempty"`
-		CurrentLimit                 string               `json:"current_limit,omitempty"`
-		MaxDailyConversationPerPhone int                  `json:"max_daily_conversation_per_phone,omitempty"`
-		MaxPhoneNumbersPerBusiness   int                  `json:"max_phone_numbers_per_business,omitempty"`
-		MaxPhoneNumbersPerWABA       int                  `json:"max_phone_numbers_per_waba,omitempty"`
-		RejectionReason              string               `json:"rejection_reason,omitempty"`
-		RequestedVerifiedName        string               `json:"requested_verified_name,omitempty"`
-		RestrictionInfo              []RestrictionInfo    `json:"restriction_info,omitempty"`
-		BanInfo                      *BanInfo             `json:"ban_info,omitempty"`
-		Decision                     string               `json:"decision,omitempty"`
-		DisableInfo                  *DisableInfo         `json:"disable_info,omitempty"`
-		OtherInfo                    *OtherInfo           `json:"other_info,omitempty"`
-		ViolationInfo                *ViolationInfo       `json:"violation_info,omitempty"`
-		EntityType                   string               `json:"entity_type,omitempty"`
-		EntityID                     string               `json:"entity_id,omitempty"`
-		AlertSeverity                string               `json:"alert_severity,omitempty"`
-		AlertStatus                  string               `json:"alert_status,omitempty"`
-		AlertType                    string               `json:"alert_type,omitempty"`
-		AlertDescription             string               `json:"alert_description,omitempty"`
-		Message                      string               `json:"message"`                  // Descriptive message of the event
-		FlowID                       string               `json:"flow_id"`                  // ID of the flow
-		OldStatus                    string               `json:"old_status,omitempty"`     // Previous status of the flow (optional)
-		NewStatus                    string               `json:"new_status,omitempty"`     // New status of the flow (optional)
-		ErrorRate                    float64              `json:"error_rate,omitempty"`     // Overall error rate for the alert (optional)
-		Threshold                    int                  `json:"threshold,omitempty"`      // Alert threshold that was reached or recovered from
-		AlertState                   string               `json:"alert_state,omitempty"`    // Status of the alert, e.g., "ACTIVATED" or "DEACTIVATED"
-		Errors                       []ErrorInfo          `json:"errors,omitempty"`         // List of errors describing the alert (optional)
-		P50Latency                   int                  `json:"p50_latency,omitempty"`    // P50 latency of the endpoint requests (optional)
-		P90Latency                   int                  `json:"p90_latency,omitempty"`    // P90 latency of the endpoint requests (optional)
-		RequestsCount                int                  `json:"requests_count,omitempty"` // Number of requests used to calculate metric (optional)
-		Availability                 int                  `json:"availability"`
-		MessagingProduct             string               `json:"messaging_product,omitempty"`
-		Metadata                     *Metadata            `json:"metadata,omitempty"`
-		Contacts                     []*Contact           `json:"contacts,omitempty"`
-		UserPreferences              []*UserPreference    `json:"user_preferences,omitempty"`
-		Messages                     []*Message           `json:"messages,omitempty"`
-		Statuses                     []*Status            `json:"statuses,omitempty"`
-		PhoneNumberSettings          *PhoneNumberSettings `json:"phone_number_settings,omitempty"`
-		Calls                        []*Call              `json:"calls,omitempty"`
-		Groups                       []*Group             `json:"groups,omitempty"`
+		Event                        string                    `json:"event,omitempty"`
+		MessageTemplateID            int64                     `json:"message_template_id,omitempty"`
+		MessageTemplateName          string                    `json:"message_template_name,omitempty"`
+		MessageTemplateLanguage      string                    `json:"message_template_language,omitempty"`
+		Reason                       *string                   `json:"reason,omitempty"`
+		MessageTemplateTitle         string                    `json:"message_template_title,omitempty"`
+		MessageTemplateElement       string                    `json:"message_template_element,omitempty"`
+		MessageTemplateFooter        string                    `json:"message_template_footer,omitempty"`
+		MessageTemplateButtons       []TemplateComponentButton `json:"message_template_buttons,omitempty"`
+		PreviousCategory             string                    `json:"previous_category,omitempty"`
+		PreviousQualityScore         string                    `json:"previous_quality_score,omitempty"`
+		NewQualityScore              string                    `json:"new_quality_score,omitempty"`
+		NewCategory                  string                    `json:"new_category,omitempty"`
+		DisplayPhoneNumber           string                    `json:"display_phone_number,omitempty"`
+		PhoneNumber                  string                    `json:"phone_number,omitempty"`
+		CurrentLimit                 string                    `json:"current_limit,omitempty"`
+		MaxDailyConversationPerPhone int                       `json:"max_daily_conversation_per_phone,omitempty"`
+		MaxPhoneNumbersPerBusiness   int                       `json:"max_phone_numbers_per_business,omitempty"`
+		MaxPhoneNumbersPerWABA       int                       `json:"max_phone_numbers_per_waba,omitempty"`
+		RejectionReason              string                    `json:"rejection_reason,omitempty"`
+		RequestedVerifiedName        string                    `json:"requested_verified_name,omitempty"`
+		Requester                    string                    `json:"requester,omitempty"` // MBS user ID, PIN reset requests
+		RestrictionInfo              []RestrictionInfo         `json:"restriction_info,omitempty"`
+		BanInfo                      *BanInfo                  `json:"ban_info,omitempty"`
+		Decision                     string                    `json:"decision,omitempty"`
+		DisableInfo                  *DisableInfo              `json:"disable_info,omitempty"`
+		OtherInfo                    *OtherInfo                `json:"other_info,omitempty"`
+		ViolationInfo                *ViolationInfo            `json:"violation_info,omitempty"`
+		EntityType                   string                    `json:"entity_type,omitempty"`
+		EntityID                     string                    `json:"entity_id,omitempty"`
+		AlertSeverity                string                    `json:"alert_severity,omitempty"`
+		AlertStatus                  string                    `json:"alert_status,omitempty"`
+		AlertType                    string                    `json:"alert_type,omitempty"`
+		AlertDescription             string                    `json:"alert_description,omitempty"`
+		Message                      string                    `json:"message"`                  // Descriptive message of the event
+		FlowID                       string                    `json:"flow_id"`                  // ID of the flow
+		OldStatus                    string                    `json:"old_status,omitempty"`     // Previous status of the flow (optional)
+		NewStatus                    string                    `json:"new_status,omitempty"`     // New status of the flow (optional)
+		ErrorRate                    float64                   `json:"error_rate,omitempty"`     // Overall error rate for the alert (optional)
+		Threshold                    int                       `json:"threshold,omitempty"`      // Alert threshold that was reached or recovered from
+		AlertState                   string                    `json:"alert_state,omitempty"`    // Status of the alert, e.g., "ACTIVATED" or "DEACTIVATED"
+		Errors                       []ErrorInfo               `json:"errors,omitempty"`         // List of errors describing the alert (optional)
+		P50Latency                   int                       `json:"p50_latency,omitempty"`    // P50 latency of the endpoint requests (optional)
+		P90Latency                   int                       `json:"p90_latency,omitempty"`    // P90 latency of the endpoint requests (optional)
+		RequestsCount                int                       `json:"requests_count,omitempty"` // Number of requests used to calculate metric (optional)
+		Availability                 int                       `json:"availability"`
+		MessagingProduct             string                    `json:"messaging_product,omitempty"`
+		Metadata                     *Metadata                 `json:"metadata,omitempty"`
+		Contacts                     []*Contact                `json:"contacts,omitempty"`
+		UserPreferences              []*UserPreference         `json:"user_preferences,omitempty"`
+		Messages                     []*Message                `json:"messages,omitempty"`
+		Statuses                     []*Status                 `json:"statuses,omitempty"`
+		PhoneNumberSettings          *PhoneNumberSettings      `json:"phone_number_settings,omitempty"`
+		Calls                        []*Call                   `json:"calls,omitempty"`
+		Groups                       []*Group                  `json:"groups,omitempty"`
+		History                      []HistoryEntry            `json:"history,omitempty"`
+		StateSync                    []SMBAppStateSync         `json:"state_sync,omitempty"`
+		MessageEchoes                []*Message                `json:"message_echoes,omitempty"`
 	}
 
+	// ErrorInfo captures per-message or per-status error details from the
+	// WhatsApp API. Convert to a *werrors.Error via the Error() method.
 	ErrorInfo struct {
 		ErrorType  string             `json:"error_type,omitempty"`
 		ErrorRate  float64            `json:"error_rate,omitempty"`

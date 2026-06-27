@@ -19,18 +19,19 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-const (
-	settingsEndpoint  = "/settings"
-	ErrGetSettings    = whatsapp.Error("failed to get settings")
-	ErrUpdateSettings = whatsapp.Error("failed to update settings")
+const settingsEndpoint = "/settings"
+
+var (
+	ErrGetSettings    = errors.New("failed to get settings")
+	ErrUpdateSettings = errors.New("failed to update settings")
 )
 
 type (
@@ -41,13 +42,18 @@ type (
 	Settings struct {
 		Calling *Calling `json:"calling,omitempty"`
 	}
+
+	// Client orchestrates high-level Settings API operations.
 	Client struct {
-		configReader config.Reader
-		base         *BaseClient
+		sender *BaseClient
+		config *config.Config
 	}
 
+	// BaseClient is the low-level HTTP executor for the Settings API. It accepts a
+	// concrete [*config.Config] per request, making it suitable for multi-tenant
+	// SaaS scenarios. For a fixed-configuration client, use [Client].
 	BaseClient struct {
-		sender whttp.AnySender
+		whttp.BaseClient[any]
 	}
 
 	SuccessResponse struct {
@@ -135,43 +141,60 @@ type (
 	}
 )
 
-func NewClient(configReader config.Reader, base *BaseClient) *Client {
+// NewClient creates a high-level Client for the Settings API.
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
-		configReader: configReader,
-		base:         base,
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[any](options...)},
+		config: conf,
 	}
 }
 
-func (bc *Client) GetSettings(ctx context.Context, request *GetSettingsRequest) (*Settings, error) {
-	conf, err := bc.configReader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: config read: %w", ErrUpdateSettings, err)
-	}
+// SetBaseClient replaces the underlying request sender.
+func (c *Client) SetBaseClient(sender whttp.Sender[any]) {
+	c.sender.SetSender(sender)
+}
 
-	response, err := bc.base.GetSettings(ctx, conf, request)
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	c.sender.SetMiddlewares(mws...)
+}
+
+// GetSettings retrieves calling settings.
+func (c *Client) GetSettings(ctx context.Context, request *GetSettingsRequest) (*Settings, error) {
+	req := &BaseRequest{
+		Method: http.MethodGet,
+		Type:   whttp.RequestTypeGetSettings,
+		Params: request.Params,
+	}
+	resp, err := c.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: send request: %w", ErrGetSettings, err)
 	}
-
-	return response, nil
+	return resp.settings(), nil
 }
 
-func (bc *Client) UpdateSettings(ctx context.Context, settings *Settings) (*SuccessResponse, error) {
-	conf, err := bc.configReader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: config read: %w", ErrUpdateSettings, err)
+// UpdateSettings updates calling settings.
+func (c *Client) UpdateSettings(ctx context.Context, settings *Settings) (*SuccessResponse, error) {
+	req := &BaseRequest{
+		Method:  http.MethodPost,
+		Type:    whttp.RequestTypeUpdateSettings,
+		Payload: settings,
 	}
-
-	response, err := bc.base.UpdateSettings(ctx, conf, settings)
+	resp, err := c.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: send request: %w", ErrUpdateSettings, err)
 	}
-
-	return response, nil
+	return resp.successResponse(), nil
 }
 
-func NewBaseClient(sender whttp.AnySender) *BaseClient {
-	return &BaseClient{sender: sender}
+// Send dispatches a raw BaseRequest through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *BaseRequest) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+	return response, nil
 }
 
 func (bc *BaseClient) GetSettings(
@@ -179,13 +202,13 @@ func (bc *BaseClient) GetSettings(
 	conf *config.Config,
 	request *GetSettingsRequest,
 ) (*Settings, error) {
-	req := &baseRequest{
+	req := &BaseRequest{
 		Method: http.MethodGet,
 		Type:   whttp.RequestTypeGetSettings,
 		Params: request.Params,
 	}
 
-	response, err := bc.send(ctx, conf, req)
+	response, err := bc.Send(ctx, conf, req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: send request: %w", ErrGetSettings, err)
 	}
@@ -198,13 +221,13 @@ func (bc *BaseClient) UpdateSettings(
 	conf *config.Config,
 	settings *Settings,
 ) (*SuccessResponse, error) {
-	req := &baseRequest{
+	req := &BaseRequest{
 		Method:  http.MethodPost,
 		Type:    whttp.RequestTypeUpdateSettings,
 		Payload: settings,
 	}
 
-	response, err := bc.send(ctx, conf, req)
+	response, err := bc.Send(ctx, conf, req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: send request: %w", ErrUpdateSettings, err)
 	}
@@ -212,34 +235,30 @@ func (bc *BaseClient) UpdateSettings(
 	return response.successResponse(), nil
 }
 
-func (bc *BaseClient) send(ctx context.Context, config *config.Config, request *baseRequest) (*baseResponse, error) {
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestEndpoints[any](config.APIVersion, config.PhoneNumberID, settingsEndpoint),
-		whttp.WithRequestQueryParams[any](request.Params),
-		whttp.WithRequestBearer[any](config.AccessToken),
-		whttp.WithRequestType[any](request.Type),
-		whttp.WithRequestAppSecret[any](config.AppSecret),
-		whttp.WithRequestSecured[any](config.SecureRequests),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(config.DebugLogLevel)),
+func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *BaseRequest) (*BaseResponse, error) {
+	b := whttp.NewRequestBuilder(request.Method, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(request.Type).
+		Endpoints(conf.APIVersion, conf.PhoneNumberID, settingsEndpoint)
+
+	if len(request.Params) > 0 {
+		b = b.QueryParams(request.Params)
 	}
 
+	var msg *any
 	if request.Payload != nil {
-		opts = append(opts,
-			whttp.WithRequestMessage(&request.Payload),
-		)
+		msg = &request.Payload
 	}
 
-	req := whttp.MakeRequest(request.Method, config.BaseURL, opts...)
+	req := whttp.Build[any](b, msg)
 
-	response := &baseResponse{}
+	response := &BaseResponse{}
 
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
+		Flags: whttp.JSONDecodeDisallowEmptyResponse | whttp.JSONDecodeInspectResponseError,
 	})
 
-	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
@@ -247,23 +266,23 @@ func (bc *BaseClient) send(ctx context.Context, config *config.Config, request *
 }
 
 type (
-	baseRequest struct {
+	BaseRequest struct {
 		Method  string
 		Type    whttp.RequestType
 		Params  map[string]string
 		Payload any
 	}
 
-	baseResponse struct {
+	BaseResponse struct {
 		Success bool     `json:"success,omitempty"`
 		Calling *Calling `json:"calling,omitempty"`
 	}
 )
 
-func (r *baseResponse) settings() *Settings {
+func (r *BaseResponse) settings() *Settings {
 	return &Settings{Calling: r.Calling}
 }
 
-func (r *baseResponse) successResponse() *SuccessResponse {
+func (r *BaseResponse) successResponse() *SuccessResponse {
 	return &SuccessResponse{Success: r.Success}
 }

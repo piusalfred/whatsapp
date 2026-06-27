@@ -33,52 +33,41 @@ import (
 	"github.com/piusalfred/whatsapp/qrcode"
 )
 
-func LoadConfigFromFile(filepath string) config.ReaderFunc {
-	fn := func(ctx context.Context) (*config.Config, error) {
-		err := godotenv.Load(filepath) // Load the .env file from the given path
-		if err != nil {
-			return nil, err
-		}
-
-		conf := &config.Config{
-			BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
-			APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
-			AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
-			PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
-			BusinessAccountID: os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID"),
-		}
-
-		return conf, nil
+func LoadConfigFromFile(filepath string) (*config.Config, error) {
+	if err := godotenv.Load(filepath); err != nil {
+		return nil, err
 	}
 
-	return fn
+	return &config.Config{
+		BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
+		APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
+		AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
+		PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
+		BusinessAccountID: os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID"),
+	}, nil
 }
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	ctx := context.Background()
 
-	var middlewares []whttp.Middleware[any]
-
-	clientOptions := []whttp.CoreClientOption[any]{
-		whttp.WithCoreClientHTTPClient[any](http.DefaultClient),
-		whttp.WithCoreClientRequestInterceptor[any](
-			func(ctx context.Context, req *http.Request) error {
-				logger.Info("Request Intercepted", slog.String("url", req.URL.String()))
-				return nil
-			},
-		),
-		whttp.WithCoreClientResponseInterceptor[any](
-			func(ctx context.Context, resp *http.Response) error {
-				logger.Info("Response Intercepted", slog.Int("status", resp.StatusCode))
-				return nil
-			},
-		),
-		whttp.WithCoreClientMiddlewares(middlewares...),
+	conf, err := LoadConfigFromFile("api.env")
+	if err != nil {
+		fmt.Printf("Failed to load config: %v\n", err)
+		return
 	}
 
-	coreClient := whttp.NewAnySender(clientOptions...)
-	client := qrcode.NewBaseClient(coreClient, LoadConfigFromFile("api.env"))
-	ctx := context.Background()
+	client := qrcode.NewClient(conf,
+		whttp.WithSenderHTTPClient(http.DefaultClient),
+		whttp.WithSenderRequestInterceptor(func(ctx context.Context, req *http.Request) error {
+			logger.Info("Request Intercepted", slog.String("url", req.URL.String()))
+			return nil
+		}),
+		whttp.WithSenderResponseInterceptor(func(ctx context.Context, resp *http.Response) error {
+			logger.Info("Response Intercepted", slog.Int("status", resp.StatusCode))
+			return nil
+		}),
+	)
 
 	createReq := &qrcode.CreateRequest{
 		PrefilledMessage: " tsup  https://github.com/piusalfred/whatsapp mate",
@@ -111,7 +100,7 @@ func main() {
 		fmt.Printf("Updated QR Code success: %v\n", updateResp.Success)
 	}
 
-	listResp, err := client.List(ctx)
+	listResp, err := client.List(ctx, nil)
 	if err != nil {
 		fmt.Printf("Failed to list QR codes: %v\n", err)
 	} else {

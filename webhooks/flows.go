@@ -123,58 +123,68 @@ func (handler *Handler) handleFlowNotification(
 	return nil
 }
 
+// OnFlowStatusChange registers a handler for flow status change events in the flows webhook.
 func (handler *Handler) OnFlowStatusChange(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *StatusChangeDetails) error,
 ) {
 	handler.flowStatus = EventHandlerFunc[FlowNotificationContext, StatusChangeDetails](fn)
 }
 
+// SetFlowStatusChangeHandler sets the handler for flow status change events.
 func (handler *Handler) SetFlowStatusChangeHandler(fn FlowStatusHandler) {
 	handler.flowStatus = fn
 }
 
+// OnFlowClientErrorRate registers a handler for flow client error rate events in the flows webhook.
 func (handler *Handler) OnFlowClientErrorRate(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *ClientErrorRateDetails) error,
 ) {
 	handler.flowClientErrorRate = EventHandlerFunc[FlowNotificationContext, ClientErrorRateDetails](fn)
 }
 
+// SetFlowClientErrorRateHandler sets the handler for flow client error rate events.
 func (handler *Handler) SetFlowClientErrorRateHandler(
 	fn FlowClientErrorRateHandler,
 ) {
 	handler.flowClientErrorRate = fn
 }
 
+// OnFlowEndpointErrorRate registers a handler for flow endpoint error rate events in the flows webhook.
 func (handler *Handler) OnFlowEndpointErrorRate(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointErrorRateDetails) error,
 ) {
 	handler.flowEndpointErrorRate = EventHandlerFunc[FlowNotificationContext, EndpointErrorRateDetails](fn)
 }
 
+// SetFlowEndpointErrorRateHandler sets the handler for flow endpoint error rate events.
 func (handler *Handler) SetFlowEndpointErrorRateHandler(
 	fn FlowEndpointErrorRateHandler,
 ) {
 	handler.flowEndpointErrorRate = fn
 }
 
+// OnFlowEndpointLatency registers a handler for flow endpoint latency events in the flows webhook.
 func (handler *Handler) OnFlowEndpointLatency(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointLatencyDetails) error,
 ) {
 	handler.flowEndpointLatency = EventHandlerFunc[FlowNotificationContext, EndpointLatencyDetails](fn)
 }
 
+// SetFlowEndpointLatencyHandler sets the handler for flow endpoint latency events.
 func (handler *Handler) SetFlowEndpointLatencyHandler(
 	fn FlowEndpointLatencyHandler,
 ) {
 	handler.flowEndpointLatency = fn
 }
 
+// OnFlowEndpointAvailability registers a handler for flow endpoint availability events in the flows webhook.
 func (handler *Handler) OnFlowEndpointAvailability(
 	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointAvailabilityDetails) error,
 ) {
 	handler.flowEndpointAvailability = EventHandlerFunc[FlowNotificationContext, EndpointAvailabilityDetails](fn)
 }
 
+// SetFlowEndpointAvailabilityHandler sets the handler for flow endpoint availability events.
 func (handler *Handler) SetFlowEndpointAvailabilityHandler(
 	fn FlowEndpointAvailabilityHandler,
 ) {

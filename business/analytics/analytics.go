@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,7 +9,7 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -28,48 +28,52 @@ import (
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
 
-var _ Fetcher = (*BaseClient)(nil)
-
 type (
 	Type       string
 	BaseClient struct {
-		Sender      whttp.Sender[Request]
-		Config      config.Reader
-		Middlewares []Middleware
+		whttp.BaseClient[BaseRequest]
 	}
-
-	Fetcher interface {
-		FetchAnalytics(ctx context.Context, request *Request) (*Response, error)
-	}
-
-	FetcherFunc func(ctx context.Context, request *Request) (*Response, error)
-
-	Middleware func(Fetcher) Fetcher
 )
 
-func (f FetcherFunc) FetchAnalytics(ctx context.Context, request *Request) (*Response, error) {
-	return f(ctx, request)
+// Client orchestrates high-level Analytics API operations.
+type Client struct {
+	sender *BaseClient
+	config *config.Config
 }
 
-//nolint:ireturn // ok
-func wrapMiddleware(fetcher Fetcher, middlewares ...Middleware) Fetcher {
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		fetcher = middlewares[i](fetcher)
+// NewClient creates a high-level Client for the Analytics API.
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
+	return &Client{
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
+		config: conf,
 	}
-
-	return fetcher
 }
 
-func (b *BaseClient) FetchGeneralAnalytics(ctx context.Context,
-	request *MessagingRequest,
-) (*MessagingResponse, error) {
+// SetBaseClient replaces the underlying request sender.
+func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
+	c.sender.SetSender(sender)
+}
+
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	c.sender.SetMiddlewares(mws...)
+}
+
+// Send dispatches a raw [Request] through the underlying [BaseClient].
+func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	return response, nil
+}
+
+func (c *Client) FetchGeneralAnalytics(ctx context.Context, request *MessagingRequest) (*MessagingResponse, error) {
 	req := MakeMessagingAnalyticsQueryParams(request.Start, request.End,
 		request.Granularity, request.Options...)
 
-	coreFetcher := FetcherFunc(b.FetchAnalytics)
-	fetcher := wrapMiddleware(coreFetcher, b.Middlewares...)
-
-	resp, err := fetcher.FetchAnalytics(ctx, req)
+	resp, err := c.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch general analytics: %w", err)
 	}
@@ -77,15 +81,14 @@ func (b *BaseClient) FetchGeneralAnalytics(ctx context.Context,
 	return resp.MessagingAnalytics(), nil
 }
 
-func (b *BaseClient) FetchConversationAnalytics(ctx context.Context,
+func (c *Client) FetchConversationAnalytics(
+	ctx context.Context,
 	request *ConversationalRequest,
 ) (*ConversationalResponse, error) {
-	req := MakeConversationalAnalyticsQueryParams(request.Start, request.End, request.Granularity, request.Options...)
+	req := MakeConversationalAnalyticsQueryParams(request.Start, request.End,
+		request.Granularity, request.Options...)
 
-	coreFetcher := FetcherFunc(b.FetchAnalytics)
-	fetcher := wrapMiddleware(coreFetcher, b.Middlewares...)
-
-	resp, err := fetcher.FetchAnalytics(ctx, req)
+	resp, err := c.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch conversation analytics: %w", err)
 	}
@@ -93,14 +96,11 @@ func (b *BaseClient) FetchConversationAnalytics(ctx context.Context,
 	return resp.ConversationAnalytics(), nil
 }
 
-func (b *BaseClient) FetchPricingAnalytics(ctx context.Context, params *PricingRequest) (
-	*PricingResponse, error,
-) {
-	coreFetcher := FetcherFunc(b.FetchAnalytics)
-	fetcher := wrapMiddleware(coreFetcher, b.Middlewares...)
+func (c *Client) FetchPricingAnalytics(ctx context.Context, params *PricingRequest) (*PricingResponse, error) {
+	req := MakePricingAnalyticsQueryParams(params.Start, params.End,
+		params.Granularity, params.Options...)
 
-	request := MakePricingAnalyticsQueryParams(params.Start, params.End, params.Granularity, params.Options...)
-	resp, err := fetcher.FetchAnalytics(ctx, request)
+	resp, err := c.Send(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch pricing analytics: %w", err)
 	}
@@ -108,68 +108,100 @@ func (b *BaseClient) FetchPricingAnalytics(ctx context.Context, params *PricingR
 	return resp.PricingAnalytics(), nil
 }
 
-func (b *BaseClient) FetchAnalytics(ctx context.Context, request *Request) (*Response, error) {
-	conf, err := b.Config.Read(ctx)
+func (bc *BaseClient) FetchGeneralAnalytics(ctx context.Context, conf *config.Config,
+	request *MessagingRequest,
+) (*MessagingResponse, error) {
+	req := MakeMessagingAnalyticsQueryParams(request.Start, request.End,
+		request.Granularity, request.Options...)
+
+	resp, err := bc.FetchAnalytics(ctx, conf, req)
 	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
+		return nil, fmt.Errorf("fetch general analytics: %w", err)
 	}
 
-	resp, err := b.Send(ctx, conf, request)
-	if err != nil {
-		return nil, fmt.Errorf("fetch analytics: %w", err)
-	}
-
-	return resp, nil
+	return resp.MessagingAnalytics(), nil
 }
 
-func (b *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*Response, error) {
+func (bc *BaseClient) FetchConversationAnalytics(ctx context.Context, conf *config.Config,
+	request *ConversationalRequest,
+) (*ConversationalResponse, error) {
+	req := MakeConversationalAnalyticsQueryParams(request.Start, request.End, request.Granularity, request.Options...)
+
+	resp, err := bc.FetchAnalytics(ctx, conf, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch conversation analytics: %w", err)
+	}
+
+	return resp.ConversationAnalytics(), nil
+}
+
+func (bc *BaseClient) FetchPricingAnalytics(ctx context.Context, conf *config.Config, params *PricingRequest) (
+	*PricingResponse, error,
+) {
+	request := MakePricingAnalyticsQueryParams(params.Start, params.End, params.Granularity, params.Options...)
+	resp, err := bc.FetchAnalytics(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("fetch pricing analytics: %w", err)
+	}
+
+	return resp.PricingAnalytics(), nil
+}
+
+func (bc *BaseClient) FetchAnalytics(
+	ctx context.Context,
+	conf *config.Config,
+	request *Request,
+) (*BaseResponse, error) {
+	return bc.Send(ctx, conf, request)
+}
+
+func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*BaseResponse, error) {
 	queryParams := map[string]string{
 		"fields":       request.QueryParamsString(),
 		"access_token": conf.AccessToken,
 	}
 
-	req := whttp.MakeRequest(http.MethodGet, conf.BaseURL,
-		whttp.WithRequestType[Request](request.requestType),
-		whttp.WithRequestAppSecret[Request](conf.AppSecret),
-		whttp.WithRequestSecured[Request](conf.SecureRequests),
-		whttp.WithRequestQueryParams[Request](queryParams),
-		whttp.WithRequestEndpoints[Request](conf.APIVersion, conf.BusinessAccountID),
-	)
+	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(request.requestType).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID).
+		QueryParams(queryParams)
 
-	response := &Response{}
-	err := b.Sender.Send(ctx, req, whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	}))
-	if err != nil {
+	req := whttp.BuildRequest(b, (*BaseRequest)(nil))
+
+	response := &BaseResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsPermissive())
+
+	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 
 	return response, nil
 }
 
-type Response struct {
+// BaseResponse is the general response struct for the Analytics API.
+type BaseResponse struct {
 	Messaging      *MessagingAnalytics    `json:"analytics,omitempty"`
 	Conversational *ConversationAnalytics `json:"conversation_analytics,omitempty"`
 	Pricing        *PricingAnalytics      `json:"pricing_analytics,omitempty"`
 	ID             string                 `json:"id,omitempty"`
 }
 
-func (response *Response) MessagingAnalytics() *MessagingResponse {
+func (response *BaseResponse) MessagingAnalytics() *MessagingResponse {
 	return &MessagingResponse{
 		Analytics: response.Messaging,
 		ID:        response.ID,
 	}
 }
 
-func (response *Response) ConversationAnalytics() *ConversationalResponse {
+func (response *BaseResponse) ConversationAnalytics() *ConversationalResponse {
 	return &ConversationalResponse{
 		ConversationAnalytics: response.Conversational,
 		ID:                    response.ID,
 	}
 }
 
-func (response *Response) PricingAnalytics() *PricingResponse {
+func (response *BaseResponse) PricingAnalytics() *PricingResponse {
 	return &PricingResponse{
 		PricingAnalytics: response.Pricing,
 		ID:               response.ID,
@@ -421,6 +453,10 @@ func MakePricingAnalyticsQueryParams(start, end int64, granularity Granularity,
 		Dimensions:        params.Dimensions,
 	}
 }
+
+// BaseRequest is the wire-format payload for the Analytics API.
+// All analytics requests are GET-only, so the body is always empty.
+type BaseRequest struct{}
 
 type Request struct {
 	requestType            whttp.RequestType

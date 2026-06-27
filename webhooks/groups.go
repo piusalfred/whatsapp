@@ -46,11 +46,11 @@ type (
 		GroupDescription    *GroupSettingText        `json:"group_description,omitempty"`
 	}
 	GroupParticipant struct {
-		WaID  string `json:"wa_id"`
-		Input string `json:"input"`
+		WaID  string `json:"wa_id,omitempty"`
+		Input string `json:"input,omitempty"`
 	}
 	FailedGroupParticipant struct {
-		Input  string          `json:"input"`
+		Input  string          `json:"input,omitempty"`
 		Errors []werrors.Error `json:"errors,omitempty"`
 	}
 	GroupProfilePicture struct {
@@ -66,48 +66,62 @@ type (
 	}
 )
 
+// OnGroupLifecycleUpdate registers a handler for group_lifecycle_update webhooks
+// (group creation and deletion, with success and failure variants).
 func (handler *Handler) OnGroupLifecycleUpdate(
 	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
 ) {
 	handler.groupLifecycleUpdate = MessageChangeValueHandlerFunc[Group](fn)
 }
 
+// SetGroupLifecycleUpdateHandler sets the handler for group_lifecycle_update webhooks.
 func (handler *Handler) SetGroupLifecycleUpdateHandler(
 	h GroupLifecycleUpdateHandler,
 ) {
 	handler.groupLifecycleUpdate = h
 }
 
+// OnGroupParticipantsUpdate registers a handler for group_participants_update webhooks
+// (participants joining via invite, requesting to join, cancelling requests, join
+// request approval, participant removal, and participant departures).
 func (handler *Handler) OnGroupParticipantsUpdate(
 	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
 ) {
 	handler.groupParticipantsUpdate = MessageChangeValueHandlerFunc[Group](fn)
 }
 
+// SetGroupParticipantsUpdateHandler sets the handler for group_participants_update webhooks.
 func (handler *Handler) SetGroupParticipantsUpdateHandler(
 	h GroupParticipantsUpdateHandler,
 ) {
 	handler.groupParticipantsUpdate = h
 }
 
+// OnGroupSettingsUpdate registers a handler for group_settings_update webhooks
+// (group subject, description, and profile picture changes with per-field
+// success/failure reporting).
 func (handler *Handler) OnGroupSettingsUpdate(
 	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
 ) {
 	handler.groupSettingsUpdate = MessageChangeValueHandlerFunc[Group](fn)
 }
 
+// SetGroupSettingsUpdateHandler sets the handler for group_settings_update webhooks.
 func (handler *Handler) SetGroupSettingsUpdateHandler(
 	h GroupSettingsUpdateHandler,
 ) {
 	handler.groupSettingsUpdate = h
 }
 
+// OnGroupStatusUpdate registers a handler for group_status_update webhooks
+// (group suspension and suspension clearance).
 func (handler *Handler) OnGroupStatusUpdate(
 	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
 ) {
 	handler.groupStatusUpdate = MessageChangeValueHandlerFunc[Group](fn)
 }
 
+// SetGroupStatusUpdateHandler sets the handler for group_status_update webhooks.
 func (handler *Handler) SetGroupStatusUpdateHandler(
 	h GroupStatusUpdateHandler,
 ) {

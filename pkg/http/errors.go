@@ -26,12 +26,20 @@ import (
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
 
+// ResponseError wraps a WhatsApp API error response. It implements [error] and
+// provides [Unwrap] so callers can use [errors.As] to extract the inner
+// [werrors.Error] when needed. It also implements [DebugHeadersCapturer] to
+// capture debug response headers on error responses.
 type ResponseError struct {
-	Code int            `json:"code,omitempty"`
-	Err  *werrors.Error `json:"error,omitempty"`
+	Code         int            `json:"code,omitempty"`
+	Err          *werrors.Error `json:"error,omitempty"`
+	DebugHeaders DebugHeaders   `json:"debug_headers"`
 }
 
 func (e *ResponseError) Error() string {
+	if e.Err == nil {
+		return fmt.Sprintf("whatsapp message error: http code: %d, <no details>", e.Code)
+	}
 	return fmt.Sprintf("whatsapp message error: http code: %d, %s", e.Code, strings.ToLower(e.Err.Error()))
 }
 
@@ -39,6 +47,12 @@ func (e *ResponseError) Unwrap() error {
 	return e.Err
 }
 
+func (e *ResponseError) OnDebugHeaders(h DebugHeaders) {
+	e.DebugHeaders = h
+}
+
+// Package-level sentinels returned by decoder and request functions. Callers can
+// test for them with [errors.Is].
 const (
 	ErrNilRequest          = httpError("nil request provided")
 	ErrNilResponse         = httpError("nil response provided")
@@ -47,10 +61,30 @@ const (
 	ErrRequestFailure      = httpError("request failed")
 	ErrDecodeResponseBody  = httpError("failed to decode response body")
 	ErrDecodeErrorResponse = httpError("failed to decode error response")
+	ErrBodyTooLarge        = httpError("body exceeds maximum allowed size")
+	ErrMultipleBodySources = httpError(
+		"multiple body sources provided: only one of Message, Form, or BodyReader is allowed",
+	)
 )
 
 type httpError string
 
 func (e httpError) Error() string {
 	return string(e)
+}
+
+// Paging is the standard pagination envelope returned by list endpoints.
+// [Paging.Previous] and [Paging.Next] are opaque URLs for backward and forward
+// traversal; [Paging.Cursors] provides token-based navigation when available.
+type Paging struct {
+	Cursors  *Cursors `json:"cursors,omitempty"`
+	Previous string   `json:"previous,omitempty"`
+	Next     string   `json:"next,omitempty"`
+}
+
+// Cursors holds opaque tokens for cursor-based pagination. [Cursors.After]
+// points forward in the result set; [Cursors.Before] points backward.
+type Cursors struct {
+	After  string `json:"after,omitempty"`
+	Before string `json:"before,omitempty"`
 }
