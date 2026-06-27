@@ -141,7 +141,7 @@ client.UploadMedia(ctx, &media.UploadRequest{...})
 client.CreateSystemUser(ctx, &auth.CreateSystemUserRequest{Name: "bot"})
 ```
 
-See more in [examples](./_examples/) and [docs](./docs/README.md)
+See more in [examples](./_examples/) and [docs](./docs/)
 
 > [!NOTE]
 > Every domain package exposes both `Client` and `BaseClient`.
@@ -158,8 +158,11 @@ See more in [examples](./_examples/) and [docs](./docs/README.md)
 > They serve opposite directions and are configured independently.
 
 
-## Initial Steps
-Start by reading the official [WhatsApp Cloud API Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started) then go to [Get Started Guide](./docs/README.md) for initial steps in setting up your developing environment.
+## Documentation
+
+Read the full guide at **[docs/README.md](./docs/README.md)** — it covers quick start, architecture, testing, middleware, secure requests, and things to watch out for.
+
+Start by reading the official [WhatsApp Cloud API Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started).
 
 
 ## Testing
