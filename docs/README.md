@@ -314,9 +314,17 @@ client.SendTextMessage(ctx, message.SendTo("+16505551234"), &message.Text{Body: 
 import whttp "github.com/piusalfred/whatsapp/pkg/http"
 ```
 
-### Unrecognized webhook fields are intentionally ignored
+### Unrecognized webhook fields
 
-If WhatsApp adds a new notification type that the library doesn't handle yet, the handler returns 200 (not an error). This prevents retry storms. If you need an unsupported field, open an issue.
+By default, fields the library doesn't handle are silently acknowledged with 200. To handle future or custom notification types without waiting for a library update, register an unrecognized-field handler:
+
+```go
+handler.OnUnrecognizedField(func(ctx context.Context, n *webhooks.Notification, c webhooks.Change, e webhooks.Entry) error {
+    log.Printf("unhandled field: %s", c.Field)
+    // c.Value contains the raw payload
+    return nil // return an error to trigger WhatsApp retries
+})
+```
 
 ### `config.Config` has no defaults — every required field must be set
 

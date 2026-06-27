@@ -1726,3 +1726,100 @@ func TestListener_HandleNotification_GroupStatusUpdate(t *testing.T) {
 		t.Error("group_status_update was not handled by OnGroupStatusUpdate")
 	}
 }
+
+func TestListener_HandleNotification_UnrecognizedField(t *testing.T) {
+	t.Parallel()
+
+	// A field not in the KnownChangeFields list — simulates a future WhatsApp
+	// notification type the library doesn't explicitly handle.
+	payload := `{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+    "changes": [{
+      "field": "automatic_events",
+      "value": {
+        "event": "some_future_event",
+        "details": {"key": "value"}
+      }
+    }]
+  }]
+}`
+
+	var handled bool
+	var gotField string
+
+	handler := webhooks.NewHandler()
+	handler.OnUnrecognizedField(func(ctx context.Context,
+		n *webhooks.Notification, c webhooks.Change, e webhooks.Entry,
+	) error {
+		handled = true
+		gotField = c.Field
+		return nil
+	})
+
+	reader := webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
+		return &webhooks.Config{Token: "test", Validate: false}, nil
+	})
+
+	server := NewTestWebhookServer(t, TestServerConfig{
+		Handler:      handler,
+		ConfigReader: reader,
+	})
+	defer server.Close()
+
+	resp, err := http.Post(server.URL, "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", resp.StatusCode)
+	}
+	if !handled {
+		t.Error("unrecognized field handler was not invoked for 'automatic_events'")
+	}
+	if gotField != "automatic_events" {
+		t.Errorf("expected field 'automatic_events', got %q", gotField)
+	}
+}
+
+func TestHandler_UnrecognizedField_DefaultSilent(t *testing.T) {
+	t.Parallel()
+
+	// Without OnUnrecognizedField, the handler should return 200 silently.
+	payload := `{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+    "changes": [{
+      "field": "unknown_field_xyz",
+      "value": {}
+    }]
+  }]
+}`
+
+	handler := webhooks.NewHandler()
+	// No OnUnrecognizedField set — default nil behaviour.
+
+	reader := webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
+		return &webhooks.Config{Token: "test", Validate: false}, nil
+	})
+
+	server := NewTestWebhookServer(t, TestServerConfig{
+		Handler:      handler,
+		ConfigReader: reader,
+	})
+	defer server.Close()
+
+	resp, err := http.Post(server.URL, "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200 (silent ack for unknown field), got %d", resp.StatusCode)
+	}
+}

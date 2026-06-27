@@ -96,6 +96,13 @@ type Handler struct {
 	historySync              MessageChangeValueHandler[HistoryEntry]
 
 	errorHandlerFunc func(ctx context.Context, err error) error
+
+	// unrecognizedField is called for any change.Field not handled by the
+	// dispatch switch. When nil (the default), unrecognized fields are
+	// silently acknowledged with 200 to prevent WhatsApp retry storms.
+	// Set via [Handler.OnUnrecognizedField] to handle future or custom
+	// notification types without modifying the library.
+	unrecognizedField func(ctx context.Context, notification *Notification, change Change, entry Entry) error
 }
 
 // NewHandler creates a Handler with all callbacks initialized to no-ops.
@@ -196,6 +203,17 @@ func (handler *Handler) OnError(f func(ctx context.Context, err error) error) {
 	handler.errorHandlerFunc = f
 }
 
+// OnUnrecognizedField registers a handler for notification fields that the
+// library does not yet recognise. By default unrecognized fields are silently
+// acknowledged (200) to prevent WhatsApp from retrying. When a handler is set,
+// it receives the full notification, change, and entry — use change.Field and
+// change.Value to inspect the raw payload.
+func (handler *Handler) OnUnrecognizedField(
+	f func(ctx context.Context, notification *Notification, change Change, entry Entry) error,
+) {
+	handler.unrecognizedField = f
+}
+
 // HandleNotification processes with a single Notification containing one or more
 // Entry objects. Each Entry can have multiple Changes, and each Change can
 // contain multiple messages or event objects.
@@ -220,26 +238,24 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 }
 
 // handleNotificationChange routes each incoming webhook change to the correct
-// handler based on change.Field. The switch is intentionally flat (one case per
-// WhatsApp field) rather than using a registry map to preserve compile-time
-// safety for handler type signatures — a ChangeFieldMessages case dispatches to
-// message handlers with Message types, while ChangeFieldFlows uses FlowEvent
-// types. A map-based registry would require type assertions.
-//
-// Unrecognized fields fall through silently (returning nil). This is correct:
-// returning an error would cause WhatsApp to retry the notification for up to
-// 7 days with decreasing frequency, flooding the server for an unsupported
-// notification type that will never succeed.
-//
-// To add a new field handler: add a case to this switch following the existing
-// patterns (handleBusinessNotification for business alerts, handleMessageChangeNotification
-// for message sub-types, or a domain-specific handler like handleFlowNotification).
+// handler based on change.Field. Unknown fields are short-circuited via
+// [isKnownField] and routed to [Handler.OnUnrecognizedField] (if set) or
+// silently acknowledged.
 func (handler *Handler) handleNotificationChange(
 	ctx context.Context,
 	notification *Notification,
 	change Change,
 	entry Entry,
 ) error {
+	// Fields not recognized by the library route to the user-supplied
+	// unrecognized-field handler (if set) or are silently acknowledged.
+	if !isKnownField(change.Field) {
+		if handler.unrecognizedField != nil {
+			return handler.unrecognizedField(ctx, notification, change, entry)
+		}
+		return nil
+	}
+
 	switch change.Field {
 	case ChangeFieldFlows.String():
 		return handler.handleFlowsChange(ctx, notification, change, entry)
@@ -286,10 +302,6 @@ func (handler *Handler) handleNotificationChange(
 		return handler.handleHistoryChange(ctx, notification, change, entry)
 	}
 
-	// Unrecognized fields are silently dropped. This includes official
-	// WhatsApp fields not yet implemented (see ChangeField docs). Dropping
-	// is intentional — we return nil so WhatsApp receives a 200 and does
-	// not retry.
 	return nil
 }
 
@@ -604,6 +616,16 @@ func KnownChangeFields() []ChangeField {
 		ChangeFieldGroupStatusUpdate,
 		ChangeFieldHistory,
 	}
+}
+
+// isKnownField reports whether field is handled by the dispatch switch.
+func isKnownField(field string) bool {
+	for _, f := range KnownChangeFields() {
+		if f.String() == field {
+			return true
+		}
+	}
+	return false
 }
 
 type (
