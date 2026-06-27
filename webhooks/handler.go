@@ -41,43 +41,40 @@ import (
 // account notifications, message types (text, image, interactive, etc.),
 // status changes, and group events.
 type Handler struct {
-	flows                   *FlowNotificationHandler
-	business                *BusinessNotificationHandler
-	buttonMessage           MessageHandler[Button]
-	textMessage             MessageHandler[Text]
-	orderMessage            MessageHandler[Order]
-	locationMessage         MessageHandler[media.Location]
-	contactsMessage         MessageHandler[message.Contacts]
-	reactionMessage         MessageHandler[media.Reaction]
-	productInquiry          MessageHandler[Text]
-	interactiveMessage      MessageHandler[Interactive]
-	buttonReplyMessage      MessageHandler[ButtonReply]
-	listReplyMessage        MessageHandler[ListReply]
-	flowCompletionUpdate    NativeFlowCompletionHandler
-	addressSubmission       NativeFlowCompletionHandler
-	referralMessage         MessageHandler[ReferralNotification]
-	customerIDChange        MessageHandler[Identity]
-	systemMessage           MessageHandler[System]
-	requestWelcome          MessageHandler[Message]
-	audioMessage            MediaMessageHandler
-	videoMessage            MediaMessageHandler
-	imageMessage            MediaMessageHandler
-	documentMessage         MediaMessageHandler
-	stickerMessage          MediaMessageHandler
-	notificationErrors      MessageChangeValueHandler[werrors.Error]
-	messageStatusChange     MessageChangeValueHandler[Status]
-	revokeMessage           MessageHandler[Revoke]
-	editMessage             MessageHandler[Edit]
-	smbAppStateSync         MessageChangeValueHandler[SMBAppStateSync]
-	smbMessageEcho          MessageHandler[Message]
-	userPreferencesUpdate   MessageChangeValueHandler[UserPreference]
-	groupLifecycleUpdate    MessageChangeValueHandler[Group]
-	groupParticipantsUpdate MessageChangeValueHandler[Group]
-	groupSettingsUpdate     MessageChangeValueHandler[Group]
-	groupStatusUpdate       MessageChangeValueHandler[Group]
-	errorMessage            MessageErrorsHandler
-	unsupportedMessage      MessageErrorsHandler
-	historySync             MessageChangeValueHandler[HistoryEntry]
+	flows                 *FlowNotificationHandler
+	business              *BusinessNotificationHandler
+	buttonMessage         MessageHandler[Button]
+	textMessage           MessageHandler[Text]
+	orderMessage          MessageHandler[Order]
+	locationMessage       MessageHandler[media.Location]
+	contactsMessage       MessageHandler[message.Contacts]
+	reactionMessage       MessageHandler[media.Reaction]
+	productInquiry        MessageHandler[Text]
+	interactiveMessage    MessageHandler[Interactive]
+	buttonReplyMessage    MessageHandler[ButtonReply]
+	listReplyMessage      MessageHandler[ListReply]
+	flowCompletionUpdate  NativeFlowCompletionHandler
+	addressSubmission     NativeFlowCompletionHandler
+	referralMessage       MessageHandler[ReferralNotification]
+	customerIDChange      MessageHandler[Identity]
+	systemMessage         MessageHandler[System]
+	requestWelcome        MessageHandler[Message]
+	audioMessage          MediaMessageHandler
+	videoMessage          MediaMessageHandler
+	imageMessage          MediaMessageHandler
+	documentMessage       MediaMessageHandler
+	stickerMessage        MediaMessageHandler
+	notificationErrors    MessageChangeValueHandler[werrors.Error]
+	messageStatusChange   MessageChangeValueHandler[Status]
+	revokeMessage         MessageHandler[Revoke]
+	editMessage           MessageHandler[Edit]
+	smbAppStateSync       MessageChangeValueHandler[SMBAppStateSync]
+	smbMessageEcho        MessageHandler[Message]
+	userPreferencesUpdate MessageChangeValueHandler[UserPreference]
+	groups                *GroupManagementHandler
+	errorMessage          MessageErrorsHandler
+	unsupportedMessage    MessageErrorsHandler
+	historySync           MessageChangeValueHandler[HistoryEntry]
 
 	errorHandlerFunc func(ctx context.Context, err error) error
 
@@ -93,43 +90,40 @@ type Handler struct {
 // Register handlers via the Set* methods before attaching to a Listener.
 func NewHandler() *Handler {
 	return &Handler{
-		flows:                   &FlowNotificationHandler{},
-		business:                &BusinessNotificationHandler{},
-		buttonMessage:           newMessageEventHandler[Button](),
-		textMessage:             newMessageEventHandler[Text](),
-		orderMessage:            newMessageEventHandler[Order](),
-		locationMessage:         newMessageEventHandler[media.Location](),
-		contactsMessage:         newMessageEventHandler[message.Contacts](),
-		reactionMessage:         newMessageEventHandler[media.Reaction](),
-		productInquiry:          newMessageEventHandler[Text](),
-		interactiveMessage:      newMessageEventHandler[Interactive](),
-		buttonReplyMessage:      newMessageEventHandler[ButtonReply](),
-		listReplyMessage:        newMessageEventHandler[ListReply](),
-		flowCompletionUpdate:    newMessageEventHandler[NFMReply](),
-		addressSubmission:       newMessageEventHandler[NFMReply](),
-		referralMessage:         newMessageEventHandler[ReferralNotification](),
-		customerIDChange:        newMessageEventHandler[Identity](),
-		systemMessage:           newMessageEventHandler[System](),
-		audioMessage:            newMessageEventHandler[media.Info](),
-		videoMessage:            newMessageEventHandler[media.Info](),
-		imageMessage:            newMessageEventHandler[media.Info](),
-		documentMessage:         newMessageEventHandler[media.Info](),
-		stickerMessage:          newMessageEventHandler[media.Info](),
-		notificationErrors:      newMessageValueEventHandler[werrors.Error](),
-		messageStatusChange:     newMessageValueEventHandler[Status](),
-		revokeMessage:           newMessageEventHandler[Revoke](),
-		editMessage:             newMessageEventHandler[Edit](),
-		smbAppStateSync:         newMessageValueEventHandler[SMBAppStateSync](),
-		smbMessageEcho:          newMessageEventHandler[Message](),
-		userPreferencesUpdate:   newMessageValueEventHandler[UserPreference](),
-		groupLifecycleUpdate:    newMessageValueEventHandler[Group](),
-		groupParticipantsUpdate: newMessageValueEventHandler[Group](),
-		groupSettingsUpdate:     newMessageValueEventHandler[Group](),
-		groupStatusUpdate:       newMessageValueEventHandler[Group](),
-		errorMessage:            NewNoOpMessageErrorsHandler(),
-		unsupportedMessage:      NewNoOpMessageErrorsHandler(),
-		requestWelcome:          newMessageEventHandler[Message](),
-		historySync:             newMessageValueEventHandler[HistoryEntry](),
+		flows:                 &FlowNotificationHandler{},
+		business:              &BusinessNotificationHandler{},
+		buttonMessage:         newMessageEventHandler[Button](),
+		textMessage:           newMessageEventHandler[Text](),
+		orderMessage:          newMessageEventHandler[Order](),
+		locationMessage:       newMessageEventHandler[media.Location](),
+		contactsMessage:       newMessageEventHandler[message.Contacts](),
+		reactionMessage:       newMessageEventHandler[media.Reaction](),
+		productInquiry:        newMessageEventHandler[Text](),
+		interactiveMessage:    newMessageEventHandler[Interactive](),
+		buttonReplyMessage:    newMessageEventHandler[ButtonReply](),
+		listReplyMessage:      newMessageEventHandler[ListReply](),
+		flowCompletionUpdate:  newMessageEventHandler[NFMReply](),
+		addressSubmission:     newMessageEventHandler[NFMReply](),
+		referralMessage:       newMessageEventHandler[ReferralNotification](),
+		customerIDChange:      newMessageEventHandler[Identity](),
+		systemMessage:         newMessageEventHandler[System](),
+		audioMessage:          newMessageEventHandler[media.Info](),
+		videoMessage:          newMessageEventHandler[media.Info](),
+		imageMessage:          newMessageEventHandler[media.Info](),
+		documentMessage:       newMessageEventHandler[media.Info](),
+		stickerMessage:        newMessageEventHandler[media.Info](),
+		notificationErrors:    newMessageValueEventHandler[werrors.Error](),
+		messageStatusChange:   newMessageValueEventHandler[Status](),
+		revokeMessage:         newMessageEventHandler[Revoke](),
+		editMessage:           newMessageEventHandler[Edit](),
+		smbAppStateSync:       newMessageValueEventHandler[SMBAppStateSync](),
+		smbMessageEcho:        newMessageEventHandler[Message](),
+		userPreferencesUpdate: newMessageValueEventHandler[UserPreference](),
+		groups:                &GroupManagementHandler{},
+		errorMessage:          NewNoOpMessageErrorsHandler(),
+		unsupportedMessage:    NewNoOpMessageErrorsHandler(),
+		requestWelcome:        newMessageEventHandler[Message](),
+		historySync:           newMessageValueEventHandler[HistoryEntry](),
 		errorHandlerFunc: func(_ context.Context, _ error) error {
 			return nil
 		},
@@ -245,7 +239,7 @@ func (handler *Handler) handleNotificationChange(
 		ChangeFieldGroupParticipantsUpdate.String(),
 		ChangeFieldGroupSettingsUpdate.String(),
 		ChangeFieldGroupStatusUpdate.String():
-		return handler.handleGroupWebhooks(ctx, change, entry)
+		return handler.groups.Handle(ctx, change, entry, handler.errorHandlerFunc)
 	case ChangeFieldHistory.String():
 		return handler.handleHistoryChange(ctx, notification, change, entry)
 	}
