@@ -26,12 +26,12 @@ func (handler *Handler) OnRequestWelcomeMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
 		info *MessageInfo, media *Message) error,
 ) {
-	handler.requestWelcome = MessageHandlerFunc[Message](fn)
+	handler.messages.RequestWelcome = MessageHandlerFunc[Message](fn)
 }
 
 // SetRequestWelcomeMessageHandler sets the handler for request_welcome messages.
 func (handler *Handler) SetRequestWelcomeMessageHandler(
 	fn RequestWelcomeMessageHandler,
 ) {
-	handler.requestWelcome = fn
+	handler.messages.RequestWelcome = fn
 }

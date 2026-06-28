@@ -118,8 +118,10 @@ type (
 		MessageEchoes                []*Message                `json:"message_echoes,omitempty"`
 	}
 
-	// ErrorInfo captures per-message or per-status error details from the
-	// WhatsApp API. Convert to a *werrors.Error via the Error() method.
+	// ErrorInfo captures per-message, per-status, or history-sync error details
+	// from the WhatsApp API. Convert to a *werrors.Error via the Error() method.
+	//
+	// Title is only populated during history sync errors (e.g., sharing declined).
 	ErrorInfo struct {
 		ErrorType  string             `json:"error_type,omitempty"`
 		ErrorRate  float64            `json:"error_rate,omitempty"`
@@ -134,6 +136,7 @@ type (
 		FBTraceID  string             `json:"fbtrace_id,omitempty"`
 		Details    string             `json:"details,omitempty"`
 		Href       string             `json:"href,omitempty"`
+		Title      string             `json:"title,omitempty"`
 	}
 )
 

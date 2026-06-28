@@ -17,7 +17,10 @@
 
 package webhooks
 
-import werrors "github.com/piusalfred/whatsapp/pkg/errors"
+import (
+	"context"
+	"fmt"
+)
 
 // HistorySyncContext carries the notification-level metadata for a history
 // sync webhook. It is passed to the history handler callback.
@@ -35,7 +38,7 @@ type HistorySyncContext struct {
 type HistoryEntry struct {
 	Metadata HistoryMetadata `json:"metadata"`
 	Threads  []HistoryThread `json:"threads,omitempty"`
-	Errors   []HistoryError  `json:"errors,omitempty"` // non-nil when sharing is declined
+	Errors   []ErrorInfo     `json:"errors,omitempty"` // non-nil when sharing is declined
 }
 
 // HistoryMetadata describes the current sync phase and progress.
@@ -54,150 +57,11 @@ type HistoryMetadata struct {
 }
 
 // HistoryThread groups messages exchanged with a single WhatsApp user.
-// The ID is the user's phone number.
+// The ID is the user's phone number. Messages use the standard [Message]
+// type — history messages carry a [HistoryContext] with delivery status.
 type HistoryThread struct {
-	ID       string           `json:"id"`
-	Messages []HistoryMessage `json:"messages"`
-}
-
-// HistoryMessage represents a single message within a history thread. The
-// From field indicates who sent it (the business or the user). Media messages
-// arrive in two steps: first as type "media_placeholder" with no content, then
-// a separate webhook delivers the actual media details.
-type HistoryMessage struct {
-	From           string                `json:"from"`
-	ID             string                `json:"id"`
-	Timestamp      string                `json:"timestamp"`
-	Type           string                `json:"type"`
-	Text           *HistoryText          `json:"text,omitempty"`
-	Image          *HistoryMedia         `json:"image,omitempty"`
-	Video          *HistoryMedia         `json:"video,omitempty"`
-	Audio          *HistoryMedia         `json:"audio,omitempty"`
-	Document       *HistoryDocument      `json:"document,omitempty"`
-	Sticker        *HistoryMedia         `json:"sticker,omitempty"`
-	Contacts       []HistoryContact      `json:"contacts,omitempty"`
-	Location       *HistoryLocation      `json:"location,omitempty"`
-	Reaction       *HistoryReaction      `json:"reaction,omitempty"`
-	Order          *HistoryOrder         `json:"order,omitempty"`
-	Interactive    *HistoryInteractive   `json:"interactive,omitempty"`
-	Button         *HistoryButton        `json:"button,omitempty"`
-	System         *HistorySystemMessage `json:"system,omitempty"`
-	HistoryContext *HistoryContext       `json:"history_context,omitempty"`
-}
-
-// HistoryText is the content of a text message in history.
-type HistoryText struct {
-	Body string `json:"body"`
-}
-
-// HistoryMedia describes a media message (image, video, audio, sticker)
-// in a history webhook. The ID field is the media asset ID; only present
-// for messages sent within 14 days of onboarding.
-type HistoryMedia struct {
-	ID       string `json:"id,omitempty"`
-	Caption  string `json:"caption,omitempty"`
-	MIMEType string `json:"mime_type,omitempty"`
-	SHA256   string `json:"sha256,omitempty"`
-}
-
-// HistoryDocument describes a document message in history.
-type HistoryDocument struct {
-	ID       string `json:"id,omitempty"`
-	Caption  string `json:"caption,omitempty"`
-	Filename string `json:"filename,omitempty"`
-	SHA256   string `json:"sha256,omitempty"`
-}
-
-// HistoryContact is a contact shared in a history message.
-type HistoryContact struct {
-	Name *HistoryContactName `json:"name,omitempty"`
-	URLs []HistoryContactURL `json:"urls,omitempty"`
-	Orgs []HistoryContactOrg `json:"orgs,omitempty"`
-}
-
-// HistoryContactName is the structured name of a contact.
-type HistoryContactName struct {
-	FormattedName string `json:"formatted_name"`
-	FirstName     string `json:"first_name,omitempty"`
-	LastName      string `json:"last_name,omitempty"`
-}
-
-// HistoryContactURL is a URL associated with a contact.
-type HistoryContactURL struct {
-	URL  string `json:"url"`
-	Type string `json:"type,omitempty"`
-}
-
-// HistoryContactOrg is an organization associated with a contact.
-type HistoryContactOrg struct {
-	Company string `json:"company,omitempty"`
-	Title   string `json:"title,omitempty"`
-}
-
-// HistoryLocation is a shared location in history.
-type HistoryLocation struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Name      string  `json:"name,omitempty"`
-	Address   string  `json:"address,omitempty"`
-}
-
-// HistoryReaction is a reaction to a message in history.
-type HistoryReaction struct {
-	MessageID string `json:"message_id"`
-	Emoji     string `json:"emoji"`
-}
-
-// HistoryOrder describes an order shared in history.
-type HistoryOrder struct {
-	CatalogID    string                    `json:"catalog_id"`
-	Text         string                    `json:"text,omitempty"`
-	ProductItems []HistoryOrderProductItem `json:"product_items,omitempty"`
-}
-
-// HistoryOrderProductItem is a product item within an order.
-type HistoryOrderProductItem struct {
-	ProductRetailerID string `json:"product_retailer_id"`
-	Quantity          int    `json:"quantity"`
-	ItemPrice         int    `json:"item_price"`
-	Currency          string `json:"currency"`
-}
-
-// HistoryInteractive describes an interactive message in history.
-type HistoryInteractive struct {
-	Type        string              `json:"type"`
-	ButtonReply *HistoryButtonReply `json:"button_reply,omitempty"`
-	ListReply   *HistoryListReply   `json:"list_reply,omitempty"`
-}
-
-// HistoryButtonReply is a button reply within an interactive message.
-type HistoryButtonReply struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-}
-
-// HistoryListReply is a list reply within an interactive message.
-type HistoryListReply struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description,omitempty"`
-}
-
-// HistoryButton describes a button message in history.
-type HistoryButton struct {
-	Payload string `json:"payload"`
-	Text    string `json:"text"`
-}
-
-// HistorySystemMessage describes a system-generated message in history
-// (e.g., customer identity change).
-type HistorySystemMessage struct {
-	Body     string `json:"body"`
-	Identity string `json:"identity,omitempty"`
-	NewWaID  string `json:"new_wa_id,omitempty"`
-	WaID     string `json:"wa_id,omitempty"`
-	Type     string `json:"type"`
-	Customer string `json:"customer,omitempty"`
+	ID       string     `json:"id"`
+	Messages []*Message `json:"messages"`
 }
 
 // HistoryContext provides the delivery status of a message in history.
@@ -206,11 +70,88 @@ type HistoryContext struct {
 	Status string `json:"status"`
 }
 
-// HistoryError describes a history sync failure (e.g., sharing declined).
-// Convert to *werrors.Error via the Error() method.
-type HistoryError struct {
-	Code   int                `json:"code"`
-	Title  string             `json:"title"`
-	Detail string             `json:"message"`
-	Data   *werrors.ErrorData `json:"error_data,omitempty"`
+// HistoryHandler handles history sync webhooks.
+//
+// WARNING: A single webhook can carry thousands of messages. Do NOT process
+// the payload synchronously — it will cause a timeout and WhatsApp will
+// retry. Capture the raw payload, persist it immediately to a queue or
+// staging store, and process on a background worker.
+//
+// The callback receives the full []*HistoryEntry array for the current
+// chunk. Each entry contains sync metadata (phase, chunk_order, progress)
+// and threads of messages with delivery status. Progress reaches 100 when
+// sync is complete. Media messages appear as "media_placeholder" type;
+// actual media content arrives as a separate webhook routed through the
+// standard message handler.
+//
+// Usage:
+//
+//	hh := &HistoryHandler{}
+//	hh.OnMessages(func(ctx, nctx, entries []*HistoryEntry) error {
+//	    // Don't process here — persist to queue immediately.
+//	    for _, e := range entries {
+//	        queue.Push(e)
+//	    }
+//	    return nil
+//	})
+type HistoryHandler struct {
+	Messages MessageChangeValueHandler[HistoryEntry]
+}
+
+// OnMessages sets the handler for history sync webhooks.
+//
+// The callback receives the full []*HistoryEntry array for the current chunk.
+// Do NOT process synchronously — a single webhook can contain thousands of
+// messages and will cause a timeout. Persist to a queue and process
+// asynchronously.
+func (hh *HistoryHandler) OnMessages(
+	fn func(ctx context.Context, nctx *MessageNotificationContext, entries []*HistoryEntry) error,
+) {
+	hh.Messages = MessageChangeValueHandlerFunc[HistoryEntry](fn)
+}
+
+// HandleHistoryMessages dispatches the history entries to the configured
+// handler. Returns nil when no handler is set.
+//
+// WARNING: Do not process the payload in this handler. A single webhook can
+// carry thousands of messages and will cause a timeout. The handler should
+// persist the data immediately and return — processing should happen
+// asynchronously on a background worker.
+//
+// Errors from the user handler are routed through onError; if onError
+// returns a non-nil error, processing stops.
+//
+// History media content webhooks (change.Value.Messages populated under the
+// "history" field) are handled separately by the standard message handler —
+// they are not processed here.
+func (hh *HistoryHandler) HandleHistoryMessages(
+	ctx context.Context,
+	change Change,
+	entry Entry,
+	onError func(ctx context.Context, err error) error,
+) error {
+	if len(change.Value.History) == 0 || hh.Messages == nil {
+		return nil
+	}
+
+	nctx := &MessageNotificationContext{
+		EntryID:          entry.ID,
+		MessagingProduct: change.Value.MessagingProduct,
+		Metadata:         change.Value.Metadata,
+	}
+
+	entries := make([]*HistoryEntry, len(change.Value.History))
+	for i := range change.Value.History {
+		entries[i] = &change.Value.History[i]
+	}
+
+	if err := hh.Messages.Handle(ctx, nctx, entries); err != nil {
+		if onError != nil {
+			if handlerErr := onError(ctx, err); handlerErr != nil {
+				return fmt.Errorf("error handler: %w", handlerErr)
+			}
+		}
+	}
+
+	return nil
 }

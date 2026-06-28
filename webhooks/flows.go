@@ -52,9 +52,10 @@ type FlowClientErrorRateHandler = FlowEventHandler[ClientErrorRateDetails]
 
 type FlowEndpointErrorRateHandler = FlowEventHandler[EndpointErrorRateDetails]
 
-type FlowEndpointLatencyHandler = FlowEventHandler[EndpointLatencyDetails]
-
-type FlowEndpointAvailabilityHandler = FlowEventHandler[EndpointAvailabilityDetails]
+type (
+	FlowEndpointLatencyHandler      = FlowEventHandler[EndpointLatencyDetails]
+	FlowEndpointAvailabilityHandler = FlowEventHandler[EndpointAvailabilityDetails]
+)
 
 type (
 	StatusChangeDetails struct {

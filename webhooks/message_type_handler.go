@@ -25,7 +25,7 @@ import (
 	"github.com/piusalfred/whatsapp/message/media"
 )
 
-// MassageTypeHandler is the single entry point for all WhatsApp message dispatch.
+// MessagesHandler is the single entry point for all WhatsApp message dispatch.
 // Each field is a handler for one message type or sub-type. Leave a field nil
 // to silently skip that type during dispatch.
 //
@@ -34,14 +34,14 @@ import (
 //
 // Usage:
 //
-//	mh := &MessageHandlerX{}
+//	mh := &MessagesHandler{}
 //	mh.Media = &MediaHandler{}          // enable media dispatch
 //	mh.Interactive = &InteractiveHandler{}
 //	mh.Text = myTextHandler
 //	mh.Fallback = catchAll              // handle anything not explicitly registered
 //	h := webhooks.NewHandler()
 //	h.SetMessagesHandler(mh)            // wire into Handler (future API)
-type MassageTypeHandler struct {
+type MessagesHandler struct {
 	Media            *MediaHandler
 	Interactive      *InteractiveHandler
 	Text             MessageHandler[Text]
@@ -63,7 +63,7 @@ type MassageTypeHandler struct {
 }
 
 //nolint:cyclop,funlen,gocognit,gocyclo,wrapcheck // dispatch switch; user handlers own error context
-func (mh *MassageTypeHandler) Handle(
+func (mh *MessagesHandler) Handle(
 	ctx context.Context,
 	nctx *MessageNotificationContext,
 	message *Message,
@@ -172,6 +172,24 @@ func (mh *MassageTypeHandler) Handle(
 		}
 		return nil
 	default:
+		if message.Contacts != nil && mh.Contacts != nil {
+			if err := mh.Contacts.Handle(ctx, nctx, info, message.Contacts); err != nil {
+				return fmt.Errorf("handle contacts message: %w", err)
+			}
+			return nil
+		}
+		if message.Location != nil && mh.Location != nil {
+			if err := mh.Location.Handle(ctx, nctx, info, message.Location); err != nil {
+				return fmt.Errorf("handle location message: %w", err)
+			}
+			return nil
+		}
+		if message.Identity != nil && mh.CustomerIDChange != nil {
+			if err := mh.CustomerIDChange.Handle(ctx, nctx, info, message.Identity); err != nil {
+				return fmt.Errorf("handle customer ID change: %w", err)
+			}
+			return nil
+		}
 		if mh.Fallback != nil {
 			return mh.Fallback.Handle(ctx, nctx, info, message)
 		}
@@ -179,7 +197,7 @@ func (mh *MassageTypeHandler) Handle(
 	}
 }
 
-func (mh *MassageTypeHandler) handleText(ctx context.Context, nctx *MessageNotificationContext,
+func (mh *MessagesHandler) handleText(ctx context.Context, nctx *MessageNotificationContext,
 	info *MessageInfo, message *Message,
 ) error {
 	if info.IsReferral && mh.Referral != nil {
@@ -204,7 +222,7 @@ func (mh *MassageTypeHandler) handleText(ctx context.Context, nctx *MessageNotif
 	return nil
 }
 
-func (mh *MassageTypeHandler) handleSystem(ctx context.Context, nctx *MessageNotificationContext,
+func (mh *MessagesHandler) handleSystem(ctx context.Context, nctx *MessageNotificationContext,
 	info *MessageInfo, message *Message,
 ) error {
 	if message.System != nil && message.System.Type == "user_changed_number" && mh.CustomerIDChange != nil {
@@ -224,7 +242,7 @@ func (mh *MassageTypeHandler) handleSystem(ctx context.Context, nctx *MessageNot
 
 // HandleMediaMessage dispatches the media message to [MediaHandler] if set.
 // Returns nil when mh.Media is nil.
-func (mh *MassageTypeHandler) HandleMediaMessage(ctx context.Context, nctx *MessageNotificationContext,
+func (mh *MessagesHandler) HandleMediaMessage(ctx context.Context, nctx *MessageNotificationContext,
 	info *MessageInfo, msg *Message,
 ) error {
 	if mh.Media == nil {
@@ -240,7 +258,7 @@ func (mh *MassageTypeHandler) HandleMediaMessage(ctx context.Context, nctx *Mess
 
 // HandleInteractiveMessage dispatches the interactive message to
 // [InteractiveHandler] if set. Returns nil when mh.Interactive is nil.
-func (mh *MassageTypeHandler) HandleInteractiveMessage(ctx context.Context, nctx *MessageNotificationContext,
+func (mh *MessagesHandler) HandleInteractiveMessage(ctx context.Context, nctx *MessageNotificationContext,
 	info *MessageInfo, msg *Message,
 ) error {
 	if mh.Interactive == nil {

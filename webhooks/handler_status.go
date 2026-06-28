@@ -89,7 +89,7 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 	}
 
 	for _, m := range change.Value.Messages {
-		if err := handler.handleNotificationMessage(ctx, notificationCtx, m); err != nil {
+		if err := handler.messages.Handle(ctx, notificationCtx, m); err != nil {
 			if handler.errorHandlerFunc != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
 					return handlerErr
@@ -221,12 +221,12 @@ func (handler *Handler) SetSMBAppStateSyncHandler(h SMBAppStateSyncHandler) {
 func (handler *Handler) OnSMBMessageEcho(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, msg *Message) error,
 ) {
-	handler.smbMessageEcho = MessageHandlerFunc[Message](fn)
+	handler.messages.Fallback = MessageHandlerFunc[Message](fn)
 }
 
 // SetSMBMessageEchoHandler sets the handler for smb_message_echoes webhooks.
 func (handler *Handler) SetSMBMessageEchoHandler(h MessageHandler[Message]) {
-	handler.smbMessageEcho = h
+	handler.messages.Fallback = h
 }
 
 // OnNotificationErrors registers a handler for notification-level errors in the messages webhook.
@@ -264,26 +264,26 @@ func (handler *Handler) SetMessageStatusChangeHandler(
 func (handler *Handler) OnMessageErrors(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, errors []*werrors.Error) error,
 ) {
-	handler.errorMessage = MessageErrorsHandlerFunc(fn)
+	handler.messages.Unknown = MessageErrorsHandlerFunc(fn)
 }
 
 // SetMessageErrorsHandler sets the handler for message-level errors.
 func (handler *Handler) SetMessageErrorsHandler(
 	fn MessageErrorsHandler,
 ) {
-	handler.errorMessage = fn
+	handler.messages.Unknown = fn
 }
 
 // OnUnsupportedMessage registers a handler for unsupported messages in the messages webhook.
 func (handler *Handler) OnUnsupportedMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, errors []*werrors.Error) error,
 ) {
-	handler.unsupportedMessage = MessageErrorsHandlerFunc(fn)
+	handler.messages.Unsupported = MessageErrorsHandlerFunc(fn)
 }
 
 // SetUnsupportedMessageHandler sets the handler for unsupported messages.
 func (handler *Handler) SetUnsupportedMessageHandler(
 	fn MessageErrorsHandler,
 ) {
-	handler.unsupportedMessage = fn
+	handler.messages.Unsupported = fn
 }
