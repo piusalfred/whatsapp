@@ -550,3 +550,17 @@ func (handler *Handler) OnMessageEdit(
 func (handler *Handler) SetMessageEditHandler(h MessageHandler[Edit]) {
 	handler.messages.Edit = h
 }
+// OnRequestWelcomeMessage registers a handler for request_welcome messages in the messages webhook.
+func (handler *Handler) OnRequestWelcomeMessage(
+	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
+		info *MessageInfo, media *Message) error,
+) {
+	handler.messages.RequestWelcome = MessageHandlerFunc[Message](fn)
+}
+
+// SetRequestWelcomeMessageHandler sets the handler for request_welcome messages.
+func (handler *Handler) SetRequestWelcomeMessageHandler(
+	fn RequestWelcomeMessageHandler,
+) {
+	handler.messages.RequestWelcome = fn
+}
