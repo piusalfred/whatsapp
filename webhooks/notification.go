@@ -15,6 +15,11 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Notification types define the JSON wire format for WhatsApp webhook
+// payloads. Notification, Entry, Change, and Value mirror the official API
+// envelope. ErrorInfo captures per-message, per-status, and history-sync
+// error details.
+
 package webhooks
 
 import werrors "github.com/piusalfred/whatsapp/pkg/errors"

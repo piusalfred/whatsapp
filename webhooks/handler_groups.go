@@ -15,6 +15,10 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// GroupManagementHandler implementation and ChangeField helpers for group
+// webhook fields. Provides IsGroupManagementWebhook and GroupChangeFields
+// for querying group-related ChangeField values.
+
 package webhooks
 
 import (

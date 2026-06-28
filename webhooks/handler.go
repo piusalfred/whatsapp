@@ -15,6 +15,11 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Handler is the central webhook dispatch unit. It registers callbacks for
+// every WhatsApp webhook event type and routes incoming notifications to the
+// correct handler based on the change field. Composite handlers (Flows,
+// Business, Messages, Groups) own their own typed dispatch logic.
+
 package webhooks
 
 import (

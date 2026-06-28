@@ -15,6 +15,11 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// MessagesHandler is the single entry point for all WhatsApp message dispatch.
+// It delegates media types to MediaHandler and interactive sub-types to
+// InteractiveHandler. Each typed field accepts a MessageHandler[T]; nil fields
+// are silently skipped.
+
 package webhooks
 
 import (

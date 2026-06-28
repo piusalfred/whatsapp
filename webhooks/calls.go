@@ -15,6 +15,10 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Call types for WhatsApp Calling API webhooks. Models call connect (WebRTC
+// SDP), call created (SIP), call status (ringing/accepted/rejected), call
+// terminate, and call permission reply events.
+
 package webhooks
 
 import (

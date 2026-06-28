@@ -15,6 +15,11 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// ChangeField constants enumerate every webhook field supported by the
+// WhatsApp Business API. Each constant documents the field purpose,
+// trigger conditions, and processing nuances sourced from the official API
+// reference.
+
 package webhooks
 
 // ChangeField identifies the type of webhook notification. The string value

@@ -15,6 +15,10 @@
 // WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 // SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Flow types and FlowNotificationHandler for WhatsApp Flows webhooks.
+// Handles flow status changes, client/endpoint error rates, endpoint
+// latency, endpoint availability, and flow version expiry warnings.
+
 package webhooks
 
 import (

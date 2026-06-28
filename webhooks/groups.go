@@ -15,6 +15,11 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Group types, GroupManagementHandler, and Handler registration methods for
+// WhatsApp Groups API webhooks. Covers group lifecycle (create/delete),
+// participant updates (join/leave/approve), settings changes, and status
+// (suspension/clearance).
+
 package webhooks
 
 import (

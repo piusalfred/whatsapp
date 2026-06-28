@@ -15,6 +15,11 @@
 // WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 // SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Business notification types and BusinessNotificationHandler for WhatsApp
+// account webhooks. Covers alerts, template updates (status, category,
+// quality, components), phone number name/quality updates, account review,
+// capability changes, security, calls, and account settings.
+
 package webhooks
 
 import (

@@ -15,6 +15,10 @@
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// History types and HistoryHandler for WhatsApp history sync webhooks.
+// Models history entries with phase/chunk/progress metadata and threaded
+// messages. Includes async processing warnings per the official API docs.
+
 package webhooks
 
 import (
