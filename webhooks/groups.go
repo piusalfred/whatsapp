@@ -133,6 +133,7 @@ func (handler *Handler) SetGroupStatusUpdateHandler(
 ) {
 	handler.groups.StatusUpdate = h
 }
+
 // GroupManagementHandler groups all group webhook field handlers into a single
 // dispatch unit. Each field accepts a [MessageChangeValueHandler[Group]] for one
 // WhatsApp group notification type. Leave a field nil to silently skip that

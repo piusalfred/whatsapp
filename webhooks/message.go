@@ -26,8 +26,8 @@ package webhooks
 
 import (
 	"context"
-	"fmt"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/piusalfred/whatsapp/message"
@@ -553,6 +553,7 @@ func (handler *Handler) OnMessageEdit(
 func (handler *Handler) SetMessageEditHandler(h MessageHandler[Edit]) {
 	handler.messages.Edit = h
 }
+
 // OnRequestWelcomeMessage registers a handler for request_welcome messages in the messages webhook.
 func (handler *Handler) OnRequestWelcomeMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
@@ -567,8 +568,10 @@ func (handler *Handler) SetRequestWelcomeMessageHandler(
 ) {
 	handler.messages.RequestWelcome = fn
 }
-// Each field is a handler for one message type or sub-type. Leave a field nil
-// to silently skip that type during dispatch.
+
+// MessagesHandler is the single entry point for all WhatsApp message dispatch.
+// Each field accepts a [MessageHandler] for one message type or sub-type. Leave
+// a field nil to silently skip that type during dispatch.
 //
 // Media types delegate to [MediaHandler]; interactive messages delegate to
 // [InteractiveHandler]. Unknown types fall through to [Fallback].
@@ -576,12 +579,10 @@ func (handler *Handler) SetRequestWelcomeMessageHandler(
 // Usage:
 //
 //	mh := &MessagesHandler{}
-//	mh.Media = &MediaHandler{}          // enable media dispatch
+//	mh.Media = &MediaHandler{}
 //	mh.Interactive = &InteractiveHandler{}
 //	mh.Text = myTextHandler
-//	mh.Fallback = catchAll              // handle anything not explicitly registered
-//	h := webhooks.NewHandler()
-//	h.SetMessagesHandler(mh)            // wire into Handler (future API)
+//	mh.Fallback = catchAll
 type MessagesHandler struct {
 	Media            *MediaHandler
 	Interactive      *InteractiveHandler
