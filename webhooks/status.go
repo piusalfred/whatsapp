@@ -47,8 +47,10 @@ func handleMessageChangeNotification[T any](
 	}
 
 	if err := eventHandler.Handle(ctx, notificationCtx, events); err != nil {
-		if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-			return handlerErr
+		if handler.errorHandlerFunc != nil {
+			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+				return handlerErr
+			}
 		}
 	}
 

@@ -54,10 +54,10 @@
 // # Quick Start
 //
 //	handler := webhooks.NewHandler()
-//	handler.OnTextMessage(func(ctx context.Context, nc *webhooks.MessageNotificationContext, text *webhooks.Text) error {
+//	handler.OnTextMessage(webhooks.TextMessageHandler(func(ctx context.Context, nc *webhooks.MessageNotificationContext, info *webhooks.MessageInfo, text *webhooks.Text) error {
 //	    log.Printf("from %s: %s", nc.SenderInfo().WaID, text.Body)
 //	    return nil
-//	})
+//	}))
 //
 //	listener := webhooks.NewListener(handler, webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
 //	    return &webhooks.Config{

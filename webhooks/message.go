@@ -564,6 +564,9 @@ func (mh *MessagesHandler) Handle(
 		}
 		return nil
 	default:
+		// Messages without a recognised type field are probed for known
+		// payload fields. Contacts, location, and identity historically
+		// arrive without an explicit type in some WhatsApp webhook payloads.
 		if message.Contacts != nil && mh.Contacts != nil {
 			if err := mh.Contacts.Handle(ctx, nctx, info, message.Contacts); err != nil {
 				return fmt.Errorf("handle contacts message: %w", err)
@@ -592,6 +595,10 @@ func (mh *MessagesHandler) Handle(
 func (mh *MessagesHandler) handleText(ctx context.Context, nctx *MessageNotificationContext,
 	info *MessageInfo, message *Message,
 ) error {
+	// Referrals take priority over product inquiries because a single text
+	// message can carry both a referral (from an ad) and a referred_product
+	// context. Check referral first — if the message came from a Click-to-
+	// WhatsApp ad, the referral handler receives the full text+referral.
 	if info.IsReferral && mh.Referral != nil {
 		ref := &ReferralNotification{Text: message.Text, Referral: message.Referral}
 		if err := mh.Referral.Handle(ctx, nctx, info, ref); err != nil {

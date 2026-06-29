@@ -207,8 +207,10 @@ func (handler *Handler) handleFlowsChange(
 		FlowID:             change.Value.FlowID,
 	}
 	if err := handler.flows.Handle(ctx, notificationCtx, change.Value); err != nil {
-		if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-			return handlerErr
+		if handler.errorHandlerFunc != nil {
+			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+				return handlerErr
+			}
 		}
 	}
 	return nil
@@ -259,7 +261,11 @@ func (handler *Handler) handleSMBMessageEchoesChange(
 			continue
 		}
 		if err := handler.messages.Handle(ctx, notificationCtx, msg); err != nil {
-			return err
+			if handler.errorHandlerFunc != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+					return handlerErr
+				}
+			}
 		}
 	}
 	return nil
@@ -282,7 +288,11 @@ func (handler *Handler) handleHistoryChange(
 				MessagingProduct: change.Value.MessagingProduct,
 				Metadata:         change.Value.Metadata,
 			}, entries); err != nil {
-			return fmt.Errorf("history sync: %w", err)
+			if handler.errorHandlerFunc != nil {
+				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+					return fmt.Errorf("error handler: %w", handlerErr)
+				}
+			}
 		}
 	}
 	// Media content for history messages is delivered as a
