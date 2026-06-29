@@ -79,46 +79,46 @@ func (mm MessageType) String() string {
 	return string(mm)
 }
 
-// ParseMessageType parses the message type from a string.
-func ParseMessageType(s string) MessageType {
-	msgMap := map[string]MessageType{
-		"audio":             MessageTypeAudio,
-		"button":            MessageTypeButton,
-		"document":          MessageTypeDocument,
-		"text":              MessageTypeText,
-		"image":             MessageTypeImage,
-		"interactive":       MessageTypeInteractive,
-		"order":             MessageTypeOrder,
-		"sticker":           MessageTypeSticker,
-		"system":            MessageTypeSystem,
-		"unknown":           MessageTypeUnknown,
-		"unsupported":       MessageTypeUnsupported,
-		"video":             MessageTypeVideo,
-		"location":          MessageTypeLocation,
-		"reaction":          MessageTypeReaction,
-		"contacts":          MessageTypeContacts,
-		"request_welcome":   MessageTypeRequestWelcome,
-		"revoke":            MessageTypeRevoke,
-		"edit":              MessageTypeEdit,
-		"errors":            MessageTypeErrors,
-		"gif":               MessageTypeGif,
-		"link_preview":      MessageTypeLinkPreview,
-		"list":              MessageTypeList,
-		"media_placeholder": MessageTypeMediaPlaceholder,
-		"pin":               MessageTypePin,
-		"poll_creation":     MessageTypePollCreation,
-		"poll_update":       MessageTypePollUpdate,
-		"product":           MessageTypeProduct,
-		"hsm":               MessageTypeHsm,
-		"keep_in_chat":      MessageTypeKeepInChat,
-		"group_invite":      MessageTypeGroupInvite,
-	}
+var parseMessageTypeMap = map[string]MessageType{
+	"audio":             MessageTypeAudio,
+	"button":            MessageTypeButton,
+	"document":          MessageTypeDocument,
+	"text":              MessageTypeText,
+	"image":             MessageTypeImage,
+	"interactive":       MessageTypeInteractive,
+	"order":             MessageTypeOrder,
+	"sticker":           MessageTypeSticker,
+	"system":            MessageTypeSystem,
+	"unknown":           MessageTypeUnknown,
+	"unsupported":       MessageTypeUnsupported,
+	"video":             MessageTypeVideo,
+	"location":          MessageTypeLocation,
+	"reaction":          MessageTypeReaction,
+	"contacts":          MessageTypeContacts,
+	"request_welcome":   MessageTypeRequestWelcome,
+	"revoke":            MessageTypeRevoke,
+	"edit":              MessageTypeEdit,
+	"errors":            MessageTypeErrors,
+	"gif":               MessageTypeGif,
+	"link_preview":      MessageTypeLinkPreview,
+	"list":              MessageTypeList,
+	"media_placeholder": MessageTypeMediaPlaceholder,
+	"pin":               MessageTypePin,
+	"poll_creation":     MessageTypePollCreation,
+	"poll_update":       MessageTypePollUpdate,
+	"product":           MessageTypeProduct,
+	"hsm":               MessageTypeHsm,
+	"keep_in_chat":      MessageTypeKeepInChat,
+	"group_invite":      MessageTypeGroupInvite,
+}
 
-	msgType, ok := msgMap[strings.TrimSpace(strings.ToLower(s))]
+// ParseMessageType parses the message type from a string. Uses a package-level
+// lookup map to avoid allocations on repeated calls.
+func ParseMessageType(s string) MessageType {
+	msgType, ok := parseMessageTypeMap[strings.TrimSpace(strings.ToLower(s))]
 	if !ok {
 		return ""
 	}
-
 	return msgType
 }
 

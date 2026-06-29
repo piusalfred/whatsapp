@@ -35,16 +35,14 @@ import (
 
 // Handler registers callbacks for every WhatsApp webhook event type. Each
 // field holds an event-specific handler that defaults to a no-op. Use the
-// On*/Set* method pairs to read or replace individual handlers.
+// On* methods to register handlers.
 //
 // Registration follows a consistent pattern:
 //
-//	handler.OnTextMessage(...)   // returns current handler
-//	handler.SetTextMessage(...)  // replaces with a new handler
+//	handler.OnTextMessage(h)   // registers the handler
 //
-// Fields are organized by event category: flow alerts, template updates,
-// account notifications, message types (text, image, interactive, etc.),
-// status changes, and group events.
+// Handler fields must be registered before the server starts. They are not
+// safe for concurrent modification.
 type Handler struct {
 	flows    *FlowNotificationHandler
 	business *BusinessNotificationHandler
@@ -154,8 +152,10 @@ func (handler *Handler) handleNotificationChange(
 	change Change,
 	entry Entry,
 ) error {
-	// Fields not recognized by the library route to the user-supplied
-	// unrecognized-field handler (if set) or are silently acknowledged.
+	if change.Value == nil {
+		return nil // malformed payload with no value — silently skip
+	}
+
 	if !isKnownField(change.Field) {
 		if handler.fallbackHandler != nil {
 			return handler.fallbackHandler(ctx, notification, change, entry)
@@ -184,7 +184,10 @@ func (handler *Handler) handleNotificationChange(
 		return handler.handleHistoryChange(ctx, notification, change, entry)
 
 	default:
-		return handler.fallbackHandler(ctx, notification, change, entry)
+		if handler.fallbackHandler != nil {
+			return handler.fallbackHandler(ctx, notification, change, entry)
+		}
+		return nil
 	}
 }
 
