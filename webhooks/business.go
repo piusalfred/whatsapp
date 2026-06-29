@@ -201,6 +201,14 @@ type PhoneNumberQualityUpdateHandler = BusinessEventHandler[PhoneNumberQualityUp
 
 type AccountReviewUpdateHandler = BusinessEventHandler[AccountReviewUpdate]
 
+type TemplateComponentsHandler = BusinessEventHandler[TemplateComponentsUpdateNotification]
+
+type CallsHandler = BusinessEventHandler[CallStatusUpdate]
+
+type SecurityHandler = BusinessEventHandler[SecurityNotification]
+
+type PhoneSettingsHandler = BusinessEventHandler[PhoneNumberSettings]
+
 const (
 	RestrictionTypeRestrictedAddPhoneNumber    RestrictionType = "RESTRICTED_ADD_PHONE_NUMBER_ACTION"
 	RestrictionTypeRestrictedBizInitiated      RestrictionType = "RESTRICTED_BIZ_INITIATED_MESSAGING"
@@ -608,141 +616,50 @@ func (value *Value) CapabilityUpdate() *CapabilityUpdate {
 	}
 }
 
-func (handler *Handler) OnBusinessAlertNotification(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *AlertNotification) error,
-) {
-	handler.business.OnAlerts(fn)
+func (handler *Handler) OnBusinessAlertNotification(h AlertsHandler) {
+	handler.business.Alerts = h
 }
 
-func (handler *Handler) SetBusinessAlertNotificationHandler(
-	fn EventHandler[BusinessNotificationContext, AlertNotification],
-) {
-	handler.business.Alerts = fn
+func (handler *Handler) OnBusinessTemplateStatusUpdate(h TemplateStatusHandler) {
+	handler.business.TemplateStatus = h
 }
 
-func (handler *Handler) OnBusinessTemplateStatusUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *TemplateStatusUpdateNotification) error,
-) {
-	handler.business.OnTemplateStatus(fn)
+func (handler *Handler) OnBusinessTemplateCategoryUpdate(h TemplateCategoryHandler) {
+	handler.business.TemplateCategory = h
 }
 
-func (handler *Handler) SetBusinessTemplateStatusUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateStatusUpdateNotification],
-) {
-	handler.business.TemplateStatus = fn
+func (handler *Handler) OnBusinessTemplateQualityUpdate(h TemplateQualityHandler) {
+	handler.business.TemplateQuality = h
 }
 
-func (handler *Handler) OnBusinessTemplateCategoryUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *TemplateCategoryUpdateNotification) error,
-) {
-	handler.business.OnTemplateCategory(fn)
+func (handler *Handler) OnTemplateComponentsUpdate(h TemplateComponentsHandler) {
+	handler.business.TemplateComponents = h
 }
 
-func (handler *Handler) SetBusinessTemplateCategoryUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateCategoryUpdateNotification],
-) {
-	handler.business.TemplateCategory = fn
+func (handler *Handler) OnBusinessPhoneNumberNameUpdate(h PhoneNumberNameUpdateHandler) {
+	handler.business.PhoneNumberName = h
 }
 
-func (handler *Handler) OnBusinessTemplateQualityUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *TemplateQualityUpdateNotification) error,
-) {
-	handler.business.OnTemplateQuality(fn)
+func (handler *Handler) OnBusinessPhoneNumberQualityUpdate(h PhoneNumberQualityUpdateHandler) {
+	handler.business.PhoneNumberQuality = h
 }
 
-func (handler *Handler) SetBusinessTemplateQualityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateQualityUpdateNotification],
-) {
-	handler.business.TemplateQuality = fn
+func (handler *Handler) OnBusinessAccountReviewUpdate(h AccountReviewUpdateHandler) {
+	handler.business.AccountReview = h
 }
 
-func (handler *Handler) OnTemplateComponentsUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext,
-		details *TemplateComponentsUpdateNotification) error,
-) {
-	handler.business.OnTemplateComponents(fn)
+func (handler *Handler) OnBusinessAccountUpdate(h AccountUpdateHandler) {
+	handler.business.Account = h
 }
 
-func (handler *Handler) SetTemplateComponentsUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, TemplateComponentsUpdateNotification],
-) {
-	handler.business.TemplateComponents = fn
+func (handler *Handler) OnPhoneSettingsUpdate(h PhoneSettingsHandler) {
+	handler.business.PhoneSettings = h
 }
 
-func (handler *Handler) OnBusinessPhoneNumberNameUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *PhoneNumberNameUpdate) error,
-) {
-	handler.business.OnPhoneNumberName(fn)
+func (handler *Handler) OnBusinessCapabilityUpdate(h CapabilityUpdateHandler) {
+	handler.business.Capability = h
 }
 
-func (handler *Handler) SetBusinessPhoneNumberNameUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, PhoneNumberNameUpdate],
-) {
-	handler.business.PhoneNumberName = fn
-}
-
-func (handler *Handler) OnBusinessPhoneNumberQualityUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *PhoneNumberQualityUpdate) error,
-) {
-	handler.business.OnPhoneNumberQuality(fn)
-}
-
-func (handler *Handler) SetBusinessPhoneNumberQualityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, PhoneNumberQualityUpdate],
-) {
-	handler.business.PhoneNumberQuality = fn
-}
-
-func (handler *Handler) OnBusinessAccountReviewUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *AccountReviewUpdate) error,
-) {
-	handler.business.OnAccountReview(fn)
-}
-
-func (handler *Handler) SetBusinessAccountReviewUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, AccountReviewUpdate],
-) {
-	handler.business.AccountReview = fn
-}
-
-func (handler *Handler) OnBusinessAccountUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *AccountUpdate) error,
-) {
-	handler.business.OnAccount(fn)
-}
-
-func (handler *Handler) OnPhoneSettingsUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *PhoneNumberSettings) error,
-) {
-	handler.business.OnPhoneSettings(fn)
-}
-
-func (handler *Handler) SetBusinessAccountUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, AccountUpdate],
-) {
-	handler.business.Account = fn
-}
-
-func (handler *Handler) OnBusinessCapabilityUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *CapabilityUpdate) error,
-) {
-	handler.business.OnCapability(fn)
-}
-
-func (handler *Handler) SetBusinessCapabilityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, CapabilityUpdate],
-) {
-	handler.business.Capability = fn
-}
-
-func (handler *Handler) OnSecurityUpdate(
-	fn func(ctx context.Context, notificationContext *BusinessNotificationContext, details *SecurityNotification) error,
-) {
-	handler.business.OnSecurity(fn)
-}
-
-func (handler *Handler) SetSecurityUpdateHandler(
-	fn EventHandler[BusinessNotificationContext, SecurityNotification],
-) {
-	handler.business.Security = fn
+func (handler *Handler) OnSecurityUpdate(h SecurityHandler) {
+	handler.business.Security = h
 }

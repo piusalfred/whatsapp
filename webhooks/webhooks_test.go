@@ -409,19 +409,21 @@ func TestListener_HandleNotification_MultipleChangeValues(t *testing.T) {
 
 	// When we get user preferences update
 	handler.OnUserPreferencesUpdate(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, prefs []*webhooks.UserPreference) error {
-			userPreferencesSeen = true
+		webhooks.MessageChangeValueHandlerFunc[webhooks.UserPreference](
+			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, prefs []*webhooks.UserPreference) error {
+				userPreferencesSeen = true
 
-			if len(prefs) != 1 {
-				t.Errorf("Expected 1 user preference, got %d", len(prefs))
+				if len(prefs) != 1 {
+					t.Errorf("Expected 1 user preference, got %d", len(prefs))
+					return nil
+				}
+				p := prefs[0]
+				if p.Value != "stop" {
+					t.Errorf("Preference mismatch, got=%s, want=stop", p.Value)
+				}
 				return nil
-			}
-			p := prefs[0]
-			if p.Value != "stop" {
-				t.Errorf("Preference mismatch, got=%s, want=stop", p.Value)
-			}
-			return nil
-		},
+			},
+		),
 	)
 
 	// Build the test server
@@ -615,19 +617,22 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 	)
 
 	handler.OnUserPreferencesUpdate(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, prefs []*webhooks.UserPreference) error {
-			userPreferencesSeen = true
-			if len(prefs) != 2 {
-				t.Errorf("Expected 2 user preferences, got %d", len(prefs))
-				return nil
-			}
-			for _, p := range prefs {
-				if p.Value != "stop" {
-					t.Errorf("Preference mismatch, got=%s, want=stop", p.Value)
+		webhooks.MessageChangeValueHandlerFunc[webhooks.UserPreference](
+			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, prefs []*webhooks.UserPreference) error {
+				userPreferencesSeen = true
+				if len(prefs) != 2 {
+					t.Errorf("Expected 2 user preferences, got %d", len(prefs))
+					return nil
 				}
-			}
-			return nil
-		})
+				for _, p := range prefs {
+					if p.Value != "stop" {
+						t.Errorf("Preference mismatch, got=%s, want=stop", p.Value)
+					}
+				}
+				return nil
+			},
+		),
+	)
 
 	handler.OnStickerMessage(
 		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, sticker *media.Info) error {
@@ -1194,19 +1199,21 @@ func TestListener_HandleNotification_StatusSent(t *testing.T) {
 
 	handler := webhooks.NewHandler()
 	handler.OnMessageStatusChange(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, statuses []*webhooks.Status) error {
-			statusChangeHandled = true
+		webhooks.MessageChangeValueHandlerFunc[webhooks.Status](
+			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, statuses []*webhooks.Status) error {
+				statusChangeHandled = true
 
-			if len(statuses) != 1 {
-				t.Errorf("Expected 1 status, got %d", len(statuses))
+				if len(statuses) != 1 {
+					t.Errorf("Expected 1 status, got %d", len(statuses))
+					return nil
+				}
+				st := statuses[0]
+				if st.StatusValue != "sent" {
+					t.Errorf("StatusValue mismatch, got=%s, want=sent", st.StatusValue)
+				}
 				return nil
-			}
-			st := statuses[0]
-			if st.StatusValue != "sent" {
-				t.Errorf("StatusValue mismatch, got=%s, want=sent", st.StatusValue)
-			}
-			return nil
-		},
+			},
+		),
 	)
 
 	cfg := TestServerConfig{
@@ -1267,7 +1274,7 @@ func TestListener_HandleNotification_DeletedMessageUnsupported(t *testing.T) {
 	var messageDeletionHandled bool
 
 	handler := webhooks.NewHandler()
-	handler.OnUnsupportedMessage(func(ctx context.Context,
+	handler.OnUnsupportedMessage(webhooks.MessageErrorsHandlerFunc(func(ctx context.Context,
 		nctx *webhooks.MessageNotificationContext,
 		mctx *webhooks.MessageInfo,
 		errs []*werrors.Error,
@@ -1284,7 +1291,7 @@ func TestListener_HandleNotification_DeletedMessageUnsupported(t *testing.T) {
 			t.Errorf("Error message mismatch, got=%s", errs[0].Message)
 		}
 		return nil
-	})
+	}))
 
 	cfg := TestServerConfig{
 		Handler: handler,
@@ -1372,15 +1379,17 @@ func TestListener_HandleNotification_PhoneNumberSettingsUpdate(t *testing.T) {
 	handler := webhooks.NewHandler()
 
 	handler.OnPhoneSettingsUpdate(
-		func(ctx context.Context, notificationContext *webhooks.BusinessNotificationContext, details *webhooks.PhoneNumberSettings) error {
-			eventHandled = true
+		webhooks.BusinessEventHandlerFunc[webhooks.PhoneNumberSettings](
+			func(ctx context.Context, notificationContext *webhooks.BusinessNotificationContext, details *webhooks.PhoneNumberSettings) error {
+				eventHandled = true
 
-			if details.PhoneNumberID != "TEST987654321" {
-				t.Errorf("PhoneNumberID mismatch, got=%s", details.PhoneNumberID)
-			}
+				if details.PhoneNumberID != "TEST987654321" {
+					t.Errorf("PhoneNumberID mismatch, got=%s", details.PhoneNumberID)
+				}
 
-			return nil
-		},
+				return nil
+			},
+		),
 	)
 
 	cfg := TestServerConfig{
@@ -1441,27 +1450,29 @@ func TestListener_HandleNotification_GroupLifecycleUpdate(t *testing.T) {
 	var handled bool
 	handler := webhooks.NewHandler()
 	handler.OnGroupLifecycleUpdate(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
-			handled = true
-			if len(groups) != 1 {
-				t.Errorf("expected 1 group, got %d", len(groups))
+		webhooks.MessageChangeValueHandlerFunc[webhooks.Group](
+			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+				handled = true
+				if len(groups) != 1 {
+					t.Errorf("expected 1 group, got %d", len(groups))
+					return nil
+				}
+				g := groups[0]
+				if g.GroupID != "GROUP_ID_123" {
+					t.Errorf("GroupID = %q, want %q", g.GroupID, "GROUP_ID_123")
+				}
+				if g.Type != "group_create" {
+					t.Errorf("Type = %q, want %q", g.Type, "group_create")
+				}
+				if g.Subject != "SDK Test Group" {
+					t.Errorf("Subject = %q, want %q", g.Subject, "SDK Test Group")
+				}
+				if g.InviteLink != "https://chat.whatsapp.com/ABC123" {
+					t.Errorf("InviteLink = %q", g.InviteLink)
+				}
 				return nil
-			}
-			g := groups[0]
-			if g.GroupID != "GROUP_ID_123" {
-				t.Errorf("GroupID = %q, want %q", g.GroupID, "GROUP_ID_123")
-			}
-			if g.Type != "group_create" {
-				t.Errorf("Type = %q, want %q", g.Type, "group_create")
-			}
-			if g.Subject != "SDK Test Group" {
-				t.Errorf("Subject = %q, want %q", g.Subject, "SDK Test Group")
-			}
-			if g.InviteLink != "https://chat.whatsapp.com/ABC123" {
-				t.Errorf("InviteLink = %q", g.InviteLink)
-			}
-			return nil
-		},
+			},
+		),
 	)
 
 	cfg := TestServerConfig{
@@ -1523,24 +1534,26 @@ func TestListener_HandleNotification_GroupParticipantsUpdate(t *testing.T) {
 	var handled bool
 	handler := webhooks.NewHandler()
 	handler.OnGroupParticipantsUpdate(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
-			handled = true
-			if len(groups) != 1 {
-				t.Errorf("expected 1 group, got %d", len(groups))
+		webhooks.MessageChangeValueHandlerFunc[webhooks.Group](
+			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+				handled = true
+				if len(groups) != 1 {
+					t.Errorf("expected 1 group, got %d", len(groups))
+					return nil
+				}
+				g := groups[0]
+				if g.Type != "group_participants_add" {
+					t.Errorf("Type = %q, want group_participants_add", g.Type)
+				}
+				if g.Reason != "invite_link" {
+					t.Errorf("Reason = %q, want invite_link", g.Reason)
+				}
+				if len(g.AddedParticipants) != 1 || g.AddedParticipants[0].WaID != "16505551234" {
+					t.Errorf("AddedParticipants mismatch: %+v", g.AddedParticipants)
+				}
 				return nil
-			}
-			g := groups[0]
-			if g.Type != "group_participants_add" {
-				t.Errorf("Type = %q, want group_participants_add", g.Type)
-			}
-			if g.Reason != "invite_link" {
-				t.Errorf("Reason = %q, want invite_link", g.Reason)
-			}
-			if len(g.AddedParticipants) != 1 || g.AddedParticipants[0].WaID != "16505551234" {
-				t.Errorf("AddedParticipants mismatch: %+v", g.AddedParticipants)
-			}
-			return nil
-		},
+			},
+		),
 	)
 
 	cfg := TestServerConfig{
@@ -1613,27 +1626,29 @@ func TestListener_HandleNotification_GroupSettingsUpdate(t *testing.T) {
 	var handled bool
 	handler := webhooks.NewHandler()
 	handler.OnGroupSettingsUpdate(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
-			handled = true
-			if len(groups) != 1 {
-				t.Errorf("expected 1 group, got %d", len(groups))
+		webhooks.MessageChangeValueHandlerFunc[webhooks.Group](
+			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+				handled = true
+				if len(groups) != 1 {
+					t.Errorf("expected 1 group, got %d", len(groups))
+					return nil
+				}
+				g := groups[0]
+				if g.Type != "group_settings_update" {
+					t.Errorf("Type = %q, want group_settings_update", g.Type)
+				}
+				if g.GroupSubject == nil || g.GroupSubject.Text != "New Subject" || !g.GroupSubject.UpdateSuccessful {
+					t.Errorf("GroupSubject mismatch: %+v", g.GroupSubject)
+				}
+				if g.GroupDescription == nil || g.GroupDescription.UpdateSuccessful {
+					t.Errorf("GroupDescription should have failed: %+v", g.GroupDescription)
+				}
+				if len(g.GroupDescription.Errors) != 1 {
+					t.Errorf("expected 1 error on GroupDescription, got %d", len(g.GroupDescription.Errors))
+				}
 				return nil
-			}
-			g := groups[0]
-			if g.Type != "group_settings_update" {
-				t.Errorf("Type = %q, want group_settings_update", g.Type)
-			}
-			if g.GroupSubject == nil || g.GroupSubject.Text != "New Subject" || !g.GroupSubject.UpdateSuccessful {
-				t.Errorf("GroupSubject mismatch: %+v", g.GroupSubject)
-			}
-			if g.GroupDescription == nil || g.GroupDescription.UpdateSuccessful {
-				t.Errorf("GroupDescription should have failed: %+v", g.GroupDescription)
-			}
-			if len(g.GroupDescription.Errors) != 1 {
-				t.Errorf("expected 1 error on GroupDescription, got %d", len(g.GroupDescription.Errors))
-			}
-			return nil
-		},
+			},
+		),
 	)
 
 	cfg := TestServerConfig{
@@ -1689,21 +1704,23 @@ func TestListener_HandleNotification_GroupStatusUpdate(t *testing.T) {
 	var handled bool
 	handler := webhooks.NewHandler()
 	handler.OnGroupStatusUpdate(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
-			handled = true
-			if len(groups) != 1 {
-				t.Errorf("expected 1 group, got %d", len(groups))
+		webhooks.MessageChangeValueHandlerFunc[webhooks.Group](
+			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+				handled = true
+				if len(groups) != 1 {
+					t.Errorf("expected 1 group, got %d", len(groups))
+					return nil
+				}
+				g := groups[0]
+				if g.Type != "group_suspend" {
+					t.Errorf("Type = %q, want group_suspend", g.Type)
+				}
+				if g.GroupID != "GROUP_ID_999" {
+					t.Errorf("GroupID = %q, want GROUP_ID_999", g.GroupID)
+				}
 				return nil
-			}
-			g := groups[0]
-			if g.Type != "group_suspend" {
-				t.Errorf("Type = %q, want group_suspend", g.Type)
-			}
-			if g.GroupID != "GROUP_ID_999" {
-				t.Errorf("GroupID = %q, want GROUP_ID_999", g.GroupID)
-			}
-			return nil
-		},
+			},
+		),
 	)
 
 	cfg := TestServerConfig{

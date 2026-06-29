@@ -72,65 +72,19 @@ type (
 	}
 )
 
-// OnGroupLifecycleUpdate registers a handler for group_lifecycle_update webhooks
-// (group creation and deletion, with success and failure variants).
-func (handler *Handler) OnGroupLifecycleUpdate(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
-) {
-	handler.groups.OnLifecycleUpdate(fn)
-}
-
-// SetGroupLifecycleUpdateHandler sets the handler for group_lifecycle_update webhooks.
-func (handler *Handler) SetGroupLifecycleUpdateHandler(
-	h GroupLifecycleUpdateHandler,
-) {
+func (handler *Handler) OnGroupLifecycleUpdate(h GroupLifecycleUpdateHandler) {
 	handler.groups.LifecycleUpdate = h
 }
 
-// OnGroupParticipantsUpdate registers a handler for group_participants_update webhooks
-// (participants joining via invite, requesting to join, cancelling requests, join
-// request approval, participant removal, and participant departures).
-func (handler *Handler) OnGroupParticipantsUpdate(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
-) {
-	handler.groups.OnParticipantsUpdate(fn)
-}
-
-// SetGroupParticipantsUpdateHandler sets the handler for group_participants_update webhooks.
-func (handler *Handler) SetGroupParticipantsUpdateHandler(
-	h GroupParticipantsUpdateHandler,
-) {
+func (handler *Handler) OnGroupParticipantsUpdate(h GroupParticipantsUpdateHandler) {
 	handler.groups.ParticipantsUpdate = h
 }
 
-// OnGroupSettingsUpdate registers a handler for group_settings_update webhooks
-// (group subject, description, and profile picture changes with per-field
-// success/failure reporting).
-func (handler *Handler) OnGroupSettingsUpdate(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
-) {
-	handler.groups.OnSettingsUpdate(fn)
-}
-
-// SetGroupSettingsUpdateHandler sets the handler for group_settings_update webhooks.
-func (handler *Handler) SetGroupSettingsUpdateHandler(
-	h GroupSettingsUpdateHandler,
-) {
+func (handler *Handler) OnGroupSettingsUpdate(h GroupSettingsUpdateHandler) {
 	handler.groups.SettingsUpdate = h
 }
 
-// OnGroupStatusUpdate registers a handler for group_status_update webhooks
-// (group suspension and suspension clearance).
-func (handler *Handler) OnGroupStatusUpdate(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
-) {
-	handler.groups.OnStatusUpdate(fn)
-}
-
-// SetGroupStatusUpdateHandler sets the handler for group_status_update webhooks.
-func (handler *Handler) SetGroupStatusUpdateHandler(
-	h GroupStatusUpdateHandler,
-) {
+func (handler *Handler) OnGroupStatusUpdate(h GroupStatusUpdateHandler) {
 	handler.groups.StatusUpdate = h
 }
 

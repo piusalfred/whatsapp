@@ -186,108 +186,30 @@ func NewNoOpMessageChangeValueHandler[T any]() MessageChangeValueHandler[T] {
 	})
 }
 
-// OnUserPreferencesUpdate registers a handler for user_preferences webhooks
-// (WhatsApp user marketing message opt-in/out changes).
-func (handler *Handler) OnUserPreferencesUpdate(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, prefs []*UserPreference) error,
-) {
-	handler.userPreferencesUpdate = MessageChangeValueHandlerFunc[UserPreference](fn)
-}
-
-// SetUserPreferencesUpdateHandler sets the handler for user_preferences webhooks.
-func (handler *Handler) SetUserPreferencesUpdateHandler(
-	h UserPreferenceUpdateHandler,
-) {
+func (handler *Handler) OnUserPreferencesUpdate(h UserPreferenceUpdateHandler) {
 	handler.userPreferencesUpdate = h
 }
 
-// OnSMBAppStateSync registers a callback for SMB contact sync events.
-// Triggers when a solution provider syncs contacts for an onboarded business,
-// or when the business customer adds, edits, or removes a contact in their
-// WhatsApp Business app address book.
-func (handler *Handler) OnSMBAppStateSync(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, syncs []*SMBAppStateSync) error,
-) {
-	handler.smbAppStateSync = MessageChangeValueHandlerFunc[SMBAppStateSync](fn)
-}
-
-// SetSMBAppStateSyncHandler sets the handler for smb_app_state_sync webhooks.
-func (handler *Handler) SetSMBAppStateSyncHandler(h SMBAppStateSyncHandler) {
+func (handler *Handler) OnSMBAppStateSync(h SMBAppStateSyncHandler) {
 	handler.smbAppStateSync = h
 }
 
-// OnSMBMessageEcho registers a callback for messages sent by an onboarded
-// business customer via their WhatsApp Business app or companion device.
-// Triggers: business sends a message, revokes a message, or edits a message
-// using the WhatsApp Business app.
-// The payload shape is identical to incoming messages — use the same Message
-// handlers you use for regular messages.
-func (handler *Handler) OnSMBMessageEcho(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, msg *Message) error,
-) {
-	handler.messages.Fallback = MessageHandlerFunc[Message](fn)
-}
-
-// SetSMBMessageEchoHandler sets the handler for smb_message_echoes webhooks.
-func (handler *Handler) SetSMBMessageEchoHandler(h MessageHandler[Message]) {
+func (handler *Handler) OnSMBMessageEcho(h MessageHandler[Message]) {
 	handler.messages.Fallback = h
 }
 
-// OnNotificationErrors registers a handler for notification-level errors in the messages webhook.
-func (handler *Handler) OnNotificationErrors(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, errors []*werrors.Error) error,
-) {
-	handler.notificationErrors = MessageChangeValueHandlerFunc[werrors.Error](fn)
+func (handler *Handler) OnNotificationErrors(h NotificationErrorsHandler) {
+	handler.notificationErrors = h
 }
 
-// SetNotificationErrorsHandler sets the handler for notification-level errors.
-func (handler *Handler) SetNotificationErrorsHandler(
-	fn NotificationErrorsHandler,
-) {
-	handler.notificationErrors = fn
+func (handler *Handler) OnMessageStatusChange(h MessageStatusChangeHandler) {
+	handler.messageStatusChange = h
 }
 
-// OnMessageStatusChange registers a handler for message delivery status updates
-// (sent, delivered, read, played, failed). A single outgoing message may trigger
-// up to three status webhooks. The "delivered" webhook may be skipped if the
-// message is read immediately.
-func (handler *Handler) OnMessageStatusChange(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, status []*Status) error,
-) {
-	handler.messageStatusChange = MessageChangeValueHandlerFunc[Status](fn)
+func (handler *Handler) OnMessageErrors(h MessageErrorsHandler) {
+	handler.messages.Unknown = h
 }
 
-// SetMessageStatusChangeHandler sets the handler for message status changes.
-func (handler *Handler) SetMessageStatusChangeHandler(
-	fn MessageStatusChangeHandler,
-) {
-	handler.messageStatusChange = fn
-}
-
-// OnMessageErrors registers a handler for message-level errors in the messages webhook.
-func (handler *Handler) OnMessageErrors(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, errors []*werrors.Error) error,
-) {
-	handler.messages.Unknown = MessageErrorsHandlerFunc(fn)
-}
-
-// SetMessageErrorsHandler sets the handler for message-level errors.
-func (handler *Handler) SetMessageErrorsHandler(
-	fn MessageErrorsHandler,
-) {
-	handler.messages.Unknown = fn
-}
-
-// OnUnsupportedMessage registers a handler for unsupported messages in the messages webhook.
-func (handler *Handler) OnUnsupportedMessage(
-	fn func(ctx context.Context, notificationCtx *MessageNotificationContext, info *MessageInfo, errors []*werrors.Error) error,
-) {
-	handler.messages.Unsupported = MessageErrorsHandlerFunc(fn)
-}
-
-// SetUnsupportedMessageHandler sets the handler for unsupported messages.
-func (handler *Handler) SetUnsupportedMessageHandler(
-	fn MessageErrorsHandler,
-) {
-	handler.messages.Unsupported = fn
+func (handler *Handler) OnUnsupportedMessage(h MessageErrorsHandler) {
+	handler.messages.Unsupported = h
 }

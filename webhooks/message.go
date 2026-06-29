@@ -209,26 +209,12 @@ func (handler *Handler) OnTextMessage(
 	handler.messages.Text = MessageHandlerFunc[Text](fn)
 }
 
-// SetTextMessageHandler sets the handler for text messages.
-func (handler *Handler) SetTextMessageHandler(
-	h TextMessageHandler,
-) {
-	handler.messages.Text = h
-}
-
 // OnButtonMessage registers a handler for button messages in the messages webhook.
 func (handler *Handler) OnButtonMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
 		info *MessageInfo, button *Button) error,
 ) {
 	handler.messages.Button = MessageHandlerFunc[Button](fn)
-}
-
-// SetButtonMessageHandler sets the handler for button messages.
-func (handler *Handler) SetButtonMessageHandler(
-	h ButtonMessageHandler,
-) {
-	handler.messages.Button = h
 }
 
 // OnOrderMessage registers a handler for order messages in the messages webhook.
@@ -239,13 +225,6 @@ func (handler *Handler) OnOrderMessage(
 	handler.messages.Order = MessageHandlerFunc[Order](fn)
 }
 
-// SetOrderMessageHandler sets the handler for order messages.
-func (handler *Handler) SetOrderMessageHandler(
-	h OrderMessageHandler,
-) {
-	handler.messages.Order = h
-}
-
 // OnLocationMessage registers a handler for shared location messages in the
 // messages webhook. The location includes latitude, longitude, name, address,
 // and optionally a URL (usually only for business locations).
@@ -254,13 +233,6 @@ func (handler *Handler) OnLocationMessage(
 		info *MessageInfo, loc *media.Location) error,
 ) {
 	handler.messages.Location = MessageHandlerFunc[media.Location](fn)
-}
-
-// SetLocationMessageHandler sets the handler for location messages.
-func (handler *Handler) SetLocationMessageHandler(
-	h LocationMessageHandler,
-) {
-	handler.messages.Location = h
 }
 
 // OnContactsMessage registers a handler for contacts messages in the messages
@@ -275,26 +247,12 @@ func (handler *Handler) OnContactsMessage(
 	handler.messages.Contacts = MessageHandlerFunc[message.Contacts](fn)
 }
 
-// SetContactsMessageHandler sets the handler for contacts messages.
-func (handler *Handler) SetContactsMessageHandler(
-	h ContactsMessageHandler,
-) {
-	handler.messages.Contacts = h
-}
-
 // OnReactionMessage registers a handler for reaction messages in the messages webhook.
 func (handler *Handler) OnReactionMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
 		info *MessageInfo, reaction *media.Reaction) error,
 ) {
 	handler.messages.Reaction = MessageHandlerFunc[media.Reaction](fn)
-}
-
-// SetReactionMessageHandler sets the handler for reaction messages.
-func (handler *Handler) SetReactionMessageHandler(
-	h ReactionHandler,
-) {
-	handler.messages.Reaction = h
 }
 
 // OnProductEnquiryMessage registers a handler for product enquiry messages in the messages webhook.
@@ -305,26 +263,12 @@ func (handler *Handler) OnProductEnquiryMessage(
 	handler.messages.ProductInquiry = MessageHandlerFunc[Text](fn)
 }
 
-// SetProductEnquiryMessageHandler sets the handler for product enquiry messages.
-func (handler *Handler) SetProductEnquiryMessageHandler(
-	h ProductEnquiryHandler,
-) {
-	handler.messages.ProductInquiry = h
-}
-
 // OnInteractiveMessage registers a handler for interactive messages in the messages webhook.
 func (handler *Handler) OnInteractiveMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
 		info *MessageInfo, itv *Interactive) error,
 ) {
 	handler.messages.Interactive.Fallback = MessageHandlerFunc[Interactive](fn)
-}
-
-// SetInteractiveMessageHandler sets the handler for interactive messages.
-func (handler *Handler) SetInteractiveMessageHandler(
-	h InteractiveMessageHandler,
-) {
-	handler.messages.Interactive.Fallback = h
 }
 
 // OnButtonReplyMessage registers a handler for button reply messages in the messages webhook.
@@ -335,13 +279,6 @@ func (handler *Handler) OnButtonReplyMessage(
 	handler.messages.Interactive.ButtonReply = MessageHandlerFunc[ButtonReply](fn)
 }
 
-// SetButtonReplyMessageHandler sets the handler for button reply messages.
-func (handler *Handler) SetButtonReplyMessageHandler(
-	h ButtonReplyMessageHandler,
-) {
-	handler.messages.Interactive.ButtonReply = h
-}
-
 // OnListReplyMessage registers a handler for list reply messages in the messages webhook.
 func (handler *Handler) OnListReplyMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
@@ -350,26 +287,12 @@ func (handler *Handler) OnListReplyMessage(
 	handler.messages.Interactive.ListReply = MessageHandlerFunc[ListReply](fn)
 }
 
-// SetListReplyMessageHandler sets the handler for list reply messages.
-func (handler *Handler) SetListReplyMessageHandler(
-	h ListReplyMessageHandler,
-) {
-	handler.messages.Interactive.ListReply = h
-}
-
 // OnFlowCompletionMessage registers a handler for flow completion messages in the messages webhook.
 func (handler *Handler) OnFlowCompletionMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
 		info *MessageInfo, nfm *NFMReply) error,
 ) {
 	handler.messages.Interactive.FlowCompletion = MessageHandlerFunc[NFMReply](fn)
-}
-
-// SetFlowCompletionMessageHandler sets the handler for flow completion messages.
-func (handler *Handler) SetFlowCompletionMessageHandler(
-	h NativeFlowCompletionHandler,
-) {
-	handler.messages.Interactive.FlowCompletion = h
 }
 
 // OnAddressSubmissionMessage registers a handler for address submission messages in the messages webhook.
@@ -398,26 +321,12 @@ func (handler *Handler) OnReferralMessage(
 	handler.messages.Referral = MessageHandlerFunc[ReferralNotification](fn)
 }
 
-// SetReferralMessageHandler sets the handler for referral messages.
-func (handler *Handler) SetReferralMessageHandler(
-	h ReferralMessageHandler,
-) {
-	handler.messages.Referral = h
-}
-
 // OnCustomerIDChangeMessage registers a handler for customer identity change messages in the messages webhook.
 func (handler *Handler) OnCustomerIDChangeMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
 		info *MessageInfo, identity *Identity) error,
 ) {
 	handler.messages.CustomerIDChange = MessageHandlerFunc[Identity](fn)
-}
-
-// SetCustomerIDChangeMessageHandler sets the handler for customer identity change messages.
-func (handler *Handler) SetCustomerIDChangeMessageHandler(
-	h CustomerIDChangeHandler,
-) {
-	handler.messages.CustomerIDChange = h
 }
 
 // OnSystemMessage registers a handler for system messages in the messages webhook.
@@ -428,13 +337,6 @@ func (handler *Handler) OnSystemMessage(
 	handler.messages.System = MessageHandlerFunc[System](fn)
 }
 
-// SetSystemMessageHandler sets the handler for system messages.
-func (handler *Handler) SetSystemMessageHandler(
-	h SystemMessageHandler,
-) {
-	handler.messages.System = h
-}
-
 // OnAudioMessage registers a handler for audio messages in the messages
 // webhook. Metadata includes MIME type, SHA-256 hash, and download URL.
 // For voice messages, check the voice field via the Media API.
@@ -443,13 +345,6 @@ func (handler *Handler) OnAudioMessage(
 		info *MessageInfo, media *media.Info) error,
 ) {
 	handler.messages.Media.Audio = MessageHandlerFunc[media.Info](fn)
-}
-
-// SetAudioMessageHandler sets the handler for audio messages.
-func (handler *Handler) SetAudioMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.messages.Media.Audio = h
 }
 
 // OnVideoMessage registers a handler for video messages in the messages
@@ -463,13 +358,6 @@ func (handler *Handler) OnVideoMessage(
 	handler.messages.Media.Video = MessageHandlerFunc[media.Info](fn)
 }
 
-// SetVideoMessageHandler sets the handler for video messages.
-func (handler *Handler) SetVideoMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.messages.Media.Video = h
-}
-
 // OnImageMessage registers a handler for image messages in the messages
 // webhook. Metadata includes MIME type, SHA-256 hash, caption, and download
 // URL (v2025.11+).
@@ -478,13 +366,6 @@ func (handler *Handler) OnImageMessage(
 		info *MessageInfo, media *media.Info) error,
 ) {
 	handler.messages.Media.Image = MessageHandlerFunc[media.Info](fn)
-}
-
-// SetImageMessageHandler sets the handler for image messages.
-func (handler *Handler) SetImageMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.messages.Media.Image = h
 }
 
 // OnDocumentMessage registers a handler for document messages in the messages
@@ -497,13 +378,6 @@ func (handler *Handler) OnDocumentMessage(
 	handler.messages.Media.Document = MessageHandlerFunc[media.Info](fn)
 }
 
-// SetDocumentMessageHandler sets the handler for document messages.
-func (handler *Handler) SetDocumentMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.messages.Media.Document = h
-}
-
 // OnStickerMessage registers a handler for sticker messages in the messages
 // webhook. Metadata includes MIME type, SHA-256 hash, and an animated flag.
 func (handler *Handler) OnStickerMessage(
@@ -511,13 +385,6 @@ func (handler *Handler) OnStickerMessage(
 		info *MessageInfo, media *media.Info) error,
 ) {
 	handler.messages.Media.Sticker = MessageHandlerFunc[media.Info](fn)
-}
-
-// SetStickerMessageHandler sets the handler for sticker messages.
-func (handler *Handler) SetStickerMessageHandler(
-	h MediaMessageHandler,
-) {
-	handler.messages.Media.Sticker = h
 }
 
 // OnRevokeMessage registers a callback for message deletion events. Triggers
@@ -528,11 +395,6 @@ func (handler *Handler) OnRevokeMessage(
 		info *MessageInfo, revoke *Revoke) error,
 ) {
 	handler.messages.Revoke = MessageHandlerFunc[Revoke](fn)
-}
-
-// SetRevokeMessageHandler sets the handler for message revoke events.
-func (handler *Handler) SetRevokeMessageHandler(h MessageHandler[Revoke]) {
-	handler.messages.Revoke = h
 }
 
 // OnMessageEdit registers a callback for edit events. Triggers when a WhatsApp
@@ -549,24 +411,12 @@ func (handler *Handler) OnMessageEdit(
 	handler.messages.Edit = MessageHandlerFunc[Edit](fn)
 }
 
-// SetMessageEditHandler sets the handler for message edit events.
-func (handler *Handler) SetMessageEditHandler(h MessageHandler[Edit]) {
-	handler.messages.Edit = h
-}
-
 // OnRequestWelcomeMessage registers a handler for request_welcome messages in the messages webhook.
 func (handler *Handler) OnRequestWelcomeMessage(
 	fn func(ctx context.Context, notificationCtx *MessageNotificationContext,
 		info *MessageInfo, media *Message) error,
 ) {
 	handler.messages.RequestWelcome = MessageHandlerFunc[Message](fn)
-}
-
-// SetRequestWelcomeMessageHandler sets the handler for request_welcome messages.
-func (handler *Handler) SetRequestWelcomeMessageHandler(
-	fn RequestWelcomeMessageHandler,
-) {
-	handler.messages.RequestWelcome = fn
 }
 
 // MessagesHandler is the single entry point for all WhatsApp message dispatch.

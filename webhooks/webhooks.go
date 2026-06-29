@@ -75,11 +75,6 @@
 //	        listener.HandleNotification(w, r)
 //	    }
 //	})
-// Package webhooks provides types and handlers for WhatsApp Business API
-// webhook notifications. It supports all documented webhook fields including
-// messages, flows, business account updates, template lifecycle events,
-// phone number updates, security, groups, history sync, and calls.
-
 package webhooks
 
 import (
