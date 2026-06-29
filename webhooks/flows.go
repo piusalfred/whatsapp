@@ -103,6 +103,14 @@ type (
 // event type. Leave a field nil to skip that event during dispatch or to let
 // it fall through to [FallbackHandler].
 //
+// # Concurrency
+//
+// FlowNotificationHandler is safe for concurrent calls to
+// [FlowNotificationHandler.Handle] (read-only access to registered callbacks).
+// It is not safe for concurrent modification — register all handlers before
+// the handler starts serving requests. See [Handler] for the top-level
+// concurrency contract.
+//
 // Usage:
 //
 //	fh := &FlowNotificationHandler{}

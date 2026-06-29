@@ -23,6 +23,7 @@ package webhooks
 
 import (
 	"context"
+	"fmt"
 
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
@@ -49,7 +50,7 @@ func handleMessageChangeNotification[T any](
 	if err := eventHandler.Handle(ctx, notificationCtx, events); err != nil {
 		if handler.errorHandlerFunc != nil {
 			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-				return handlerErr
+				return fmt.Errorf("error handler: %w", handlerErr)
 			}
 		}
 	}
@@ -76,7 +77,7 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 		); err != nil {
 			if handler.errorHandlerFunc != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
+					return fmt.Errorf("error handler: %w", handlerErr)
 				}
 			}
 		}
@@ -88,7 +89,7 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 		); err != nil {
 			if handler.errorHandlerFunc != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
+					return fmt.Errorf("error handler: %w", handlerErr)
 				}
 			}
 		}
@@ -98,7 +99,7 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 		if err := handler.messages.Handle(ctx, notificationCtx, m); err != nil {
 			if handler.errorHandlerFunc != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
+					return fmt.Errorf("error handler: %w", handlerErr)
 				}
 			}
 		}

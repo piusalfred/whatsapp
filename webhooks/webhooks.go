@@ -88,6 +88,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -184,7 +185,9 @@ func (listener *Listener) HandleSubscriptionVerification(writer http.ResponseWri
 	}
 
 	writer.WriteHeader(http.StatusOK)
-	_, _ = writer.Write([]byte(html.EscapeString(challenge)))
+	if _, err := writer.Write([]byte(html.EscapeString(challenge))); err != nil {
+		slog.Warn("webhook subscription verification write failed", "error", err)
+	}
 }
 
 // HandleNotification processes an incoming POST webhook event. It reads the

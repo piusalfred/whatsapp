@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/piusalfred/whatsapp/message"
 	"github.com/piusalfred/whatsapp/message/media"
@@ -41,8 +42,18 @@ import (
 //
 //	handler.OnTextMessage(h)   // registers the handler
 //
-// Handler fields must be registered before the server starts. They are not
-// safe for concurrent modification.
+// # Concurrency
+//
+// Handler is not safe for concurrent modification. Register all handlers
+// before calling [Handler.HandleNotification] for the first time. Once the
+// server starts, only HandleNotification may be called concurrently — it is
+// safe for concurrent reads of the registered callbacks.
+//
+// The same constraint applies to all sub-handlers reachable through the
+// Handler: [MessagesHandler], [FlowNotificationHandler],
+// [BusinessNotificationHandler], [GroupManagementHandler], and
+// [HistoryHandler]. Register their callbacks during initialisation and treat
+// them as immutable afterward.
 type Handler struct {
 	flows    *FlowNotificationHandler
 	business *BusinessNotificationHandler
@@ -132,7 +143,17 @@ func (handler *Handler) OnUnrecognizedField(
 // all parts of the payload were processed successfully.
 func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *Response {
 	for _, entry := range notification.Entry {
+		select {
+		case <-ctx.Done():
+			return &Response{StatusCode: http.StatusGatewayTimeout}
+		default:
+		}
 		for _, change := range entry.Changes {
+			select {
+			case <-ctx.Done():
+				return &Response{StatusCode: http.StatusGatewayTimeout}
+			default:
+			}
 			if err := handler.handleNotificationChange(ctx, notification, change, entry); err != nil {
 				return &Response{StatusCode: http.StatusInternalServerError}
 			}
@@ -209,7 +230,7 @@ func (handler *Handler) handleFlowsChange(
 	if err := handler.flows.Handle(ctx, notificationCtx, change.Value); err != nil {
 		if handler.errorHandlerFunc != nil {
 			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-				return handlerErr
+				return fmt.Errorf("error handler: %w", handlerErr)
 			}
 		}
 	}
@@ -263,7 +284,7 @@ func (handler *Handler) handleSMBMessageEchoesChange(
 		if err := handler.messages.Handle(ctx, notificationCtx, msg); err != nil {
 			if handler.errorHandlerFunc != nil {
 				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
-					return handlerErr
+					return fmt.Errorf("error handler: %w", handlerErr)
 				}
 			}
 		}
@@ -348,14 +369,22 @@ func KnownChangeFields() []ChangeField {
 	}
 }
 
+// knownFields is a set of change fields recognised by the dispatch switch.
+// Initialised once via sync.Once to avoid per-call slice allocation in [isKnownField].
+var (
+	knownFieldsOnce sync.Once
+	knownFields     map[string]bool
+)
+
 // isKnownField reports whether field is handled by the dispatch switch.
 func isKnownField(field string) bool {
-	for _, f := range KnownChangeFields() {
-		if f.String() == field {
-			return true
+	knownFieldsOnce.Do(func() {
+		knownFields = make(map[string]bool, len(KnownChangeFields()))
+		for _, f := range KnownChangeFields() {
+			knownFields[f.String()] = true
 		}
-	}
-	return false
+	})
+	return knownFields[field]
 }
 
 type (

@@ -426,6 +426,13 @@ func (handler *Handler) OnRequestWelcomeMessage(
 // Media types delegate to [MediaHandler]; interactive messages delegate to
 // [InteractiveHandler]. Unknown types fall through to [Fallback].
 //
+// # Concurrency
+//
+// MessagesHandler is safe for concurrent calls to [MessagesHandler.Handle]
+// (read-only access to registered callbacks). It is not safe for concurrent
+// modification — register all handlers before the handler starts serving
+// requests. See [Handler] for the top-level concurrency contract.
+//
 // Usage:
 //
 //	mh := &MessagesHandler{}
@@ -454,7 +461,7 @@ type MessagesHandler struct {
 	Fallback         MessageHandler[Message]
 }
 
-//nolint:cyclop,funlen,gocognit,gocyclo,wrapcheck // dispatch switch; user handlers own error context
+//nolint:cyclop,funlen,gocognit,gocyclo // dispatch switch
 func (mh *MessagesHandler) Handle(
 	ctx context.Context,
 	nctx *MessageNotificationContext,
@@ -586,7 +593,9 @@ func (mh *MessagesHandler) Handle(
 			return nil
 		}
 		if mh.Fallback != nil {
-			return mh.Fallback.Handle(ctx, nctx, info, message)
+			if err := mh.Fallback.Handle(ctx, nctx, info, message); err != nil {
+				return fmt.Errorf("handle fallback: %w", err)
+			}
 		}
 		return nil
 	}
