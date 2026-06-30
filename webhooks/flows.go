@@ -326,25 +326,25 @@ func (value *Value) FlowEndpointAvailability() *EndpointAvailabilityDetails {
 
 // OnFlowStatusChange registers a handler for flow status change events in the flows webhook.
 func (handler *Handler) OnFlowStatusChange(h FlowStatusHandler) {
-	handler.flows.OnFlowStatusChange(h)
+	handler.ensureFlows().OnFlowStatusChange(h)
 }
 
 // OnFlowClientErrorRate registers a handler for flow client error rate events in the flows webhook.
 func (handler *Handler) OnFlowClientErrorRate(h FlowClientErrorRateHandler) {
-	handler.flows.OnFlowClientErrorRate(h)
+	handler.ensureFlows().OnFlowClientErrorRate(h)
 }
 
 // OnFlowEndpointErrorRate registers a handler for flow endpoint error rate events in the flows webhook.
 func (handler *Handler) OnFlowEndpointErrorRate(h FlowEndpointErrorRateHandler) {
-	handler.flows.OnFlowEndpointErrorRate(h)
+	handler.ensureFlows().OnFlowEndpointErrorRate(h)
 }
 
 // OnFlowEndpointLatency registers a handler for flow endpoint latency events in the flows webhook.
 func (handler *Handler) OnFlowEndpointLatency(h FlowEndpointLatencyHandler) {
-	handler.flows.OnFlowEndpointLatency(h)
+	handler.ensureFlows().OnFlowEndpointLatency(h)
 }
 
 // OnFlowEndpointAvailability registers a handler for flow endpoint availability events in the flows webhook.
 func (handler *Handler) OnFlowEndpointAvailability(h FlowEndpointAvailabilityHandler) {
-	handler.flows.OnFlowEndpointAvailability(h)
+	handler.ensureFlows().OnFlowEndpointAvailability(h)
 }

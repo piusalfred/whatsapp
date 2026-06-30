@@ -190,7 +190,7 @@ type (
 	PhoneNumberQualityUpdateHandler = BusinessEventHandler[PhoneNumberQualityUpdate]
 	AccountReviewUpdateHandler      = BusinessEventHandler[AccountReviewUpdate]
 	TemplateComponentsHandler       = BusinessEventHandler[TemplateComponentsUpdateNotification]
-	CallsHandler                    = BusinessEventHandler[CallStatusUpdate]
+	BusinessCallsHandler            = BusinessEventHandler[CallStatusUpdate]
 	SecurityHandler                 = BusinessEventHandler[SecurityNotification]
 	PhoneSettingsHandler            = BusinessEventHandler[PhoneNumberSettings]
 )
@@ -488,14 +488,6 @@ func (bh *BusinessNotificationHandler) Handle(
 			}
 			return nil
 		}
-	case ChangeFieldCalls.String():
-		if bh.Calls != nil {
-			req := &BusinessRequest[CallStatusUpdate]{Context: nctx, Payload: change.Value.CallStatusUpdate()}
-			if err := bh.Calls.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business calls: %w", err))
-			}
-			return nil
-		}
 	case ChangeFieldBusinessCapabilityUpdate.String():
 		if bh.Capability != nil {
 			req := &BusinessRequest[CapabilityUpdate]{Context: nctx, Payload: change.Value.CapabilityUpdate()}
@@ -612,49 +604,49 @@ func (value *Value) CapabilityUpdate() *CapabilityUpdate {
 }
 
 func (handler *Handler) OnBusinessAlertNotification(h AlertsHandler) {
-	handler.business.Alerts = h
+	handler.ensureBusiness().Alerts = h
 }
 
 func (handler *Handler) OnBusinessTemplateStatusUpdate(h TemplateStatusHandler) {
-	handler.business.TemplateStatus = h
+	handler.ensureBusiness().TemplateStatus = h
 }
 
 func (handler *Handler) OnBusinessTemplateCategoryUpdate(h TemplateCategoryHandler) {
-	handler.business.TemplateCategory = h
+	handler.ensureBusiness().TemplateCategory = h
 }
 
 func (handler *Handler) OnBusinessTemplateQualityUpdate(h TemplateQualityHandler) {
-	handler.business.TemplateQuality = h
+	handler.ensureBusiness().TemplateQuality = h
 }
 
 func (handler *Handler) OnTemplateComponentsUpdate(h TemplateComponentsHandler) {
-	handler.business.TemplateComponents = h
+	handler.ensureBusiness().TemplateComponents = h
 }
 
 func (handler *Handler) OnBusinessPhoneNumberNameUpdate(h PhoneNumberNameUpdateHandler) {
-	handler.business.PhoneNumberName = h
+	handler.ensureBusiness().PhoneNumberName = h
 }
 
 func (handler *Handler) OnBusinessPhoneNumberQualityUpdate(h PhoneNumberQualityUpdateHandler) {
-	handler.business.PhoneNumberQuality = h
+	handler.ensureBusiness().PhoneNumberQuality = h
 }
 
 func (handler *Handler) OnBusinessAccountReviewUpdate(h AccountReviewUpdateHandler) {
-	handler.business.AccountReview = h
+	handler.ensureBusiness().AccountReview = h
 }
 
 func (handler *Handler) OnBusinessAccountUpdate(h AccountUpdateHandler) {
-	handler.business.Account = h
+	handler.ensureBusiness().Account = h
 }
 
 func (handler *Handler) OnPhoneSettingsUpdate(h PhoneSettingsHandler) {
-	handler.business.PhoneSettings = h
+	handler.ensureBusiness().PhoneSettings = h
 }
 
 func (handler *Handler) OnBusinessCapabilityUpdate(h CapabilityUpdateHandler) {
-	handler.business.Capability = h
+	handler.ensureBusiness().Capability = h
 }
 
 func (handler *Handler) OnSecurityUpdate(h SecurityHandler) {
-	handler.business.Security = h
+	handler.ensureBusiness().Security = h
 }

@@ -381,6 +381,7 @@ const (
 	ChangeFieldCategoryUnknown ChangeFieldCategory = iota
 	ChangeFieldCategoryFlows
 	ChangeFieldCategoryBusiness
+	ChangeFieldCategoryCalls
 	ChangeFieldCategoryUserPreferences
 	ChangeFieldCategorySMBAppStateSync
 	ChangeFieldCategoryMessages
@@ -395,6 +396,9 @@ func GetChangeFieldCategory(f string) ChangeFieldCategory {
 	case ChangeFieldFlows:
 		return ChangeFieldCategoryFlows
 
+	case ChangeFieldCalls:
+		return ChangeFieldCategoryCalls
+
 	case ChangeFieldAccountAlerts,
 		ChangeFieldTemplateStatusUpdate,
 		ChangeFieldTemplateCategoryUpdate,
@@ -404,7 +408,6 @@ func GetChangeFieldCategory(f string) ChangeFieldCategory {
 		ChangeFieldPhoneNumberQualityUpdate,
 		ChangeFieldAccountUpdate,
 		ChangeFieldAccountReviewUpdate,
-		ChangeFieldCalls,
 		ChangeFieldBusinessCapabilityUpdate,
 		ChangeFieldAccountSettingsUpdate,
 		ChangeFieldSecurity:

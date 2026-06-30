@@ -116,10 +116,11 @@ func ParseMessageType(s string) MessageType {
 var ErrUnrecognizedMessageType = errors.New("unrecognized message type")
 
 const (
-	InteractiveTypeListReply     = "list_reply"
-	InteractiveTypeButtonReply   = "button_reply"
-	InteractiveTypeNFMReply      = "nfm_reply"
-	InteractiveAddressSubmission = "address_message"
+	InteractiveTypeListReply           = "list_reply"
+	InteractiveTypeButtonReply         = "button_reply"
+	InteractiveTypeNFMReply            = "nfm_reply"
+	InteractiveAddressSubmission       = "address_message"
+	InteractiveTypeCallPermissionReply = "call_permission_reply"
 )
 
 type (
@@ -163,6 +164,7 @@ type (
 	ButtonReplyMessageHandler    = MessageHandler[ButtonReply]
 	ListReplyMessageHandler      = MessageHandler[ListReply]
 	NativeFlowCompletionHandler  = MessageHandler[NFMReply]
+	CallPermissionReplyHandler   = MessageHandler[CallPermissionReply]
 	ReferralMessageHandler       = MessageHandler[ReferralNotification]
 	CustomerIDChangeHandler      = MessageHandler[Identity]
 	SystemMessageHandler         = MessageHandler[System]
@@ -181,24 +183,24 @@ func NewNoOpMessageHandler[T any]() MessageHandler[T] {
 
 // OnTextMessage registers a handler for text messages in the messages webhook.
 func (handler *Handler) OnTextMessage(h MessageHandler[Text]) {
-	handler.messages.Text = h
+	handler.ensureMessages().Text = h
 }
 
 // OnButtonMessage registers a handler for button messages in the messages webhook.
 func (handler *Handler) OnButtonMessage(h ButtonMessageHandler) {
-	handler.messages.Button = h
+	handler.ensureMessages().Button = h
 }
 
 // OnOrderMessage registers a handler for order messages in the messages webhook.
 func (handler *Handler) OnOrderMessage(h OrderMessageHandler) {
-	handler.messages.Order = h
+	handler.ensureMessages().Order = h
 }
 
 // OnLocationMessage registers a handler for shared location messages in the
 // messages webhook. The location includes latitude, longitude, name, address,
 // and optionally a URL (usually only for business locations).
 func (handler *Handler) OnLocationMessage(h LocationMessageHandler) {
-	handler.messages.Location = h
+	handler.ensureMessages().Location = h
 }
 
 // OnContactsMessage registers a handler for contacts messages in the messages
@@ -207,42 +209,75 @@ func (handler *Handler) OnLocationMessage(h LocationMessageHandler) {
 // share. If the message came via a Click to WhatsApp ad, the referral data is
 // delivered to [OnReferralMessage] instead.
 func (handler *Handler) OnContactsMessage(h ContactsMessageHandler) {
-	handler.messages.Contacts = h
+	handler.ensureMessages().Contacts = h
 }
 
 // OnReactionMessage registers a handler for reaction messages in the messages webhook.
 func (handler *Handler) OnReactionMessage(h ReactionHandler) {
-	handler.messages.Reaction = h
+	handler.ensureMessages().Reaction = h
 }
 
 // OnProductEnquiryMessage registers a handler for product enquiry messages in the messages webhook.
 func (handler *Handler) OnProductEnquiryMessage(h ProductEnquiryHandler) {
-	handler.messages.ProductInquiry = h
+	handler.ensureMessages().ProductInquiry = h
 }
 
 // OnInteractiveMessage registers a handler for interactive messages in the messages webhook.
 func (handler *Handler) OnInteractiveMessage(h InteractiveMessageHandler) {
-	handler.messages.Interactive.Fallback = h
+	mh := handler.ensureMessages()
+	if mh.Interactive == nil {
+		mh.Interactive = &InteractiveHandler{}
+	}
+	mh.Interactive.Fallback = h
 }
 
 // OnButtonReplyMessage registers a handler for button reply messages in the messages webhook.
 func (handler *Handler) OnButtonReplyMessage(h ButtonReplyMessageHandler) {
-	handler.messages.Interactive.ButtonReply = h
+	mh := handler.ensureMessages()
+	if mh.Interactive == nil {
+		mh.Interactive = &InteractiveHandler{}
+	}
+	mh.Interactive.ButtonReply = h
 }
 
 // OnListReplyMessage registers a handler for list reply messages in the messages webhook.
 func (handler *Handler) OnListReplyMessage(h ListReplyMessageHandler) {
-	handler.messages.Interactive.ListReply = h
+	mh := handler.ensureMessages()
+	if mh.Interactive == nil {
+		mh.Interactive = &InteractiveHandler{}
+	}
+	mh.Interactive.ListReply = h
 }
 
 // OnFlowCompletionMessage registers a handler for flow completion messages in the messages webhook.
 func (handler *Handler) OnFlowCompletionMessage(h NativeFlowCompletionHandler) {
-	handler.messages.Interactive.FlowCompletion = h
+	mh := handler.ensureMessages()
+	if mh.Interactive == nil {
+		mh.Interactive = &InteractiveHandler{}
+	}
+	mh.Interactive.FlowCompletion = h
 }
 
 // OnAddressSubmissionMessage registers a handler for address submission messages in the messages webhook.
 func (handler *Handler) OnAddressSubmissionMessage(h NativeFlowCompletionHandler) {
-	handler.messages.Interactive.AddressSubmission = h
+	mh := handler.ensureMessages()
+	if mh.Interactive == nil {
+		mh.Interactive = &InteractiveHandler{}
+	}
+	mh.Interactive.AddressSubmission = h
+}
+
+// OnCallPermissionReply registers a handler for call permission reply messages
+// in the messages webhook. Call permission replies arrive as interactive
+// messages with type "call_permission_reply" when a WhatsApp user accepts or
+// rejects a call permission request, or when permission is automatically
+// granted by initiating a call.
+func (handler *Handler) OnCallPermissionReply(h CallPermissionReplyHandler) {
+	mh := handler.ensureMessages()
+	if mh.Interactive == nil {
+		mh.Interactive = &InteractiveHandler{}
+	}
+	mh.Interactive.CallPermissionReply = h
 }
 
 // OnReferralMessage registers a handler for messages originating from Click to
@@ -250,24 +285,28 @@ func (handler *Handler) OnAddressSubmissionMessage(h NativeFlowCompletionHandler
 // body, media URLs, and click tracking ID (ctwa_clid). Present on any incoming
 // message type (text, image, contacts, etc.) sent via a Click to WhatsApp ad.
 func (handler *Handler) OnReferralMessage(h ReferralMessageHandler) {
-	handler.messages.Referral = h
+	handler.ensureMessages().Referral = h
 }
 
 // OnCustomerIDChangeMessage registers a handler for customer identity change messages in the messages webhook.
 func (handler *Handler) OnCustomerIDChangeMessage(h CustomerIDChangeHandler) {
-	handler.messages.CustomerIDChange = h
+	handler.ensureMessages().CustomerIDChange = h
 }
 
 // OnSystemMessage registers a handler for system messages in the messages webhook.
 func (handler *Handler) OnSystemMessage(h SystemMessageHandler) {
-	handler.messages.System = h
+	handler.ensureMessages().System = h
 }
 
 // OnAudioMessage registers a handler for audio messages in the messages
 // webhook. Metadata includes MIME type, SHA-256 hash, and download URL.
 // For voice messages, check the voice field via the Media API.
 func (handler *Handler) OnAudioMessage(h MediaMessageHandler) {
-	handler.messages.Media.Audio = h
+	mh := handler.ensureMessages()
+	if mh.Media == nil {
+		mh.Media = &MediaHandler{}
+	}
+	mh.Media.Audio = h
 }
 
 // OnVideoMessage registers a handler for video messages in the messages
@@ -275,34 +314,50 @@ func (handler *Handler) OnAudioMessage(h MediaMessageHandler) {
 // URL (v2025.11+). Use the ID with the Media API or the URL directly with
 // your access token to retrieve the asset.
 func (handler *Handler) OnVideoMessage(h MediaMessageHandler) {
-	handler.messages.Media.Video = h
+	mh := handler.ensureMessages()
+	if mh.Media == nil {
+		mh.Media = &MediaHandler{}
+	}
+	mh.Media.Video = h
 }
 
 // OnImageMessage registers a handler for image messages in the messages
 // webhook. Metadata includes MIME type, SHA-256 hash, caption, and download
 // URL (v2025.11+).
 func (handler *Handler) OnImageMessage(h MediaMessageHandler) {
-	handler.messages.Media.Image = h
+	mh := handler.ensureMessages()
+	if mh.Media == nil {
+		mh.Media = &MediaHandler{}
+	}
+	mh.Media.Image = h
 }
 
 // OnDocumentMessage registers a handler for document messages in the messages
 // webhook. Metadata includes filename, MIME type, SHA-256 hash, caption, and
 // download URL.
 func (handler *Handler) OnDocumentMessage(h MediaMessageHandler) {
-	handler.messages.Media.Document = h
+	mh := handler.ensureMessages()
+	if mh.Media == nil {
+		mh.Media = &MediaHandler{}
+	}
+	mh.Media.Document = h
 }
 
 // OnStickerMessage registers a handler for sticker messages in the messages
 // webhook. Metadata includes MIME type, SHA-256 hash, and an animated flag.
 func (handler *Handler) OnStickerMessage(h MediaMessageHandler) {
-	handler.messages.Media.Sticker = h
+	mh := handler.ensureMessages()
+	if mh.Media == nil {
+		mh.Media = &MediaHandler{}
+	}
+	mh.Media.Sticker = h
 }
 
 // OnRevokeMessage registers a callback for message deletion events. Triggers
 // when a WhatsApp user deletes a previously sent message (within ~2 days of
 // sending). The callback receives the original message ID that was revoked.
 func (handler *Handler) OnRevokeMessage(h MessageHandler[Revoke]) {
-	handler.messages.Revoke = h
+	handler.ensureMessages().Revoke = h
 }
 
 // OnMessageEdit registers a callback for edit events. Triggers when a WhatsApp
@@ -313,12 +368,12 @@ func (handler *Handler) OnRevokeMessage(h MessageHandler[Revoke]) {
 // Note: edit webhooks are temporarily unsupported by WhatsApp. Edited messages
 // may currently arrive as unsupported message type instead of edit type.
 func (handler *Handler) OnMessageEdit(h MessageHandler[Edit]) {
-	handler.messages.Edit = h
+	handler.ensureMessages().Edit = h
 }
 
 // OnRequestWelcomeMessage registers a handler for request_welcome messages in the messages webhook.
 func (handler *Handler) OnRequestWelcomeMessage(h RequestWelcomeMessageHandler) {
-	handler.messages.RequestWelcome = h
+	handler.ensureMessages().RequestWelcome = h
 }
 
 // MessagesHandler is the single entry point for all WhatsApp message dispatch.
@@ -353,7 +408,7 @@ type MessagesHandler struct {
 	Unknown          MessageErrorsHandler
 	Unsupported      MessageErrorsHandler
 	ProductInquiry   MessageHandler[Text]
-	Fallback         MessageHandler[Message]
+	Fallback         FallbackHandler
 }
 
 // newMessageInfo extracts MessageInfo from a raw Message. All boolean
@@ -378,8 +433,41 @@ func newMessageRequest[T any](nctx *MessageNotificationContext, info *MessageInf
 	return &MessageRequest[T]{Notification: nctx, Info: info, Payload: payload}
 }
 
-//nolint:cyclop,funlen,gocognit,gocyclo // dispatch switch
+// Handle dispatches every message in the change to the correct typed handler.
+// It matches the unified sub-handler signature used by Groups, Business,
+// Flows, and History.
 func (mh *MessagesHandler) Handle(
+	ctx context.Context,
+	ne NotificationEntry,
+	change Change,
+) error {
+	nctx := &MessageNotificationContext{
+		EntryID:            ne.ID,
+		EntryTime:          ne.Time,
+		NotificationObject: ne.Object,
+		MessagingProduct:   change.Value.MessagingProduct,
+		Contacts:           change.Value.Contacts,
+		Metadata:           change.Value.Metadata,
+	}
+
+	for _, msg := range change.Value.Messages {
+		if msg == nil {
+			continue
+		}
+		if err := mh.handleOne(ctx, nctx, msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// handleOne dispatches a single message to the correct typed handler based
+// on msg.Type. Media types delegate to MediaHandler; interactive messages
+// delegate to InteractiveHandler. Unknown types fall through to Fallback.
+//
+//nolint:cyclop,funlen,gocognit,gocyclo // dispatch switch
+func (mh *MessagesHandler) handleOne(
 	ctx context.Context,
 	nctx *MessageNotificationContext,
 	message *Message,
@@ -509,7 +597,21 @@ func (mh *MessagesHandler) Handle(
 			return nil
 		}
 		if mh.Fallback != nil {
-			if err := mh.Fallback.Handle(ctx, newMessageRequest(nctx, info, message)); err != nil {
+			ne := NotificationEntry{
+				Object: nctx.NotificationObject,
+				ID:     nctx.EntryID,
+				Time:   nctx.EntryTime,
+			}
+			change := Change{
+				Field: "messages",
+				Value: &Value{
+					MessagingProduct: nctx.MessagingProduct,
+					Metadata:         nctx.Metadata,
+					Contacts:         nctx.Contacts,
+					Messages:         []*Message{message},
+				},
+			}
+			if err := mh.Fallback.Handle(ctx, ne, change); err != nil {
 				return fmt.Errorf("handle fallback: %w", err)
 			}
 		}
@@ -722,11 +824,12 @@ func (mh *MediaHandler) Handle(
 //	ih.OnButtonReply(myButtonReplyHandler)
 //	ih.OnFallback(myGeneralHandler) // catch-all for unrecognized types
 type InteractiveHandler struct {
-	ListReply         MessageHandler[ListReply]
-	ButtonReply       MessageHandler[ButtonReply]
-	FlowCompletion    MessageHandler[NFMReply]
-	AddressSubmission MessageHandler[NFMReply]
-	Fallback          MessageHandler[Interactive]
+	ListReply           MessageHandler[ListReply]
+	ButtonReply         MessageHandler[ButtonReply]
+	FlowCompletion      MessageHandler[NFMReply]
+	AddressSubmission   MessageHandler[NFMReply]
+	CallPermissionReply MessageHandler[CallPermissionReply]
+	Fallback            MessageHandler[Interactive]
 }
 
 // OnListReply sets the handler for list reply interactive messages.
@@ -747,6 +850,11 @@ func (ih *InteractiveHandler) OnFlowCompletion(h NativeFlowCompletionHandler) {
 // OnAddressSubmission sets the handler for address submission messages.
 func (ih *InteractiveHandler) OnAddressSubmission(h NativeFlowCompletionHandler) {
 	ih.AddressSubmission = h
+}
+
+// OnCallPermissionReply sets the handler for call permission reply messages.
+func (ih *InteractiveHandler) OnCallPermissionReply(h CallPermissionReplyHandler) {
+	ih.CallPermissionReply = h
 }
 
 // OnFallback sets the catch-all handler for interactive messages without
@@ -809,6 +917,17 @@ func (ih *InteractiveHandler) Handle(
 				newMessageRequest(nctx, info, msg.Interactive.NFMReply),
 			); err != nil {
 				return fmt.Errorf("handle address submission: %w", err)
+			}
+			return nil
+		}
+
+	case InteractiveTypeCallPermissionReply:
+		if ih.CallPermissionReply != nil {
+			if err := ih.CallPermissionReply.Handle(
+				ctx,
+				newMessageRequest(nctx, info, msg.Interactive.CallPermissionReply),
+			); err != nil {
+				return fmt.Errorf("handle call permission reply: %w", err)
 			}
 			return nil
 		}

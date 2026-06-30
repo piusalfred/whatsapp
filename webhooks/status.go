@@ -93,8 +93,8 @@ func (handler *Handler) handleNotificationMessageItem(
 		}
 	}
 
-	for _, m := range change.Value.Messages {
-		if err := handler.messages.Handle(ctx, notificationCtx, m); err != nil {
+	if handler.messages != nil {
+		if err := handler.messages.Handle(ctx, ne, change); err != nil {
 			return handler.handleError(ctx, err)
 		}
 	}
@@ -187,8 +187,8 @@ func (handler *Handler) OnSMBAppStateSync(h SMBAppStateSyncHandler) {
 	handler.smbAppStateSync = h
 }
 
-func (handler *Handler) OnSMBMessageEcho(h MessageHandler[Message]) {
-	handler.messages.Fallback = h
+func (handler *Handler) OnSMBMessageEcho(h FallbackHandler) {
+	handler.ensureMessages().Fallback = h
 }
 
 func (handler *Handler) OnNotificationErrors(h NotificationErrorsHandler) {
@@ -200,9 +200,9 @@ func (handler *Handler) OnMessageStatusChange(h MessageStatusChangeHandler) {
 }
 
 func (handler *Handler) OnMessageErrors(h MessageErrorsHandler) {
-	handler.messages.Unknown = h
+	handler.ensureMessages().Unknown = h
 }
 
 func (handler *Handler) OnUnsupportedMessage(h MessageErrorsHandler) {
-	handler.messages.Unsupported = h
+	handler.ensureMessages().Unsupported = h
 }

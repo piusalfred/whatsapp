@@ -59,6 +59,7 @@ type Handler struct {
 	messages *MessagesHandler
 	groups   *GroupManagementHandler
 	history  *HistoryHandler
+	calls    *CallsHandler
 
 	notificationErrors    ChangeValueHandler[werrors.Error]
 	messageStatusChange   ChangeValueHandler[Status]
@@ -75,6 +76,7 @@ type Handler struct {
 // Register handlers via the Set* methods before attaching to a Listener.
 func NewHandler() *Handler {
 	implemented := []ChangeField{
+		ChangeFieldFlows,
 		ChangeFieldAccountAlerts,
 		ChangeFieldTemplateStatusUpdate,
 		ChangeFieldTemplateCategoryUpdate,
@@ -142,8 +144,10 @@ func (handler *Handler) OnError(h ErrorHandler) {
 }
 
 // OnFallback sets the general fallback handler for change.Field values not in
-// the known set. It also propagates to all non-nil sub-handlers (Business,
-// Groups, History) that don't already have a dedicated fallback set.
+// the known set. It also propagates to every non-nil sub-handler (Business,
+// Groups, History, Messages, Flows) that doesn't already have a dedicated
+// fallback set — using adapter wrappers where the sub-handler fallback type
+// differs from FallbackHandler.
 func (handler *Handler) OnFallback(h FallbackHandler) {
 	handler.fallback = h
 
@@ -156,6 +160,35 @@ func (handler *Handler) OnFallback(h FallbackHandler) {
 	if handler.history != nil && handler.history.Fallback == nil {
 		handler.history.Fallback = h
 	}
+	if handler.messages != nil && handler.messages.Fallback == nil {
+		handler.messages.Fallback = h
+	}
+	if handler.flows != nil && handler.flows.Fallback == nil {
+		handler.flows.Fallback = adaptFallbackToFlows(h)
+	}
+	if handler.calls != nil && handler.calls.Fallback == nil {
+		handler.calls.Fallback = h
+	}
+}
+
+// adaptFallbackToFlows wraps a FallbackHandler so it can be used as the
+// FlowNotificationHandler.Fallback (type FlowFallbackHandler).
+func adaptFallbackToFlows(h FallbackHandler) FlowFallbackHandler {
+	return FlowFallbackHandlerFunc(func(ctx context.Context, nctx *FlowNotificationContext, value *Value) error {
+		ne := NotificationEntry{
+			Object: nctx.NotificationObject,
+			ID:     nctx.EntryID,
+			Time:   nctx.EntryTime,
+		}
+		change := Change{
+			Field: nctx.ChangeField,
+			Value: value,
+		}
+		if err := h.Handle(ctx, ne, change); err != nil {
+			return fmt.Errorf("flows fallback: %w", err)
+		}
+		return nil
+	})
 }
 
 // HandleNotification processes an incoming WhatsApp webhook notification.
@@ -188,6 +221,8 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 // handler based on change.Field. Unknown fields are short-circuited via
 // [isKnownField] and routed to the general fallback (if set) or silently
 // acknowledged.
+//
+//nolint:gocognit // dispatch switch
 func (handler *Handler) handleNotificationChange(
 	ctx context.Context,
 	notification *Notification,
@@ -209,7 +244,9 @@ func (handler *Handler) handleNotificationChange(
 	_, isImplemented := handler.changeFieldHandlers.Check(change.Field)
 	if !isImplemented {
 		if handler.fallback != nil {
-			return fmt.Errorf("general fallback: %w", handler.fallback.Handle(ctx, ne, change))
+			if err := handler.fallback.Handle(ctx, ne, change); err != nil {
+				return fmt.Errorf("general fallback: %w", err)
+			}
 		}
 		return nil
 	}
@@ -218,9 +255,17 @@ func (handler *Handler) handleNotificationChange(
 
 	switch cfc {
 	case ChangeFieldCategoryFlows:
-		return handler.flows.Handle(ctx, ne, change)
+		if handler.flows != nil {
+			return handler.flows.Handle(ctx, ne, change)
+		}
 	case ChangeFieldCategoryBusiness:
-		return handler.business.Handle(ctx, ne, change)
+		if handler.business != nil {
+			return handler.business.Handle(ctx, ne, change)
+		}
+	case ChangeFieldCategoryCalls:
+		if handler.calls != nil {
+			return handler.calls.Handle(ctx, ne, change)
+		}
 	case ChangeFieldCategoryUserPreferences:
 		return handler.handleUserPreferencesChange(ctx, ne, change)
 	case ChangeFieldCategorySMBAppStateSync:
@@ -230,16 +275,22 @@ func (handler *Handler) handleNotificationChange(
 	case ChangeFieldCategorySMBMessageEchoes:
 		return handler.handleSMBMessageEchoesChange(ctx, ne, change)
 	case ChangeFieldCategoryGroups:
-		return handler.groups.Handle(ctx, ne, change)
-	case ChangeFieldCategoryHistory:
-		return handler.history.Handle(ctx, ne, change)
-
-	default:
-		if handler.fallback != nil {
-			return fmt.Errorf("fallback: %w", handler.fallback.Handle(ctx, ne, change))
+		if handler.groups != nil {
+			return handler.groups.Handle(ctx, ne, change)
 		}
-		return nil
+	case ChangeFieldCategoryHistory:
+		if handler.history != nil {
+			return handler.history.Handle(ctx, ne, change)
+		}
 	}
+
+	// Nil sub-handler or unknown category → try the general fallback.
+	if handler.fallback != nil {
+		if err := handler.fallback.Handle(ctx, ne, change); err != nil {
+			return fmt.Errorf("fallback: %w", err)
+		}
+	}
+	return nil
 }
 
 // handleError routes an error through the Handler's central ErrorHandler.
@@ -253,6 +304,90 @@ func (handler *Handler) handleError(ctx context.Context, err error) error {
 		return fmt.Errorf("error handler: %w", handlerErr)
 	}
 	return nil
+}
+
+// ensureMessages lazily initialises handler.messages so that On* registration
+// methods never panic on a nil sub-handler. The MessagesHandler starts with all
+// handler fields nil — the fallback cascade treats nil as "not configured.".
+func (handler *Handler) ensureMessages() *MessagesHandler {
+	if handler.messages == nil {
+		handler.messages = &MessagesHandler{}
+	}
+	return handler.messages
+}
+
+// ensureFlows lazily initialises handler.flows.
+func (handler *Handler) ensureFlows() *FlowNotificationHandler {
+	if handler.flows == nil {
+		handler.flows = &FlowNotificationHandler{}
+	}
+	return handler.flows
+}
+
+// ensureBusiness lazily initialises handler.business.
+func (handler *Handler) ensureBusiness() *BusinessNotificationHandler {
+	if handler.business == nil {
+		handler.business = &BusinessNotificationHandler{}
+	}
+	return handler.business
+}
+
+// ensureGroups lazily initialises handler.groups.
+func (handler *Handler) ensureGroups() *GroupManagementHandler {
+	if handler.groups == nil {
+		handler.groups = &GroupManagementHandler{}
+	}
+	return handler.groups
+}
+
+// ensureHistory lazily initialises handler.history.
+func (handler *Handler) ensureHistory() *HistoryHandler {
+	if handler.history == nil {
+		handler.history = &HistoryHandler{}
+	}
+	return handler.history
+}
+
+// ensureCalls lazily initialises handler.calls.
+func (handler *Handler) ensureCalls() *CallsHandler {
+	if handler.calls == nil {
+		handler.calls = &CallsHandler{}
+	}
+	return handler.calls
+}
+
+// Messages returns the MessagesHandler, lazily initialising it if necessary.
+// Use this to configure sub-handler fields (Media, Interactive, Fallback)
+// directly when the On* convenience methods are insufficient.
+func (handler *Handler) Messages() *MessagesHandler {
+	return handler.ensureMessages()
+}
+
+// Flows returns the FlowNotificationHandler, lazily initialising it if necessary.
+func (handler *Handler) Flows() *FlowNotificationHandler {
+	return handler.ensureFlows()
+}
+
+// Business returns the BusinessNotificationHandler, lazily initialising it if necessary.
+func (handler *Handler) Business() *BusinessNotificationHandler {
+	return handler.ensureBusiness()
+}
+
+// Groups returns the GroupManagementHandler, lazily initialising it if necessary.
+func (handler *Handler) Groups() *GroupManagementHandler {
+	return handler.ensureGroups()
+}
+
+// History returns the HistoryHandler, lazily initialising it if necessary.
+func (handler *Handler) History() *HistoryHandler {
+	return handler.ensureHistory()
+}
+
+// Calls returns the CallsHandler, lazily initialising it if necessary.
+// Use this to configure sub-handler fields (Connect, Created, Terminate,
+// Status, Fallback) directly when the On* convenience methods are insufficient.
+func (handler *Handler) Calls() *CallsHandler {
+	return handler.ensureCalls()
 }
 
 func (handler *Handler) handleUserPreferencesChange(
@@ -286,6 +421,9 @@ func (handler *Handler) handleSMBMessageEchoesChange(
 	ne NotificationEntry,
 	change Change,
 ) error {
+	if handler.messages == nil {
+		return nil
+	}
 	notificationCtx := &MessageNotificationContext{
 		EntryID:            ne.ID,
 		EntryTime:          ne.Time,
@@ -298,7 +436,7 @@ func (handler *Handler) handleSMBMessageEchoesChange(
 		if msg == nil {
 			continue
 		}
-		if err := handler.messages.Handle(ctx, notificationCtx, msg); err != nil {
+		if err := handler.messages.handleOne(ctx, notificationCtx, msg); err != nil {
 			return handler.handleError(ctx, err)
 		}
 	}
@@ -467,10 +605,11 @@ type (
 	}
 
 	Interactive struct {
-		Type        InteractiveType `json:"type,omitempty"`
-		ButtonReply *ButtonReply    `json:"button_reply,omitempty"`
-		ListReply   *ListReply      `json:"list_reply,omitempty"`
-		NFMReply    *NFMReply       `json:"nfm_reply,omitempty"`
+		Type                InteractiveType      `json:"type,omitempty"`
+		ButtonReply         *ButtonReply         `json:"button_reply,omitempty"`
+		ListReply           *ListReply           `json:"list_reply,omitempty"`
+		NFMReply            *NFMReply            `json:"nfm_reply,omitempty"`
+		CallPermissionReply *CallPermissionReply `json:"call_permission_reply,omitempty"`
 	}
 
 	NFMReply struct {

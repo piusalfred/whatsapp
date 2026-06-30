@@ -23,19 +23,101 @@ These exist solely to make `On*` method signatures self-documenting. Without the
 registrations would read `handler.OnTextMessage(h MessageHandler[Text])` — technically
 equivalent but noisier. The trade-off is a larger godoc surface.
 
-### Two-Level Fallback Architecture
+### Three-Layer Fallback Architecture
 
-Each sub-handler has its own `Fallback` field. The dispatch chain is:
+The fallback cascade has three layers that catch unhandled webhook events at
+increasing levels of generality. Every layer that returns `nil` silently
+acknowledges the event (HTTP 200) so WhatsApp does not retry.
 
 ```
-dispatcher → dedicated handler (if set)
-           → sub-handler fallback (if set)
-           → general fallback (Handler.OnFallback)
-           → silent skip (HTTP 200)
+┌─────────────────────────────────────────────────┐
+│ Layer 1 — Unknown field                          │
+│ change.Field is NOT in the implemented set       │
+│ → handler.Fallback (Handler.OnFallback)          │
+└────────────────┬────────────────────────────────┘
+                 │ field IS implemented
+┌────────────────▼────────────────────────────────┐
+│ Layer 2 — Nil sub-handler                        │
+│ handler.<domain> is nil (no On* called yet)      │
+│ → handler.Fallback (same Handler.OnFallback)     │
+└────────────────┬────────────────────────────────┘
+                 │ sub-handler is non-nil
+┌────────────────▼────────────────────────────────┐
+│ Layer 3 — Unhandled sub-field                    │
+│ Sub-handler exists but specific field is nil     │
+│ → <domain>.Fallback (OnFallback on sub-handler)  │
+└────────────────┬────────────────────────────────┘
+                 │ no sub-fallback set
+               HTTP 200 (silent)
 ```
 
-This lets users catch unknown event types within a domain (e.g., new flow events)
-without affecting other domains. See each sub-handler's `OnFallback` method.
+Each sub-handler (`FlowNotificationHandler`, `BusinessNotificationHandler`,
+`GroupManagementHandler`, `MessagesHandler`, `HistoryHandler`) has its own
+`Fallback` field that catches unhandled fields **within** its domain without
+affecting other domains.
+
+Calling `Handler.OnFallback` **propagates** the fallback to every non-nil
+sub-handler that does not already have its own `Fallback` set. This means you
+can register a single catch-all and it will work for all domains, or you can
+set per-domain fallbacks for finer control.
+
+**Concrete example — Group Management:**
+
+```go
+h := webhooks.NewHandler()
+
+// Layer 3: Set a fallback on the Groups sub-handler for unhandled group fields.
+h.Groups().OnFallback(webhooks.FallbackHandlerFunc(
+    func(ctx context.Context, ne webhooks.NotificationEntry, c webhooks.Change) error {
+        log.Printf("unhandled group field: %s", c.Field)
+        return nil // acknowledge, don't error
+    },
+))
+
+// Register a dedicated handler for group lifecycle events.
+h.OnGroupLifecycleUpdate(webhooks.ChangeValueHandlerFunc[webhooks.Group](
+    func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.Group]) error {
+        for _, g := range req.Payload {
+            log.Printf("group %s: %s", g.GroupID, g.Type)
+        }
+        return nil
+    },
+))
+
+// Now:
+//   group_lifecycle_update → dedicated handler fires (layer 3 match)
+//   group_status_update   → Groups.Fallback fires (layer 3 fallthrough)
+//   account_alerts        → handler.Fallback fires (layer 1, unknown field)
+//
+// If no Groups.OnFallback had been set, group_status_update would
+// silently return 200 (the layer 3 default).
+```
+
+**Layer-by-layer behavior:**
+
+| Scenario | Layer | Outcome |
+|---|---|---|
+| Field not in implemented set, no fallback | 1 | HTTP 200 (silent) |
+| Field not in implemented set, handler.OnFallback set | 1 | Fallback invoked |
+| Sub-handler nil (no On* called for that domain) | 2 | Same as Layer 1 |
+| Sub-handler exists, dedicated handler set | 3 | Dedicated handler invoked |
+| Sub-handler exists, dedicated handler nil, sub-fallback set | 3 | Sub-fallback invoked |
+| Sub-handler exists, dedicated handler nil, no sub-fallback | 3 | HTTP 200 (silent) |
+
+The public accessors `Handler.Messages()`, `Handler.Flows()`,
+`Handler.Business()`, `Handler.Groups()`, and `Handler.History()` lazily
+initialise their sub-handler on first call and return it for direct
+configuration. Use them when you need to set a sub-handler `Fallback`,
+`ErrorHandler`, or nested fields (`Media`, `Interactive`) before any
+dedicated `On*` registration.
+
+> **Messages dispatch is different.** The `"messages"` webhook field carries
+> three kinds of payload in a single change: notification errors, message
+> status updates, *and* incoming messages. `Handler.OnNotificationErrors`
+> and `Handler.OnMessageStatusChange` are registered directly on `Handler`
+> (not on `MessagesHandler`), so they fire even when `handler.messages` is
+> nil. The nil-guard for layer 2 only applies to the messages loop — status
+> and error handlers always run when the `"messages"` field arrives.
 
 ### Error Routing with `handleError`
 

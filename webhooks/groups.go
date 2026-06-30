@@ -73,19 +73,19 @@ type (
 )
 
 func (handler *Handler) OnGroupLifecycleUpdate(h GroupLifecycleUpdateHandler) {
-	handler.groups.LifecycleUpdate = h
+	handler.ensureGroups().LifecycleUpdate = h
 }
 
 func (handler *Handler) OnGroupParticipantsUpdate(h GroupParticipantsUpdateHandler) {
-	handler.groups.ParticipantsUpdate = h
+	handler.ensureGroups().ParticipantsUpdate = h
 }
 
 func (handler *Handler) OnGroupSettingsUpdate(h GroupSettingsUpdateHandler) {
-	handler.groups.SettingsUpdate = h
+	handler.ensureGroups().SettingsUpdate = h
 }
 
 func (handler *Handler) OnGroupStatusUpdate(h GroupStatusUpdateHandler) {
-	handler.groups.StatusUpdate = h
+	handler.ensureGroups().StatusUpdate = h
 }
 
 // GroupManagementHandler groups all group webhook field handlers into a single

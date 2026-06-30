@@ -239,7 +239,7 @@ func (hh *HistoryHandler) Handle(
 // OnHistorySync registers a handler for chat history entries (threads of
 // messages with delivery status).
 func (handler *Handler) OnHistorySync(h ChangeValueHandler[HistoryEntry]) {
-	handler.history.OnMessages(h)
+	handler.ensureHistory().OnMessages(h)
 }
 
 // OnHistoryMediaMessages registers a handler for media content webhooks
@@ -247,11 +247,11 @@ func (handler *Handler) OnHistorySync(h ChangeValueHandler[HistoryEntry]) {
 // (including media asset IDs) for messages that appeared as
 // "media_placeholder" in the history threads.
 func (handler *Handler) OnHistoryMediaMessages(h MessageHandler[Message]) {
-	handler.history.OnMediaMessages(h)
+	handler.ensureHistory().OnMediaMessages(h)
 }
 
 // OnHistoryFallback registers a catch-all handler for history webhooks
 // that don't match either chat history entries or media content.
 func (handler *Handler) OnHistoryFallback(h FallbackHandler) {
-	handler.history.OnFallback(h)
+	handler.ensureHistory().OnFallback(h)
 }

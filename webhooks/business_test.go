@@ -78,15 +78,15 @@ func TestBusinessNotificationHandler_DedicatedCall(t *testing.T) {
 		t.Parallel()
 
 		bh := &webhooks.BusinessNotificationHandler{}
-		bh.OnCalls(webhooks.BusinessEventHandlerFunc[webhooks.CallStatusUpdate](
-			func(_ context.Context, _ *webhooks.BusinessRequest[webhooks.CallStatusUpdate]) error {
+		bh.OnSecurity(webhooks.BusinessEventHandlerFunc[webhooks.SecurityNotification](
+			func(_ context.Context, _ *webhooks.BusinessRequest[webhooks.SecurityNotification]) error {
 				return errDummy
 			},
 		))
 
 		change := webhooks.Change{
-			Field: webhooks.ChangeFieldCalls.String(),
-			Value: &webhooks.Value{},
+			Field: webhooks.ChangeFieldSecurity.String(),
+			Value: &webhooks.Value{Event: "PIN_CHANGED"},
 		}
 
 		err := bh.Handle(context.Background(), ne, change)
