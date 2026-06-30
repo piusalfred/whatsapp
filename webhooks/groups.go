@@ -110,7 +110,9 @@ type GroupManagementHandler struct {
 	ParticipantsUpdate ChangeValueHandler[Group]
 	SettingsUpdate     ChangeValueHandler[Group]
 	StatusUpdate       ChangeValueHandler[Group]
-	Fallback           FallbackHandler
+
+	Fallback     FallbackHandler
+	ErrorHandler ErrorHandler
 }
 
 // OnLifecycleUpdate sets the handler for group_lifecycle_update webhooks

@@ -102,6 +102,7 @@ type HistoryContext struct {
 //	))
 type HistoryHandler struct {
 	Messages ChangeValueHandler[HistoryEntry]
+	ErrorHandler ErrorHandler
 }
 
 // OnMessages sets the handler for history sync webhooks.
@@ -114,7 +115,7 @@ func (hh *HistoryHandler) OnMessages(h ChangeValueHandler[HistoryEntry]) {
 	hh.Messages = h
 }
 
-// HandleHistoryMessages dispatches the history entries to the configured
+// Handle dispatches the history entries to the configured
 // handler. Returns nil when no handler is set.
 //
 // WARNING: Do not process the payload in this handler. A single webhook can
@@ -128,11 +129,10 @@ func (hh *HistoryHandler) OnMessages(h ChangeValueHandler[HistoryEntry]) {
 // History media content webhooks (change.Value.Messages populated under the
 // "history" field) are handled separately by the standard message handler —
 // they are not processed here.
-func (hh *HistoryHandler) HandleHistoryMessages(
+func (hh *HistoryHandler) Handle(
 	ctx context.Context,
 	ne NotificationEntry,
 	change Change,
-	onError ErrorHandler,
 ) error {
 	if len(change.Value.History) == 0 || hh.Messages == nil {
 		return nil
@@ -156,8 +156,8 @@ func (hh *HistoryHandler) HandleHistoryMessages(
 		Payload:      entries,
 	}
 	if err := hh.Messages.Handle(ctx, req); err != nil {
-		if onError != nil {
-			if handlerErr := onError.Handle(ctx, err); handlerErr != nil {
+		if hh.ErrorHandler != nil {
+			if handlerErr := hh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
 				return fmt.Errorf("error handler: %w", handlerErr)
 			}
 		}

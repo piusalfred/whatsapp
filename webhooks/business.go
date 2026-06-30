@@ -35,10 +35,8 @@ type (
 	BusinessEventHandlerFunc[T any] EventHandlerFunc[BusinessNotificationContext, T]
 )
 
-func (f BusinessEventHandlerFunc[T]) HandleEvent(ctx context.Context,
-	ntx *BusinessNotificationContext, notification *T,
-) error {
-	return f(ctx, ntx, notification)
+func (f BusinessEventHandlerFunc[T]) Handle(ctx context.Context, req *BusinessRequest[T]) error {
+	return f(ctx, req)
 }
 
 type (
@@ -181,33 +179,21 @@ type (
 	RestrictionType string
 )
 
-// Type aliases for business event handlers.
-
-type AlertsHandler = BusinessEventHandler[AlertNotification]
-
-type TemplateStatusHandler = BusinessEventHandler[TemplateStatusUpdateNotification]
-
-type TemplateCategoryHandler = BusinessEventHandler[TemplateCategoryUpdateNotification]
-
-type TemplateQualityHandler = BusinessEventHandler[TemplateQualityUpdateNotification]
-
-type PhoneNumberNameUpdateHandler = BusinessEventHandler[PhoneNumberNameUpdate]
-
-type CapabilityUpdateHandler = BusinessEventHandler[CapabilityUpdate]
-
-type AccountUpdateHandler = BusinessEventHandler[AccountUpdate]
-
-type PhoneNumberQualityUpdateHandler = BusinessEventHandler[PhoneNumberQualityUpdate]
-
-type AccountReviewUpdateHandler = BusinessEventHandler[AccountReviewUpdate]
-
-type TemplateComponentsHandler = BusinessEventHandler[TemplateComponentsUpdateNotification]
-
-type CallsHandler = BusinessEventHandler[CallStatusUpdate]
-
-type SecurityHandler = BusinessEventHandler[SecurityNotification]
-
-type PhoneSettingsHandler = BusinessEventHandler[PhoneNumberSettings]
+type (
+	AlertsHandler                   = BusinessEventHandler[AlertNotification]
+	TemplateStatusHandler           = BusinessEventHandler[TemplateStatusUpdateNotification]
+	TemplateCategoryHandler         = BusinessEventHandler[TemplateCategoryUpdateNotification]
+	TemplateQualityHandler          = BusinessEventHandler[TemplateQualityUpdateNotification]
+	PhoneNumberNameUpdateHandler    = BusinessEventHandler[PhoneNumberNameUpdate]
+	CapabilityUpdateHandler         = BusinessEventHandler[CapabilityUpdate]
+	AccountUpdateHandler            = BusinessEventHandler[AccountUpdate]
+	PhoneNumberQualityUpdateHandler = BusinessEventHandler[PhoneNumberQualityUpdate]
+	AccountReviewUpdateHandler      = BusinessEventHandler[AccountReviewUpdate]
+	TemplateComponentsHandler       = BusinessEventHandler[TemplateComponentsUpdateNotification]
+	CallsHandler                    = BusinessEventHandler[CallStatusUpdate]
+	SecurityHandler                 = BusinessEventHandler[SecurityNotification]
+	PhoneSettingsHandler            = BusinessEventHandler[PhoneNumberSettings]
+)
 
 const (
 	RestrictionTypeRestrictedAddPhoneNumber    RestrictionType = "RESTRICTED_ADD_PHONE_NUMBER_ACTION"
@@ -290,76 +276,79 @@ type BusinessNotificationHandler struct {
 	PhoneSettings      BusinessEventHandler[PhoneNumberSettings]
 	Calls              BusinessEventHandler[CallStatusUpdate]
 	Security           BusinessEventHandler[SecurityNotification]
+	Fallback           FallbackHandler
+	ErrorHandler       ErrorHandler
 }
 
 // OnAlerts sets the handler for account_alerts events.
-func (bh *BusinessNotificationHandler) OnAlerts(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *AlertNotification) error,
-) {
-	bh.Alerts = BusinessEventHandlerFunc[AlertNotification](fn)
+func (bh *BusinessNotificationHandler) OnAlerts(h BusinessEventHandler[AlertNotification]) {
+	bh.Alerts = h
 }
 
 // OnTemplateStatus sets the handler for message_template_status_update events.
-func (bh *BusinessNotificationHandler) OnTemplateStatus(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *TemplateStatusUpdateNotification) error,
-) {
-	bh.TemplateStatus = BusinessEventHandlerFunc[TemplateStatusUpdateNotification](fn)
+func (bh *BusinessNotificationHandler) OnTemplateStatus(h BusinessEventHandler[TemplateStatusUpdateNotification]) {
+	bh.TemplateStatus = h
 }
 
 // OnTemplateCategory sets the handler for message_template_category_update events.
-func (bh *BusinessNotificationHandler) OnTemplateCategory(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *TemplateCategoryUpdateNotification) error,
-) {
-	bh.TemplateCategory = BusinessEventHandlerFunc[TemplateCategoryUpdateNotification](fn)
+func (bh *BusinessNotificationHandler) OnTemplateCategory(h BusinessEventHandler[TemplateCategoryUpdateNotification]) {
+	bh.TemplateCategory = h
 }
 
 // OnTemplateQuality sets the handler for message_template_quality_update events.
-func (bh *BusinessNotificationHandler) OnTemplateQuality(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *TemplateQualityUpdateNotification) error,
-) {
-	bh.TemplateQuality = BusinessEventHandlerFunc[TemplateQualityUpdateNotification](fn)
+func (bh *BusinessNotificationHandler) OnTemplateQuality(h BusinessEventHandler[TemplateQualityUpdateNotification]) {
+	bh.TemplateQuality = h
 }
 
 // OnTemplateComponents sets the handler for message_template_components_update events.
 func (bh *BusinessNotificationHandler) OnTemplateComponents(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *TemplateComponentsUpdateNotification) error,
+	h BusinessEventHandler[TemplateComponentsUpdateNotification],
 ) {
-	bh.TemplateComponents = BusinessEventHandlerFunc[TemplateComponentsUpdateNotification](fn)
+	bh.TemplateComponents = h
 }
 
 // OnPhoneNumberName sets the handler for phone_number_name_update events.
-func (bh *BusinessNotificationHandler) OnPhoneNumberName(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *PhoneNumberNameUpdate) error,
-) {
-	bh.PhoneNumberName = BusinessEventHandlerFunc[PhoneNumberNameUpdate](fn)
+func (bh *BusinessNotificationHandler) OnPhoneNumberName(h BusinessEventHandler[PhoneNumberNameUpdate]) {
+	bh.PhoneNumberName = h
 }
 
 // OnPhoneNumberQuality sets the handler for phone_number_quality_update events.
-func (bh *BusinessNotificationHandler) OnPhoneNumberQuality(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *PhoneNumberQualityUpdate) error,
-) {
-	bh.PhoneNumberQuality = BusinessEventHandlerFunc[PhoneNumberQualityUpdate](fn)
+func (bh *BusinessNotificationHandler) OnPhoneNumberQuality(h BusinessEventHandler[PhoneNumberQualityUpdate]) {
+	bh.PhoneNumberQuality = h
 }
 
 // OnAccountReview sets the handler for account_review_update events.
-func (bh *BusinessNotificationHandler) OnAccountReview(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *AccountReviewUpdate) error,
-) {
-	bh.AccountReview = BusinessEventHandlerFunc[AccountReviewUpdate](fn)
+func (bh *BusinessNotificationHandler) OnAccountReview(h BusinessEventHandler[AccountReviewUpdate]) {
+	bh.AccountReview = h
 }
 
 // OnAccount sets the handler for account_update events.
-func (bh *BusinessNotificationHandler) OnAccount(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *AccountUpdate) error,
-) {
-	bh.Account = BusinessEventHandlerFunc[AccountUpdate](fn)
+func (bh *BusinessNotificationHandler) OnAccount(h BusinessEventHandler[AccountUpdate]) {
+	bh.Account = h
 }
 
 // OnCapability sets the handler for business_capability_update events.
-func (bh *BusinessNotificationHandler) OnCapability(
-	fn func(ctx context.Context, nctx *BusinessNotificationContext, details *CapabilityUpdate) error,
-) {
-	bh.Capability = BusinessEventHandlerFunc[CapabilityUpdate](fn)
+func (bh *BusinessNotificationHandler) OnCapability(h BusinessEventHandler[CapabilityUpdate]) {
+	bh.Capability = h
+}
+
+// OnPhoneSettings sets the handler for account_settings_update events.
+func (bh *BusinessNotificationHandler) OnPhoneSettings(h BusinessEventHandler[PhoneNumberSettings]) {
+	bh.PhoneSettings = h
+}
+
+// OnCalls sets the handler for calls events.
+func (bh *BusinessNotificationHandler) OnCalls(h BusinessEventHandler[CallStatusUpdate]) {
+	bh.Calls = h
+}
+
+// OnSecurity sets the handler for security events.
+func (bh *BusinessNotificationHandler) OnSecurity(h BusinessEventHandler[SecurityNotification]) {
+	bh.Security = h
+}
+
+// OnFallback sets the catch-all handler for business events without a dedicated
+// sub-category handler.
 func (bh *BusinessNotificationHandler) OnFallback(h FallbackHandler) {
 	bh.Fallback = h
 }
@@ -492,15 +481,6 @@ func (bh *BusinessNotificationHandler) Handle(
 	if bh.Fallback != nil {
 		if err := bh.Fallback.Handle(ctx, ne, change); err != nil {
 			return fmt.Errorf("business fallback: %w", err)
-		}
-	}
-	return nil
-}
-
-func handleBusinessError(ctx context.Context, onError func(context.Context, error) error, err error) error {
-	if onError != nil {
-		if handlerErr := onError(ctx, err); handlerErr != nil {
-			return fmt.Errorf("error handler: %w", handlerErr)
 		}
 	}
 	return nil

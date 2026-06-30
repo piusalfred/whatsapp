@@ -134,7 +134,9 @@ type FlowNotificationHandler struct {
 	// dedicated handler set — both unknown event types and known types
 	// left nil. When nil, those events are silently acknowledged (HTTP 200)
 	// to prevent WhatsApp from retrying.
-	FallbackHandler FlowFallbackHandler
+	Fallback FlowFallbackHandler
+
+	ErrorHandler ErrorHandler
 }
 
 // OnFlowStatusChange sets the handler for FLOW_STATUS_CHANGE events.
@@ -161,7 +163,7 @@ func (fh *FlowNotificationHandler) OnFlowEndpointLatency(h FlowEndpointLatencyHa
 // handler — covers unknown event types and known types left nil.
 // Equivalent to assigning [FallbackHandler] directly.
 func (fh *FlowNotificationHandler) OnFallback(h FlowFallbackHandler) {
-	fh.FallbackHandler = h
+	fh.Fallback = h
 }
 
 // OnFlowEndpointAvailability sets the handler for ENDPOINT_AVAILABILITY events.
@@ -170,20 +172,37 @@ func (fh *FlowNotificationHandler) OnFlowEndpointAvailability(h FlowEndpointAvai
 }
 
 // Handle dispatches the flow value to the correct event handler based on
-// value.Event.
+// change.Value.Event.
 //
 //  1. If a dedicated handler is registered and not nil, it is called with
 //     the extracted details (e.g., [Value.FlowStatusChange]).
-//  2. Otherwise, falls back to [FallbackHandler] — this covers both unknown
-//     flow event types and known types without a dedicated handler.
-//  3. If [FallbackHandler] is also nil, the event is silently skipped (HTTP 200).
+//  2. Otherwise, falls back to [FlowFallbackHandler] — this covers both
+//     unknown flow event types and known types without a dedicated handler.
+//  3. If [FlowFallbackHandler] is also nil, the event is silently skipped
+//     (HTTP 200).
 //
 //nolint:wrapcheck // typed dispatch; user handlers own error context
 func (fh *FlowNotificationHandler) Handle(
 	ctx context.Context,
-	nctx *FlowNotificationContext,
-	value *Value,
+	ne NotificationEntry,
+	change Change,
 ) error {
+	if change.Value == nil {
+		return nil
+	}
+
+	nctx := &FlowNotificationContext{
+		NotificationObject: ne.Object,
+		EntryID:            ne.ID,
+		EntryTime:          ne.Time,
+		ChangeField:        change.Field,
+		EventName:          change.Value.Event,
+		EventMessage:       change.Value.Message,
+		FlowID:             change.Value.FlowID,
+	}
+
+	value := change.Value
+
 	switch value.Event {
 	case EventFlowStatusChange:
 		if fh.Status != nil {
@@ -227,9 +246,8 @@ func (fh *FlowNotificationHandler) Handle(
 		}
 	}
 
-	// Known event without handler, or unknown flow event — fall back.
-	if fh.FallbackHandler != nil {
-		return fh.FallbackHandler.Handle(ctx, nctx, value)
+	if fh.Fallback != nil {
+		return fh.Fallback.Handle(ctx, nctx, value)
 	}
 
 	return nil

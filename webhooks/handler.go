@@ -157,17 +157,6 @@ func (handler *Handler) OnError(h ErrorHandler) {
 func (handler *Handler) SetGeneralFallbackHandler(h FallbackHandler) {
 	handler.fallback = h
 
-	if handler.flows != nil && handler.flows.FallbackHandler == nil {
-		handler.flows.FallbackHandler = FlowFallbackHandlerFunc(
-			func(ctx context.Context, nctx *FlowNotificationContext, value *Value) error {
-				return h.Handle(
-					ctx,
-					NotificationEntry{Object: nctx.NotificationObject, ID: nctx.EntryID, Time: nctx.EntryTime},
-					Change{Value: value},
-				)
-			},
-		)
-	}
 	if handler.business != nil && handler.business.Fallback == nil {
 		handler.business.Fallback = h
 	}
@@ -265,23 +254,7 @@ func (handler *Handler) handleFlowsChange(
 	ne NotificationEntry,
 	change Change,
 ) error {
-	notificationCtx := &FlowNotificationContext{
-		NotificationObject: ne.Object,
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		ChangeField:        change.Field,
-		EventName:          change.Value.Event,
-		EventMessage:       change.Value.Message,
-		FlowID:             change.Value.FlowID,
-	}
-	if err := handler.flows.Handle(ctx, notificationCtx, change.Value); err != nil {
-		if handler.errorHandler != nil {
-			if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
-				return fmt.Errorf("error handler: %w", handlerErr)
-			}
-		}
-	}
-	return nil
+	return handler.flows.Handle(ctx, ne, change)
 }
 
 func (handler *Handler) handleUserPreferencesChange(
@@ -440,6 +413,22 @@ func NewNoOpFlowEventHandler[T any]() FlowEventHandler[T] {
 	return FlowEventHandlerFunc[T](func(_ context.Context, _ *FlowRequest[T]) error {
 		return nil
 	})
+}
+
+type (
+	// EventHandler is the generic interface for handling typed webhook events.
+	// CtxT is the context type carried in the BusinessRequest (e.g.,
+	// BusinessNotificationContext), and T is the typed payload.
+	EventHandler[CtxT any, T any] interface {
+		Handle(ctx context.Context, req *BusinessRequest[T]) error
+	}
+
+	// EventHandlerFunc adapts a bare function to the EventHandler interface.
+	EventHandlerFunc[CtxT any, T any] func(ctx context.Context, req *BusinessRequest[T]) error
+)
+
+func (f EventHandlerFunc[CtxT, T]) Handle(ctx context.Context, req *BusinessRequest[T]) error {
+	return f(ctx, req)
 }
 
 func (c *Contact) SenderInfo() *SenderInfo {
