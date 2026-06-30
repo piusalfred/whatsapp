@@ -617,26 +617,32 @@ type MediaHandler struct {
 }
 
 // OnAudio sets the handler for audio messages.
+// Metadata includes MIME type, SHA-256 hash, and a download URL.
+// For voice messages, check the voice field via the Media API.
 func (mh *MediaHandler) OnAudio(h MediaMessageHandler) {
 	mh.Audio = h
 }
 
 // OnVideo sets the handler for video messages.
+// Metadata includes MIME type, SHA-256 hash, caption, and download URL.
 func (mh *MediaHandler) OnVideo(h MediaMessageHandler) {
 	mh.Video = h
 }
 
 // OnImage sets the handler for image messages.
+// Metadata includes MIME type, SHA-256 hash, caption, and download URL.
 func (mh *MediaHandler) OnImage(h MediaMessageHandler) {
 	mh.Image = h
 }
 
 // OnDocument sets the handler for document messages.
+// Metadata includes filename, MIME type, SHA-256 hash, caption, and download URL.
 func (mh *MediaHandler) OnDocument(h MediaMessageHandler) {
 	mh.Document = h
 }
 
 // OnSticker sets the handler for sticker messages.
+// Metadata includes MIME type, SHA-256 hash, and an animated flag.
 func (mh *MediaHandler) OnSticker(h MediaMessageHandler) {
 	mh.Sticker = h
 }

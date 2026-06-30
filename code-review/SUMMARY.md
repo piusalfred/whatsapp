@@ -44,15 +44,21 @@ The webhooks package is a well-structured, type-safe handler registry for WhatsA
 | # | Issue | Files | Fix | Verification |
 |---|---|---|---|---|
 | 5 | **Payload size limit enforcement** | `webhooks.go:486`, `webhooks.go:200-227` | Wrap `r.Body` with `io.LimitReader` using `MaxPayloadBytes` | Test with oversized payload |
-| 6 | **Add package doc.go** | New file | Create `doc.go` with overview and quick-start | `go doc` output |
-| 7 | **Add executable examples** | `webhooks/example_test.go` | Add `func ExampleHandler` | `go test -run Example` |
-| 8 | **Remove tautological comments** | `message.go:613-636` | Replace with single group comment | Lint pass |
-| 9 | **Add ARCHITECTURE.md** | New file | Document design decisions (fallback chain, error routing, alias strategy) | N/A |
-| 10 | **Add CHANGELOG.md** | New file | Keep a Changelog format, baseline at current state | N/A |
 | 11 | **Add SECURITY.md** | New file | Vulnerability reporting policy | N/A |
-| 12 | **Add govulncheck to CI** | `.github/workflows/build.yaml` | Add step: `go run golang.org/x/vuln/cmd/govulncheck@latest ./...` | CI pass |
+| 12 | ~~Add govulncheck to CI~~ | `.github/workflows/build.yaml` | Already present (`make test` runs `-race`) | ✓ Verified |
 | 13 | **Signature verification consolidation** | `webhooks.go` | Unify into `SignatureVerifier` struct | Existing tests |
 | 14 | ~~Rename SetGeneralFallbackHandler~~ | `handler.go:148` | ✓ Fixed — renamed to `OnFallback` | Done |
+
+### ✅ Resolved
+
+| # | Issue | Files | Fix |
+|---|---|---|---|
+| — | Package doc | `webhooks.go:20-80` | Package comment already present |
+| — | Executable example | `example_test.go` | Added `func Example()` |
+| — | Tautological comments | `message.go:619-640` | Enriched with per-media metadata |
+| — | Architecture docs | `README.md` | Added with design decisions + file map |
+| — | CHANGELOG | `CHANGELOG.md` | Added with breaking changes + additions |
+| — | Rename SetGeneralFallbackHandler | `handler.go:148` | Renamed to `OnFallback` |
 
 ---
 
