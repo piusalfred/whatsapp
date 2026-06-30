@@ -272,7 +272,7 @@ func ExtractAndValidatePayload(request *http.Request, options *ValidateOptions) 
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrReadNotification, err)
 	}
-	if buff.Len() >= MaxPayloadBytes {
+	if buff.Len() == MaxPayloadBytes {
 		return nil, ErrPayloadTooLarge
 	}
 
