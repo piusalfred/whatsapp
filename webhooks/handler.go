@@ -58,12 +58,12 @@ type Handler struct {
 	business *BusinessNotificationHandler
 	messages *MessagesHandler
 	groups   *GroupManagementHandler
+	history  *HistoryHandler
 
 	notificationErrors    ChangeValueHandler[werrors.Error]
 	messageStatusChange   ChangeValueHandler[Status]
 	smbAppStateSync       ChangeValueHandler[SMBAppStateSync]
 	userPreferencesUpdate ChangeValueHandler[UserPreference]
-	historySync           ChangeValueHandler[HistoryEntry]
 
 	errorHandler ErrorHandler
 
@@ -113,18 +113,9 @@ func NewHandler() *Handler {
 	)
 
 	h := &Handler{
-		flows:                 nil,
-		business:              nil,
-		messages:              nil,
-		groups:                nil,
-		notificationErrors:    nil,
-		messageStatusChange:   nil,
-		smbAppStateSync:       nil,
-		userPreferencesUpdate: nil,
-		historySync:           nil,
-		errorHandler:          passThroughOnError,
-		changeFieldHandlers:   initChangeFieldMap(implemented...),
-		fallback:              fallback,
+		errorHandler:        passThroughOnError,
+		changeFieldHandlers: initChangeFieldMap(implemented...),
+		fallback:            fallback,
 	}
 
 	return h
@@ -163,6 +154,9 @@ func (handler *Handler) SetGeneralFallbackHandler(h FallbackHandler) {
 	if handler.groups != nil && handler.groups.Fallback == nil {
 		handler.groups.Fallback = h
 	}
+	if handler.history != nil && handler.history.Fallback == nil {
+		handler.history.Fallback = h
+	}
 }
 
 // HandleNotification processes an incoming WhatsApp webhook notification.
@@ -182,7 +176,7 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 				return &Response{StatusCode: http.StatusGatewayTimeout}
 			default:
 			}
-			if err := handler.handleNotificationChange(ctx, notification, change, entry); err != nil {
+			if err := handler.handleNotificationChange(ctx, notification, entry, change); err != nil {
 				return &Response{StatusCode: http.StatusInternalServerError}
 			}
 		}
@@ -198,8 +192,8 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 func (handler *Handler) handleNotificationChange(
 	ctx context.Context,
 	notification *Notification,
-	change Change,
 	entry Entry,
+	change Change,
 ) error {
 	if change.Value == nil {
 		return nil
@@ -325,31 +319,7 @@ func (handler *Handler) handleHistoryChange(
 	ne NotificationEntry,
 	change Change,
 ) error {
-	entries := make([]*HistoryEntry, len(change.Value.History))
-	for i := range change.Value.History {
-		entries[i] = &change.Value.History[i]
-	}
-	if len(entries) > 0 {
-		req := &ChangeValueRequest[HistoryEntry]{
-			Notification: &MessageNotificationContext{
-				EntryID:            ne.ID,
-				EntryTime:          ne.Time,
-				NotificationObject: ne.Object,
-				MessagingProduct:   change.Value.MessagingProduct,
-				Metadata:           change.Value.Metadata,
-			},
-			Payload: entries,
-		}
-		if err := handler.historySync.Handle(ctx, req); err != nil {
-			return handler.handleError(ctx, err)
-		}
-	}
-	// Media content for history messages is delivered as a
-	// separate webhook with messages in the history field.
-	if len(change.Value.Messages) > 0 {
-		return handler.handleNotificationMessageItem(ctx, ne, change)
-	}
-	return nil
+	return handler.history.Handle(ctx, ne, change)
 }
 
 const (

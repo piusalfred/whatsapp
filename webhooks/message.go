@@ -356,6 +356,23 @@ type MessagesHandler struct {
 	Fallback         MessageHandler[Message]
 }
 
+// newMessageInfo extracts MessageInfo from a raw Message. All boolean
+// flags are computed via Message methods (IsAReply, IsForwarded, etc.).
+func newMessageInfo(msg *Message) *MessageInfo {
+	return &MessageInfo{
+		From:             msg.From,
+		MessageID:        msg.ID,
+		Timestamp:        msg.Timestamp,
+		Type:             msg.Type,
+		GroupID:          msg.GroupID,
+		Context:          msg.Context,
+		IsAReply:         msg.IsAReply(),
+		IsForwarded:      msg.IsForwarded(),
+		IsProductInquiry: msg.IsProductInquiry(),
+		IsReferral:       msg.IsReferral(),
+	}
+}
+
 // newMessageRequest is a helper to build a MessageRequest for dispatch.
 func newMessageRequest[T any](nctx *MessageNotificationContext, info *MessageInfo, payload *T) *MessageRequest[T] {
 	return &MessageRequest[T]{Notification: nctx, Info: info, Payload: payload}
@@ -367,18 +384,7 @@ func (mh *MessagesHandler) Handle(
 	nctx *MessageNotificationContext,
 	message *Message,
 ) error {
-	info := &MessageInfo{
-		From:             message.From,
-		MessageID:        message.ID,
-		Timestamp:        message.Timestamp,
-		Type:             message.Type,
-		GroupID:          message.GroupID,
-		Context:          message.Context,
-		IsAReply:         message.IsAReply(),
-		IsForwarded:      message.IsForwarded(),
-		IsProductInquiry: message.IsProductInquiry(),
-		IsReferral:       message.IsReferral(),
-	}
+	info := newMessageInfo(message)
 
 	msgType := ParseMessageType(message.Type)
 	switch msgType {
@@ -770,7 +776,10 @@ func (ih *InteractiveHandler) Handle(
 
 	case InteractiveTypeButtonReply:
 		if ih.ButtonReply != nil {
-			if err := ih.ButtonReply.Handle(ctx, newMessageRequest(nctx, info, msg.Interactive.ButtonReply)); err != nil {
+			if err := ih.ButtonReply.Handle(
+				ctx,
+				newMessageRequest(nctx, info, msg.Interactive.ButtonReply),
+			); err != nil {
 				return fmt.Errorf("handle button reply: %w", err)
 			}
 			return nil
@@ -778,7 +787,10 @@ func (ih *InteractiveHandler) Handle(
 
 	case InteractiveTypeNFMReply:
 		if ih.FlowCompletion != nil {
-			if err := ih.FlowCompletion.Handle(ctx, newMessageRequest(nctx, info, msg.Interactive.NFMReply)); err != nil {
+			if err := ih.FlowCompletion.Handle(
+				ctx,
+				newMessageRequest(nctx, info, msg.Interactive.NFMReply),
+			); err != nil {
 				return fmt.Errorf("handle flow completion: %w", err)
 			}
 			return nil
@@ -786,7 +798,10 @@ func (ih *InteractiveHandler) Handle(
 
 	case InteractiveAddressSubmission:
 		if ih.AddressSubmission != nil {
-			if err := ih.AddressSubmission.Handle(ctx, newMessageRequest(nctx, info, msg.Interactive.NFMReply)); err != nil {
+			if err := ih.AddressSubmission.Handle(
+				ctx,
+				newMessageRequest(nctx, info, msg.Interactive.NFMReply),
+			); err != nil {
 				return fmt.Errorf("handle address submission: %w", err)
 			}
 			return nil
