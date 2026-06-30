@@ -94,3 +94,79 @@ func (mr *MockNotificationHandlerMockRecorder) HandleNotification(ctx, notificat
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleNotification", reflect.TypeOf((*MockNotificationHandler)(nil).HandleNotification), ctx, notification)
 }
+
+// MockErrorHandler is a mock of ErrorHandler interface.
+type MockErrorHandler struct {
+	ctrl     *gomock.Controller
+	recorder *MockErrorHandlerMockRecorder
+	isgomock struct{}
+}
+
+// MockErrorHandlerMockRecorder is the mock recorder for MockErrorHandler.
+type MockErrorHandlerMockRecorder struct {
+	mock *MockErrorHandler
+}
+
+// NewMockErrorHandler creates a new mock instance.
+func NewMockErrorHandler(ctrl *gomock.Controller) *MockErrorHandler {
+	mock := &MockErrorHandler{ctrl: ctrl}
+	mock.recorder = &MockErrorHandlerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockErrorHandler) EXPECT() *MockErrorHandlerMockRecorder {
+	return m.recorder
+}
+
+// Handle mocks base method.
+func (m *MockErrorHandler) Handle(ctx context.Context, err error) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Handle", ctx, err)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Handle indicates an expected call of Handle.
+func (mr *MockErrorHandlerMockRecorder) Handle(ctx, err any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockErrorHandler)(nil).Handle), ctx, err)
+}
+
+// MockFallbackHandler is a mock of FallbackHandler interface.
+type MockFallbackHandler struct {
+	ctrl     *gomock.Controller
+	recorder *MockFallbackHandlerMockRecorder
+	isgomock struct{}
+}
+
+// MockFallbackHandlerMockRecorder is the mock recorder for MockFallbackHandler.
+type MockFallbackHandlerMockRecorder struct {
+	mock *MockFallbackHandler
+}
+
+// NewMockFallbackHandler creates a new mock instance.
+func NewMockFallbackHandler(ctrl *gomock.Controller) *MockFallbackHandler {
+	mock := &MockFallbackHandler{ctrl: ctrl}
+	mock.recorder = &MockFallbackHandlerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockFallbackHandler) EXPECT() *MockFallbackHandlerMockRecorder {
+	return m.recorder
+}
+
+// Handle mocks base method.
+func (m *MockFallbackHandler) Handle(ctx context.Context, ne webhooks.NotificationEntry, change webhooks.Change) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Handle", ctx, ne, change)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Handle indicates an expected call of Handle.
+func (mr *MockFallbackHandlerMockRecorder) Handle(ctx, ne, change any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockFallbackHandler)(nil).Handle), ctx, ne, change)
+}

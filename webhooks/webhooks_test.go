@@ -270,8 +270,9 @@ func TestListener_HandleNotification_MultipleMessages(t *testing.T) {
 	var textHandled, reactionHandled bool
 
 	handler := webhooks.NewHandler()
-	handler.OnTextMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, txt *webhooks.Text) error {
+	handler.OnTextMessage(webhooks.MessageHandlerFunc[webhooks.Text](
+		func(ctx context.Context, req *webhooks.MessageRequest[webhooks.Text]) error {
+			txt := req.Payload
 			textHandled = true
 
 			if txt.Body != "Hello from a text message" {
@@ -280,10 +281,11 @@ func TestListener_HandleNotification_MultipleMessages(t *testing.T) {
 
 			return nil
 		},
-	)
+	))
 
-	handler.OnReactionMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, reaction *media.Reaction) error {
+	handler.OnReactionMessage(webhooks.MessageHandlerFunc[media.Reaction](
+		func(ctx context.Context, req *webhooks.MessageRequest[media.Reaction]) error {
+			reaction := req.Payload
 			reactionHandled = true
 
 			if reaction.Emoji != "👍" {
@@ -292,7 +294,7 @@ func TestListener_HandleNotification_MultipleMessages(t *testing.T) {
 
 			return nil
 		},
-	)
+	))
 
 	cfg := TestServerConfig{
 		Handler: handler,
@@ -396,8 +398,9 @@ func TestListener_HandleNotification_MultipleChangeValues(t *testing.T) {
 	// Create a new Handler
 	handler := webhooks.NewHandler()
 
-	handler.OnTextMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, txt *webhooks.Text) error {
+	handler.OnTextMessage(webhooks.MessageHandlerFunc[webhooks.Text](
+		func(ctx context.Context, req *webhooks.MessageRequest[webhooks.Text]) error {
+			txt := req.Payload
 			textHandled = true
 
 			if txt.Body != "Hello from a text message" {
@@ -405,12 +408,13 @@ func TestListener_HandleNotification_MultipleChangeValues(t *testing.T) {
 			}
 			return nil
 		},
-	)
+	))
 
 	// When we get user preferences update
 	handler.OnUserPreferencesUpdate(
-		webhooks.MessageChangeValueHandlerFunc[webhooks.UserPreference](
-			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, prefs []*webhooks.UserPreference) error {
+		webhooks.ChangeValueHandlerFunc[webhooks.UserPreference](
+			func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.UserPreference]) error {
+				prefs := req.Payload
 				userPreferencesSeen = true
 
 				if len(prefs) != 1 {
@@ -587,38 +591,42 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 	)
 
 	handler := webhooks.NewHandler()
-	handler.OnTextMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, txt *webhooks.Text) error {
+	handler.OnTextMessage(webhooks.MessageHandlerFunc[webhooks.Text](
+		func(ctx context.Context, req *webhooks.MessageRequest[webhooks.Text]) error {
+			txt := req.Payload
 			textHandled = true
 			if txt.Body != "Hello from a text message!" {
 				t.Errorf("Text body mismatch, got=%s, want=%s", txt.Body, "Hello from a text message!")
 			}
 			return nil
 		},
-	)
-	handler.OnLocationMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, loc *media.Location) error {
+	))
+	handler.OnLocationMessage(webhooks.MessageHandlerFunc[media.Location](
+		func(ctx context.Context, req *webhooks.MessageRequest[media.Location]) error {
+			loc := req.Payload
 			locationHandled = true
 			if loc.Name != "San Francisco" {
 				t.Errorf("Location name mismatch, got=%s, want=%s", loc.Name, "San Francisco")
 			}
 			return nil
 		},
-	)
+	))
 
-	handler.OnReactionMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, reaction *media.Reaction) error {
+	handler.OnReactionMessage(webhooks.MessageHandlerFunc[media.Reaction](
+		func(ctx context.Context, req *webhooks.MessageRequest[media.Reaction]) error {
+			reaction := req.Payload
 			reactionHandled = true
 			if reaction.Emoji != "👍" {
 				t.Errorf("Reaction emoji mismatch, got=%s, want=%s", reaction.Emoji, "👍")
 			}
 			return nil
 		},
-	)
+	))
 
 	handler.OnUserPreferencesUpdate(
-		webhooks.MessageChangeValueHandlerFunc[webhooks.UserPreference](
-			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, prefs []*webhooks.UserPreference) error {
+		webhooks.ChangeValueHandlerFunc[webhooks.UserPreference](
+			func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.UserPreference]) error {
+				prefs := req.Payload
 				userPreferencesSeen = true
 				if len(prefs) != 2 {
 					t.Errorf("Expected 2 user preferences, got %d", len(prefs))
@@ -634,8 +642,9 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 		),
 	)
 
-	handler.OnStickerMessage(
-		func(ctx context.Context, nctx *webhooks.MessageNotificationContext, mctx *webhooks.MessageInfo, sticker *media.Info) error {
+	handler.OnStickerMessage(webhooks.MessageHandlerFunc[media.Info](
+		func(ctx context.Context, req *webhooks.MessageRequest[media.Info]) error {
+			sticker := req.Payload
 			stickerHandled = true
 			if sticker.MimeType != "image/webp" {
 				t.Errorf("Sticker mime type mismatch, got=%s, want=%s", sticker.MimeType, "image/webp")
@@ -643,7 +652,7 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 
 			return nil
 		},
-	)
+	))
 
 	cfg := TestServerConfig{
 		Handler: handler,
@@ -711,11 +720,10 @@ func TestListener_HandleNotification_ButtonMessage(t *testing.T) {
 	var buttonHandled bool
 
 	handler := webhooks.NewHandler()
-	handler.OnButtonMessage(func(ctx context.Context,
-		nctx *webhooks.MessageNotificationContext,
-		mctx *webhooks.MessageInfo,
-		btn *webhooks.Button,
+	handler.OnButtonMessage(webhooks.MessageHandlerFunc[webhooks.Button](func(ctx context.Context,
+		req *webhooks.MessageRequest[webhooks.Button],
 	) error {
+		btn := req.Payload
 		buttonHandled = true
 
 		if btn.Text != "No" {
@@ -725,7 +733,7 @@ func TestListener_HandleNotification_ButtonMessage(t *testing.T) {
 			t.Errorf("Expected payload='No-Button-Payload', got=%s", btn.Payload)
 		}
 		return nil
-	})
+	}))
 
 	cfg := TestServerConfig{
 		Handler: handler,
@@ -799,11 +807,10 @@ func TestListener_HandleNotification_ListReply(t *testing.T) {
 	var listReplyHandled bool
 
 	handler := webhooks.NewHandler()
-	handler.OnListReplyMessage(func(ctx context.Context,
-		nctx *webhooks.MessageNotificationContext,
-		mctx *webhooks.MessageInfo,
-		lr *webhooks.ListReply,
+	handler.OnListReplyMessage(webhooks.MessageHandlerFunc[webhooks.ListReply](func(ctx context.Context,
+		req *webhooks.MessageRequest[webhooks.ListReply],
 	) error {
+		lr := req.Payload
 		listReplyHandled = true
 		if lr.ID != "list_reply_id" {
 			t.Errorf("ListReply ID mismatch, got=%s", lr.ID)
@@ -812,7 +819,7 @@ func TestListener_HandleNotification_ListReply(t *testing.T) {
 			t.Errorf("ListReply Title mismatch, got=%s", lr.Title)
 		}
 		return nil
-	})
+	}))
 
 	cfg := TestServerConfig{
 		Handler: handler,
@@ -882,11 +889,10 @@ func TestListener_HandleNotification_ButtonReply(t *testing.T) {
 	var buttonReplyHandled bool
 
 	handler := webhooks.NewHandler()
-	handler.OnButtonReplyMessage(func(ctx context.Context,
-		nctx *webhooks.MessageNotificationContext,
-		mctx *webhooks.MessageInfo,
-		btn *webhooks.ButtonReply,
+	handler.OnButtonReplyMessage(webhooks.MessageHandlerFunc[webhooks.ButtonReply](func(ctx context.Context,
+		req *webhooks.MessageRequest[webhooks.ButtonReply],
 	) error {
+		btn := req.Payload
 		buttonReplyHandled = true
 		if btn.ID != "unique-button-identifier-here" {
 			t.Errorf("ButtonReply ID mismatch, got=%s", btn.ID)
@@ -895,7 +901,7 @@ func TestListener_HandleNotification_ButtonReply(t *testing.T) {
 			t.Errorf("ButtonReply Title mismatch, got=%s", btn.Title)
 		}
 		return nil
-	})
+	}))
 
 	cfg := TestServerConfig{
 		Handler: handler,
@@ -971,11 +977,10 @@ func TestListener_HandleNotification_ReferralMessage(t *testing.T) {
 	var referralHandled bool
 
 	handler := webhooks.NewHandler()
-	handler.OnReferralMessage(func(ctx context.Context,
-		nctx *webhooks.MessageNotificationContext,
-		mctx *webhooks.MessageInfo,
-		ref *webhooks.ReferralNotification,
+	handler.OnReferralMessage(webhooks.MessageHandlerFunc[webhooks.ReferralNotification](func(ctx context.Context,
+		req *webhooks.MessageRequest[webhooks.ReferralNotification],
 	) error {
+		ref := req.Payload
 		referralHandled = true
 
 		if ref.Text.Body != "Hi from an ad click!" {
@@ -985,7 +990,7 @@ func TestListener_HandleNotification_ReferralMessage(t *testing.T) {
 			t.Errorf("Referral sourceID mismatch, got=%s", ref.Referral.SourceID)
 		}
 		return nil
-	})
+	}))
 
 	cfg := TestServerConfig{
 		Handler: handler,
@@ -1054,17 +1059,16 @@ func TestListener_HandleNotification_ProductInquiry(t *testing.T) {
 	var productInquiryHandled bool
 
 	handler := webhooks.NewHandler()
-	handler.OnProductEnquiryMessage(func(ctx context.Context,
-		nctx *webhooks.MessageNotificationContext,
-		mctx *webhooks.MessageInfo,
-		txt *webhooks.Text,
+	handler.OnProductEnquiryMessage(webhooks.MessageHandlerFunc[webhooks.Text](func(ctx context.Context,
+		req *webhooks.MessageRequest[webhooks.Text],
 	) error {
+		txt := req.Payload
 		productInquiryHandled = true
 		if txt.Body != "Interested in your product!" {
 			t.Errorf("Product inquiry text mismatch, got=%s", txt.Body)
 		}
 		return nil
-	})
+	}))
 
 	cfg := TestServerConfig{
 		Handler: handler,
@@ -1120,17 +1124,16 @@ func TestListener_HandleNotification_UserChangedNumber(t *testing.T) {
 	var systemMessageHandled bool
 
 	handler := webhooks.NewHandler()
-	handler.OnSystemMessage(func(ctx context.Context,
-		nctx *webhooks.MessageNotificationContext,
-		mctx *webhooks.MessageInfo,
-		sys *webhooks.System,
+	handler.OnSystemMessage(webhooks.MessageHandlerFunc[webhooks.System](func(ctx context.Context,
+		req *webhooks.MessageRequest[webhooks.System],
 	) error {
+		sys := req.Payload
 		systemMessageHandled = true
 		if sys.Type != "user_changed_number" {
 			t.Errorf("System message type mismatch, got=%s", sys.Type)
 		}
 		return nil
-	})
+	}))
 
 	cfg := TestServerConfig{
 		Handler: handler,
@@ -1199,8 +1202,9 @@ func TestListener_HandleNotification_StatusSent(t *testing.T) {
 
 	handler := webhooks.NewHandler()
 	handler.OnMessageStatusChange(
-		webhooks.MessageChangeValueHandlerFunc[webhooks.Status](
-			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, statuses []*webhooks.Status) error {
+		webhooks.ChangeValueHandlerFunc[webhooks.Status](
+			func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.Status]) error {
+				statuses := req.Payload
 				statusChangeHandled = true
 
 				if len(statuses) != 1 {
@@ -1275,10 +1279,10 @@ func TestListener_HandleNotification_DeletedMessageUnsupported(t *testing.T) {
 
 	handler := webhooks.NewHandler()
 	handler.OnUnsupportedMessage(webhooks.MessageErrorsHandlerFunc(func(ctx context.Context,
-		nctx *webhooks.MessageNotificationContext,
-		mctx *webhooks.MessageInfo,
-		errs []*werrors.Error,
+		req *webhooks.MessageRequest[webhooks.Message],
+		errors []*werrors.Error,
 	) error {
+		errs := errors
 		messageDeletionHandled = true
 		if len(errs) != 1 {
 			t.Errorf("Expected 1 error, got=%d", len(errs))
@@ -1380,7 +1384,8 @@ func TestListener_HandleNotification_PhoneNumberSettingsUpdate(t *testing.T) {
 
 	handler.OnPhoneSettingsUpdate(
 		webhooks.BusinessEventHandlerFunc[webhooks.PhoneNumberSettings](
-			func(ctx context.Context, notificationContext *webhooks.BusinessNotificationContext, details *webhooks.PhoneNumberSettings) error {
+			func(ctx context.Context, req *webhooks.BusinessRequest[webhooks.PhoneNumberSettings]) error {
+				details := req.Payload
 				eventHandled = true
 
 				if details.PhoneNumberID != "TEST987654321" {
@@ -1450,8 +1455,9 @@ func TestListener_HandleNotification_GroupLifecycleUpdate(t *testing.T) {
 	var handled bool
 	handler := webhooks.NewHandler()
 	handler.OnGroupLifecycleUpdate(
-		webhooks.MessageChangeValueHandlerFunc[webhooks.Group](
-			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+		webhooks.ChangeValueHandlerFunc[webhooks.Group](
+			func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.Group]) error {
+				groups := req.Payload
 				handled = true
 				if len(groups) != 1 {
 					t.Errorf("expected 1 group, got %d", len(groups))
@@ -1534,8 +1540,9 @@ func TestListener_HandleNotification_GroupParticipantsUpdate(t *testing.T) {
 	var handled bool
 	handler := webhooks.NewHandler()
 	handler.OnGroupParticipantsUpdate(
-		webhooks.MessageChangeValueHandlerFunc[webhooks.Group](
-			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+		webhooks.ChangeValueHandlerFunc[webhooks.Group](
+			func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.Group]) error {
+				groups := req.Payload
 				handled = true
 				if len(groups) != 1 {
 					t.Errorf("expected 1 group, got %d", len(groups))
@@ -1626,8 +1633,9 @@ func TestListener_HandleNotification_GroupSettingsUpdate(t *testing.T) {
 	var handled bool
 	handler := webhooks.NewHandler()
 	handler.OnGroupSettingsUpdate(
-		webhooks.MessageChangeValueHandlerFunc[webhooks.Group](
-			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+		webhooks.ChangeValueHandlerFunc[webhooks.Group](
+			func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.Group]) error {
+				groups := req.Payload
 				handled = true
 				if len(groups) != 1 {
 					t.Errorf("expected 1 group, got %d", len(groups))
@@ -1704,8 +1712,9 @@ func TestListener_HandleNotification_GroupStatusUpdate(t *testing.T) {
 	var handled bool
 	handler := webhooks.NewHandler()
 	handler.OnGroupStatusUpdate(
-		webhooks.MessageChangeValueHandlerFunc[webhooks.Group](
-			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, groups []*webhooks.Group) error {
+		webhooks.ChangeValueHandlerFunc[webhooks.Group](
+			func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.Group]) error {
+				groups := req.Payload
 				handled = true
 				if len(groups) != 1 {
 					t.Errorf("expected 1 group, got %d", len(groups))
@@ -1767,13 +1776,13 @@ func TestListener_HandleNotification_UnrecognizedField(t *testing.T) {
 	var gotField string
 
 	handler := webhooks.NewHandler()
-	handler.OnUnrecognizedField(func(ctx context.Context,
-		n *webhooks.Notification, c webhooks.Change, e webhooks.Entry,
+	handler.SetGeneralFallbackHandler(webhooks.FallbackHandlerFunc(func(ctx context.Context,
+		ne webhooks.NotificationEntry, c webhooks.Change,
 	) error {
 		handled = true
 		gotField = c.Field
 		return nil
-	})
+	}))
 
 	reader := webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
 		return &webhooks.Config{Token: "test", Validate: false}, nil

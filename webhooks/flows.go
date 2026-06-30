@@ -25,20 +25,6 @@ import (
 	"context"
 )
 
-type (
-	// FlowEventHandler is a shorthand for EventHandler[FlowNotificationContext, T].
-	FlowEventHandler[T any] EventHandler[FlowNotificationContext, T]
-
-	// FlowEventHandlerFunc is a shorthand for EventHandlerFunc[FlowNotificationContext, T].
-	FlowEventHandlerFunc[T any] EventHandlerFunc[FlowNotificationContext, T]
-)
-
-func (f FlowEventHandlerFunc[T]) HandleEvent(ctx context.Context,
-	ntx *FlowNotificationContext, notification *T,
-) error {
-	return f(ctx, ntx, notification)
-}
-
 // FlowNotificationContext carries the metadata for a flows webhook notification.
 type FlowNotificationContext struct {
 	NotificationObject string // Corresponds to the 'object' field
@@ -96,6 +82,22 @@ type (
 	}
 )
 
+type (
+	// FlowFallbackHandlerFunc adapts a bare function to the FlowFallbackHandler interface.
+	FlowFallbackHandlerFunc func(ctx context.Context, nctx *FlowNotificationContext, value *Value) error
+
+	// FlowFallbackHandler is called for any flow event that does not have a
+	// dedicated handler set — both unknown event types and known types left nil.
+	// When nil, those events are silently acknowledged (HTTP 200).
+	FlowFallbackHandler interface {
+		Handle(ctx context.Context, nctx *FlowNotificationContext, value *Value) error
+	}
+)
+
+func (fn FlowFallbackHandlerFunc) Handle(ctx context.Context, nctx *FlowNotificationContext, value *Value) error {
+	return fn(ctx, nctx, value)
+}
+
 // FlowNotificationHandler groups all per-event-type handlers for the flows
 // webhook and a fallback for unhandled events.
 //
@@ -132,51 +134,39 @@ type FlowNotificationHandler struct {
 	// dedicated handler set — both unknown event types and known types
 	// left nil. When nil, those events are silently acknowledged (HTTP 200)
 	// to prevent WhatsApp from retrying.
-	FallbackHandler func(ctx context.Context, nctx *FlowNotificationContext, value *Value) error
+	FallbackHandler FlowFallbackHandler
 }
 
 // OnFlowStatusChange sets the handler for FLOW_STATUS_CHANGE events.
-func (fh *FlowNotificationHandler) OnFlowStatusChange(
-	fn func(ctx context.Context, nctx *FlowNotificationContext, details *StatusChangeDetails) error,
-) {
-	fh.Status = FlowEventHandlerFunc[StatusChangeDetails](fn)
+func (fh *FlowNotificationHandler) OnFlowStatusChange(h FlowStatusHandler) {
+	fh.Status = h
 }
 
 // OnFlowClientErrorRate sets the handler for CLIENT_ERROR_RATE events.
-func (fh *FlowNotificationHandler) OnFlowClientErrorRate(
-	fn func(ctx context.Context, nctx *FlowNotificationContext, details *ClientErrorRateDetails) error,
-) {
-	fh.ClientErrorRate = FlowEventHandlerFunc[ClientErrorRateDetails](fn)
+func (fh *FlowNotificationHandler) OnFlowClientErrorRate(h FlowClientErrorRateHandler) {
+	fh.ClientErrorRate = h
 }
 
 // OnFlowEndpointErrorRate sets the handler for ENDPOINT_ERROR_RATE events.
-func (fh *FlowNotificationHandler) OnFlowEndpointErrorRate(
-	fn func(ctx context.Context, nctx *FlowNotificationContext, details *EndpointErrorRateDetails) error,
-) {
-	fh.EndpointErrorRate = FlowEventHandlerFunc[EndpointErrorRateDetails](fn)
+func (fh *FlowNotificationHandler) OnFlowEndpointErrorRate(h FlowEndpointErrorRateHandler) {
+	fh.EndpointErrorRate = h
 }
 
 // OnFlowEndpointLatency sets the handler for ENDPOINT_LATENCY events.
-func (fh *FlowNotificationHandler) OnFlowEndpointLatency(
-	fn func(ctx context.Context, nctx *FlowNotificationContext, details *EndpointLatencyDetails) error,
-) {
-	fh.EndpointLatency = FlowEventHandlerFunc[EndpointLatencyDetails](fn)
+func (fh *FlowNotificationHandler) OnFlowEndpointLatency(h FlowEndpointLatencyHandler) {
+	fh.EndpointLatency = h
 }
 
 // OnFallback sets the catch-all handler for flow events without a dedicated
 // handler — covers unknown event types and known types left nil.
 // Equivalent to assigning [FallbackHandler] directly.
-func (fh *FlowNotificationHandler) OnFallback(
-	fn func(ctx context.Context, nctx *FlowNotificationContext, value *Value) error,
-) {
-	fh.FallbackHandler = fn
+func (fh *FlowNotificationHandler) OnFallback(h FlowFallbackHandler) {
+	fh.FallbackHandler = h
 }
 
 // OnFlowEndpointAvailability sets the handler for ENDPOINT_AVAILABILITY events.
-func (fh *FlowNotificationHandler) OnFlowEndpointAvailability(
-	fn func(ctx context.Context, nctx *FlowNotificationContext, details *EndpointAvailabilityDetails) error,
-) {
-	fh.EndpointAvailability = FlowEventHandlerFunc[EndpointAvailabilityDetails](fn)
+func (fh *FlowNotificationHandler) OnFlowEndpointAvailability(h FlowEndpointAvailabilityHandler) {
+	fh.EndpointAvailability = h
 }
 
 // Handle dispatches the flow value to the correct event handler based on
@@ -197,29 +187,49 @@ func (fh *FlowNotificationHandler) Handle(
 	switch value.Event {
 	case EventFlowStatusChange:
 		if fh.Status != nil {
-			return fh.Status.HandleEvent(ctx, nctx, value.FlowStatusChange())
+			req := &FlowRequest[StatusChangeDetails]{
+				Context: nctx,
+				Payload: value.FlowStatusChange(),
+			}
+			return fh.Status.Handle(ctx, req)
 		}
 	case EventClientErrorRate:
 		if fh.ClientErrorRate != nil {
-			return fh.ClientErrorRate.HandleEvent(ctx, nctx, value.FlowClientErrorRate())
+			req := &FlowRequest[ClientErrorRateDetails]{
+				Context: nctx,
+				Payload: value.FlowClientErrorRate(),
+			}
+			return fh.ClientErrorRate.Handle(ctx, req)
 		}
 	case EventEndpointErrorRate:
 		if fh.EndpointErrorRate != nil {
-			return fh.EndpointErrorRate.HandleEvent(ctx, nctx, value.FlowEndpointErrorRate())
+			req := &FlowRequest[EndpointErrorRateDetails]{
+				Context: nctx,
+				Payload: value.FlowEndpointErrorRate(),
+			}
+			return fh.EndpointErrorRate.Handle(ctx, req)
 		}
 	case EventEndpointLatency:
 		if fh.EndpointLatency != nil {
-			return fh.EndpointLatency.HandleEvent(ctx, nctx, value.FlowEndpointLatency())
+			req := &FlowRequest[EndpointLatencyDetails]{
+				Context: nctx,
+				Payload: value.FlowEndpointLatency(),
+			}
+			return fh.EndpointLatency.Handle(ctx, req)
 		}
 	case EventEndpointAvailability:
 		if fh.EndpointAvailability != nil {
-			return fh.EndpointAvailability.HandleEvent(ctx, nctx, value.FlowEndpointAvailability())
+			req := &FlowRequest[EndpointAvailabilityDetails]{
+				Context: nctx,
+				Payload: value.FlowEndpointAvailability(),
+			}
+			return fh.EndpointAvailability.Handle(ctx, req)
 		}
 	}
 
 	// Known event without handler, or unknown flow event — fall back.
 	if fh.FallbackHandler != nil {
-		return fh.FallbackHandler(ctx, nctx, value)
+		return fh.FallbackHandler.Handle(ctx, nctx, value)
 	}
 
 	return nil
@@ -274,69 +284,26 @@ func (value *Value) FlowEndpointAvailability() *EndpointAvailabilityDetails {
 }
 
 // OnFlowStatusChange registers a handler for flow status change events in the flows webhook.
-func (handler *Handler) OnFlowStatusChange(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *StatusChangeDetails) error,
-) {
-	handler.flows.OnFlowStatusChange(fn)
-}
-
-// SetFlowStatusChangeHandler sets the handler for flow status change events.
-func (handler *Handler) SetFlowStatusChangeHandler(fn FlowStatusHandler) {
-	handler.flows.Status = fn
+func (handler *Handler) OnFlowStatusChange(h FlowStatusHandler) {
+	handler.flows.OnFlowStatusChange(h)
 }
 
 // OnFlowClientErrorRate registers a handler for flow client error rate events in the flows webhook.
-func (handler *Handler) OnFlowClientErrorRate(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *ClientErrorRateDetails) error,
-) {
-	handler.flows.OnFlowClientErrorRate(fn)
-}
-
-// SetFlowClientErrorRateHandler sets the handler for flow client error rate events.
-func (handler *Handler) SetFlowClientErrorRateHandler(
-	fn FlowClientErrorRateHandler,
-) {
-	handler.flows.ClientErrorRate = fn
+func (handler *Handler) OnFlowClientErrorRate(h FlowClientErrorRateHandler) {
+	handler.flows.OnFlowClientErrorRate(h)
 }
 
 // OnFlowEndpointErrorRate registers a handler for flow endpoint error rate events in the flows webhook.
-func (handler *Handler) OnFlowEndpointErrorRate(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointErrorRateDetails) error,
-) {
-	handler.flows.OnFlowEndpointErrorRate(fn)
-}
-
-// SetFlowEndpointErrorRateHandler sets the handler for flow endpoint error rate events.
-func (handler *Handler) SetFlowEndpointErrorRateHandler(
-	fn FlowEndpointErrorRateHandler,
-) {
-	handler.flows.EndpointErrorRate = fn
+func (handler *Handler) OnFlowEndpointErrorRate(h FlowEndpointErrorRateHandler) {
+	handler.flows.OnFlowEndpointErrorRate(h)
 }
 
 // OnFlowEndpointLatency registers a handler for flow endpoint latency events in the flows webhook.
-func (handler *Handler) OnFlowEndpointLatency(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointLatencyDetails) error,
-) {
-	handler.flows.OnFlowEndpointLatency(fn)
-}
-
-// SetFlowEndpointLatencyHandler sets the handler for flow endpoint latency events.
-func (handler *Handler) SetFlowEndpointLatencyHandler(
-	fn FlowEndpointLatencyHandler,
-) {
-	handler.flows.EndpointLatency = fn
+func (handler *Handler) OnFlowEndpointLatency(h FlowEndpointLatencyHandler) {
+	handler.flows.OnFlowEndpointLatency(h)
 }
 
 // OnFlowEndpointAvailability registers a handler for flow endpoint availability events in the flows webhook.
-func (handler *Handler) OnFlowEndpointAvailability(
-	fn func(ctx context.Context, notificationContext *FlowNotificationContext, details *EndpointAvailabilityDetails) error,
-) {
-	handler.flows.OnFlowEndpointAvailability(fn)
-}
-
-// SetFlowEndpointAvailabilityHandler sets the handler for flow endpoint availability events.
-func (handler *Handler) SetFlowEndpointAvailabilityHandler(
-	fn FlowEndpointAvailabilityHandler,
-) {
-	handler.flows.EndpointAvailability = fn
+func (handler *Handler) OnFlowEndpointAvailability(h FlowEndpointAvailabilityHandler) {
+	handler.flows.OnFlowEndpointAvailability(h)
 }

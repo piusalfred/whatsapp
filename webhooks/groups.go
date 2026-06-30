@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,7 +9,7 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -89,7 +89,7 @@ func (handler *Handler) OnGroupStatusUpdate(h GroupStatusUpdateHandler) {
 }
 
 // GroupManagementHandler groups all group webhook field handlers into a single
-// dispatch unit. Each field accepts a [MessageChangeValueHandler[Group]] for one
+// dispatch unit. Each field accepts a [ChangeValueHandler[Group]] for one
 // WhatsApp group notification type. Leave a field nil to silently skip that
 // notification type (HTTP 200).
 //
@@ -106,44 +106,43 @@ func (handler *Handler) OnGroupStatusUpdate(h GroupStatusUpdateHandler) {
 //	gh.OnLifecycleUpdate(myLifecycleHandler)
 //	gh.OnParticipantsUpdate(myParticipantsHandler)
 type GroupManagementHandler struct {
-	LifecycleUpdate    MessageChangeValueHandler[Group]
-	ParticipantsUpdate MessageChangeValueHandler[Group]
-	SettingsUpdate     MessageChangeValueHandler[Group]
-	StatusUpdate       MessageChangeValueHandler[Group]
+	LifecycleUpdate    ChangeValueHandler[Group]
+	ParticipantsUpdate ChangeValueHandler[Group]
+	SettingsUpdate     ChangeValueHandler[Group]
+	StatusUpdate       ChangeValueHandler[Group]
+	Fallback           FallbackHandler
 }
 
 // OnLifecycleUpdate sets the handler for group_lifecycle_update webhooks
 // (group creation and deletion, with success and failure variants).
-func (gh *GroupManagementHandler) OnLifecycleUpdate(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, groups []*Group) error,
-) {
-	gh.LifecycleUpdate = MessageChangeValueHandlerFunc[Group](fn)
+func (gh *GroupManagementHandler) OnLifecycleUpdate(h ChangeValueHandler[Group]) {
+	gh.LifecycleUpdate = h
 }
 
 // OnParticipantsUpdate sets the handler for group_participants_update webhooks
 // (participants joining via invite, requesting to join, cancelling requests,
 // join request approval, participant removal, and participant departures).
-func (gh *GroupManagementHandler) OnParticipantsUpdate(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, groups []*Group) error,
-) {
-	gh.ParticipantsUpdate = MessageChangeValueHandlerFunc[Group](fn)
+func (gh *GroupManagementHandler) OnParticipantsUpdate(h ChangeValueHandler[Group]) {
+	gh.ParticipantsUpdate = h
 }
 
 // OnSettingsUpdate sets the handler for group_settings_update webhooks
 // (group subject, description, and profile picture changes with per-field
 // success/failure reporting).
-func (gh *GroupManagementHandler) OnSettingsUpdate(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, groups []*Group) error,
-) {
-	gh.SettingsUpdate = MessageChangeValueHandlerFunc[Group](fn)
+func (gh *GroupManagementHandler) OnSettingsUpdate(h ChangeValueHandler[Group]) {
+	gh.SettingsUpdate = h
 }
 
 // OnStatusUpdate sets the handler for group_status_update webhooks
 // (group suspension and suspension clearance).
-func (gh *GroupManagementHandler) OnStatusUpdate(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, groups []*Group) error,
-) {
-	gh.StatusUpdate = MessageChangeValueHandlerFunc[Group](fn)
+func (gh *GroupManagementHandler) OnStatusUpdate(h ChangeValueHandler[Group]) {
+	gh.StatusUpdate = h
+}
+
+// OnFallback sets the catch-all handler for group events without a dedicated
+// sub-category handler. When nil, the general [Handler] fallback is tried.
+func (gh *GroupManagementHandler) OnFallback(h FallbackHandler) {
+	gh.Fallback = h
 }
 
 // IsGroupManagementWebhook reports whether field is one of the four group
@@ -172,72 +171,79 @@ func GroupChangeFields() []ChangeField {
 }
 
 // Handle dispatches the group notification to the correct handler based on
-// change.Field. Nil handlers are silently skipped (HTTP 200). Errors from user
-// handlers are routed through onError; if onError returns a non-nil error,
-// processing stops.
+// change.Field. Nil handlers are silently skipped (HTTP 200).
 //
 //nolint:gocognit // dispatch switch
 func (gh *GroupManagementHandler) Handle(
 	ctx context.Context,
+	ne NotificationEntry,
 	change Change,
-	entry Entry,
-	onError func(ctx context.Context, err error) error,
 ) error {
 	nctx := &MessageNotificationContext{
-		EntryID:          entry.ID,
-		MessagingProduct: change.Value.MessagingProduct,
-		Metadata:         change.Value.Metadata,
-		Contacts:         change.Value.Contacts,
+		EntryID:            ne.ID,
+		EntryTime:          ne.Time,
+		NotificationObject: ne.Object,
+		MessagingProduct:   change.Value.MessagingProduct,
+		Metadata:           change.Value.Metadata,
+		Contacts:           change.Value.Contacts,
 	}
 
 	switch change.Field {
 	case ChangeFieldGroupLifecycleUpdate.String():
 		if gh.LifecycleUpdate == nil {
-			return nil
-		}
-		if err := gh.LifecycleUpdate.Handle(ctx, nctx, change.Value.Groups); err != nil {
-			if onError != nil {
-				if handlerErr := onError(ctx, err); handlerErr != nil {
-					return fmt.Errorf("error handler: %w", handlerErr)
+			if gh.Fallback != nil {
+				if err := gh.Fallback.Handle(ctx, ne, change); err != nil {
+					return fmt.Errorf("group fallback: %w", err)
 				}
 			}
+			return nil
 		}
+		if err := gh.LifecycleUpdate.Handle(ctx, &ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups}); err != nil {
+			return fmt.Errorf("group lifecycle update: %w", err)
+		}
+		return nil
 
 	case ChangeFieldGroupParticipantsUpdate.String():
 		if gh.ParticipantsUpdate == nil {
-			return nil
-		}
-		if err := gh.ParticipantsUpdate.Handle(ctx, nctx, change.Value.Groups); err != nil {
-			if onError != nil {
-				if handlerErr := onError(ctx, err); handlerErr != nil {
-					return fmt.Errorf("error handler: %w", handlerErr)
+			if gh.Fallback != nil {
+				if err := gh.Fallback.Handle(ctx, ne, change); err != nil {
+					return fmt.Errorf("group fallback: %w", err)
 				}
 			}
+			return nil
 		}
+		if err := gh.ParticipantsUpdate.Handle(ctx, &ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups}); err != nil {
+			return fmt.Errorf("group participants update: %w", err)
+		}
+		return nil
 
 	case ChangeFieldGroupSettingsUpdate.String():
 		if gh.SettingsUpdate == nil {
-			return nil
-		}
-		if err := gh.SettingsUpdate.Handle(ctx, nctx, change.Value.Groups); err != nil {
-			if onError != nil {
-				if handlerErr := onError(ctx, err); handlerErr != nil {
-					return fmt.Errorf("error handler: %w", handlerErr)
+			if gh.Fallback != nil {
+				if err := gh.Fallback.Handle(ctx, ne, change); err != nil {
+					return fmt.Errorf("group fallback: %w", err)
 				}
 			}
+			return nil
 		}
+		if err := gh.SettingsUpdate.Handle(ctx, &ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups}); err != nil {
+			return fmt.Errorf("group settings update: %w", err)
+		}
+		return nil
 
 	case ChangeFieldGroupStatusUpdate.String():
 		if gh.StatusUpdate == nil {
-			return nil
-		}
-		if err := gh.StatusUpdate.Handle(ctx, nctx, change.Value.Groups); err != nil {
-			if onError != nil {
-				if handlerErr := onError(ctx, err); handlerErr != nil {
-					return fmt.Errorf("error handler: %w", handlerErr)
+			if gh.Fallback != nil {
+				if err := gh.Fallback.Handle(ctx, ne, change); err != nil {
+					return fmt.Errorf("group fallback: %w", err)
 				}
 			}
+			return nil
 		}
+		if err := gh.StatusUpdate.Handle(ctx, &ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups}); err != nil {
+			return fmt.Errorf("group status update: %w", err)
+		}
+		return nil
 	}
 
 	return nil

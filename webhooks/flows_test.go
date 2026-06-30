@@ -49,15 +49,18 @@ func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 			},
 			setupFn: func(fh *webhooks.FlowNotificationHandler) *bool {
 				var called bool
-				fh.OnFlowStatusChange(
-					func(_ context.Context, _ *webhooks.FlowNotificationContext, details *webhooks.StatusChangeDetails) error {
+				fh.OnFlowStatusChange(webhooks.FlowEventHandlerFunc[webhooks.StatusChangeDetails](
+					func(_ context.Context, req *webhooks.FlowRequest[webhooks.StatusChangeDetails]) error {
 						called = true
-						if details.OldStatus != "DRAFT" || details.NewStatus != "PUBLISHED" {
-							t.Errorf("unexpected details: old=%s new=%s", details.OldStatus, details.NewStatus)
+						if req.Context == nil || req.Context.FlowID != "flow-1" {
+							t.Errorf("unexpected context FlowID: %v", req.Context)
+						}
+						if req.Payload.OldStatus != "DRAFT" || req.Payload.NewStatus != "PUBLISHED" {
+							t.Errorf("unexpected details: old=%s new=%s", req.Payload.OldStatus, req.Payload.NewStatus)
 						}
 						return nil
 					},
-				)
+				))
 				return &called
 			},
 		},
@@ -72,15 +75,19 @@ func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 			},
 			setupFn: func(fh *webhooks.FlowNotificationHandler) *bool {
 				var called bool
-				fh.OnFlowClientErrorRate(
-					func(_ context.Context, _ *webhooks.FlowNotificationContext, details *webhooks.ClientErrorRateDetails) error {
+				fh.OnFlowClientErrorRate(webhooks.FlowEventHandlerFunc[webhooks.ClientErrorRateDetails](
+					func(_ context.Context, req *webhooks.FlowRequest[webhooks.ClientErrorRateDetails]) error {
 						called = true
-						if details.ErrorRate != 12.5 || details.AlertState != "ACTIVATED" {
-							t.Errorf("unexpected details: rate=%f state=%s", details.ErrorRate, details.AlertState)
+						if req.Payload.ErrorRate != 12.5 || req.Payload.AlertState != "ACTIVATED" {
+							t.Errorf(
+								"unexpected details: rate=%f state=%s",
+								req.Payload.ErrorRate,
+								req.Payload.AlertState,
+							)
 						}
 						return nil
 					},
-				)
+				))
 				return &called
 			},
 		},
@@ -95,12 +102,12 @@ func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 			},
 			setupFn: func(fh *webhooks.FlowNotificationHandler) *bool {
 				var called bool
-				fh.OnFlowEndpointErrorRate(
-					func(_ context.Context, _ *webhooks.FlowNotificationContext, details *webhooks.EndpointErrorRateDetails) error {
+				fh.OnFlowEndpointErrorRate(webhooks.FlowEventHandlerFunc[webhooks.EndpointErrorRateDetails](
+					func(_ context.Context, req *webhooks.FlowRequest[webhooks.EndpointErrorRateDetails]) error {
 						called = true
 						return nil
 					},
-				)
+				))
 				return &called
 			},
 		},
@@ -117,12 +124,12 @@ func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 			},
 			setupFn: func(fh *webhooks.FlowNotificationHandler) *bool {
 				var called bool
-				fh.OnFlowEndpointLatency(
-					func(_ context.Context, _ *webhooks.FlowNotificationContext, details *webhooks.EndpointLatencyDetails) error {
+				fh.OnFlowEndpointLatency(webhooks.FlowEventHandlerFunc[webhooks.EndpointLatencyDetails](
+					func(_ context.Context, req *webhooks.FlowRequest[webhooks.EndpointLatencyDetails]) error {
 						called = true
 						return nil
 					},
-				)
+				))
 				return &called
 			},
 		},
@@ -137,12 +144,12 @@ func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 			},
 			setupFn: func(fh *webhooks.FlowNotificationHandler) *bool {
 				var called bool
-				fh.OnFlowEndpointAvailability(
-					func(_ context.Context, _ *webhooks.FlowNotificationContext, details *webhooks.EndpointAvailabilityDetails) error {
+				fh.OnFlowEndpointAvailability(webhooks.FlowEventHandlerFunc[webhooks.EndpointAvailabilityDetails](
+					func(_ context.Context, req *webhooks.FlowRequest[webhooks.EndpointAvailabilityDetails]) error {
 						called = true
 						return nil
 					},
-				)
+				))
 				return &called
 			},
 		},
@@ -156,12 +163,12 @@ func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 			},
 			setupFn: func(fh *webhooks.FlowNotificationHandler) *bool {
 				var called bool
-				fh.OnFlowStatusChange(
-					func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.StatusChangeDetails) error {
+				fh.OnFlowStatusChange(webhooks.FlowEventHandlerFunc[webhooks.StatusChangeDetails](
+					func(_ context.Context, _ *webhooks.FlowRequest[webhooks.StatusChangeDetails]) error {
 						called = true
 						return errDummy
 					},
-				)
+				))
 				return &called
 			},
 			wantError: true,
@@ -202,10 +209,12 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 
 		fh := &webhooks.FlowNotificationHandler{}
 		fh.OnFallback(
-			func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.Value) error {
-				fallbackCalled = true
-				return nil
-			},
+			webhooks.FlowFallbackHandlerFunc(
+				func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.Value) error {
+					fallbackCalled = true
+					return nil
+				},
+			),
 		)
 
 		err := fh.Handle(context.Background(), nctx, &webhooks.Value{
@@ -228,13 +237,15 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 
 		fh := &webhooks.FlowNotificationHandler{}
 		fh.OnFallback(
-			func(_ context.Context, _ *webhooks.FlowNotificationContext, value *webhooks.Value) error {
-				fallbackCalled = true
-				if value == nil || value.Event != "NEW_FLOW_EVENT" {
-					t.Errorf("fallback value.Event = %q, want %q", value.Event, "NEW_FLOW_EVENT")
-				}
-				return nil
-			},
+			webhooks.FlowFallbackHandlerFunc(
+				func(_ context.Context, _ *webhooks.FlowNotificationContext, value *webhooks.Value) error {
+					fallbackCalled = true
+					if value == nil || value.Event != "NEW_FLOW_EVENT" {
+						t.Errorf("fallback value.Event = %q, want %q", value.Event, "NEW_FLOW_EVENT")
+					}
+					return nil
+				},
+			),
 		)
 
 		err := fh.Handle(context.Background(), nctx, &webhooks.Value{
@@ -282,11 +293,11 @@ func TestFlowNotificationHandler_Setters(t *testing.T) {
 	t.Run("OnFlowStatusChange sets Status", func(t *testing.T) {
 		t.Parallel()
 		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowStatusChange(
-			func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.StatusChangeDetails) error {
+		fh.OnFlowStatusChange(webhooks.FlowEventHandlerFunc[webhooks.StatusChangeDetails](
+			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.StatusChangeDetails]) error {
 				return nil
 			},
-		)
+		))
 		if fh.Status == nil {
 			t.Error("Status should not be nil after OnFlowStatusChange")
 		}
@@ -295,11 +306,11 @@ func TestFlowNotificationHandler_Setters(t *testing.T) {
 	t.Run("OnFlowClientErrorRate sets ClientErrorRate", func(t *testing.T) {
 		t.Parallel()
 		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowClientErrorRate(
-			func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.ClientErrorRateDetails) error {
+		fh.OnFlowClientErrorRate(webhooks.FlowEventHandlerFunc[webhooks.ClientErrorRateDetails](
+			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.ClientErrorRateDetails]) error {
 				return nil
 			},
-		)
+		))
 		if fh.ClientErrorRate == nil {
 			t.Error("ClientErrorRate should not be nil after OnFlowClientErrorRate")
 		}
@@ -308,11 +319,11 @@ func TestFlowNotificationHandler_Setters(t *testing.T) {
 	t.Run("OnFlowEndpointErrorRate sets EndpointErrorRate", func(t *testing.T) {
 		t.Parallel()
 		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowEndpointErrorRate(
-			func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.EndpointErrorRateDetails) error {
+		fh.OnFlowEndpointErrorRate(webhooks.FlowEventHandlerFunc[webhooks.EndpointErrorRateDetails](
+			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.EndpointErrorRateDetails]) error {
 				return nil
 			},
-		)
+		))
 		if fh.EndpointErrorRate == nil {
 			t.Error("EndpointErrorRate should not be nil after OnFlowEndpointErrorRate")
 		}
@@ -321,11 +332,11 @@ func TestFlowNotificationHandler_Setters(t *testing.T) {
 	t.Run("OnFlowEndpointLatency sets EndpointLatency", func(t *testing.T) {
 		t.Parallel()
 		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowEndpointLatency(
-			func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.EndpointLatencyDetails) error {
+		fh.OnFlowEndpointLatency(webhooks.FlowEventHandlerFunc[webhooks.EndpointLatencyDetails](
+			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.EndpointLatencyDetails]) error {
 				return nil
 			},
-		)
+		))
 		if fh.EndpointLatency == nil {
 			t.Error("EndpointLatency should not be nil after OnFlowEndpointLatency")
 		}
@@ -334,9 +345,13 @@ func TestFlowNotificationHandler_Setters(t *testing.T) {
 	t.Run("OnFallback sets FallbackHandler", func(t *testing.T) {
 		t.Parallel()
 		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFallback(func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.Value) error {
-			return nil
-		})
+		fh.OnFallback(
+			webhooks.FlowFallbackHandlerFunc(
+				func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.Value) error {
+					return nil
+				},
+			),
+		)
 		if fh.FallbackHandler == nil {
 			t.Error("FallbackHandler should not be nil after OnFallback")
 		}
@@ -345,11 +360,11 @@ func TestFlowNotificationHandler_Setters(t *testing.T) {
 	t.Run("OnFlowEndpointAvailability sets EndpointAvailability", func(t *testing.T) {
 		t.Parallel()
 		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowEndpointAvailability(
-			func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.EndpointAvailabilityDetails) error {
+		fh.OnFlowEndpointAvailability(webhooks.FlowEventHandlerFunc[webhooks.EndpointAvailabilityDetails](
+			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.EndpointAvailabilityDetails]) error {
 				return nil
 			},
-		)
+		))
 		if fh.EndpointAvailability == nil {
 			t.Error("EndpointAvailability should not be nil after OnFlowEndpointAvailability")
 		}
@@ -365,16 +380,20 @@ func TestFlowNotificationHandler_DedicatedOverridesFallback(t *testing.T) {
 
 	var dedicatedCalled, fallbackCalled bool
 
-	fh.OnFlowStatusChange(
-		func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.StatusChangeDetails) error {
+	fh.OnFlowStatusChange(webhooks.FlowEventHandlerFunc[webhooks.StatusChangeDetails](
+		func(_ context.Context, _ *webhooks.FlowRequest[webhooks.StatusChangeDetails]) error {
 			dedicatedCalled = true
 			return nil
 		},
+	))
+	fh.OnFallback(
+		webhooks.FlowFallbackHandlerFunc(
+			func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.Value) error {
+				fallbackCalled = true
+				return nil
+			},
+		),
 	)
-	fh.OnFallback(func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.Value) error {
-		fallbackCalled = true
-		return nil
-	})
 
 	err := fh.Handle(context.Background(), nctx, &webhooks.Value{
 		Event:     webhooks.EventFlowStatusChange,

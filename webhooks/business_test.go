@@ -27,30 +27,29 @@ import (
 func TestBusinessNotificationHandler_DedicatedCall(t *testing.T) {
 	t.Parallel()
 
-	notification := &webhooks.Notification{Object: "whatsapp_business_account"}
-	entry := webhooks.Entry{ID: "entry-1", Time: 123456}
+	ne := webhooks.NotificationEntry{Object: "whatsapp_business_account", ID: "entry-1", Time: 123456}
 
 	t.Run("alerts handler is called", func(t *testing.T) {
 		t.Parallel()
 
 		bh := &webhooks.BusinessNotificationHandler{}
 		var called bool
-		bh.OnAlerts(
-			func(_ context.Context, _ *webhooks.BusinessNotificationContext, d *webhooks.AlertNotification) error {
+		bh.OnAlerts(webhooks.BusinessEventHandlerFunc[webhooks.AlertNotification](
+			func(_ context.Context, req *webhooks.BusinessRequest[webhooks.AlertNotification]) error {
 				called = true
-				if d.AlertSeverity != "HIGH" {
-					t.Errorf("AlertSeverity = %q, want %q", d.AlertSeverity, "HIGH")
+				if req.Payload.AlertSeverity != "HIGH" {
+					t.Errorf("AlertSeverity = %q, want %q", req.Payload.AlertSeverity, "HIGH")
 				}
 				return nil
 			},
-		)
+		))
 
 		change := webhooks.Change{
 			Field: webhooks.ChangeFieldAccountAlerts.String(),
 			Value: &webhooks.Value{AlertSeverity: "HIGH"},
 		}
 
-		err := bh.Handle(context.Background(), notification, change, entry, nil)
+		err := bh.Handle(context.Background(), ne, change)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -69,67 +68,30 @@ func TestBusinessNotificationHandler_DedicatedCall(t *testing.T) {
 			Value: &webhooks.Value{Event: "PIN_CHANGED"},
 		}
 
-		err := bh.Handle(context.Background(), notification, change, entry, nil)
+		err := bh.Handle(context.Background(), ne, change)
 		if err != nil {
 			t.Errorf("expected nil for unhandled change, got: %v", err)
 		}
 	})
 
-	t.Run("handler error propagates through onError", func(t *testing.T) {
+	t.Run("handler error propagates", func(t *testing.T) {
 		t.Parallel()
 
 		bh := &webhooks.BusinessNotificationHandler{}
-		bh.OnCalls(
-			func(_ context.Context, _ *webhooks.BusinessNotificationContext, _ *webhooks.CallStatusUpdate) error {
+		bh.OnCalls(webhooks.BusinessEventHandlerFunc[webhooks.CallStatusUpdate](
+			func(_ context.Context, _ *webhooks.BusinessRequest[webhooks.CallStatusUpdate]) error {
 				return errDummy
 			},
-		)
-
-		var onErrorCalled bool
-		onError := func(_ context.Context, err error) error {
-			onErrorCalled = true
-			if err == nil {
-				t.Error("expected non-nil error from handler")
-			}
-			return nil
-		}
+		))
 
 		change := webhooks.Change{
 			Field: webhooks.ChangeFieldCalls.String(),
 			Value: &webhooks.Value{},
 		}
 
-		err := bh.Handle(context.Background(), notification, change, entry, onError)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !onErrorCalled {
-			t.Error("onError was not called")
-		}
-	})
-
-	t.Run("onError returns non-nil stops processing", func(t *testing.T) {
-		t.Parallel()
-
-		bh := &webhooks.BusinessNotificationHandler{}
-		bh.OnCapability(
-			func(_ context.Context, _ *webhooks.BusinessNotificationContext, _ *webhooks.CapabilityUpdate) error {
-				return errDummy
-			},
-		)
-
-		onError := func(_ context.Context, _ error) error {
-			return errDummy
-		}
-
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldBusinessCapabilityUpdate.String(),
-			Value: &webhooks.Value{},
-		}
-
-		err := bh.Handle(context.Background(), notification, change, entry, onError)
+		err := bh.Handle(context.Background(), ne, change)
 		if err == nil {
-			t.Error("expected error from onError, got nil")
+			t.Error("expected error from handler, got nil")
 		}
 	})
 }
@@ -140,11 +102,11 @@ func TestBusinessNotificationHandler_Setters(t *testing.T) {
 	t.Run("OnAlerts sets Alerts", func(t *testing.T) {
 		t.Parallel()
 		bh := &webhooks.BusinessNotificationHandler{}
-		bh.OnAlerts(
-			func(_ context.Context, _ *webhooks.BusinessNotificationContext, _ *webhooks.AlertNotification) error {
+		bh.OnAlerts(webhooks.BusinessEventHandlerFunc[webhooks.AlertNotification](
+			func(_ context.Context, _ *webhooks.BusinessRequest[webhooks.AlertNotification]) error {
 				return nil
 			},
-		)
+		))
 		if bh.Alerts == nil {
 			t.Error("Alerts should not be nil after OnAlerts")
 		}
@@ -153,9 +115,11 @@ func TestBusinessNotificationHandler_Setters(t *testing.T) {
 	t.Run("OnAccount sets Account", func(t *testing.T) {
 		t.Parallel()
 		bh := &webhooks.BusinessNotificationHandler{}
-		bh.OnAccount(func(_ context.Context, _ *webhooks.BusinessNotificationContext, _ *webhooks.AccountUpdate) error {
-			return nil
-		})
+		bh.OnAccount(webhooks.BusinessEventHandlerFunc[webhooks.AccountUpdate](
+			func(_ context.Context, _ *webhooks.BusinessRequest[webhooks.AccountUpdate]) error {
+				return nil
+			},
+		))
 		if bh.Account == nil {
 			t.Error("Account should not be nil after OnAccount")
 		}
@@ -164,11 +128,11 @@ func TestBusinessNotificationHandler_Setters(t *testing.T) {
 	t.Run("OnSecurity sets Security", func(t *testing.T) {
 		t.Parallel()
 		bh := &webhooks.BusinessNotificationHandler{}
-		bh.OnSecurity(
-			func(_ context.Context, _ *webhooks.BusinessNotificationContext, _ *webhooks.SecurityNotification) error {
+		bh.OnSecurity(webhooks.BusinessEventHandlerFunc[webhooks.SecurityNotification](
+			func(_ context.Context, _ *webhooks.BusinessRequest[webhooks.SecurityNotification]) error {
 				return nil
 			},
-		)
+		))
 		if bh.Security == nil {
 			t.Error("Security should not be nil after OnSecurity")
 		}

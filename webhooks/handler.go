@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,7 +9,7 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -27,7 +27,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 
 	"github.com/piusalfred/whatsapp/message"
 	"github.com/piusalfred/whatsapp/message/media"
@@ -60,44 +59,75 @@ type Handler struct {
 	messages *MessagesHandler
 	groups   *GroupManagementHandler
 
-	notificationErrors    MessageChangeValueHandler[werrors.Error]
-	messageStatusChange   MessageChangeValueHandler[Status]
-	smbAppStateSync       MessageChangeValueHandler[SMBAppStateSync]
-	userPreferencesUpdate MessageChangeValueHandler[UserPreference]
-	historySync           MessageChangeValueHandler[HistoryEntry]
+	notificationErrors    ChangeValueHandler[werrors.Error]
+	messageStatusChange   ChangeValueHandler[Status]
+	smbAppStateSync       ChangeValueHandler[SMBAppStateSync]
+	userPreferencesUpdate ChangeValueHandler[UserPreference]
+	historySync           ChangeValueHandler[HistoryEntry]
 
-	errorHandlerFunc func(ctx context.Context, err error) error
+	errorHandler ErrorHandler
 
-	// fallbackHandler is called for any change.Field not handled by the
-	// dispatch switch. When nil (the default), unrecognized fields are
-	// silently acknowledged with 200 to prevent WhatsApp retry storms.
-	// Set via [Handler.OnUnrecognizedField] to handle future or custom
-	// notification types without modifying the library.
-	fallbackHandler func(ctx context.Context, notification *Notification, change Change, entry Entry) error
+	fallback            FallbackHandler
+	changeFieldHandlers changeFieldMap
 }
 
 // NewHandler creates a Handler with all callbacks initialized to no-ops.
 // Register handlers via the Set* methods before attaching to a Listener.
 func NewHandler() *Handler {
-	return &Handler{
-		flows:    &FlowNotificationHandler{},
-		business: &BusinessNotificationHandler{},
-		messages: &MessagesHandler{
-			Media:       &MediaHandler{},
-			Interactive: &InteractiveHandler{},
-		},
-		groups:                &GroupManagementHandler{},
-		notificationErrors:    newMessageValueEventHandler[werrors.Error](),
-		messageStatusChange:   newMessageValueEventHandler[Status](),
-		smbAppStateSync:       newMessageValueEventHandler[SMBAppStateSync](),
-		userPreferencesUpdate: newMessageValueEventHandler[UserPreference](),
-		historySync:           newMessageValueEventHandler[HistoryEntry](),
-		errorHandlerFunc:      func(_ context.Context, _ error) error { return nil },
+	implemented := []ChangeField{
+		ChangeFieldAccountAlerts,
+		ChangeFieldTemplateStatusUpdate,
+		ChangeFieldTemplateCategoryUpdate,
+		ChangeFieldTemplateQualityUpdate,
+		ChangeFieldTemplateComponentsUpdate,
+		ChangeFieldPhoneNumberNameUpdate,
+		ChangeFieldPhoneNumberQualityUpdate,
+		ChangeFieldAccountReviewUpdate,
+		ChangeFieldAccountUpdate,
+		ChangeFieldBusinessCapabilityUpdate,
+		ChangeFieldAccountSettingsUpdate,
+		ChangeFieldCalls,
+		ChangeFieldSecurity,
+		ChangeFieldGroupLifecycleUpdate,
+		ChangeFieldGroupParticipantsUpdate,
+		ChangeFieldGroupSettingsUpdate,
+		ChangeFieldGroupStatusUpdate,
+		ChangeFieldHistory,
+		ChangeFieldMessages,
+		ChangeFieldTemplateComponentsUpdate,
+		ChangeFieldTemplateCategoryUpdate,
+		ChangeFieldTemplateQualityUpdate,
+		ChangeFieldSMBAppStateSync,
+		ChangeFieldUserPreferences,
+		ChangeFieldSMBMessageEchoes,
 	}
-}
 
-func newMessageValueEventHandler[T any]() MessageChangeValueHandler[T] {
-	return NewNoOpMessageChangeValueHandler[T]()
+	passThroughOnError := ErrorHandlerFunc(
+		func(_ context.Context, err error) error { return err },
+	)
+
+	fallback := FallbackHandlerFunc(
+		func(_ context.Context, _ NotificationEntry, _ Change) error {
+			return nil
+		},
+	)
+
+	h := &Handler{
+		flows:                 nil,
+		business:              nil,
+		messages:              nil,
+		groups:                nil,
+		notificationErrors:    nil,
+		messageStatusChange:   nil,
+		smbAppStateSync:       nil,
+		userPreferencesUpdate: nil,
+		historySync:           nil,
+		errorHandler:          passThroughOnError,
+		changeFieldHandlers:   initChangeFieldMap(implemented...),
+		fallback:              fallback,
+	}
+
+	return h
 }
 
 // OnError configures a callback which is invoked whenever an error occurs
@@ -108,39 +138,48 @@ func newMessageValueEventHandler[T any]() MessageChangeValueHandler[T] {
 //     changes and messages in the payload.
 //
 //   - If the callback returns a non-nil error, processing stops immediately,
-//     and the Handler responds with an error status (e.g., 500).
+//     and an HTTP 500 is returned to WhatsApp (which may trigger a retry).
 //
-// This allows you to handle partial failures gracefully in multi-change payloads
-// (e.g., ignoring certain errors or logging them) without terminating the entire
-// notification processing.
-// If no callback is set, the default behavior is to ignore errors and continue
-// processing the payload.
-func (handler *Handler) OnError(f func(ctx context.Context, err error) error) {
-	handler.errorHandlerFunc = f
+// Example:
+//
+//	handler.OnError(webhooks.ErrorHandlerFunc(func(ctx context.Context, err error) error {
+//	    log.Printf("webhook error: %v", err)
+//	    return nil // continue processing remaining messages
+//	}))
+func (handler *Handler) OnError(h ErrorHandler) {
+	handler.errorHandler = h
 }
 
-// OnUnrecognizedField registers a handler for notification fields that the
-// library does not yet recognise. By default, unrecognized fields are silently
-// acknowledged (200) to prevent WhatsApp from retrying. When a handler is set,
-// it receives the full notification, change, and entry — use change.Field and
-// change.Value to inspect the raw payload.
-func (handler *Handler) OnUnrecognizedField(
-	f func(ctx context.Context, notification *Notification, change Change, entry Entry) error,
-) {
-	handler.fallbackHandler = f
+// SetGeneralFallbackHandler sets the general fallback handler for change.Field
+// values not in the known set. It also propagates to all non-nil sub-handlers
+// (Flows, Business, Groups, Messages) that don't already have a dedicated
+// fallback set.
+func (handler *Handler) SetGeneralFallbackHandler(h FallbackHandler) {
+	handler.fallback = h
+
+	if handler.flows != nil && handler.flows.FallbackHandler == nil {
+		handler.flows.FallbackHandler = FlowFallbackHandlerFunc(
+			func(ctx context.Context, nctx *FlowNotificationContext, value *Value) error {
+				return h.Handle(
+					ctx,
+					NotificationEntry{Object: nctx.NotificationObject, ID: nctx.EntryID, Time: nctx.EntryTime},
+					Change{Value: value},
+				)
+			},
+		)
+	}
+	if handler.business != nil && handler.business.Fallback == nil {
+		handler.business.Fallback = h
+	}
+	if handler.groups != nil && handler.groups.Fallback == nil {
+		handler.groups.Fallback = h
+	}
 }
 
-// HandleNotification processes with a single Notification containing one or more
-// Entry objects. Each Entry can have multiple Changes, and each Change can
-// contain multiple messages or event objects.
-//
-// For every error encountered in a Change or Message handler, the error is passed
-// to the error handler function (registered via OnError). If that callback
-// returns a non-nil error, processing halts immediately and this method returns
-// an HTTP 500 response. Otherwise, it continues processing subsequent changes.
-//
-// If no fatal errors are encountered, it returns an HTTP 200 response, indicating
-// all parts of the payload were processed successfully.
+// HandleNotification processes an incoming WhatsApp webhook notification.
+// It iterates over every entry and change in the payload, dispatching each
+// to the correct handler based on change.Field. Returns a Response indicating
+// success (200), gateway timeout (504), or internal server error (500).
 func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *Response {
 	for _, entry := range notification.Entry {
 		select {
@@ -165,8 +204,8 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 
 // handleNotificationChange routes each incoming webhook change to the correct
 // handler based on change.Field. Unknown fields are short-circuited via
-// [isKnownField] and routed to [Handler.OnUnrecognizedField] (if set) or
-// silently acknowledged.
+// [isKnownField] and routed to the general fallback (if set) or silently
+// acknowledged.
 func (handler *Handler) handleNotificationChange(
 	ctx context.Context,
 	notification *Notification,
@@ -174,12 +213,21 @@ func (handler *Handler) handleNotificationChange(
 	entry Entry,
 ) error {
 	if change.Value == nil {
-		return nil // malformed payload with no value — silently skip
+		return nil
 	}
 
-	if !isKnownField(change.Field) {
-		if handler.fallbackHandler != nil {
-			return handler.fallbackHandler(ctx, notification, change, entry)
+	ne := NotificationEntry{
+		Object:       notification.Object,
+		ID:           entry.ID,
+		Time:         entry.Time,
+		EntryCount:   len(notification.Entry),
+		ChangesCount: len(entry.Changes),
+	}
+
+	_, isImplemented := handler.changeFieldHandlers.Check(change.Field)
+	if !isImplemented {
+		if handler.fallback != nil {
+			return fmt.Errorf("general fallback: %w", handler.fallback.Handle(ctx, ne, change))
 		}
 		return nil
 	}
@@ -188,25 +236,25 @@ func (handler *Handler) handleNotificationChange(
 
 	switch cfc {
 	case ChangeFieldCategoryFlows:
-		return handler.handleFlowsChange(ctx, notification, change, entry)
+		return handler.handleFlowsChange(ctx, ne, change)
 	case ChangeFieldCategoryBusiness:
-		return handler.business.Handle(ctx, notification, change, entry, handler.errorHandlerFunc)
+		return handler.business.Handle(ctx, ne, change)
 	case ChangeFieldCategoryUserPreferences:
-		return handler.handleUserPreferencesChange(ctx, notification, change, entry)
+		return handler.handleUserPreferencesChange(ctx, ne, change)
 	case ChangeFieldCategorySMBAppStateSync:
-		return handler.handleSMBAppStateSyncChange(ctx, notification, change, entry)
+		return handler.handleSMBAppStateSyncChange(ctx, ne, change)
 	case ChangeFieldCategoryMessages:
-		return handler.handleNotificationMessageItem(ctx, entry, change)
+		return handler.handleNotificationMessageItem(ctx, ne, change)
 	case ChangeFieldCategorySMBMessageEchoes:
-		return handler.handleSMBMessageEchoesChange(ctx, notification, change, entry)
+		return handler.handleSMBMessageEchoesChange(ctx, ne, change)
 	case ChangeFieldCategoryGroups:
-		return handler.groups.Handle(ctx, change, entry, handler.errorHandlerFunc)
+		return handler.groups.Handle(ctx, ne, change)
 	case ChangeFieldCategoryHistory:
-		return handler.handleHistoryChange(ctx, notification, change, entry)
+		return handler.handleHistoryChange(ctx, ne, change)
 
 	default:
-		if handler.fallbackHandler != nil {
-			return handler.fallbackHandler(ctx, notification, change, entry)
+		if handler.fallback != nil {
+			return fmt.Errorf("fallback: %w", handler.fallback.Handle(ctx, ne, change))
 		}
 		return nil
 	}
@@ -214,22 +262,21 @@ func (handler *Handler) handleNotificationChange(
 
 func (handler *Handler) handleFlowsChange(
 	ctx context.Context,
-	notification *Notification,
+	ne NotificationEntry,
 	change Change,
-	entry Entry,
 ) error {
 	notificationCtx := &FlowNotificationContext{
-		NotificationObject: notification.Object,
-		EntryID:            entry.ID,
-		EntryTime:          entry.Time,
+		NotificationObject: ne.Object,
+		EntryID:            ne.ID,
+		EntryTime:          ne.Time,
 		ChangeField:        change.Field,
 		EventName:          change.Value.Event,
 		EventMessage:       change.Value.Message,
 		FlowID:             change.Value.FlowID,
 	}
 	if err := handler.flows.Handle(ctx, notificationCtx, change.Value); err != nil {
-		if handler.errorHandlerFunc != nil {
-			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+		if handler.errorHandler != nil {
+			if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
 				return fmt.Errorf("error handler: %w", handlerErr)
 			}
 		}
@@ -239,51 +286,50 @@ func (handler *Handler) handleFlowsChange(
 
 func (handler *Handler) handleUserPreferencesChange(
 	ctx context.Context,
-	_ *Notification,
+	ne NotificationEntry,
 	change Change,
-	entry Entry,
 ) error {
 	return handleMessageChangeNotification(
-		ctx, handler, handler.userPreferencesUpdate, change,
-		entry, change.Value.UserPreferences,
+		ctx, handler, handler.userPreferencesUpdate, ne, change,
+		change.Value.UserPreferences,
 	)
 }
 
 func (handler *Handler) handleSMBAppStateSyncChange(
 	ctx context.Context,
-	_ *Notification,
+	ne NotificationEntry,
 	change Change,
-	entry Entry,
 ) error {
 	syncs := make([]*SMBAppStateSync, len(change.Value.StateSync))
 	for i := range change.Value.StateSync {
 		syncs[i] = &change.Value.StateSync[i]
 	}
 	return handleMessageChangeNotification(
-		ctx, handler, handler.smbAppStateSync, change,
-		entry, syncs,
+		ctx, handler, handler.smbAppStateSync, ne, change,
+		syncs,
 	)
 }
 
 func (handler *Handler) handleSMBMessageEchoesChange(
 	ctx context.Context,
-	_ *Notification,
+	ne NotificationEntry,
 	change Change,
-	entry Entry,
 ) error {
 	notificationCtx := &MessageNotificationContext{
-		EntryID:          entry.ID,
-		MessagingProduct: change.Value.MessagingProduct,
-		Metadata:         change.Value.Metadata,
-		Contacts:         change.Value.Contacts,
+		EntryID:            ne.ID,
+		EntryTime:          ne.Time,
+		NotificationObject: ne.Object,
+		MessagingProduct:   change.Value.MessagingProduct,
+		Metadata:           change.Value.Metadata,
+		Contacts:           change.Value.Contacts,
 	}
 	for _, msg := range change.Value.MessageEchoes {
 		if msg == nil {
 			continue
 		}
 		if err := handler.messages.Handle(ctx, notificationCtx, msg); err != nil {
-			if handler.errorHandlerFunc != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+			if handler.errorHandler != nil {
+				if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
 					return fmt.Errorf("error handler: %w", handlerErr)
 				}
 			}
@@ -294,23 +340,27 @@ func (handler *Handler) handleSMBMessageEchoesChange(
 
 func (handler *Handler) handleHistoryChange(
 	ctx context.Context,
-	_ *Notification,
+	ne NotificationEntry,
 	change Change,
-	entry Entry,
 ) error {
 	entries := make([]*HistoryEntry, len(change.Value.History))
 	for i := range change.Value.History {
 		entries[i] = &change.Value.History[i]
 	}
 	if len(entries) > 0 {
-		if err := handler.historySync.Handle(ctx,
-			&MessageNotificationContext{
-				EntryID:          entry.ID,
-				MessagingProduct: change.Value.MessagingProduct,
-				Metadata:         change.Value.Metadata,
-			}, entries); err != nil {
-			if handler.errorHandlerFunc != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+		req := &ChangeValueRequest[HistoryEntry]{
+			Notification: &MessageNotificationContext{
+				EntryID:            ne.ID,
+				EntryTime:          ne.Time,
+				NotificationObject: ne.Object,
+				MessagingProduct:   change.Value.MessagingProduct,
+				Metadata:           change.Value.Metadata,
+			},
+			Payload: entries,
+		}
+		if err := handler.historySync.Handle(ctx, req); err != nil {
+			if handler.errorHandler != nil {
+				if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
 					return fmt.Errorf("error handler: %w", handlerErr)
 				}
 			}
@@ -319,7 +369,7 @@ func (handler *Handler) handleHistoryChange(
 	// Media content for history messages is delivered as a
 	// separate webhook with messages in the history field.
 	if len(change.Value.Messages) > 0 {
-		return handler.handleNotificationMessageItem(ctx, entry, change)
+		return handler.handleNotificationMessageItem(ctx, ne, change)
 	}
 	return nil
 }
@@ -336,12 +386,13 @@ func (c ChangeField) String() string {
 	return string(c)
 }
 
-// KnownChangeFields returns every [ChangeField] that the [Handler] dispatch
-// switch recognises. Callers can compare this list against their registered
-// handlers at startup to detect missing coverage.
+// KnownChangeFields returns all ChangeField values recognized by the
+// library. Unknown fields are routed to the fallback handler (if set)
+// or silently acknowledged.
+//
+
 func KnownChangeFields() []ChangeField {
 	return []ChangeField{
-		ChangeFieldFlows,
 		ChangeFieldAccountAlerts,
 		ChangeFieldTemplateStatusUpdate,
 		ChangeFieldTemplateCategoryUpdate,
@@ -349,58 +400,44 @@ func KnownChangeFields() []ChangeField {
 		ChangeFieldTemplateComponentsUpdate,
 		ChangeFieldPhoneNumberNameUpdate,
 		ChangeFieldPhoneNumberQualityUpdate,
-		ChangeFieldAccountUpdate,
 		ChangeFieldAccountReviewUpdate,
-		ChangeFieldCalls,
+		ChangeFieldAccountUpdate,
 		ChangeFieldBusinessCapabilityUpdate,
-		ChangeFieldUserPreferences,
-		ChangeFieldSMBAppStateSync,
 		ChangeFieldAccountSettingsUpdate,
+		ChangeFieldCalls,
 		ChangeFieldSecurity,
-		ChangeFieldMessages,
-		ChangeFieldSMBMessageEchoes,
 		ChangeFieldGroupLifecycleUpdate,
 		ChangeFieldGroupParticipantsUpdate,
 		ChangeFieldGroupSettingsUpdate,
 		ChangeFieldGroupStatusUpdate,
 		ChangeFieldHistory,
-		ChangeFieldPartnerSolutions,
-		ChangeFieldPaymentConfigUpdate,
+		ChangeFieldMessages,
+		ChangeFieldFlows,
+		ChangeFieldSMBAppStateSync,
+		ChangeFieldUserPreferences,
+		ChangeFieldSMBMessageEchoes,
 	}
-}
-
-// knownFields is a set of change fields recognised by the dispatch switch.
-// Initialised once via sync.Once to avoid per-call slice allocation in [isKnownField].
-var (
-	knownFieldsOnce sync.Once
-	knownFields     map[string]bool
-)
-
-// isKnownField reports whether field is handled by the dispatch switch.
-func isKnownField(field string) bool {
-	knownFieldsOnce.Do(func() {
-		knownFields = make(map[string]bool, len(KnownChangeFields()))
-		for _, f := range KnownChangeFields() {
-			knownFields[f.String()] = true
-		}
-	})
-	return knownFields[field]
 }
 
 type (
-	EventHandler[S any, T any] interface {
-		HandleEvent(ctx context.Context, ntx *S, notification *T) error
+	// FlowEventHandler is the interface for handling typed flow webhook events.
+	// It receives a [FlowRequest] carrying the notification context and the typed
+	// event payload.
+	FlowEventHandler[T any] interface {
+		Handle(ctx context.Context, req *FlowRequest[T]) error
 	}
 
-	EventHandlerFunc[S any, T any] func(ctx context.Context, ntx *S, notification *T) error
+	// FlowEventHandlerFunc is an adapter that allows a plain function with the
+	// (ctx, *FlowRequest[T]) signature to be used as a [FlowEventHandler].
+	FlowEventHandlerFunc[T any] func(ctx context.Context, req *FlowRequest[T]) error
 )
 
-func (f EventHandlerFunc[S, T]) HandleEvent(ctx context.Context, ntx *S, notification *T) error {
-	return f(ctx, ntx, notification)
+func (f FlowEventHandlerFunc[T]) Handle(ctx context.Context, req *FlowRequest[T]) error {
+	return f(ctx, req)
 }
 
-func NewNoOpEventHandler[S, T any]() EventHandler[S, T] {
-	return EventHandlerFunc[S, T](func(_ context.Context, _ *S, _ *T) error {
+func NewNoOpFlowEventHandler[T any]() FlowEventHandler[T] {
+	return FlowEventHandlerFunc[T](func(_ context.Context, _ *FlowRequest[T]) error {
 		return nil
 	})
 }
@@ -420,11 +457,12 @@ type (
 	}
 
 	SenderInfo struct {
-		Name string `json:"name,omitempty"`
-		WaID string `json:"wa_id,omitempty"`
+		Name string
+		WaID string
 	}
+)
 
-	// Message contains the information of a message. It is embedded in the Value object.
+type (
 	Message struct {
 		Audio          *media.Info       `json:"audio,omitempty"`
 		Button         *Button           `json:"button,omitempty"`
@@ -455,25 +493,20 @@ type (
 	}
 
 	Unsupported struct {
-		Type string `json:"type"`
+		Type string `json:"type,omitempty"`
 	}
 
-	// Revoke payload when a WhatsApp user deletes a previously sent message.
-	// Triggers: user deletes a message within ~2 days of sending.
-	// The original_message_id identifies the message that was revoked.
+	// Revoke represents a message revocation sent by a WhatsApp user
+	// (deletion within ~2 days of sending).
 	Revoke struct {
 		OriginalMessageID string `json:"original_message_id"`
 	}
 
-	// Edit payload when a WhatsApp user edits a previously sent text or media
-	// caption message. The original_message_id identifies the edited message;
-	// Message contains the full replacement content.
-	// Triggers: user edits a message within 15 minutes of sending.
-	// Note: edit messages are currently unsupported by WhatsApp and may arrive
-	// as unsupported message type instead.
+	// Edit represents a message edit sent by a WhatsApp user
+	// (within 15 minutes of sending, text or media caption).
 	Edit struct {
-		OriginalMessageID string   `json:"original_message_id"`
-		Message           *Message `json:"message"`
+		OriginalMessageID string `json:"original_message_id"`
+		Message           *Edit  `json:"message,omitempty"`
 	}
 
 	Metadata struct {
@@ -482,30 +515,20 @@ type (
 	}
 
 	ReferralNotification struct {
-		Text     *Text
-		Referral *Referral
+		Text     *Text     `json:"text,omitempty"`
+		Referral *Referral `json:"referral,omitempty"`
 	}
 
-	// Pricing provides billing information for a message status event.
-	// Present only on sent status and one of delivered or read.
-	// Category values: authentication, authentication-international, marketing,
-	// marketing_lite, referral_conversion, service, utility.
-	// PricingModel is "CBP" (conversation-based) or "PMP" (per-message).
 	Pricing struct {
-		Billable     bool   `json:"billable,omitempty"` // Deprecated
+		Billable     bool   `json:"billable,omitempty"`
 		Category     string `json:"category,omitempty"`
 		PricingModel string `json:"pricing_model,omitempty"`
 	}
 
-	// ConversationOrigin identifies how a conversation was started (e.g.,
-	// "authentication", "marketing", "service").
 	ConversationOrigin struct {
 		Type string `json:"type,omitempty"`
 	}
 
-	// Conversation holds metadata about the conversation associated with
-	// a message. Omitted for v24.0+ unless the message was sent within an
-	// open free entry point window. The ID is unique per window.
 	Conversation struct {
 		ID     string              `json:"id,omitempty"`
 		Origin *ConversationOrigin `json:"origin,omitempty"`
@@ -530,22 +553,19 @@ type (
 	}
 
 	Interactive struct {
-		Type        string       `json:"type,omitempty"`
-		ButtonReply *ButtonReply `json:"button_reply,omitempty"`
-		ListReply   *ListReply   `json:"list_reply,omitempty"`
-		NFMReply    *NFMReply    `json:"nfm_reply,omitempty"`
+		Type        InteractiveType `json:"type,omitempty"`
+		ButtonReply *ButtonReply    `json:"button_reply,omitempty"`
+		ListReply   *ListReply      `json:"list_reply,omitempty"`
+		NFMReply    *NFMReply       `json:"nfm_reply,omitempty"`
 	}
 
 	NFMReply struct {
-		Name         string          `json:"name"`
-		Body         string          `json:"body"`
-		ResponseJSON json.RawMessage `json:"response_json"`
+		Name         string          `json:"name,omitempty"`
+		Body         string          `json:"body,omitempty"`
+		ResponseJSON json.RawMessage `json:"response_json,omitempty"`
 	}
 
-	InteractiveType struct {
-		ButtonReply *ButtonReply `json:"button_reply,omitempty"`
-		ListReply   *ListReply   `json:"list_reply,omitempty"`
-	}
+	InteractiveType string
 
 	ButtonReply struct {
 		ID    string `json:"id,omitempty"`
@@ -560,8 +580,8 @@ type (
 
 	ProductItem struct {
 		ProductRetailerID string `json:"product_retailer_id,omitempty"`
-		Quantity          string `json:"quantity,omitempty"`
-		ItemPrice         string `json:"item_price,omitempty"`
+		Quantity          int    `json:"quantity,omitempty"`
+		ItemPrice         int    `json:"item_price,omitempty"`
 		Currency          string `json:"currency,omitempty"`
 	}
 
@@ -609,18 +629,27 @@ type (
 		ProductRetailerID string `json:"product_retailer_id,omitempty"`
 	}
 
-	// MessageNotificationContext is the context of a notification contains information about the
-	// notification and the business that is subscribed to the Webhooks.
-	// these are common fields to all notifications.
-	// EntryID - The WhatsApp Business Account EntryID for the business that is subscribed to the webhook.
-	// Contacts - Array of contact objects with information for the customer who sent a message
-	// to the business
-	// Metadata - A metadata object describing the business subscribed to the webhook.
+	// MessageNotificationContext carries the notification-level metadata from
+	// a WhatsApp webhook entry. It identifies the WABA that received the event,
+	// the messaging product, and the sender contacts.
 	MessageNotificationContext struct {
-		EntryID          string
-		MessagingProduct string
-		Contacts         []*Contact
-		Metadata         *Metadata
+		NotificationObject string
+		EntryID            string
+		EntryTime          int64
+		MessagingProduct   string
+		Contacts           []*Contact
+		Metadata           *Metadata
+	}
+
+	// NotificationEntry carries the minimal notification envelope fields
+	// needed by sub-handlers. Pass this instead of the full *Notification +
+	// Entry to avoid leaking the entire payload tree.
+	NotificationEntry struct {
+		Object       string
+		ID           string
+		Time         int64
+		EntryCount   int
+		ChangesCount int
 	}
 
 	// MessageInfo is the context of a message contains information about the
@@ -647,6 +676,66 @@ type (
 		IsReferral       bool
 	}
 )
+
+// MessageRequest carries all context for a single message webhook event.
+// It groups notification-level metadata, message-level metadata extracted
+// by the library, and the typed message payload into one struct.
+//
+// Fields are populated from the incoming JSON webhook before the callback
+// is invoked; nil pointers mean the field was absent in the payload.
+type MessageRequest[T any] struct {
+	// Notification identifies the WhatsApp Business Account that received
+	// the message and the messaging product (always "whatsapp"). Contacts
+	// carries the sender profile(s).
+	Notification *MessageNotificationContext
+	// Info is the library-extracted message envelope: sender phone number,
+	// message ID (use with the messages endpoint to mark as read),
+	// timestamp, type string, and computed flags. IsAReply is true when
+	// the message has a context ID and is neither forwarded nor a product
+	// inquiry. GroupID is set for group messages; empty otherwise.
+	Info *MessageInfo
+	// Payload is the typed message body. *Text with a Body field for text
+	// messages; *media.Info for media; *Interactive for interactive replies.
+	Payload *T
+}
+
+// FlowRequest carries context and payload for a flows webhook event.
+// Flows are structured data-collection forms; webhooks notify of status
+// changes (draft→published) and endpoint performance alerts.
+type FlowRequest[T any] struct {
+	// Context identifies the source WABA, the flow ID, the event name
+	// (e.g. FLOW_STATUS_CHANGE), and a human-readable message.
+	Context *FlowNotificationContext
+	// Payload is the typed event details: *StatusChangeDetails for status
+	// transitions, *ClientErrorRateDetails for client-side error thresholds.
+	Payload *T
+}
+
+// ChangeValueRequest carries notification context and a batch of typed
+// events from a single change.value in the webhook payload. WhatsApp
+// delivers these as arrays — a single POST can contain multiple group
+// changes, status updates, or user preference changes.
+type ChangeValueRequest[T any] struct {
+	// Notification identifies the WABA and phone number that received
+	// the webhook event.
+	Notification *MessageNotificationContext
+	// Payload is the array of typed events from change.value: []*Group,
+	// []*Status, []*UserPreference, etc.
+	Payload []*T
+}
+
+// BusinessRequest carries context and payload for a business-account
+// webhook event: template lifecycle changes, phone number verification,
+// account reviews, security alerts, and call events.
+type BusinessRequest[T any] struct {
+	// Context identifies the WABA, the change field that triggered the
+	// event, and the entry timestamp from the webhook envelope.
+	Context *BusinessNotificationContext
+	// Payload is the typed event data: *AlertNotification for messaging
+	// limit alerts, *TemplateStatusUpdateNotification for template
+	// approval/rejection, *SecurityNotification for PIN changes, etc.
+	Payload *T
+}
 
 func (message *Message) IsAReply() bool {
 	return message.Context != nil && message.Context.ReferredProduct == nil && !message.Context.Forwarded
@@ -676,7 +765,7 @@ func (message *Message) IsHistoryMessage() bool {
 // media content has not yet been delivered. The actual media asset arrives
 // in a separate webhook.
 func (message *Message) IsMediaPlaceholder() bool {
-	return message.Type == MessageTypeMediaPlaceholder.String()
+	return message.Type == MessageTypeMediaPlaceholder
 }
 
 // AllSendersInfo returns the sender information of all contacts in the notification context.

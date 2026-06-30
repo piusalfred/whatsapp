@@ -13,43 +13,44 @@ import (
 	context "context"
 	reflect "reflect"
 
+	webhooks "github.com/piusalfred/whatsapp/webhooks"
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockEventHandler is a mock of EventHandler interface.
-type MockEventHandler[S any, T any] struct {
+// MockFlowEventHandler is a mock of FlowEventHandler interface.
+type MockFlowEventHandler[T any] struct {
 	ctrl     *gomock.Controller
-	recorder *MockEventHandlerMockRecorder[S, T]
+	recorder *MockFlowEventHandlerMockRecorder[T]
 	isgomock struct{}
 }
 
-// MockEventHandlerMockRecorder is the mock recorder for MockEventHandler.
-type MockEventHandlerMockRecorder[S any, T any] struct {
-	mock *MockEventHandler[S, T]
+// MockFlowEventHandlerMockRecorder is the mock recorder for MockFlowEventHandler.
+type MockFlowEventHandlerMockRecorder[T any] struct {
+	mock *MockFlowEventHandler[T]
 }
 
-// NewMockEventHandler creates a new mock instance.
-func NewMockEventHandler[S any, T any](ctrl *gomock.Controller) *MockEventHandler[S, T] {
-	mock := &MockEventHandler[S, T]{ctrl: ctrl}
-	mock.recorder = &MockEventHandlerMockRecorder[S, T]{mock}
+// NewMockFlowEventHandler creates a new mock instance.
+func NewMockFlowEventHandler[T any](ctrl *gomock.Controller) *MockFlowEventHandler[T] {
+	mock := &MockFlowEventHandler[T]{ctrl: ctrl}
+	mock.recorder = &MockFlowEventHandlerMockRecorder[T]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockEventHandler[S, T]) EXPECT() *MockEventHandlerMockRecorder[S, T] {
+func (m *MockFlowEventHandler[T]) EXPECT() *MockFlowEventHandlerMockRecorder[T] {
 	return m.recorder
 }
 
-// HandleEvent mocks base method.
-func (m *MockEventHandler[S, T]) HandleEvent(ctx context.Context, ntx *S, notification *T) error {
+// Handle mocks base method.
+func (m *MockFlowEventHandler[T]) Handle(ctx context.Context, req *webhooks.FlowRequest[T]) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HandleEvent", ctx, ntx, notification)
+	ret := m.ctrl.Call(m, "Handle", ctx, req)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// HandleEvent indicates an expected call of HandleEvent.
-func (mr *MockEventHandlerMockRecorder[S, T]) HandleEvent(ctx, ntx, notification any) *gomock.Call {
+// Handle indicates an expected call of Handle.
+func (mr *MockFlowEventHandlerMockRecorder[T]) Handle(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleEvent", reflect.TypeOf((*MockEventHandler[S, T])(nil).HandleEvent), ctx, ntx, notification)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockFlowEventHandler[T])(nil).Handle), ctx, req)
 }

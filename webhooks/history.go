@@ -91,15 +91,17 @@ type HistoryContext struct {
 // Usage:
 //
 //	hh := &HistoryHandler{}
-//	hh.OnMessages(func(ctx, nctx, entries []*HistoryEntry) error {
-//	    // Don't process here — persist to queue immediately.
-//	    for _, e := range entries {
-//	        queue.Push(e)
-//	    }
-//	    return nil
-//	})
+//	hh.OnMessages(webhooks.ChangeValueHandlerFunc[webhooks.HistoryEntry](
+//		func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.HistoryEntry]) error {
+//		    // Don't process here — persist to queue immediately.
+//		    for _, e := range req.Payload {
+//		        queue.Push(e)
+//		    }
+//		    return nil
+//		},
+//	))
 type HistoryHandler struct {
-	Messages MessageChangeValueHandler[HistoryEntry]
+	Messages ChangeValueHandler[HistoryEntry]
 }
 
 // OnMessages sets the handler for history sync webhooks.
@@ -108,10 +110,8 @@ type HistoryHandler struct {
 // Do NOT process synchronously — a single webhook can contain thousands of
 // messages and will cause a timeout. Persist to a queue and process
 // asynchronously.
-func (hh *HistoryHandler) OnMessages(
-	fn func(ctx context.Context, nctx *MessageNotificationContext, entries []*HistoryEntry) error,
-) {
-	hh.Messages = MessageChangeValueHandlerFunc[HistoryEntry](fn)
+func (hh *HistoryHandler) OnMessages(h ChangeValueHandler[HistoryEntry]) {
+	hh.Messages = h
 }
 
 // HandleHistoryMessages dispatches the history entries to the configured
@@ -130,18 +130,20 @@ func (hh *HistoryHandler) OnMessages(
 // they are not processed here.
 func (hh *HistoryHandler) HandleHistoryMessages(
 	ctx context.Context,
+	ne NotificationEntry,
 	change Change,
-	entry Entry,
-	onError func(ctx context.Context, err error) error,
+	onError ErrorHandler,
 ) error {
 	if len(change.Value.History) == 0 || hh.Messages == nil {
 		return nil
 	}
 
 	nctx := &MessageNotificationContext{
-		EntryID:          entry.ID,
-		MessagingProduct: change.Value.MessagingProduct,
-		Metadata:         change.Value.Metadata,
+		EntryID:            ne.ID,
+		EntryTime:          ne.Time,
+		NotificationObject: ne.Object,
+		MessagingProduct:   change.Value.MessagingProduct,
+		Metadata:           change.Value.Metadata,
 	}
 
 	entries := make([]*HistoryEntry, len(change.Value.History))
@@ -149,9 +151,13 @@ func (hh *HistoryHandler) HandleHistoryMessages(
 		entries[i] = &change.Value.History[i]
 	}
 
-	if err := hh.Messages.Handle(ctx, nctx, entries); err != nil {
+	req := &ChangeValueRequest[HistoryEntry]{
+		Notification: nctx,
+		Payload:      entries,
+	}
+	if err := hh.Messages.Handle(ctx, req); err != nil {
 		if onError != nil {
-			if handlerErr := onError(ctx, err); handlerErr != nil {
+			if handlerErr := onError.Handle(ctx, err); handlerErr != nil {
 				return fmt.Errorf("error handler: %w", handlerErr)
 			}
 		}

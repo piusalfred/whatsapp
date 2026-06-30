@@ -31,25 +31,30 @@ import (
 func handleMessageChangeNotification[T any](
 	ctx context.Context,
 	handler *Handler,
-	eventHandler MessageChangeValueHandler[T],
+	eventHandler ChangeValueHandler[T],
+	ne NotificationEntry,
 	change Change,
-	entry Entry,
 	events []*T,
 ) error {
 	if eventHandler == nil {
 		return nil
 	}
 
-	notificationCtx := &MessageNotificationContext{
-		EntryID:          entry.ID,
-		MessagingProduct: change.Value.MessagingProduct,
-		Contacts:         change.Value.Contacts,
-		Metadata:         change.Value.Metadata,
+	req := &ChangeValueRequest[T]{
+		Notification: &MessageNotificationContext{
+			EntryID:            ne.ID,
+			EntryTime:          ne.Time,
+			NotificationObject: ne.Object,
+			MessagingProduct:   change.Value.MessagingProduct,
+			Contacts:           change.Value.Contacts,
+			Metadata:           change.Value.Metadata,
+		},
+		Payload: events,
 	}
 
-	if err := eventHandler.Handle(ctx, notificationCtx, events); err != nil {
-		if handler.errorHandlerFunc != nil {
-			if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+	if err := eventHandler.Handle(ctx, req); err != nil {
+		if handler.errorHandler != nil {
+			if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
 				return fmt.Errorf("error handler: %w", handlerErr)
 			}
 		}
@@ -60,23 +65,27 @@ func handleMessageChangeNotification[T any](
 
 func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 	ctx context.Context,
-	entry Entry,
+	ne NotificationEntry,
 	change Change,
 ) error {
 	notificationCtx := &MessageNotificationContext{
-		EntryID:          entry.ID,
-		MessagingProduct: change.Value.MessagingProduct,
-		Contacts:         change.Value.Contacts,
-		Metadata:         change.Value.Metadata,
+		EntryID:            ne.ID,
+		EntryTime:          ne.Time,
+		NotificationObject: ne.Object,
+		MessagingProduct:   change.Value.MessagingProduct,
+		Contacts:           change.Value.Contacts,
+		Metadata:           change.Value.Metadata,
 	}
 
 	// handle notification errors do not terminate of its success, or if the error is not fatal
 	if handler.notificationErrors != nil {
-		if err := handler.notificationErrors.Handle(
-			ctx, notificationCtx, ErrorInfosAsErrors(change.Value.Errors),
-		); err != nil {
-			if handler.errorHandlerFunc != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+		req := &ChangeValueRequest[werrors.Error]{
+			Notification: notificationCtx,
+			Payload:      ErrorInfosAsErrors(change.Value.Errors),
+		}
+		if err := handler.notificationErrors.Handle(ctx, req); err != nil {
+			if handler.errorHandler != nil {
+				if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
 					return fmt.Errorf("error handler: %w", handlerErr)
 				}
 			}
@@ -84,11 +93,13 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 	}
 
 	if handler.messageStatusChange != nil {
-		if err := handler.messageStatusChange.Handle(
-			ctx, notificationCtx, change.Value.Statuses,
-		); err != nil {
-			if handler.errorHandlerFunc != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+		req := &ChangeValueRequest[Status]{
+			Notification: notificationCtx,
+			Payload:      change.Value.Statuses,
+		}
+		if err := handler.messageStatusChange.Handle(ctx, req); err != nil {
+			if handler.errorHandler != nil {
+				if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
 					return fmt.Errorf("error handler: %w", handlerErr)
 				}
 			}
@@ -97,8 +108,8 @@ func (handler *Handler) handleNotificationMessageItem( //nolint: gocognit // ok
 
 	for _, m := range change.Value.Messages {
 		if err := handler.messages.Handle(ctx, notificationCtx, m); err != nil {
-			if handler.errorHandlerFunc != nil {
-				if handlerErr := handler.errorHandlerFunc(ctx, err); handlerErr != nil {
+			if handler.errorHandler != nil {
+				if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
 					return fmt.Errorf("error handler: %w", handlerErr)
 				}
 			}
@@ -157,34 +168,30 @@ type (
 )
 
 type (
-	MessageChangeValueHandler[T any] interface {
-		Handle(ctx context.Context, notificationCtx *MessageNotificationContext, value []*T) error
+	ChangeValueHandler[T any] interface {
+		Handle(ctx context.Context, req *ChangeValueRequest[T]) error
 	}
-	MessageChangeValueHandlerFunc[T any] func(ctx context.Context, notificationCtx *MessageNotificationContext, value []*T) error
+	ChangeValueHandlerFunc[T any] func(ctx context.Context, req *ChangeValueRequest[T]) error
 )
 
 type (
-	UserPreferenceUpdateHandler    = MessageChangeValueHandler[UserPreference]
-	NotificationErrorsHandler      = MessageChangeValueHandler[werrors.Error]
-	MessageStatusChangeHandler     = MessageChangeValueHandler[Status]
-	GroupLifecycleUpdateHandler    = MessageChangeValueHandler[Group]
-	GroupParticipantsUpdateHandler = MessageChangeValueHandler[Group]
-	GroupSettingsUpdateHandler     = MessageChangeValueHandler[Group]
-	GroupStatusUpdateHandler       = MessageChangeValueHandler[Group]
-	HistorySyncHandler             = MessageChangeValueHandler[HistoryEntry]
-	SMBAppStateSyncHandler         = MessageChangeValueHandler[SMBAppStateSync]
+	UserPreferenceUpdateHandler    = ChangeValueHandler[UserPreference]
+	NotificationErrorsHandler      = ChangeValueHandler[werrors.Error]
+	MessageStatusChangeHandler     = ChangeValueHandler[Status]
+	GroupLifecycleUpdateHandler    = ChangeValueHandler[Group]
+	GroupParticipantsUpdateHandler = ChangeValueHandler[Group]
+	GroupSettingsUpdateHandler     = ChangeValueHandler[Group]
+	GroupStatusUpdateHandler       = ChangeValueHandler[Group]
+	HistorySyncHandler             = ChangeValueHandler[HistoryEntry]
+	SMBAppStateSyncHandler         = ChangeValueHandler[SMBAppStateSync]
 )
 
-func (f MessageChangeValueHandlerFunc[T]) Handle(
-	ctx context.Context,
-	notificationCtx *MessageNotificationContext,
-	values []*T,
-) error {
-	return f(ctx, notificationCtx, values)
+func (f ChangeValueHandlerFunc[T]) Handle(ctx context.Context, req *ChangeValueRequest[T]) error {
+	return f(ctx, req)
 }
 
-func NewNoOpMessageChangeValueHandler[T any]() MessageChangeValueHandler[T] {
-	return MessageChangeValueHandlerFunc[T](func(_ context.Context, _ *MessageNotificationContext, _ []*T) error {
+func NewNoOpChangeValueHandler[T any]() ChangeValueHandler[T] {
+	return ChangeValueHandlerFunc[T](func(_ context.Context, _ *ChangeValueRequest[T]) error {
 		return nil
 	})
 }

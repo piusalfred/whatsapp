@@ -54,10 +54,12 @@
 // # Quick Start
 //
 //	handler := webhooks.NewHandler()
-//	handler.OnTextMessage(webhooks.TextMessageHandler(func(ctx context.Context, nc *webhooks.MessageNotificationContext, info *webhooks.MessageInfo, text *webhooks.Text) error {
-//	    log.Printf("from %s: %s", nc.SenderInfo().WaID, text.Body)
-//	    return nil
-//	}))
+//	handler.OnTextMessage(webhooks.MessageHandlerFunc[webhooks.Text](
+//		func(ctx context.Context, req *webhooks.MessageRequest[webhooks.Text]) error {
+//			log.Printf("from %s: %s", req.Notification.SenderInfo().WaID, req.Payload.Body)
+//			return nil
+//		},
+//	))
 //
 //	listener := webhooks.NewListener(handler, webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
 //	    return &webhooks.Config{
@@ -88,7 +90,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -185,9 +186,7 @@ func (listener *Listener) HandleSubscriptionVerification(writer http.ResponseWri
 	}
 
 	writer.WriteHeader(http.StatusOK)
-	if _, err := writer.Write([]byte(html.EscapeString(challenge))); err != nil {
-		slog.Warn("webhook subscription verification write failed", "error", err)
-	}
+	_, _ = writer.Write([]byte(html.EscapeString(challenge)))
 }
 
 // HandleNotification processes an incoming POST webhook event. It reads the
@@ -250,6 +249,41 @@ type (
 
 func (fn NotificationHandlerFunc) HandleNotification(ctx context.Context, notification *Notification) *Response {
 	return fn(ctx, notification)
+}
+
+type (
+	// ErrorHandlerFunc adapts a bare function to the ErrorHandler interface.
+	ErrorHandlerFunc func(ctx context.Context, err error) error
+
+	// ErrorHandler is called when an error occurs during webhook processing.
+	// A single webhook POST may carry multiple entries and changes.
+	//
+	// If Handle returns nil, the error is considered non-fatal and processing
+	// continues to the next change/entry. If Handle returns a non-nil error,
+	// processing stops immediately and an HTTP 500 is returned to WhatsApp
+	// (which may trigger a retry of the entire payload).
+	//
+	// Design your ErrorHandler to decide per-error whether to continue or
+	// abort — returning nil for transient errors keeps the pipeline moving.
+	ErrorHandler interface {
+		Handle(ctx context.Context, err error) error
+	}
+)
+
+func (fn ErrorHandlerFunc) Handle(ctx context.Context, err error) error {
+	return fn(ctx, err)
+}
+
+type (
+	FallbackHandlerFunc func(ctx context.Context, ne NotificationEntry, change Change) error
+
+	FallbackHandler interface {
+		Handle(ctx context.Context, ne NotificationEntry, change Change) error
+	}
+)
+
+func (fn FallbackHandlerFunc) Handle(ctx context.Context, ne NotificationEntry, change Change) error {
+	return fn(ctx, ne, change)
 }
 
 // ValidateOptions controls whether and how incoming payloads are authenticated.
@@ -448,5 +482,5 @@ var (
 )
 
 // MaxPayloadBytes is the maximum webhook payload size (4 MB).
-// WhatsApp's documented limit is 3 MB; we allow an extra 1 MB as grace.
+// WhatsApp's documented limit is 3 MB.
 const MaxPayloadBytes = 4 << 20

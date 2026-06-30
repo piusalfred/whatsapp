@@ -58,13 +58,15 @@ type ReactionHandler struct {
 var _ webhooks.ReactionHandler = (*ReactionHandler)(nil)
 
 // Handle processes reaction messages (type: reaction).
-// It logs the incoming reaction and stores the emoji in a map.
+// The MessageRequest wraps notification context, message info, and the typed payload.
 func (r *ReactionHandler) Handle(
 	ctx context.Context,
-	nctx *webhooks.MessageNotificationContext,
-	mctx *webhooks.MessageInfo,
-	reaction *media.Reaction,
+	req *webhooks.MessageRequest[media.Reaction],
 ) error {
+	reaction := req.Payload
+	nctx := req.Notification
+	mctx := req.Info
+
 	r.Logger.Info("Received reaction message",
 		"context", nctx,
 		"message_info", mctx,
@@ -85,17 +87,18 @@ func (r *ReactionHandler) Handle(
 
 func main() {
 	handler := webhooks.NewHandler()
-	handler.OnTextMessage(func(ctx context.Context,
-		nctx *webhooks.MessageNotificationContext,
-		mctx *webhooks.MessageInfo,
-		text *webhooks.Text,
-	) error {
-		fmt.Printf("[OnTextMessage] New text message received:\n")
-		fmt.Printf("  Notification context: %+v\n", nctx)
-		fmt.Printf("  Message info:         %+v\n", mctx)
-		fmt.Printf("  Text content:         %+v\n", text)
-		return nil
-	})
+	handler.OnTextMessage(webhooks.MessageHandlerFunc[webhooks.Text](
+		func(ctx context.Context, req *webhooks.MessageRequest[webhooks.Text]) error {
+			text := req.Payload
+			nctx := req.Notification
+			mctx := req.Info
+			fmt.Printf("[OnTextMessage] New text message received:\n")
+			fmt.Printf("  Notification context: %+v\n", nctx)
+			fmt.Printf("  Message info:         %+v\n", mctx)
+			fmt.Printf("  Text content:         %+v\n", text)
+			return nil
+		},
+	))
 
 	// In case of complex handlers you can implement a certain notification type handler interface
 	// for example for reaction messages you can implement the webhooks.ReactionHandler interface
@@ -105,8 +108,8 @@ func main() {
 		Store:  make(map[string]any),
 	}
 
-	// this is how you can register it with the main handler.
-	handler.SetReactionMessageHandler(reactionHandler)
+	// Register the reaction handler via the OnReactionMessage method.
+	handler.OnReactionMessage(reactionHandler)
 
 	conf := webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
 		value := &webhooks.Config{

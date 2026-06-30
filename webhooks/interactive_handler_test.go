@@ -36,13 +36,15 @@ func TestInteractiveHandler_DedicatedSubTypes(t *testing.T) {
 		ih := &webhooks.InteractiveHandler{}
 		var called bool
 		ih.OnListReply(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, d *webhooks.ListReply) error {
-				called = true
-				if d.ID != "option-1" {
-					t.Errorf("ID = %q, want %q", d.ID, "option-1")
-				}
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.ListReply](
+				func(_ context.Context, req *webhooks.MessageRequest[webhooks.ListReply]) error {
+					called = true
+					if req.Payload.ID != "option-1" {
+						t.Errorf("ID = %q, want %q", req.Payload.ID, "option-1")
+					}
+					return nil
+				},
+			),
 		)
 
 		msg := &webhooks.Message{
@@ -68,10 +70,12 @@ func TestInteractiveHandler_DedicatedSubTypes(t *testing.T) {
 		ih := &webhooks.InteractiveHandler{}
 		var called bool
 		ih.OnButtonReply(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, d *webhooks.ButtonReply) error {
-				called = true
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.ButtonReply](
+				func(_ context.Context, req *webhooks.MessageRequest[webhooks.ButtonReply]) error {
+					called = true
+					return nil
+				},
+			),
 		)
 
 		msg := &webhooks.Message{
@@ -97,10 +101,12 @@ func TestInteractiveHandler_DedicatedSubTypes(t *testing.T) {
 		ih := &webhooks.InteractiveHandler{}
 		var called bool
 		ih.OnFlowCompletion(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, d *webhooks.NFMReply) error {
-				called = true
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.NFMReply](
+				func(_ context.Context, req *webhooks.MessageRequest[webhooks.NFMReply]) error {
+					called = true
+					return nil
+				},
+			),
 		)
 
 		msg := &webhooks.Message{
@@ -126,10 +132,12 @@ func TestInteractiveHandler_DedicatedSubTypes(t *testing.T) {
 		ih := &webhooks.InteractiveHandler{}
 		var called bool
 		ih.OnAddressSubmission(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, d *webhooks.NFMReply) error {
-				called = true
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.NFMReply](
+				func(_ context.Context, req *webhooks.MessageRequest[webhooks.NFMReply]) error {
+					called = true
+					return nil
+				},
+			),
 		)
 
 		msg := &webhooks.Message{
@@ -162,13 +170,15 @@ func TestInteractiveHandler_Fallback(t *testing.T) {
 		ih := &webhooks.InteractiveHandler{}
 		var called bool
 		ih.OnFallback(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, d *webhooks.Interactive) error {
-				called = true
-				if d.Type != "some_new_type" {
-					t.Errorf("Type = %q, want %q", d.Type, "some_new_type")
-				}
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.Interactive](
+				func(_ context.Context, req *webhooks.MessageRequest[webhooks.Interactive]) error {
+					called = true
+					if req.Payload.Type != "some_new_type" {
+						t.Errorf("Type = %q, want %q", req.Payload.Type, "some_new_type")
+					}
+					return nil
+				},
+			),
 		)
 
 		msg := &webhooks.Message{
@@ -208,16 +218,20 @@ func TestInteractiveHandler_Fallback(t *testing.T) {
 
 		ih := &webhooks.InteractiveHandler{}
 		ih.OnButtonReply(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, _ *webhooks.ButtonReply) error {
-				dedicatedCalled = true
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.ButtonReply](
+				func(_ context.Context, _ *webhooks.MessageRequest[webhooks.ButtonReply]) error {
+					dedicatedCalled = true
+					return nil
+				},
+			),
 		)
 		ih.OnFallback(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, _ *webhooks.Interactive) error {
-				fallbackCalled = true
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.Interactive](
+				func(_ context.Context, _ *webhooks.MessageRequest[webhooks.Interactive]) error {
+					fallbackCalled = true
+					return nil
+				},
+			),
 		)
 
 		msg := &webhooks.Message{
@@ -248,9 +262,11 @@ func TestInteractiveHandler_Setters(t *testing.T) {
 		t.Parallel()
 		ih := &webhooks.InteractiveHandler{}
 		ih.OnListReply(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, _ *webhooks.ListReply) error {
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.ListReply](
+				func(_ context.Context, _ *webhooks.MessageRequest[webhooks.ListReply]) error {
+					return nil
+				},
+			),
 		)
 		if ih.ListReply == nil {
 			t.Error("ListReply should not be nil")
@@ -261,9 +277,11 @@ func TestInteractiveHandler_Setters(t *testing.T) {
 		t.Parallel()
 		ih := &webhooks.InteractiveHandler{}
 		ih.OnButtonReply(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, _ *webhooks.ButtonReply) error {
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.ButtonReply](
+				func(_ context.Context, _ *webhooks.MessageRequest[webhooks.ButtonReply]) error {
+					return nil
+				},
+			),
 		)
 		if ih.ButtonReply == nil {
 			t.Error("ButtonReply should not be nil")
@@ -274,9 +292,11 @@ func TestInteractiveHandler_Setters(t *testing.T) {
 		t.Parallel()
 		ih := &webhooks.InteractiveHandler{}
 		ih.OnFallback(
-			func(_ context.Context, _ *webhooks.MessageNotificationContext, _ *webhooks.MessageInfo, _ *webhooks.Interactive) error {
-				return nil
-			},
+			webhooks.MessageHandlerFunc[webhooks.Interactive](
+				func(_ context.Context, _ *webhooks.MessageRequest[webhooks.Interactive]) error {
+					return nil
+				},
+			),
 		)
 		if ih.Fallback == nil {
 			t.Error("Interactive should not be nil")

@@ -369,6 +369,9 @@ const (
 	// Note: This webhook field is not yet implemented by the handler
 	// dispatch. Received payloads are silently acknowledged (HTTP 200).
 	ChangeFieldPaymentConfigUpdate ChangeField = "payment_configuration_update"
+
+	// UnimplementedChangeField this is placeholder to categorize unimplemented webhook fields.
+	UnimplementedChangeField ChangeField = "unimplemented_change_field"
 )
 
 // ChangeFieldCategory defines semantic groups for WhatsApp webhook fields.
@@ -431,4 +434,26 @@ func GetChangeFieldCategory(f string) ChangeFieldCategory {
 	default:
 		return ChangeFieldCategoryUnknown
 	}
+}
+
+type changeFieldMap map[ChangeField]struct{}
+
+func initChangeFieldMap(ff ...ChangeField) changeFieldMap {
+	m := make(changeFieldMap, len(ff))
+	for _, f := range ff {
+		m[f] = struct{}{}
+	}
+	return m
+}
+
+func (m changeFieldMap) Add(f ChangeField) {
+	m[f] = struct{}{}
+}
+
+func (m changeFieldMap) Check(f string) (ChangeField, bool) {
+	ff := ChangeField(f)
+	if _, ok := m[ff]; ok {
+		return ff, true
+	}
+	return UnimplementedChangeField, false
 }
