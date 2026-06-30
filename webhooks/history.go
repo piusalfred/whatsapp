@@ -230,6 +230,7 @@ func (hh *HistoryHandler) Handle(
 				return hh.handleError(ctx, err)
 			}
 		}
+		return nil
 	}
 
 	return hh.executeFallback(ctx, ne, change)
