@@ -58,31 +58,60 @@ func ValidateRequestPayloadSignature(body []byte, r *http.Request, opts Validate
 
 Multiple functions with overlapping concerns. `ValidateSignature` uses positional args; `ValidateRequestPayloadSignature` takes `*http.Request` directly.
 
-**Recommendation:** Consolidate to a single `SignatureVerifier` struct with `.Validate(body, signature) error` method. Accept `[]byte` not `*http.Request`.
+**Proposed refactoring — consolidate into a `SignatureVerifier` struct:**
+
+```go
+// SignatureVerifier validates WhatsApp webhook payload signatures using HMAC-SHA256.
+type SignatureVerifier struct {
+	AppSecret []byte
+}
+
+// Verify checks whether the X-Hub-Signature-256 header matches the HMAC of body.
+func (v *SignatureVerifier) Verify(body []byte, header http.Header) error {
+	sig := header.Get(SignatureHeaderKey)
+	if sig == "" {
+		return ErrSignatureNotFound
+	}
+	if !validateSignature(sig, body, string(v.AppSecret)) {
+		return ErrInvalidSignature
+	}
+	return nil
+}
+```
+
+The caller reads the body and passes it with the header — no `*http.Request` in the core API. The underlying `validateSignature` can remain unexported. This replaces all three functions with a single struct.
 
 **Severity:** Minor
 
 ---
 
-## Finding 4 – `Set*` methods on `Handler` are historical cruft (Clean)
+## Finding 4 – `SetGeneralFallbackHandler` renamed to `OnFallback` (Fixed ✓)
 
 **File:** `handler.go:148`
 
-`SetGeneralFallbackHandler` remains. All other `Set*` methods were removed in a clean-up. This one propagates to sub-handlers. The `Set` prefix is inconsistent with `On*`. Rename to `OnGeneralFallback`.
+Renamed to `OnFallback` for consistency with all other `On*` handler registration methods. Test reference updated.
 
-**Severity:** Minor (naming)
+**Severity:** Resolved
 
 ---
 
-## Finding 5 – Public API surface is large (~255 exported symbols) (Minor)
+## Finding 5 – Public API surface: 187 exported symbols, 42 type aliases (Minor)
 
 **File:** Multiple
 
-As documented in `code-review/ANALYSIS.md`, the package exports ~255 symbols, with ~39 type aliases being the main contributor. This is a known trade-off: aliases make `On*` signatures readable but inflate godoc.
+The package exports 187 symbols (measured via `go doc`), with 42 type aliases. This is down from the original estimate of ~255 but still substantial. Type aliases exist solely for `On*` method signature readability:
 
-**Status:** Acknowledged. The alias count has moderately improved since the analysis (some aliases consolidated). Acceptable for a domain-heavy package.
+```go
+// 42 aliases like:
+type TextMessageHandler = MessageHandler[Text]
+type AlertsHandler = BusinessEventHandler[AlertNotification]
+type FlowStatusHandler = FlowEventHandler[StatusChangeDetails]
+// etc.
+```
 
-**Severity:** Minor (inherent complexity)
+**Recommendation:** These are justified — they make `On*` signatures self-documenting. No action needed, but the count is worth monitoring as new handlers are added.
+
+**Severity:** Minor (inherent domain complexity)
 
 ---
 

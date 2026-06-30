@@ -52,7 +52,7 @@ The webhooks package is a well-structured, type-safe handler registry for WhatsA
 | 11 | **Add SECURITY.md** | New file | Vulnerability reporting policy | N/A |
 | 12 | **Add govulncheck to CI** | `.github/workflows/build.yaml` | Add step: `go run golang.org/x/vuln/cmd/govulncheck@latest ./...` | CI pass |
 | 13 | **Signature verification consolidation** | `webhooks.go` | Unify into `SignatureVerifier` struct | Existing tests |
-| 14 | **Rename SetGeneralFallbackHandler** | `handler.go:148` | Rename to `OnGeneralFallback` for consistency | Lint + test |
+| 14 | ~~Rename SetGeneralFallbackHandler~~ | `handler.go:148` | ✓ Fixed — renamed to `OnFallback` | Done |
 
 ---
 

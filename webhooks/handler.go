@@ -141,11 +141,10 @@ func (handler *Handler) OnError(h ErrorHandler) {
 	handler.errorHandler = h
 }
 
-// SetGeneralFallbackHandler sets the general fallback handler for change.Field
-// values not in the known set. It also propagates to all non-nil sub-handlers
-// (Flows, Business, Groups, Messages) that don't already have a dedicated
-// fallback set.
-func (handler *Handler) SetGeneralFallbackHandler(h FallbackHandler) {
+// OnFallback sets the general fallback handler for change.Field values not in
+// the known set. It also propagates to all non-nil sub-handlers (Business,
+// Groups, History) that don't already have a dedicated fallback set.
+func (handler *Handler) OnFallback(h FallbackHandler) {
 	handler.fallback = h
 
 	if handler.business != nil && handler.business.Fallback == nil {
@@ -219,7 +218,7 @@ func (handler *Handler) handleNotificationChange(
 
 	switch cfc {
 	case ChangeFieldCategoryFlows:
-		return handler.handleFlowsChange(ctx, ne, change)
+		return handler.flows.Handle(ctx, ne, change)
 	case ChangeFieldCategoryBusiness:
 		return handler.business.Handle(ctx, ne, change)
 	case ChangeFieldCategoryUserPreferences:
@@ -233,7 +232,7 @@ func (handler *Handler) handleNotificationChange(
 	case ChangeFieldCategoryGroups:
 		return handler.groups.Handle(ctx, ne, change)
 	case ChangeFieldCategoryHistory:
-		return handler.handleHistoryChange(ctx, ne, change)
+		return handler.history.Handle(ctx, ne, change)
 
 	default:
 		if handler.fallback != nil {
@@ -254,14 +253,6 @@ func (handler *Handler) handleError(ctx context.Context, err error) error {
 		return fmt.Errorf("error handler: %w", handlerErr)
 	}
 	return nil
-}
-
-func (handler *Handler) handleFlowsChange(
-	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
-) error {
-	return handler.flows.Handle(ctx, ne, change)
 }
 
 func (handler *Handler) handleUserPreferencesChange(
@@ -314,14 +305,6 @@ func (handler *Handler) handleSMBMessageEchoesChange(
 	return nil
 }
 
-func (handler *Handler) handleHistoryChange(
-	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
-) error {
-	return handler.history.Handle(ctx, ne, change)
-}
-
 const (
 	EventFlowStatusChange     = "FLOW_STATUS_CHANGE"
 	EventEndpointErrorRate    = "ENDPOINT_ERROR_RATE"
@@ -332,39 +315,6 @@ const (
 
 func (c ChangeField) String() string {
 	return string(c)
-}
-
-// KnownChangeFields returns all ChangeField values recognized by the
-// library. Unknown fields are routed to the fallback handler (if set)
-// or silently acknowledged.
-//
-
-func KnownChangeFields() []ChangeField {
-	return []ChangeField{
-		ChangeFieldAccountAlerts,
-		ChangeFieldTemplateStatusUpdate,
-		ChangeFieldTemplateCategoryUpdate,
-		ChangeFieldTemplateQualityUpdate,
-		ChangeFieldTemplateComponentsUpdate,
-		ChangeFieldPhoneNumberNameUpdate,
-		ChangeFieldPhoneNumberQualityUpdate,
-		ChangeFieldAccountReviewUpdate,
-		ChangeFieldAccountUpdate,
-		ChangeFieldBusinessCapabilityUpdate,
-		ChangeFieldAccountSettingsUpdate,
-		ChangeFieldCalls,
-		ChangeFieldSecurity,
-		ChangeFieldGroupLifecycleUpdate,
-		ChangeFieldGroupParticipantsUpdate,
-		ChangeFieldGroupSettingsUpdate,
-		ChangeFieldGroupStatusUpdate,
-		ChangeFieldHistory,
-		ChangeFieldMessages,
-		ChangeFieldFlows,
-		ChangeFieldSMBAppStateSync,
-		ChangeFieldUserPreferences,
-		ChangeFieldSMBMessageEchoes,
-	}
 }
 
 type (

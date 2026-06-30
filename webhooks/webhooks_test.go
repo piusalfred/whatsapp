@@ -1776,7 +1776,7 @@ func TestListener_HandleNotification_UnrecognizedField(t *testing.T) {
 	var gotField string
 
 	handler := webhooks.NewHandler()
-	handler.SetGeneralFallbackHandler(webhooks.FallbackHandlerFunc(func(ctx context.Context,
+	handler.OnFallback(webhooks.FallbackHandlerFunc(func(ctx context.Context,
 		ne webhooks.NotificationEntry, c webhooks.Change,
 	) error {
 		handled = true
