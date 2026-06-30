@@ -412,16 +412,9 @@ func TestListener_HandleNotification_MultipleChangeValues(t *testing.T) {
 
 	// When we get user preferences update
 	handler.OnUserPreferencesUpdate(
-		webhooks.ChangeValueHandlerFunc[webhooks.UserPreference](
-			func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.UserPreference]) error {
-				prefs := req.Payload
+		webhooks.UserPreferenceHandlerFunc(
+			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, p *webhooks.UserPreference) error {
 				userPreferencesSeen = true
-
-				if len(prefs) != 1 {
-					t.Errorf("Expected 1 user preference, got %d", len(prefs))
-					return nil
-				}
-				p := prefs[0]
 				if p.Value != "stop" {
 					t.Errorf("Preference mismatch, got=%s, want=stop", p.Value)
 				}
@@ -624,18 +617,11 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 	))
 
 	handler.OnUserPreferencesUpdate(
-		webhooks.ChangeValueHandlerFunc[webhooks.UserPreference](
-			func(ctx context.Context, req *webhooks.ChangeValueRequest[webhooks.UserPreference]) error {
-				prefs := req.Payload
+		webhooks.UserPreferenceHandlerFunc(
+			func(ctx context.Context, nctx *webhooks.MessageNotificationContext, p *webhooks.UserPreference) error {
 				userPreferencesSeen = true
-				if len(prefs) != 2 {
-					t.Errorf("Expected 2 user preferences, got %d", len(prefs))
-					return nil
-				}
-				for _, p := range prefs {
-					if p.Value != "stop" {
-						t.Errorf("Preference mismatch, got=%s, want=stop", p.Value)
-					}
+				if p.Value != "stop" {
+					t.Errorf("Preference mismatch, got=%s, want=stop", p.Value)
 				}
 				return nil
 			},

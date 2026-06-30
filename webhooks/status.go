@@ -27,81 +27,6 @@ import (
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
 
-func handleMessageChangeNotification[T any](
-	ctx context.Context,
-	handler *Handler,
-	eventHandler ChangeValueHandler[T],
-	ne NotificationEntry,
-	change Change,
-	events []*T,
-) error {
-	if eventHandler == nil {
-		return nil
-	}
-
-	req := &ChangeValueRequest[T]{
-		Notification: &MessageNotificationContext{
-			EntryID:            ne.ID,
-			EntryTime:          ne.Time,
-			NotificationObject: ne.Object,
-			MessagingProduct:   change.Value.MessagingProduct,
-			Contacts:           change.Value.Contacts,
-			Metadata:           change.Value.Metadata,
-		},
-		Payload: events,
-	}
-
-	if err := eventHandler.Handle(ctx, req); err != nil {
-		return handler.handleError(ctx, err)
-	}
-
-	return nil
-}
-
-func (handler *Handler) handleNotificationMessageItem(
-	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
-) error {
-	notificationCtx := &MessageNotificationContext{
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		NotificationObject: ne.Object,
-		MessagingProduct:   change.Value.MessagingProduct,
-		Contacts:           change.Value.Contacts,
-		Metadata:           change.Value.Metadata,
-	}
-
-	// handle notification errors do not terminate of its success, or if the error is not fatal
-	if handler.notificationErrors != nil {
-		req := &ChangeValueRequest[werrors.Error]{
-			Notification: notificationCtx,
-			Payload:      ErrorInfosAsErrors(change.Value.Errors),
-		}
-		if err := handler.notificationErrors.Handle(ctx, req); err != nil {
-			return handler.handleError(ctx, err)
-		}
-	}
-
-	if handler.messageStatusChange != nil {
-		req := &ChangeValueRequest[Status]{
-			Notification: notificationCtx,
-			Payload:      change.Value.Statuses,
-		}
-		if err := handler.messageStatusChange.Handle(ctx, req); err != nil {
-			return handler.handleError(ctx, err)
-		}
-	}
-
-	if handler.messages != nil {
-		if err := handler.messages.Handle(ctx, ne, change); err != nil {
-			return handler.handleError(ctx, err)
-		}
-	}
-
-	return nil
-}
-
 type (
 	// Status represents a delivery status event for an outgoing message.
 	//
@@ -158,7 +83,6 @@ type (
 )
 
 type (
-	UserPreferenceUpdateHandler    = ChangeValueHandler[UserPreference]
 	NotificationErrorsHandler      = ChangeValueHandler[werrors.Error]
 	MessageStatusChangeHandler     = ChangeValueHandler[Status]
 	GroupLifecycleUpdateHandler    = ChangeValueHandler[Group]
@@ -166,7 +90,6 @@ type (
 	GroupSettingsUpdateHandler     = ChangeValueHandler[Group]
 	GroupStatusUpdateHandler       = ChangeValueHandler[Group]
 	HistorySyncHandler             = ChangeValueHandler[HistoryEntry]
-	SMBAppStateSyncHandler         = ChangeValueHandler[SMBAppStateSync]
 )
 
 func (f ChangeValueHandlerFunc[T]) Handle(ctx context.Context, req *ChangeValueRequest[T]) error {
@@ -179,24 +102,18 @@ func NewNoOpChangeValueHandler[T any]() ChangeValueHandler[T] {
 	})
 }
 
-func (handler *Handler) OnUserPreferencesUpdate(h UserPreferenceUpdateHandler) {
-	handler.userPreferencesUpdate = h
-}
-
-func (handler *Handler) OnSMBAppStateSync(h SMBAppStateSyncHandler) {
-	handler.smbAppStateSync = h
-}
-
-func (handler *Handler) OnSMBMessageEcho(h FallbackHandler) {
-	handler.ensureMessages().Fallback = h
-}
-
+// OnNotificationErrors sets the handler for notification-level errors on the
+// "messages" field. This is a convenience wrapper around
+// [MessagesHandler.OnNotificationErrors].
 func (handler *Handler) OnNotificationErrors(h NotificationErrorsHandler) {
-	handler.notificationErrors = h
+	handler.ensureMessages().OnNotificationErrors(h)
 }
 
+// OnMessageStatusChange sets the handler for message delivery status updates
+// (sent, delivered, read, failed). This is a convenience wrapper around
+// [MessagesHandler.OnStatusChange].
 func (handler *Handler) OnMessageStatusChange(h MessageStatusChangeHandler) {
-	handler.messageStatusChange = h
+	handler.ensureMessages().OnStatusChange(h)
 }
 
 func (handler *Handler) OnMessageErrors(h MessageErrorsHandler) {

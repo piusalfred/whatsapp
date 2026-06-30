@@ -155,8 +155,8 @@ func TestFallback_Flows_SubFallbackFires(t *testing.T) {
 
 	// Set sub-fallback. EndpointLatency is nil → should hit this.
 	var subFired bool
-	h.Flows().OnFallback(webhooks.FlowFallbackHandlerFunc(
-		func(_ context.Context, nctx *webhooks.FlowNotificationContext, value *webhooks.Value) error {
+	h.Flows().OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ne webhooks.NotificationEntry, c webhooks.Change) error {
 			subFired = true
 			return nil
 		},

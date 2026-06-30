@@ -83,22 +83,6 @@ type (
 	}
 )
 
-type (
-	// FlowFallbackHandlerFunc adapts a bare function to the FlowFallbackHandler interface.
-	FlowFallbackHandlerFunc func(ctx context.Context, nctx *FlowNotificationContext, value *Value) error
-
-	// FlowFallbackHandler is called for any flow event that does not have a
-	// dedicated handler set — both unknown event types and known types left nil.
-	// When nil, those events are silently acknowledged (HTTP 200).
-	FlowFallbackHandler interface {
-		Handle(ctx context.Context, nctx *FlowNotificationContext, value *Value) error
-	}
-)
-
-func (fn FlowFallbackHandlerFunc) Handle(ctx context.Context, nctx *FlowNotificationContext, value *Value) error {
-	return fn(ctx, nctx, value)
-}
-
 // FlowNotificationHandler groups all per-event-type handlers for the flows
 // webhook and a fallback for unhandled events.
 //
@@ -131,11 +115,11 @@ type FlowNotificationHandler struct {
 	// EndpointAvailability handles ENDPOINT_AVAILABILITY events. Payload: [EndpointAvailabilityDetails].
 	EndpointAvailability FlowEventHandler[EndpointAvailabilityDetails]
 
-	// FallbackHandler is called for any flow event that does not have a
-	// dedicated handler set — both unknown event types and known types
-	// left nil. When nil, those events are silently acknowledged (HTTP 200)
-	// to prevent WhatsApp from retrying.
-	Fallback FlowFallbackHandler
+	// Fallback is called for any flow event that does not have a dedicated
+	// handler set — both unknown event types and known types left nil.
+	// When nil, those events are silently acknowledged (HTTP 200) to
+	// prevent WhatsApp from retrying.
+	Fallback FallbackHandler
 
 	ErrorHandler ErrorHandler
 }
@@ -162,8 +146,7 @@ func (fh *FlowNotificationHandler) OnFlowEndpointLatency(h FlowEndpointLatencyHa
 
 // OnFallback sets the catch-all handler for flow events without a dedicated
 // handler — covers unknown event types and known types left nil.
-// Equivalent to assigning [FallbackHandler] directly.
-func (fh *FlowNotificationHandler) OnFallback(h FlowFallbackHandler) {
+func (fh *FlowNotificationHandler) OnFallback(h FallbackHandler) {
 	fh.Fallback = h
 }
 
@@ -188,13 +171,13 @@ func (fh *FlowNotificationHandler) handleError(ctx context.Context, err error) e
 // catch-all. Returns nil when Fallback is nil (silent skip).
 func (fh *FlowNotificationHandler) executeFallback(
 	ctx context.Context,
-	nctx *FlowNotificationContext,
-	value *Value,
+	ne NotificationEntry,
+	change Change,
 ) error {
 	if fh.Fallback == nil {
 		return nil
 	}
-	if err := fh.Fallback.Handle(ctx, nctx, value); err != nil {
+	if err := fh.Fallback.Handle(ctx, ne, change); err != nil {
 		return fmt.Errorf("flow fallback: %w", err)
 	}
 	return nil
@@ -205,9 +188,9 @@ func (fh *FlowNotificationHandler) executeFallback(
 //
 //  1. If a dedicated handler is registered and not nil, it is called with
 //     the extracted details (e.g., [Value.FlowStatusChange]).
-//  2. Otherwise, falls back to [FlowFallbackHandler] — this covers both
+//  2. Otherwise, falls back to [FallbackHandler] — this covers both
 //     unknown flow event types and known types without a dedicated handler.
-//  3. If [FlowFallbackHandler] is also nil, the event is silently skipped
+//  3. If [FallbackHandler] is also nil, the event is silently skipped
 //     (HTTP 200).
 func (fh *FlowNotificationHandler) Handle(
 	ctx context.Context,
@@ -273,7 +256,7 @@ func (fh *FlowNotificationHandler) Handle(
 		}
 	}
 
-	return fh.executeFallback(ctx, nctx, value)
+	return fh.executeFallback(ctx, ne, change)
 }
 
 // FlowStatusChange extracts status change details from a flows webhook value.

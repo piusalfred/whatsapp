@@ -409,6 +409,40 @@ type MessagesHandler struct {
 	Unsupported      MessageErrorsHandler
 	ProductInquiry   MessageHandler[Text]
 	Fallback         FallbackHandler
+
+	// NotificationErrors handles notification-level errors on the "messages"
+	// field (system errors, app errors, account errors).
+	NotificationErrors ChangeValueHandler[werrors.Error]
+
+	// StatusChange handles message delivery status updates
+	// (sent, delivered, read, failed).
+	StatusChange ChangeValueHandler[Status]
+
+	// ErrorHandler is called when any handler in the messages dispatch chain
+	// returns an error. When nil, the error is returned as-is.
+	ErrorHandler ErrorHandler
+}
+
+// OnNotificationErrors sets the handler for notification-level errors on
+// the "messages" field (system errors, app errors, account errors).
+func (mh *MessagesHandler) OnNotificationErrors(h ChangeValueHandler[werrors.Error]) {
+	mh.NotificationErrors = h
+}
+
+// OnStatusChange sets the handler for message delivery status updates
+// (sent, delivered, read, failed).
+func (mh *MessagesHandler) OnStatusChange(h ChangeValueHandler[Status]) {
+	mh.StatusChange = h
+}
+
+func (mh *MessagesHandler) handleError(ctx context.Context, err error) error {
+	if mh.ErrorHandler == nil {
+		return err
+	}
+	if handlerErr := mh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
+		return fmt.Errorf("error handler: %w", handlerErr)
+	}
+	return nil
 }
 
 // newMessageInfo extracts MessageInfo from a raw Message. All boolean
@@ -433,14 +467,25 @@ func newMessageRequest[T any](nctx *MessageNotificationContext, info *MessageInf
 	return &MessageRequest[T]{Notification: nctx, Info: info, Payload: payload}
 }
 
-// Handle dispatches every message in the change to the correct typed handler.
-// It matches the unified sub-handler signature used by Groups, Business,
-// Flows, and History.
+// Handle dispatches the "messages" webhook value. Processing runs in three
+// phases:
+//
+//  1. Notification-level errors (system, app, account errors)
+//  2. Message delivery status updates (sent, delivered, read, failed)
+//  3. Incoming messages (text, image, interactive, etc.)
+//
+// Each phase is independently guarded — if the handler for one phase is nil,
+// the phase is silently skipped. Errors from any phase are routed through
+// [ErrorHandler].
 func (mh *MessagesHandler) Handle(
 	ctx context.Context,
 	ne NotificationEntry,
 	change Change,
 ) error {
+	if change.Value == nil {
+		return nil
+	}
+
 	nctx := &MessageNotificationContext{
 		EntryID:            ne.ID,
 		EntryTime:          ne.Time,
@@ -450,12 +495,35 @@ func (mh *MessagesHandler) Handle(
 		Metadata:           change.Value.Metadata,
 	}
 
+	// Phase 1: notification-level errors.
+	if mh.NotificationErrors != nil {
+		req := &ChangeValueRequest[werrors.Error]{
+			Notification: nctx,
+			Payload:      ErrorInfosAsErrors(change.Value.Errors),
+		}
+		if err := mh.NotificationErrors.Handle(ctx, req); err != nil {
+			return mh.handleError(ctx, err)
+		}
+	}
+
+	// Phase 2: message delivery status updates.
+	if mh.StatusChange != nil {
+		req := &ChangeValueRequest[Status]{
+			Notification: nctx,
+			Payload:      change.Value.Statuses,
+		}
+		if err := mh.StatusChange.Handle(ctx, req); err != nil {
+			return mh.handleError(ctx, err)
+		}
+	}
+
+	// Phase 3: incoming messages.
 	for _, msg := range change.Value.Messages {
 		if msg == nil {
 			continue
 		}
 		if err := mh.handleOne(ctx, nctx, msg); err != nil {
-			return err
+			return mh.handleError(ctx, err)
 		}
 	}
 

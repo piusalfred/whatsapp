@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 
 	"github.com/piusalfred/whatsapp/message"
 	"github.com/piusalfred/whatsapp/message/media"
@@ -54,20 +55,16 @@ import (
 // [HistoryHandler]. Register their callbacks during initialisation and treat
 // them as immutable afterward.
 type Handler struct {
-	flows    *FlowNotificationHandler
-	business *BusinessNotificationHandler
-	messages *MessagesHandler
-	groups   *GroupManagementHandler
-	history  *HistoryHandler
-	calls    *CallsHandler
-
-	notificationErrors    ChangeValueHandler[werrors.Error]
-	messageStatusChange   ChangeValueHandler[Status]
-	smbAppStateSync       ChangeValueHandler[SMBAppStateSync]
-	userPreferencesUpdate ChangeValueHandler[UserPreference]
-
-	errorHandler ErrorHandler
-
+	flows               *FlowNotificationHandler
+	business            *BusinessNotificationHandler
+	messages            *MessagesHandler
+	groups              *GroupManagementHandler
+	history             *HistoryHandler
+	calls               *CallsHandler
+	smbEcho             *SMBMessageEchoesHandler
+	smbAppSync          *SMBAppStateSyncsHandler
+	userPrefs           *UserPreferencesHandler
+	errorHandler        ErrorHandler
 	fallback            FallbackHandler
 	changeFieldHandlers changeFieldMap
 }
@@ -164,31 +161,20 @@ func (handler *Handler) OnFallback(h FallbackHandler) {
 		handler.messages.Fallback = h
 	}
 	if handler.flows != nil && handler.flows.Fallback == nil {
-		handler.flows.Fallback = adaptFallbackToFlows(h)
+		handler.flows.Fallback = h
 	}
 	if handler.calls != nil && handler.calls.Fallback == nil {
 		handler.calls.Fallback = h
 	}
-}
-
-// adaptFallbackToFlows wraps a FallbackHandler so it can be used as the
-// FlowNotificationHandler.Fallback (type FlowFallbackHandler).
-func adaptFallbackToFlows(h FallbackHandler) FlowFallbackHandler {
-	return FlowFallbackHandlerFunc(func(ctx context.Context, nctx *FlowNotificationContext, value *Value) error {
-		ne := NotificationEntry{
-			Object: nctx.NotificationObject,
-			ID:     nctx.EntryID,
-			Time:   nctx.EntryTime,
-		}
-		change := Change{
-			Field: nctx.ChangeField,
-			Value: value,
-		}
-		if err := h.Handle(ctx, ne, change); err != nil {
-			return fmt.Errorf("flows fallback: %w", err)
-		}
-		return nil
-	})
+	if handler.smbEcho != nil && handler.smbEcho.Fallback == nil {
+		handler.smbEcho.Fallback = h
+	}
+	if handler.smbAppSync != nil && handler.smbAppSync.Fallback == nil {
+		handler.smbAppSync.Fallback = h
+	}
+	if handler.userPrefs != nil && handler.userPrefs.Fallback == nil {
+		handler.userPrefs.Fallback = h
+	}
 }
 
 // HandleNotification processes an incoming WhatsApp webhook notification.
@@ -228,7 +214,13 @@ func (handler *Handler) handleNotificationChange(
 	notification *Notification,
 	entry Entry,
 	change Change,
-) error {
+) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = &PanicError{Value: r, Stack: debug.Stack()}
+		}
+	}()
+
 	if change.Value == nil {
 		return nil
 	}
@@ -244,7 +236,8 @@ func (handler *Handler) handleNotificationChange(
 	_, isImplemented := handler.changeFieldHandlers.Check(change.Field)
 	if !isImplemented {
 		if handler.fallback != nil {
-			if err := handler.fallback.Handle(ctx, ne, change); err != nil {
+			err = handler.fallback.Handle(ctx, ne, change)
+			if err != nil {
 				return fmt.Errorf("general fallback: %w", err)
 			}
 		}
@@ -267,13 +260,21 @@ func (handler *Handler) handleNotificationChange(
 			return handler.calls.Handle(ctx, ne, change)
 		}
 	case ChangeFieldCategoryUserPreferences:
-		return handler.handleUserPreferencesChange(ctx, ne, change)
+		if handler.userPrefs != nil {
+			return handler.userPrefs.Handle(ctx, ne, change)
+		}
 	case ChangeFieldCategorySMBAppStateSync:
-		return handler.handleSMBAppStateSyncChange(ctx, ne, change)
+		if handler.smbAppSync != nil {
+			return handler.smbAppSync.Handle(ctx, ne, change)
+		}
 	case ChangeFieldCategoryMessages:
-		return handler.handleNotificationMessageItem(ctx, ne, change)
+		if handler.messages != nil {
+			return handler.messages.Handle(ctx, ne, change)
+		}
 	case ChangeFieldCategorySMBMessageEchoes:
-		return handler.handleSMBMessageEchoesChange(ctx, ne, change)
+		if handler.smbEcho != nil {
+			return handler.smbEcho.Handle(ctx, ne, change)
+		}
 	case ChangeFieldCategoryGroups:
 		if handler.groups != nil {
 			return handler.groups.Handle(ctx, ne, change)
@@ -286,22 +287,10 @@ func (handler *Handler) handleNotificationChange(
 
 	// Nil sub-handler or unknown category → try the general fallback.
 	if handler.fallback != nil {
-		if err := handler.fallback.Handle(ctx, ne, change); err != nil {
+		err = handler.fallback.Handle(ctx, ne, change)
+		if err != nil {
 			return fmt.Errorf("fallback: %w", err)
 		}
-	}
-	return nil
-}
-
-// handleError routes an error through the Handler's central ErrorHandler.
-// If ErrorHandler is nil or returns nil, the error is suppressed (non-fatal).
-// If ErrorHandler returns a non-nil error, processing stops.
-func (handler *Handler) handleError(ctx context.Context, err error) error {
-	if handler.errorHandler == nil {
-		return nil
-	}
-	if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
 	}
 	return nil
 }
@@ -356,6 +345,22 @@ func (handler *Handler) ensureCalls() *CallsHandler {
 	return handler.calls
 }
 
+// ensureSMBEchoes lazily initialises handler.smbEcho.
+func (handler *Handler) ensureSMBEchoes() *SMBMessageEchoesHandler {
+	if handler.smbEcho == nil {
+		handler.smbEcho = &SMBMessageEchoesHandler{}
+	}
+	return handler.smbEcho
+}
+
+// ensureSMBAppSync lazily initialises handler.smbAppSync.
+func (handler *Handler) ensureSMBAppSync() *SMBAppStateSyncsHandler {
+	if handler.smbAppSync == nil {
+		handler.smbAppSync = &SMBAppStateSyncsHandler{}
+	}
+	return handler.smbAppSync
+}
+
 // Messages returns the MessagesHandler, lazily initialising it if necessary.
 // Use this to configure sub-handler fields (Media, Interactive, Fallback)
 // directly when the On* convenience methods are insufficient.
@@ -390,57 +395,30 @@ func (handler *Handler) Calls() *CallsHandler {
 	return handler.ensureCalls()
 }
 
-func (handler *Handler) handleUserPreferencesChange(
-	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
-) error {
-	return handleMessageChangeNotification(
-		ctx, handler, handler.userPreferencesUpdate, ne, change,
-		change.Value.UserPreferences,
-	)
+// SMBEchoes returns the SMBMessageEchoesHandler, lazily initialising it
+// if necessary. Use this to set the Fallback or ErrorHandler directly.
+func (handler *Handler) SMBEchoes() *SMBMessageEchoesHandler {
+	return handler.ensureSMBEchoes()
 }
 
-func (handler *Handler) handleSMBAppStateSyncChange(
-	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
-) error {
-	syncs := make([]*SMBAppStateSync, len(change.Value.StateSync))
-	for i := range change.Value.StateSync {
-		syncs[i] = &change.Value.StateSync[i]
-	}
-	return handleMessageChangeNotification(
-		ctx, handler, handler.smbAppStateSync, ne, change,
-		syncs,
-	)
+// SMBAppSync returns the SMBAppStateSyncsHandler, lazily initialising it
+// if necessary. Use this to set the Fallback or ErrorHandler directly.
+func (handler *Handler) SMBAppSync() *SMBAppStateSyncsHandler {
+	return handler.ensureSMBAppSync()
 }
 
-func (handler *Handler) handleSMBMessageEchoesChange(
-	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
-) error {
-	if handler.messages == nil {
-		return nil
+// ensureUserPrefs lazily initialises handler.userPrefs.
+func (handler *Handler) ensureUserPrefs() *UserPreferencesHandler {
+	if handler.userPrefs == nil {
+		handler.userPrefs = &UserPreferencesHandler{}
 	}
-	notificationCtx := &MessageNotificationContext{
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		NotificationObject: ne.Object,
-		MessagingProduct:   change.Value.MessagingProduct,
-		Metadata:           change.Value.Metadata,
-		Contacts:           change.Value.Contacts,
-	}
-	for _, msg := range change.Value.MessageEchoes {
-		if msg == nil {
-			continue
-		}
-		if err := handler.messages.handleOne(ctx, notificationCtx, msg); err != nil {
-			return handler.handleError(ctx, err)
-		}
-	}
-	return nil
+	return handler.userPrefs
+}
+
+// UserPrefs returns the UserPreferencesHandler, lazily initialising it
+// if necessary. Use this to set the Fallback or ErrorHandler directly.
+func (handler *Handler) UserPrefs() *UserPreferencesHandler {
+	return handler.ensureUserPrefs()
 }
 
 const (
@@ -556,9 +534,13 @@ type (
 
 	// Edit represents a message edit sent by a WhatsApp user
 	// (within 15 minutes of sending, text or media caption).
+	// The Message field carries the replacement message content — it is
+	// a full Message object with type, text/image/caption, and optional
+	// context. This is NOT a recursive edit (WhatsApp delivers edits at
+	// most one level deep).
 	Edit struct {
-		OriginalMessageID string `json:"original_message_id"`
-		Message           *Edit  `json:"message,omitempty"`
+		OriginalMessageID string   `json:"original_message_id"`
+		Message           *Message `json:"message,omitempty"`
 	}
 
 	Metadata struct {

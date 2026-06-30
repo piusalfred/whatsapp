@@ -213,8 +213,8 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 
 		fh := &webhooks.FlowNotificationHandler{}
 		fh.OnFallback(
-			webhooks.FlowFallbackHandlerFunc(
-				func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.Value) error {
+			webhooks.FallbackHandlerFunc(
+				func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
 					fallbackCalled = true
 					return nil
 				},
@@ -245,11 +245,11 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 
 		fh := &webhooks.FlowNotificationHandler{}
 		fh.OnFallback(
-			webhooks.FlowFallbackHandlerFunc(
-				func(_ context.Context, _ *webhooks.FlowNotificationContext, value *webhooks.Value) error {
+			webhooks.FallbackHandlerFunc(
+				func(_ context.Context, _ webhooks.NotificationEntry, c webhooks.Change) error {
 					fallbackCalled = true
-					if value == nil || value.Event != "NEW_FLOW_EVENT" {
-						t.Errorf("fallback value.Event = %q, want %q", value.Event, "NEW_FLOW_EVENT")
+					if c.Value == nil || c.Value.Event != "NEW_FLOW_EVENT" {
+						t.Errorf("fallback value.Event = %q, want %q", c.Value.Event, "NEW_FLOW_EVENT")
 					}
 					return nil
 				},
@@ -366,8 +366,8 @@ func TestFlowNotificationHandler_Setters(t *testing.T) {
 		t.Parallel()
 		fh := &webhooks.FlowNotificationHandler{}
 		fh.OnFallback(
-			webhooks.FlowFallbackHandlerFunc(
-				func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.Value) error {
+			webhooks.FallbackHandlerFunc(
+				func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
 					return nil
 				},
 			),
@@ -407,8 +407,8 @@ func TestFlowNotificationHandler_DedicatedOverridesFallback(t *testing.T) {
 		},
 	))
 	fh.OnFallback(
-		webhooks.FlowFallbackHandlerFunc(
-			func(_ context.Context, _ *webhooks.FlowNotificationContext, _ *webhooks.Value) error {
+		webhooks.FallbackHandlerFunc(
+			func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
 				fallbackCalled = true
 				return nil
 			},

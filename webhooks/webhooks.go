@@ -131,12 +131,25 @@ type (
 	// ConfigReaderFunc implements the ConfigReader interface.
 	ConfigReaderFunc func(request *http.Request) (*Config, error)
 
-	// ConfigReader is the interface that has a method that returns the configuration for the webhook
-	// handler. It accepts the http.Request mainly to extract details that will help determine the right
-	// configuration to use. This may happen when the Listener is used to handle webhooks from multiple
-	// sources and for multiple clients.
-	// For example, you may decide to return different configurations when the http request has a header
-	// that indicates the request is from the test environment.
+	// ConfigReader resolves per-request webhook configuration. The *http.Request
+	// parameter enables multi-tenant setups where different phone numbers or
+	// WABAs require different tokens and app secrets (e.g., keyed by request
+	// path, host, or header).
+	//
+	// Design trade-off: accepting *http.Request couples the config layer to
+	// the HTTP transport. For simpler single-tenant deployments, return a
+	// static Config from ConfigReaderFunc ignoring the request:
+	//
+	//	reader := webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
+	//	    return &webhooks.Config{
+	//	        Token:     os.Getenv("WEBHOOK_TOKEN"),
+	//	        AppSecret: os.Getenv("APP_SECRET"),
+	//	        Validate:  true,
+	//	    }, nil
+	//	})
+	//
+	// For zero-allocation config caching, wrap a ConfigReader in a sync.Once
+	// or use middleware to inject config via the request context.
 	ConfigReader interface {
 		ReadConfig(request *http.Request) (*Config, error)
 	}
@@ -284,6 +297,40 @@ type (
 
 func (fn FallbackHandlerFunc) Handle(ctx context.Context, ne NotificationEntry, change Change) error {
 	return fn(ctx, ne, change)
+}
+
+// PanicError captures a panic that occurred during webhook handler dispatch.
+// It is returned through the normal error path so callers can inspect it
+// with [IsPanicError] instead of having the panic crash the server.
+//
+// The Stack field contains the goroutine stack trace at the point of the
+// panic, captured via [runtime/debug.Stack].
+type PanicError struct {
+	// Value is the argument passed to panic().
+	Value any
+	// Stack is the formatted goroutine stack trace at the panic point.
+	Stack []byte
+}
+
+// Error returns a description of the panic including the original value.
+func (e *PanicError) Error() string {
+	return fmt.Sprintf("handler panic: %v", e.Value)
+}
+
+// IsPanicError checks whether err is a [PanicError] and returns it.
+// Use this to distinguish programmatic bugs (panics in user callbacks)
+// from expected operational errors.
+//
+//	var pe *webhooks.PanicError
+//	if errors.As(err, &pe) {
+//	    log.Printf("panic in handler: %v\n%s", pe.Value, pe.Stack)
+//	}
+func IsPanicError(err error) (*PanicError, bool) {
+	var pe *PanicError
+	if errors.As(err, &pe) {
+		return pe, true
+	}
+	return nil, false
 }
 
 // ValidateOptions controls whether and how incoming payloads are authenticated.
@@ -481,6 +528,7 @@ var (
 	ErrPayloadTooLarge       = errors.New("webhook payload exceeds 4 MB limit")
 )
 
-// MaxPayloadBytes is the maximum webhook payload size (4 MB).
-// WhatsApp's documented limit is 3 MB.
+// MaxPayloadBytes is the maximum webhook payload size.
+// WhatsApp documents a 3 MB limit; we allow 4 MB (1 MB grace margin)
+// to avoid rejecting borderline payloads.
 const MaxPayloadBytes = 4 << 20

@@ -351,3 +351,43 @@ func TestFallback_Calls_ErrorPropagationToErrorHandler(t *testing.T) {
 		t.Fatal("error handler was not invoked for handler error")
 	}
 }
+
+// TestPanicError_Recovery verifies that a panicking handler is caught
+// and converted to a PanicError, returning HTTP 500 instead of crashing.
+func TestPanicError_Recovery(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	h.OnCallConnect(webhooks.CallsEventHandlerFunc[webhooks.Call](
+		func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+			panic("unexpected nil map in handler")
+		},
+	))
+
+	resp := h.HandleNotification(context.Background(), callConnectPayload())
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for panicking handler, got %d", resp.StatusCode)
+	}
+}
+
+// TestPanicError_IsPanicError verifies that IsPanicError correctly
+// identifies a PanicError and rejects regular errors.
+func TestPanicError_IsPanicError(t *testing.T) {
+	t.Parallel()
+
+	pe := &webhooks.PanicError{Value: "test panic"}
+	got, ok := webhooks.IsPanicError(pe)
+	if !ok {
+		t.Fatal("IsPanicError returned false for a PanicError")
+	}
+	if got.Value != "test panic" {
+		t.Errorf("Value = %v, want 'test panic'", got.Value)
+	}
+
+	// Regular errors should not match.
+	_, ok = webhooks.IsPanicError(context.Canceled)
+	if ok {
+		t.Error("IsPanicError returned true for context.Canceled")
+	}
+}
