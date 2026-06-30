@@ -23,6 +23,7 @@ package webhooks
 
 import (
 	"context"
+	"fmt"
 )
 
 // FlowNotificationContext carries the metadata for a flows webhook notification.
@@ -171,6 +172,34 @@ func (fh *FlowNotificationHandler) OnFlowEndpointAvailability(h FlowEndpointAvai
 	fh.EndpointAvailability = h
 }
 
+// handleError routes an error through the FlowNotificationHandler's ErrorHandler.
+// When ErrorHandler is nil, the error is returned as-is (passthrough).
+func (fh *FlowNotificationHandler) handleError(ctx context.Context, err error) error {
+	if fh.ErrorHandler == nil {
+		return err
+	}
+	if handlerErr := fh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
+		return fmt.Errorf("error handler: %w", handlerErr)
+	}
+	return nil
+}
+
+// executeFallback routes an unhandled flow event through the Fallback
+// catch-all. Returns nil when Fallback is nil (silent skip).
+func (fh *FlowNotificationHandler) executeFallback(
+	ctx context.Context,
+	nctx *FlowNotificationContext,
+	value *Value,
+) error {
+	if fh.Fallback == nil {
+		return nil
+	}
+	if err := fh.Fallback.Handle(ctx, nctx, value); err != nil {
+		return fmt.Errorf("flow fallback: %w", err)
+	}
+	return nil
+}
+
 // Handle dispatches the flow value to the correct event handler based on
 // change.Value.Event.
 //
@@ -180,8 +209,6 @@ func (fh *FlowNotificationHandler) OnFlowEndpointAvailability(h FlowEndpointAvai
 //     unknown flow event types and known types without a dedicated handler.
 //  3. If [FlowFallbackHandler] is also nil, the event is silently skipped
 //     (HTTP 200).
-//
-//nolint:wrapcheck // typed dispatch; user handlers own error context
 func (fh *FlowNotificationHandler) Handle(
 	ctx context.Context,
 	ne NotificationEntry,
@@ -210,7 +237,7 @@ func (fh *FlowNotificationHandler) Handle(
 				Context: nctx,
 				Payload: value.FlowStatusChange(),
 			}
-			return fh.Status.Handle(ctx, req)
+			return fh.handleError(ctx, fh.Status.Handle(ctx, req))
 		}
 	case EventClientErrorRate:
 		if fh.ClientErrorRate != nil {
@@ -218,7 +245,7 @@ func (fh *FlowNotificationHandler) Handle(
 				Context: nctx,
 				Payload: value.FlowClientErrorRate(),
 			}
-			return fh.ClientErrorRate.Handle(ctx, req)
+			return fh.handleError(ctx, fh.ClientErrorRate.Handle(ctx, req))
 		}
 	case EventEndpointErrorRate:
 		if fh.EndpointErrorRate != nil {
@@ -226,7 +253,7 @@ func (fh *FlowNotificationHandler) Handle(
 				Context: nctx,
 				Payload: value.FlowEndpointErrorRate(),
 			}
-			return fh.EndpointErrorRate.Handle(ctx, req)
+			return fh.handleError(ctx, fh.EndpointErrorRate.Handle(ctx, req))
 		}
 	case EventEndpointLatency:
 		if fh.EndpointLatency != nil {
@@ -234,7 +261,7 @@ func (fh *FlowNotificationHandler) Handle(
 				Context: nctx,
 				Payload: value.FlowEndpointLatency(),
 			}
-			return fh.EndpointLatency.Handle(ctx, req)
+			return fh.handleError(ctx, fh.EndpointLatency.Handle(ctx, req))
 		}
 	case EventEndpointAvailability:
 		if fh.EndpointAvailability != nil {
@@ -242,15 +269,11 @@ func (fh *FlowNotificationHandler) Handle(
 				Context: nctx,
 				Payload: value.FlowEndpointAvailability(),
 			}
-			return fh.EndpointAvailability.Handle(ctx, req)
+			return fh.handleError(ctx, fh.EndpointAvailability.Handle(ctx, req))
 		}
 	}
 
-	if fh.Fallback != nil {
-		return fh.Fallback.Handle(ctx, nctx, value)
-	}
-
-	return nil
+	return fh.executeFallback(ctx, nctx, value)
 }
 
 // FlowStatusChange extracts status change details from a flows webhook value.

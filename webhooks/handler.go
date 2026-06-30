@@ -249,6 +249,19 @@ func (handler *Handler) handleNotificationChange(
 	}
 }
 
+// handleError routes an error through the Handler's central ErrorHandler.
+// If ErrorHandler is nil or returns nil, the error is suppressed (non-fatal).
+// If ErrorHandler returns a non-nil error, processing stops.
+func (handler *Handler) handleError(ctx context.Context, err error) error {
+	if handler.errorHandler == nil {
+		return nil
+	}
+	if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
+		return fmt.Errorf("error handler: %w", handlerErr)
+	}
+	return nil
+}
+
 func (handler *Handler) handleFlowsChange(
 	ctx context.Context,
 	ne NotificationEntry,
@@ -301,11 +314,7 @@ func (handler *Handler) handleSMBMessageEchoesChange(
 			continue
 		}
 		if err := handler.messages.Handle(ctx, notificationCtx, msg); err != nil {
-			if handler.errorHandler != nil {
-				if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
-					return fmt.Errorf("error handler: %w", handlerErr)
-				}
-			}
+			return handler.handleError(ctx, err)
 		}
 	}
 	return nil
@@ -332,11 +341,7 @@ func (handler *Handler) handleHistoryChange(
 			Payload: entries,
 		}
 		if err := handler.historySync.Handle(ctx, req); err != nil {
-			if handler.errorHandler != nil {
-				if handlerErr := handler.errorHandler.Handle(ctx, err); handlerErr != nil {
-					return fmt.Errorf("error handler: %w", handlerErr)
-				}
-			}
+			return handler.handleError(ctx, err)
 		}
 	}
 	// Media content for history messages is delivered as a

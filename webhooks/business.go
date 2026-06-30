@@ -353,11 +353,35 @@ func (bh *BusinessNotificationHandler) OnFallback(h FallbackHandler) {
 	bh.Fallback = h
 }
 
+// handleError routes an error through the BusinessNotificationHandler's ErrorHandler.
+// When ErrorHandler is nil, the error is returned as-is (passthrough).
+func (bh *BusinessNotificationHandler) handleError(ctx context.Context, err error) error {
+	if bh.ErrorHandler == nil {
+		return err
+	}
+	if handlerErr := bh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
+		return fmt.Errorf("error handler: %w", handlerErr)
+	}
+	return nil
+}
+
+// executeFallback routes an unhandled business event through the Fallback
+// catch-all. Returns nil when Fallback is nil (silent skip).
+func (bh *BusinessNotificationHandler) executeFallback(ctx context.Context, ne NotificationEntry, change Change) error {
+	if bh.Fallback == nil {
+		return nil
+	}
+	if err := bh.Fallback.Handle(ctx, ne, change); err != nil {
+		return fmt.Errorf("business fallback: %w", err)
+	}
+	return nil
+}
+
 // Handle dispatches the business notification change to the correct handler
 // based on change.Field. Nil handlers route to Fallback if set, otherwise
 // silently skip.
 //
-//nolint:funlen,gocognit,gocyclo // dispatch switch
+//nolint:funlen,gocognit,gocyclo,cyclop // dispatch switch
 func (bh *BusinessNotificationHandler) Handle(
 	ctx context.Context,
 	ne NotificationEntry,
@@ -373,29 +397,42 @@ func (bh *BusinessNotificationHandler) Handle(
 	switch change.Field {
 	case ChangeFieldAccountAlerts.String():
 		if bh.Alerts != nil {
-			if err := bh.Alerts.Handle(ctx, &BusinessRequest[AlertNotification]{Context: nctx, Payload: change.Value.AlertNotification()}); err != nil {
-				return fmt.Errorf("business alerts: %w", err)
+			req := &BusinessRequest[AlertNotification]{Context: nctx, Payload: change.Value.AlertNotification()}
+			if err := bh.Alerts.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business alerts: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldTemplateStatusUpdate.String():
 		if bh.TemplateStatus != nil {
-			if err := bh.TemplateStatus.Handle(ctx, &BusinessRequest[TemplateStatusUpdateNotification]{Context: nctx, Payload: change.Value.TemplateStatusUpdate()}); err != nil {
-				return fmt.Errorf("business template status: %w", err)
+			req := &BusinessRequest[TemplateStatusUpdateNotification]{
+				Context: nctx,
+				Payload: change.Value.TemplateStatusUpdate(),
+			}
+			if err := bh.TemplateStatus.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business template status: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldTemplateCategoryUpdate.String():
 		if bh.TemplateCategory != nil {
-			if err := bh.TemplateCategory.Handle(ctx, &BusinessRequest[TemplateCategoryUpdateNotification]{Context: nctx, Payload: change.Value.TemplateCategoryUpdate()}); err != nil {
-				return fmt.Errorf("business template category: %w", err)
+			req := &BusinessRequest[TemplateCategoryUpdateNotification]{
+				Context: nctx,
+				Payload: change.Value.TemplateCategoryUpdate(),
+			}
+			if err := bh.TemplateCategory.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business template category: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldTemplateQualityUpdate.String():
 		if bh.TemplateQuality != nil {
-			if err := bh.TemplateQuality.Handle(ctx, &BusinessRequest[TemplateQualityUpdateNotification]{Context: nctx, Payload: change.Value.TemplateQualityUpdate()}); err != nil {
-				return fmt.Errorf("business template quality: %w", err)
+			req := &BusinessRequest[TemplateQualityUpdateNotification]{
+				Context: nctx,
+				Payload: change.Value.TemplateQualityUpdate(),
+			}
+			if err := bh.TemplateQuality.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business template quality: %w", err))
 			}
 			return nil
 		}
@@ -410,57 +447,68 @@ func (bh *BusinessNotificationHandler) Handle(
 				Footer:                  change.Value.MessageTemplateFooter,
 				Buttons:                 change.Value.MessageTemplateButtons,
 			}
-			if err := bh.TemplateComponents.Handle(ctx, &BusinessRequest[TemplateComponentsUpdateNotification]{Context: nctx, Payload: data}); err != nil {
-				return fmt.Errorf("business template components: %w", err)
+			req := &BusinessRequest[TemplateComponentsUpdateNotification]{Context: nctx, Payload: data}
+			if err := bh.TemplateComponents.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business template components: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldPhoneNumberNameUpdate.String():
 		if bh.PhoneNumberName != nil {
-			if err := bh.PhoneNumberName.Handle(ctx, &BusinessRequest[PhoneNumberNameUpdate]{Context: nctx, Payload: change.Value.PhoneNumberNameUpdate()}); err != nil {
-				return fmt.Errorf("business phone name: %w", err)
+			req := &BusinessRequest[PhoneNumberNameUpdate]{Context: nctx, Payload: change.Value.PhoneNumberNameUpdate()}
+			if err := bh.PhoneNumberName.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business phone name: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldPhoneNumberQualityUpdate.String():
 		if bh.PhoneNumberQuality != nil {
-			if err := bh.PhoneNumberQuality.Handle(ctx, &BusinessRequest[PhoneNumberQualityUpdate]{Context: nctx, Payload: change.Value.PhoneNumberQualityUpdate()}); err != nil {
-				return fmt.Errorf("business phone quality: %w", err)
+			req := &BusinessRequest[PhoneNumberQualityUpdate]{
+				Context: nctx,
+				Payload: change.Value.PhoneNumberQualityUpdate(),
+			}
+			if err := bh.PhoneNumberQuality.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business phone quality: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldAccountReviewUpdate.String():
 		if bh.AccountReview != nil {
-			if err := bh.AccountReview.Handle(ctx, &BusinessRequest[AccountReviewUpdate]{Context: nctx, Payload: change.Value.AccountReviewUpdate()}); err != nil {
-				return fmt.Errorf("business account review: %w", err)
+			req := &BusinessRequest[AccountReviewUpdate]{Context: nctx, Payload: change.Value.AccountReviewUpdate()}
+			if err := bh.AccountReview.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business account review: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldAccountUpdate.String():
 		if bh.Account != nil {
-			if err := bh.Account.Handle(ctx, &BusinessRequest[AccountUpdate]{Context: nctx, Payload: change.Value.AccountUpdate()}); err != nil {
-				return fmt.Errorf("business account: %w", err)
+			req := &BusinessRequest[AccountUpdate]{Context: nctx, Payload: change.Value.AccountUpdate()}
+			if err := bh.Account.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business account: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldCalls.String():
 		if bh.Calls != nil {
-			if err := bh.Calls.Handle(ctx, &BusinessRequest[CallStatusUpdate]{Context: nctx, Payload: change.Value.CallStatusUpdate()}); err != nil {
-				return fmt.Errorf("business calls: %w", err)
+			req := &BusinessRequest[CallStatusUpdate]{Context: nctx, Payload: change.Value.CallStatusUpdate()}
+			if err := bh.Calls.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business calls: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldBusinessCapabilityUpdate.String():
 		if bh.Capability != nil {
-			if err := bh.Capability.Handle(ctx, &BusinessRequest[CapabilityUpdate]{Context: nctx, Payload: change.Value.CapabilityUpdate()}); err != nil {
-				return fmt.Errorf("business capability: %w", err)
+			req := &BusinessRequest[CapabilityUpdate]{Context: nctx, Payload: change.Value.CapabilityUpdate()}
+			if err := bh.Capability.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business capability: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldAccountSettingsUpdate.String():
 		if bh.PhoneSettings != nil {
-			if err := bh.PhoneSettings.Handle(ctx, &BusinessRequest[PhoneNumberSettings]{Context: nctx, Payload: change.Value.PhoneNumberSettings}); err != nil {
-				return fmt.Errorf("business phone settings: %w", err)
+			req := &BusinessRequest[PhoneNumberSettings]{Context: nctx, Payload: change.Value.PhoneNumberSettings}
+			if err := bh.PhoneSettings.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business phone settings: %w", err))
 			}
 			return nil
 		}
@@ -471,19 +519,15 @@ func (bh *BusinessNotificationHandler) Handle(
 				DisplayPhoneNumber: change.Value.DisplayPhoneNumber,
 				Requester:          change.Value.Requester,
 			}
-			if err := bh.Security.Handle(ctx, &BusinessRequest[SecurityNotification]{Context: nctx, Payload: data}); err != nil {
-				return fmt.Errorf("business security: %w", err)
+			req := &BusinessRequest[SecurityNotification]{Context: nctx, Payload: data}
+			if err := bh.Security.Handle(ctx, req); err != nil {
+				return bh.handleError(ctx, fmt.Errorf("business security: %w", err))
 			}
 			return nil
 		}
 	}
 
-	if bh.Fallback != nil {
-		if err := bh.Fallback.Handle(ctx, ne, change); err != nil {
-			return fmt.Errorf("business fallback: %w", err)
-		}
-	}
-	return nil
+	return bh.executeFallback(ctx, ne, change)
 }
 
 func (value *Value) AlertNotification() *AlertNotification {

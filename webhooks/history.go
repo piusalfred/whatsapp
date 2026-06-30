@@ -101,7 +101,7 @@ type HistoryContext struct {
 //		},
 //	))
 type HistoryHandler struct {
-	Messages ChangeValueHandler[HistoryEntry]
+	Messages     ChangeValueHandler[HistoryEntry]
 	ErrorHandler ErrorHandler
 }
 
@@ -113,6 +113,18 @@ type HistoryHandler struct {
 // asynchronously.
 func (hh *HistoryHandler) OnMessages(h ChangeValueHandler[HistoryEntry]) {
 	hh.Messages = h
+}
+
+// handleError routes an error through the HistoryHandler's ErrorHandler.
+// When ErrorHandler is nil, the error is returned as-is (passthrough).
+func (hh *HistoryHandler) handleError(ctx context.Context, err error) error {
+	if hh.ErrorHandler == nil {
+		return err
+	}
+	if handlerErr := hh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
+		return fmt.Errorf("error handler: %w", handlerErr)
+	}
+	return nil
 }
 
 // Handle dispatches the history entries to the configured
@@ -156,11 +168,7 @@ func (hh *HistoryHandler) Handle(
 		Payload:      entries,
 	}
 	if err := hh.Messages.Handle(ctx, req); err != nil {
-		if hh.ErrorHandler != nil {
-			if handlerErr := hh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-				return fmt.Errorf("error handler: %w", handlerErr)
-			}
-		}
+		return hh.handleError(ctx, err)
 	}
 
 	return nil

@@ -172,10 +172,33 @@ func GroupChangeFields() []ChangeField {
 	}
 }
 
+// handleError routes an error through the GroupManagementHandler's ErrorHandler.
+// When ErrorHandler is nil, the error is returned as-is (passthrough).
+func (gh *GroupManagementHandler) handleError(ctx context.Context, err error) error {
+	if gh.ErrorHandler == nil {
+		return err
+	}
+	if handlerErr := gh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
+		return fmt.Errorf("error handler: %w", handlerErr)
+	}
+	return nil
+}
+
+// executeFallback routes an unhandled group event through the Fallback
+// catch-all. Returns nil when Fallback is nil (silent skip).
+func (gh *GroupManagementHandler) executeFallback(ctx context.Context, ne NotificationEntry, change Change) error {
+	if gh.Fallback == nil {
+		return nil
+	}
+	if err := gh.Fallback.Handle(ctx, ne, change); err != nil {
+		return fmt.Errorf("group fallback: %w", err)
+	}
+	return nil
+}
+
 // Handle dispatches the group notification to the correct handler based on
-// change.Field. Nil handlers are silently skipped (HTTP 200).
-//
-//nolint:gocognit // dispatch switch
+// change.Field. Nil handlers route to Fallback if set, otherwise silently
+// skip (HTTP 200).
 func (gh *GroupManagementHandler) Handle(
 	ctx context.Context,
 	ne NotificationEntry,
@@ -193,57 +216,49 @@ func (gh *GroupManagementHandler) Handle(
 	switch change.Field {
 	case ChangeFieldGroupLifecycleUpdate.String():
 		if gh.LifecycleUpdate == nil {
-			if gh.Fallback != nil {
-				if err := gh.Fallback.Handle(ctx, ne, change); err != nil {
-					return fmt.Errorf("group fallback: %w", err)
-				}
-			}
-			return nil
+			return gh.executeFallback(ctx, ne, change)
 		}
-		if err := gh.LifecycleUpdate.Handle(ctx, &ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups}); err != nil {
-			return fmt.Errorf("group lifecycle update: %w", err)
+		if err := gh.LifecycleUpdate.Handle(
+			ctx,
+			&ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups},
+		); err != nil {
+			return gh.handleError(ctx, fmt.Errorf("group lifecycle update: %w", err))
 		}
 		return nil
 
 	case ChangeFieldGroupParticipantsUpdate.String():
 		if gh.ParticipantsUpdate == nil {
-			if gh.Fallback != nil {
-				if err := gh.Fallback.Handle(ctx, ne, change); err != nil {
-					return fmt.Errorf("group fallback: %w", err)
-				}
-			}
-			return nil
+			return gh.executeFallback(ctx, ne, change)
 		}
-		if err := gh.ParticipantsUpdate.Handle(ctx, &ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups}); err != nil {
-			return fmt.Errorf("group participants update: %w", err)
+		if err := gh.ParticipantsUpdate.Handle(
+			ctx,
+			&ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups},
+		); err != nil {
+			return gh.handleError(ctx, fmt.Errorf("group participants update: %w", err))
 		}
 		return nil
 
 	case ChangeFieldGroupSettingsUpdate.String():
 		if gh.SettingsUpdate == nil {
-			if gh.Fallback != nil {
-				if err := gh.Fallback.Handle(ctx, ne, change); err != nil {
-					return fmt.Errorf("group fallback: %w", err)
-				}
-			}
-			return nil
+			return gh.executeFallback(ctx, ne, change)
 		}
-		if err := gh.SettingsUpdate.Handle(ctx, &ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups}); err != nil {
-			return fmt.Errorf("group settings update: %w", err)
+		if err := gh.SettingsUpdate.Handle(
+			ctx,
+			&ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups},
+		); err != nil {
+			return gh.handleError(ctx, fmt.Errorf("group settings update: %w", err))
 		}
 		return nil
 
 	case ChangeFieldGroupStatusUpdate.String():
 		if gh.StatusUpdate == nil {
-			if gh.Fallback != nil {
-				if err := gh.Fallback.Handle(ctx, ne, change); err != nil {
-					return fmt.Errorf("group fallback: %w", err)
-				}
-			}
-			return nil
+			return gh.executeFallback(ctx, ne, change)
 		}
-		if err := gh.StatusUpdate.Handle(ctx, &ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups}); err != nil {
-			return fmt.Errorf("group status update: %w", err)
+		if err := gh.StatusUpdate.Handle(
+			ctx,
+			&ChangeValueRequest[Group]{Notification: nctx, Payload: change.Value.Groups},
+		); err != nil {
+			return gh.handleError(ctx, fmt.Errorf("group status update: %w", err))
 		}
 		return nil
 	}
