@@ -3,12 +3,10 @@ on:
   pull_request:
     branches:
       - main
-
 permissions:
   contents: write
   pull-requests: write
   packages: read
-
 jobs:
   dependabot:
     runs-on: ubuntu-latest
@@ -20,10 +18,8 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
           skip-commit-verification: true
-
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Request dependabot to automatically merge PR
         uses: marocchino/sticky-pull-request-comment@v2
         with:

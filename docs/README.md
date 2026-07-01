@@ -113,7 +113,7 @@ The library follows a few principles consistently:
 
 **The `api` package unifies everything** — if you need multiple APIs from one place, `api.NewClient(conf)` lazily initializes all 15 sub-clients on first use.
 
-```
+```text
 User code
    ↓
 api.Client / message.Client / groups.Client  ...   ← domain packages
@@ -125,7 +125,7 @@ net/http
 
 A message send flows through:
 
-```
+```text
 SendTextMessage(ctx, si, text)
   → build BaseRequest (domain struct → JSON wire format)
   → RequestBuilder.Auth(conf.AuthConfig())

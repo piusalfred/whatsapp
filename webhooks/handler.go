@@ -316,7 +316,7 @@ func (handler *Handler) handleNotificationChange(
 // ensureMessages lazily initialises handler.messages using sync.Once so that
 // concurrent calls during registration are safe. The MessagesHandler starts
 // with all handler fields nil — the fallback cascade treats nil as "not
-// configured."
+// configured".
 func (handler *Handler) ensureMessages() *MessagesHandler {
 	handler.messagesOnce.Do(func() {
 		handler.messages = &MessagesHandler{}

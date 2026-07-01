@@ -29,7 +29,7 @@ The fallback cascade has three layers that catch unhandled webhook events at
 increasing levels of generality. Every layer that returns `nil` silently
 acknowledges the event (HTTP 200) so WhatsApp does not retry.
 
-```
+```text
 ┌─────────────────────────────────────────────────┐
 │ Layer 1 — Unknown field                          │
 │ change.Field is NOT in the implemented set       │

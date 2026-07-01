@@ -16,16 +16,19 @@ make help      # List all make targets
 ```
 
 **Running a single test:**
+
 ```bash
 go test -race -run TestName ./path/to/package/
 ```
 
 **Running tests for a single package:**
+
 ```bash
 go test -race ./webhooks/
 ```
 
 **Lint a single file/package (after changes):**
+
 ```bash
 gotools exec golangci-lint run ./path/to/package/
 ```
@@ -34,7 +37,7 @@ gotools exec golangci-lint run ./path/to/package/
 
 ### Layered Structure
 
-```
+```text
 User code
    ↓
 api.Client / message.Client / groups.Client  ...   ← domain packages (single-tenant)
@@ -47,6 +50,7 @@ net/http
 ### Key Design Patterns
 
 **Two clients per domain package.** Every domain package exposes:
+
 - `Client` — holds a fixed `*config.Config`; for single-tenant services
 - `BaseClient` — accepts `*config.Config` per call; for multi-tenant / credential-rotation workloads
 
@@ -55,12 +59,14 @@ Both embed `whttp.BaseClient[T]` which wraps a typed `Sender[T]` interface for H
 **Domain model / wire format separation.** Domain types (e.g., `message.Message`) are separate from wire-format types (`message.BaseRequest`). The client maps between them in `sendMessage()` — this keeps builder methods and metadata off the JSON wire shape.
 
 **HTTP layer is generic and typed.** `pkg/http` provides:
+
 - `CoreClient[T]` — typed HTTP client with interceptors, middleware, limits
 - `Sender[T]` — interface (`Send(ctx, *Request[T], ResponseDecoder) error`) that domain code calls and tests mock
 - `Middleware[T]` — wraps `SenderFunc[T]`; applied inside-out so `middlewares[0]` runs outermost
 - `Request[T]` — typed request carrying method, URL, headers, body, auth, metadata
 - Request building: `RequestBuilder` (chained, preferred for many options) or `MakeRequest` (functional options, for simple cases)
 - Always alias `pkg/http` as `whttp` to avoid shadowing `net/http`:
+
   ```go
   import whttp "github.com/piusalfred/whatsapp/pkg/http"
   ```
@@ -91,6 +97,7 @@ Both embed `whttp.BaseClient[T]` which wraps a typed `Sender[T]` interface for H
 ### Mock Injection Pattern
 
 Generated mocks use `go.uber.org/mock` (uber-go fork of gomock). The standard injection pattern:
+
 ```go
 ctrl := gomock.NewController(t)
 mockSender := mockhttp.NewMockSender[message.BaseRequest](ctrl)

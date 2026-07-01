@@ -194,6 +194,7 @@ make help   # list all available targets
 ## Reference Links
 
 **Getting started**
+
 - [WhatsApp Cloud API Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started)
 - [Application Dashboard](https://developers.facebook.com/apps/)
 - [Postman Collection](https://www.postman.com/meta/whatsapp-business-platform/collection/wlk6lh4/whatsapp-cloud-api)
@@ -202,16 +203,19 @@ make help   # list all available targets
 - [Graph API Reference](https://developers.facebook.com/docs/graph-api)
 
 **Messaging**
+
 - [Messages Documentation](https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages)
 - [Address Message](https://developers.facebook.com/docs/whatsapp/cloud-api/messages/address-messages) (India only)
 
 **Webhooks**
+
 - [Webhooks Getting Started](https://developers.facebook.com/docs/graph-api/webhooks/getting-started)
 - [Webhooks for WhatsApp Business Account](https://developers.facebook.com/docs/graph-api/webhooks/getting-started/webhooks-for-whatsapp)
 - [Notification Payload Reference](https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components)
 - [Webhooks Override](https://developers.facebook.com/docs/whatsapp/embedded-signup/webhooks/override)
 
 **Flows**
+
 - [WhatsApp Flows](https://developers.facebook.com/docs/whatsapp/flows/)
 - [Flows Guide](https://developers.facebook.com/docs/whatsapp/flows/guides)
 - [Flows Reference](https://developers.facebook.com/docs/whatsapp/flows/reference/)
@@ -221,6 +225,7 @@ make help   # list all available targets
 - [Flow Encryption](https://developers.facebook.com/docs/whatsapp/cloud-api/reference/whatsapp-business-encryption)
 
 **Management APIs**
+
 - [Phone Numbers](https://developers.facebook.com/docs/whatsapp/cloud-api/phone-numbers)
 - [QR Codes](https://developers.facebook.com/docs/whatsapp/business-management-api/qr-codes/)
 - [System Users](https://developers.facebook.com/docs/marketing-api/system-users/overview)
@@ -233,6 +238,7 @@ make help   # list all available targets
 - [Calling API Settings](https://developers.facebook.com/docs/whatsapp/cloud-api/calling/call-settings)
 
 **Reference**
+
 - [WhatsApp Business Platform Documentation](https://developers.facebook.com/docs/whatsapp)
 - [WhatsApp Business Account Graph API Reference](https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/)
 
