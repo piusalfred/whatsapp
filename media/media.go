@@ -563,7 +563,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive())
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
@@ -660,7 +660,7 @@ func (bc *BaseClient) Download(
 	request := whttp.Build[any](bld, nil)
 
 	for i := 0; i <= req.Retries; i++ {
-		if err := bc.Sender.Send(ctx, request, decoder); err != nil {
+		if err := bc.BaseClient.Send(ctx, request, decoder); err != nil {
 			if i < req.Retries {
 				continue
 			}

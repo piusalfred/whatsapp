@@ -158,13 +158,7 @@ func (fh *FlowNotificationHandler) OnFlowEndpointAvailability(h FlowEndpointAvai
 // handleError routes an error through the FlowNotificationHandler's ErrorHandler.
 // When ErrorHandler is nil, the error is returned as-is (passthrough).
 func (fh *FlowNotificationHandler) handleError(ctx context.Context, err error) error {
-	if fh.ErrorHandler == nil {
-		return err
-	}
-	if handlerErr := fh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
-	}
-	return nil
+	return handleSubHandlerError(ctx, fh.ErrorHandler, err)
 }
 
 // executeFallback routes an unhandled flow event through the Fallback

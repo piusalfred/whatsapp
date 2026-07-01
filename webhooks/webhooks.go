@@ -185,16 +185,19 @@ func NewListener(
 // It reads the hub.mode, hub.challenge, and hub.verify_token query parameters,
 // validates the token, and writes the challenge back to complete verification.
 func (listener *Listener) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
+	if listener.configReader == nil {
+		http.Error(writer, "webhooks: config reader not configured", http.StatusInternalServerError)
+		return
+	}
+
 	config, err := listener.configReader.ReadConfig(request)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
-
 		return
 	}
 	challenge, err := verifySubscriptionRequest(request, config.Token)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
-
 		return
 	}
 
@@ -206,11 +209,31 @@ func (listener *Listener) HandleSubscriptionVerification(writer http.ResponseWri
 // request body, optionally validates the X-Hub-Signature-256 header, decodes
 // the notification JSON, and dispatches to the wrapped handler.
 //
+// A defer/recover guard catches panics from user-supplied middlewares or
+// handlers and returns HTTP 500 to WhatsApp instead of crashing the server.
+//
 // WhatsApp retries non-200 responses for up to 7 days with decreasing
 // frequency. Ensure your handler is idempotent — the same notification may
 // be delivered more than once. Unrecognized webhook fields are silently
 // dropped (no error) so retries are not triggered for unimplemented types.
 func (listener *Listener) HandleNotification(writer http.ResponseWriter, request *http.Request) {
+	if listener.handler == nil {
+		http.Error(writer, "webhooks: handler not configured", http.StatusInternalServerError)
+		return
+	}
+	if listener.configReader == nil {
+		http.Error(writer, "webhooks: config reader not configured", http.StatusInternalServerError)
+		return
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			// Log the panic with stack trace so operators can diagnose the
+			// root cause. Return 500 to signal a real failure to WhatsApp.
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+	}()
+
 	var (
 		notification *Notification
 		ctx          = request.Context()
@@ -283,6 +306,18 @@ type (
 	}
 )
 
+// handleSubHandlerError delegates to h if non-nil, otherwise returns err unchanged.
+// Used by all webhook sub-handlers to avoid duplicating the error delegation logic.
+func handleSubHandlerError(ctx context.Context, h ErrorHandler, err error) error {
+	if h == nil {
+		return err
+	}
+	if handlerErr := h.Handle(ctx, err); handlerErr != nil {
+		return fmt.Errorf("error handler: %w", handlerErr)
+	}
+	return nil
+}
+
 func (fn ErrorHandlerFunc) Handle(ctx context.Context, err error) error {
 	return fn(ctx, err)
 }
@@ -320,14 +355,8 @@ func (e *PanicError) Error() string {
 // IsPanicError checks whether err is a [PanicError] and returns it.
 // Use this to distinguish programmatic bugs (panics in user callbacks)
 // from expected operational errors.
-//
-//	var pe *webhooks.PanicError
-//	if errors.As(err, &pe) {
-//	    log.Printf("panic in handler: %v\n%s", pe.Value, pe.Stack)
-//	}
 func IsPanicError(err error) (*PanicError, bool) {
-	var pe *PanicError
-	if errors.As(err, &pe) {
+	if pe, ok := errors.AsType[*PanicError](err); ok {
 		return pe, true
 	}
 	return nil, false

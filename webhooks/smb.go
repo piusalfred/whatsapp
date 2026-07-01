@@ -98,13 +98,7 @@ func (sh *SMBMessageEchoesHandler) OnFallback(h FallbackHandler) {
 // handleError routes an error through the SMBMessageEchoesHandler's
 // ErrorHandler. When ErrorHandler is nil, the error is returned as-is.
 func (sh *SMBMessageEchoesHandler) handleError(ctx context.Context, err error) error {
-	if sh.ErrorHandler == nil {
-		return err
-	}
-	if handlerErr := sh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
-	}
-	return nil
+	return handleSubHandlerError(ctx, sh.ErrorHandler, err)
 }
 
 // executeFallback routes an unhandled echo through the Fallback catch-all.
@@ -228,13 +222,7 @@ func (sh *SMBAppStateSyncsHandler) OnFallback(h FallbackHandler) {
 }
 
 func (sh *SMBAppStateSyncsHandler) handleError(ctx context.Context, err error) error {
-	if sh.ErrorHandler == nil {
-		return err
-	}
-	if handlerErr := sh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
-	}
-	return nil
+	return handleSubHandlerError(ctx, sh.ErrorHandler, err)
 }
 
 func (sh *SMBAppStateSyncsHandler) executeFallback(ctx context.Context, ne NotificationEntry, change Change) error {

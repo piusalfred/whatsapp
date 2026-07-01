@@ -374,7 +374,7 @@ func (client *BlockBaseClient) Send(ctx context.Context, conf *config.Config, re
 	response := &BlockBaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsPermissive())
 
-	if err := client.Sender.Send(ctx, req, decoder); err != nil {
+	if err := client.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 

@@ -177,7 +177,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 

@@ -163,13 +163,7 @@ func (ch *CallsHandler) OnFallback(h FallbackHandler) {
 // handleError routes an error through the CallsHandler's ErrorHandler.
 // When ErrorHandler is nil, the error is returned as-is (passthrough).
 func (ch *CallsHandler) handleError(ctx context.Context, err error) error {
-	if ch.ErrorHandler == nil {
-		return err
-	}
-	if handlerErr := ch.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
-	}
-	return nil
+	return handleSubHandlerError(ctx, ch.ErrorHandler, err)
 }
 
 // executeFallback routes an unhandled call event through the Fallback

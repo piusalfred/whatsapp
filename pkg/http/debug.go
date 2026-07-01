@@ -103,3 +103,17 @@ func ParseDebugLogLevel(level string) DebugLogLevel {
 		return DebugLogLevelNone
 	}
 }
+
+// ValidDebugLogLevel reports whether level is a recognised debug log level
+// (empty, all, info, or warning). Use this to validate user-provided config
+// before it is passed to [ParseDebugLogLevel], which silently maps unknown
+// values to [DebugLogLevelNone].
+func ValidDebugLogLevel(level string) bool {
+	level = strings.TrimSpace(strings.ToLower(level))
+	switch level {
+	case "", "all", "info", "warning":
+		return true
+	default:
+		return false
+	}
+}

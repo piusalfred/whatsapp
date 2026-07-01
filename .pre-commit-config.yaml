@@ -1,9 +1,72 @@
+# See https://pre-commit.com for more information
+# Run `pre-commit autoupdate` to bump hook revisions to the latest.
+
 repos:
+  # ── Local hooks ──────────────────────────────────────────────────────
   - repo: local
     hooks:
-      - id: fmt
-        name: Format Code
+      - id: check
+        name: Go Sanity Check
+        description: Fast Go checks (license, format, lint, mod-tidy, build)
         language: system
-        entry: make fmt
+        entry: make check
         pass_filenames: false
         types: [go]
+
+      - id: bashate
+        name: bashate
+        description: Code style enforcement for bash programs
+        language: system
+        entry: bashate
+        types: [shell]
+        args: [--max-line-length, '120']
+        # Install via: pip install bashate
+
+  # ── Markdown ─────────────────────────────────────────────────────────
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.44.0
+    hooks:
+      - id: markdownlint
+        args: [--disable, MD013, MD033, MD041, --]
+
+  # ── Shell scripts ────────────────────────────────────────────────────
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0-1
+    hooks:
+      - id: shellcheck
+
+  # ── Secrets ──────────────────────────────────────────────────────────
+  # gitleaks: fast regex-based secret detection (runs on staged changes)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.0
+    hooks:
+      - id: gitleaks
+
+  # truffleHog: deep entropy-based secret detection with live verification
+  - repo: https://github.com/trufflesecurity/truffleHog
+    rev: v3.88.0
+    hooks:
+      - id: trufflehog
+
+  # talisman: broad-scope secret scanner (checks all files including binaries).
+  # Uncomment if you want a third scanner — gitleaks + truffleHog covers most cases.
+  # - repo: https://github.com/thoughtworks/talisman
+  #   rev: v1.32.0
+  #   hooks:
+  #     - id: talisman
+
+  # ── YAML ─────────────────────────────────────────────────────────────
+  - repo: https://github.com/google/yamlfmt
+    rev: v0.16.0
+    hooks:
+      - id: yamlfmt
+
+  # ── Commit message ───────────────────────────────────────────────────
+  # commitizen is the interactive CLI for writing conventional commits
+  # (pip install commitizen && cz commit).
+  # gitlint is the validation hook below — it checks messages against rules.
+  - repo: https://github.com/jorisroovers/gitlint
+    rev: v0.19.1
+    hooks:
+      - id: gitlint
+        stages: [commit-msg]

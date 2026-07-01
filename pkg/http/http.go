@@ -249,6 +249,12 @@ func (core *CoreClient[T]) Send(ctx context.Context, request *Request[T], decode
 	return nil
 }
 
+// CloseIdleConnections closes any idle connections in the underlying HTTP transport.
+// Call during graceful shutdown to drain the connection pool.
+func (core *CoreClient[T]) CloseIdleConnections() {
+	core.http.CloseIdleConnections()
+}
+
 type (
 	// Sender abstracts HTTP request execution. [CoreClient] implements it;
 	// callers can provide their own implementation to mock HTTP calls in tests.

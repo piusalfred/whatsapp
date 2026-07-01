@@ -194,7 +194,7 @@ func (bc *BaseClient) InstallApp(ctx context.Context, conf *config.Config, param
 		Flags: whttp.JSONDecodePermissive,
 	})
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return fmt.Errorf("install app: %w", err)
 	}
 
@@ -226,7 +226,7 @@ func (bc *BaseClient) TwoStepVerification(
 	}
 	decoder := whttp.ResponseDecoderJSON(res, decodeOptions)
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send two step verification code: %w", err)
 	}
 
@@ -271,7 +271,7 @@ func (bc *BaseClient) GenerateAccessToken(
 		Flags: whttp.JSONDecodePermissive,
 	})
 
-	if err = bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err = bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
 
@@ -304,7 +304,7 @@ func (bc *BaseClient) RevokeAccessToken(
 		Flags: whttp.JSONDecodePermissive,
 	})
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("revoke access token: %w", err)
 	}
 
@@ -344,7 +344,7 @@ func (bc *BaseClient) RefreshAccessToken(
 		Flags: whttp.JSONDecodePermissive,
 	})
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("refresh access token: %w", err)
 	}
 
@@ -378,7 +378,7 @@ func (bc *BaseClient) CreateSystemUser(
 		Flags: whttp.JSONDecodePermissive,
 	})
 
-	if err := bc.Sender.Send(ctx, httpReq, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, httpReq, decoder); err != nil {
 		return nil, fmt.Errorf("create system user: %w", err)
 	}
 
@@ -403,7 +403,7 @@ func (bc *BaseClient) ListSystemUsers(
 		Flags: whttp.JSONDecodePermissive,
 	})
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("list system users: %w", err)
 	}
 
@@ -435,7 +435,7 @@ func (bc *BaseClient) UpdateSystemUser(
 		Flags: whttp.JSONDecodePermissive,
 	})
 
-	if err := bc.Sender.Send(ctx, httpReq, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, httpReq, decoder); err != nil {
 		return nil, fmt.Errorf("update system user: %w", err)
 	}
 
@@ -463,7 +463,7 @@ func (bc *BaseClient) InvalidateSystemUserTokens(
 		Flags: whttp.JSONDecodePermissive,
 	})
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("invalidate system user tokens: %w", err)
 	}
 

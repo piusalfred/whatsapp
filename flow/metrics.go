@@ -101,7 +101,7 @@ func (c *Client) GetFlowMetrics(ctx context.Context, request *MetricsRequest) (*
 		Flags: whttp.JSONDecodeDisallowUnknownFields | whttp.JSONDecodeDisallowEmptyResponse,
 	})
 
-	if err := c.sender.Sender.Send(ctx, req, decoder); err != nil {
+	if err := c.sender.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("get flow metrics failed: %w", err)
 	}
 

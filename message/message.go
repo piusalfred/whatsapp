@@ -451,7 +451,7 @@ func (bc *BaseClient) doRequest(
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, decodeOpts)
 
-	if err := bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("%s: %w", label, err)
 	}
 	return resp, nil

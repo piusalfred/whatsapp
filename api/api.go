@@ -65,48 +65,51 @@ type Client struct {
 }
 
 // BaseClient is the multi-tenant layer — pass a *config.Config per call. It
-// lazily initialises 15 domain sub-clients on first access via [sync.Once],
-// making it safe for concurrent reads after initialisation. All sub-clients
-// share the same [whttp.CoreSenderOption] values, ensuring consistent HTTP
-// behaviour (timeouts, interceptors, limits) across all domains.
+// lazily initialises 15 domain sub-clients on first access and protects each
+// with a [sync.Mutex]. If a [whttp.CoreSenderOption] panics inside the
+// constructor, the sub-client field remains nil, the mutex is released, and
+// the next call retries initialisation — preventing permanent poisoning.
+//
+// All sub-clients share the same [whttp.CoreSenderOption] values, ensuring
+// consistent HTTP behaviour (timeouts, interceptors, limits) across all domains.
 //
 // Important: [Client.SetCallsMiddlewares] and similar per-sub-client middleware
 // setters must complete before any API calls are made. They trigger lazy
-// initialisation via [sync.Once] (safe) but then call [whttp.BaseClient.SetMiddlewares]
+// initialisation (goroutine-safe) but then call [whttp.BaseClient.SetMiddlewares]
 // which is not goroutine-safe with respect to in-flight requests.
 type BaseClient struct {
-	calls         *calls.BaseClient
-	callsOnce     sync.Once
-	users         *user.BlockBaseClient
-	usersOnce     sync.Once
-	qrCode        *qrcode.BaseClient
-	qrCodeOnce    sync.Once
-	auto          *automation.BaseClient
-	autoOnce      sync.Once
-	flows         *flow.BaseClient
-	flowsOnce     sync.Once
-	media         *media.BaseClient
-	mediaOnce     sync.Once
-	settings      *settings.BaseClient
-	settingsOnce  sync.Once
-	phone         *phonenumber.BaseClient
-	phoneOnce     sync.Once
-	groups        *groups.BaseClient
-	groupsOnce    sync.Once
-	biz           *business.BaseClient
-	bizOnce       sync.Once
-	analytics     *analytics.BaseClient
-	analyticsOnce sync.Once
-	uploads       *uploads.BaseClient
-	uploadsOnce   sync.Once
-	auth          *auth.BaseClient
-	authOnce      sync.Once
-	callbacks     *callbacks.BaseClient
-	callbacksOnce sync.Once
-	message       *message.BaseClient
-	messageOnce   sync.Once
-	templates     *templates.BaseClient
-	templatesOnce sync.Once
+	calls       *calls.BaseClient
+	callsMu     sync.Mutex
+	users       *user.BlockBaseClient
+	usersMu     sync.Mutex
+	qrCode      *qrcode.BaseClient
+	qrCodeMu    sync.Mutex
+	auto        *automation.BaseClient
+	autoMu      sync.Mutex
+	flows       *flow.BaseClient
+	flowsMu     sync.Mutex
+	media       *media.BaseClient
+	mediaMu     sync.Mutex
+	settings    *settings.BaseClient
+	settingsMu  sync.Mutex
+	phone       *phonenumber.BaseClient
+	phoneMu     sync.Mutex
+	groups      *groups.BaseClient
+	groupsMu    sync.Mutex
+	biz         *business.BaseClient
+	bizMu       sync.Mutex
+	analytics   *analytics.BaseClient
+	analyticsMu sync.Mutex
+	uploads     *uploads.BaseClient
+	uploadsMu   sync.Mutex
+	auth        *auth.BaseClient
+	authMu      sync.Mutex
+	callbacks   *callbacks.BaseClient
+	callbacksMu sync.Mutex
+	message     *message.BaseClient
+	messageMu   sync.Mutex
+	templates   *templates.BaseClient
+	templatesMu sync.Mutex
 
 	opts []whttp.CoreSenderOption
 }
@@ -127,120 +130,168 @@ func NewBaseClient(opts ...whttp.CoreSenderOption) *BaseClient {
 	return &BaseClient{opts: opts}
 }
 
-// Each get* method lazily constructs the corresponding domain sub-client on
-// first access using [sync.Once]. All sub-clients receive the same set of
-// [whttp.CoreSenderOption] values from BaseClient.opts, ensuring consistent
-// HTTP behavior across all domains. To add a 16th domain, copy one of these
-// methods and register the new sub-client in [NewBaseClient] and [Client].
+// Each get* method lazy-initialises its sub-client under a [sync.Mutex].
+// If [whttp.NewBaseClient] panics (e.g. a misconfigured option), the mutex
+// is released via defer and the sub-client field stays nil, so the next
+// call retries instead of permanently returning a poisoned nil value.
+
 func (bc *BaseClient) getCalls() *calls.BaseClient {
-	bc.callsOnce.Do(func() {
-		bc.calls = &calls.BaseClient{BaseClient: *whttp.NewBaseClient[calls.BaseRequest](bc.opts...)}
-	})
+	bc.callsMu.Lock()
+	defer bc.callsMu.Unlock()
+	if bc.calls != nil {
+		return bc.calls
+	}
+	bc.calls = &calls.BaseClient{BaseClient: *whttp.NewBaseClient[calls.BaseRequest](bc.opts...)}
 	return bc.calls
 }
 
 func (bc *BaseClient) getUsers() *user.BlockBaseClient {
-	bc.usersOnce.Do(func() {
-		bc.users = &user.BlockBaseClient{BaseClient: *whttp.NewBaseClient[user.BlockBaseRequest](bc.opts...)}
-	})
+	bc.usersMu.Lock()
+	defer bc.usersMu.Unlock()
+	if bc.users != nil {
+		return bc.users
+	}
+	bc.users = &user.BlockBaseClient{BaseClient: *whttp.NewBaseClient[user.BlockBaseRequest](bc.opts...)}
 	return bc.users
 }
 
 func (bc *BaseClient) getQRCode() *qrcode.BaseClient {
-	bc.qrCodeOnce.Do(func() {
-		bc.qrCode = &qrcode.BaseClient{BaseClient: *whttp.NewBaseClient[qrcode.BaseRequest](bc.opts...)}
-	})
+	bc.qrCodeMu.Lock()
+	defer bc.qrCodeMu.Unlock()
+	if bc.qrCode != nil {
+		return bc.qrCode
+	}
+	bc.qrCode = &qrcode.BaseClient{BaseClient: *whttp.NewBaseClient[qrcode.BaseRequest](bc.opts...)}
 	return bc.qrCode
 }
 
 func (bc *BaseClient) getAuto() *automation.BaseClient {
-	bc.autoOnce.Do(func() {
-		bc.auto = &automation.BaseClient{BaseClient: *whttp.NewBaseClient[automation.BaseRequest](bc.opts...)}
-	})
+	bc.autoMu.Lock()
+	defer bc.autoMu.Unlock()
+	if bc.auto != nil {
+		return bc.auto
+	}
+	bc.auto = &automation.BaseClient{BaseClient: *whttp.NewBaseClient[automation.BaseRequest](bc.opts...)}
 	return bc.auto
 }
 
 func (bc *BaseClient) getFlows() *flow.BaseClient {
-	bc.flowsOnce.Do(func() {
-		bc.flows = &flow.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
-	})
+	bc.flowsMu.Lock()
+	defer bc.flowsMu.Unlock()
+	if bc.flows != nil {
+		return bc.flows
+	}
+	bc.flows = &flow.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
 	return bc.flows
 }
 
 func (bc *BaseClient) getMedia() *media.BaseClient {
-	bc.mediaOnce.Do(func() {
-		bc.media = &media.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
-	})
+	bc.mediaMu.Lock()
+	defer bc.mediaMu.Unlock()
+	if bc.media != nil {
+		return bc.media
+	}
+	bc.media = &media.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
 	return bc.media
 }
 
 func (bc *BaseClient) getSettings() *settings.BaseClient {
-	bc.settingsOnce.Do(func() {
-		bc.settings = &settings.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
-	})
+	bc.settingsMu.Lock()
+	defer bc.settingsMu.Unlock()
+	if bc.settings != nil {
+		return bc.settings
+	}
+	bc.settings = &settings.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
 	return bc.settings
 }
 
 func (bc *BaseClient) getPhone() *phonenumber.BaseClient {
-	bc.phoneOnce.Do(func() {
-		bc.phone = &phonenumber.BaseClient{BaseClient: *whttp.NewBaseClient[phonenumber.BaseRequest](bc.opts...)}
-	})
+	bc.phoneMu.Lock()
+	defer bc.phoneMu.Unlock()
+	if bc.phone != nil {
+		return bc.phone
+	}
+	bc.phone = &phonenumber.BaseClient{BaseClient: *whttp.NewBaseClient[phonenumber.BaseRequest](bc.opts...)}
 	return bc.phone
 }
 
 func (bc *BaseClient) getGroups() *groups.BaseClient {
-	bc.groupsOnce.Do(func() {
-		bc.groups = &groups.BaseClient{BaseClient: *whttp.NewBaseClient[groups.BaseRequest](bc.opts...)}
-	})
+	bc.groupsMu.Lock()
+	defer bc.groupsMu.Unlock()
+	if bc.groups != nil {
+		return bc.groups
+	}
+	bc.groups = &groups.BaseClient{BaseClient: *whttp.NewBaseClient[groups.BaseRequest](bc.opts...)}
 	return bc.groups
 }
 
 func (bc *BaseClient) getBiz() *business.BaseClient {
-	bc.bizOnce.Do(func() {
-		bc.biz = &business.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
-	})
+	bc.bizMu.Lock()
+	defer bc.bizMu.Unlock()
+	if bc.biz != nil {
+		return bc.biz
+	}
+	bc.biz = &business.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
 	return bc.biz
 }
 
 func (bc *BaseClient) getAnalytics() *analytics.BaseClient {
-	bc.analyticsOnce.Do(func() {
-		bc.analytics = &analytics.BaseClient{BaseClient: *whttp.NewBaseClient[analytics.BaseRequest](bc.opts...)}
-	})
+	bc.analyticsMu.Lock()
+	defer bc.analyticsMu.Unlock()
+	if bc.analytics != nil {
+		return bc.analytics
+	}
+	bc.analytics = &analytics.BaseClient{BaseClient: *whttp.NewBaseClient[analytics.BaseRequest](bc.opts...)}
 	return bc.analytics
 }
 
 func (bc *BaseClient) getUploads() *uploads.BaseClient {
-	bc.uploadsOnce.Do(func() {
-		bc.uploads = &uploads.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
-	})
+	bc.uploadsMu.Lock()
+	defer bc.uploadsMu.Unlock()
+	if bc.uploads != nil {
+		return bc.uploads
+	}
+	bc.uploads = &uploads.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
 	return bc.uploads
 }
 
 func (bc *BaseClient) getAuth() *auth.BaseClient {
-	bc.authOnce.Do(func() {
-		bc.auth = &auth.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
-	})
+	bc.authMu.Lock()
+	defer bc.authMu.Unlock()
+	if bc.auth != nil {
+		return bc.auth
+	}
+	bc.auth = &auth.BaseClient{BaseClient: *whttp.NewBaseClient[any](bc.opts...)}
 	return bc.auth
 }
 
 func (bc *BaseClient) getCallbacks() *callbacks.BaseClient {
-	bc.callbacksOnce.Do(func() {
-		bc.callbacks = &callbacks.BaseClient{BaseClient: *whttp.NewBaseClient[callbacks.BaseRequest](bc.opts...)}
-	})
+	bc.callbacksMu.Lock()
+	defer bc.callbacksMu.Unlock()
+	if bc.callbacks != nil {
+		return bc.callbacks
+	}
+	bc.callbacks = &callbacks.BaseClient{BaseClient: *whttp.NewBaseClient[callbacks.BaseRequest](bc.opts...)}
 	return bc.callbacks
 }
 
 func (bc *BaseClient) getTemplates() *templates.BaseClient {
-	bc.templatesOnce.Do(func() {
-		bc.templates = &templates.BaseClient{BaseClient: *whttp.NewBaseClient[templates.BaseRequest](bc.opts...)}
-	})
+	bc.templatesMu.Lock()
+	defer bc.templatesMu.Unlock()
+	if bc.templates != nil {
+		return bc.templates
+	}
+	bc.templates = &templates.BaseClient{BaseClient: *whttp.NewBaseClient[templates.BaseRequest](bc.opts...)}
 	return bc.templates
 }
 
 func (bc *BaseClient) getMessage() *message.BaseClient {
-	bc.messageOnce.Do(func() {
-		bc.message = &message.BaseClient{BaseClient: *whttp.NewBaseClient[message.BaseRequest](bc.opts...)}
-	})
+	bc.messageMu.Lock()
+	defer bc.messageMu.Unlock()
+	if bc.message != nil {
+		return bc.message
+	}
+	bc.message = &message.BaseClient{BaseClient: *whttp.NewBaseClient[message.BaseRequest](bc.opts...)}
 	return bc.message
 }
 
@@ -307,4 +358,66 @@ func (c *Client) SetMessagesMiddlewares(mws ...whttp.Middleware[message.BaseRequ
 // SetTemplatesMiddlewares configures middlewares for the templates sub-client.
 func (c *Client) SetTemplatesMiddlewares(mws ...whttp.Middleware[templates.BaseRequest]) {
 	c.sender.getTemplates().SetMiddlewares(mws...)
+}
+
+// CloseIdleConnections drains idle HTTP connections for all initialized
+// sub-clients. Call during graceful shutdown to prevent socket leaks.
+// Uninitialized sub-clients are safely skipped.
+func (bc *BaseClient) CloseIdleConnections() {
+	// Check each sub-client pointer individually — a nil pointer converted to
+	// an interface still produces a non-nil interface, so a loop would call
+	// CloseIdleConnections on nil receivers and panic.
+	if bc.calls != nil {
+		bc.calls.CloseIdleConnections()
+	}
+	if bc.users != nil {
+		bc.users.CloseIdleConnections()
+	}
+	if bc.qrCode != nil {
+		bc.qrCode.CloseIdleConnections()
+	}
+	if bc.auto != nil {
+		bc.auto.CloseIdleConnections()
+	}
+	if bc.flows != nil {
+		bc.flows.CloseIdleConnections()
+	}
+	if bc.media != nil {
+		bc.media.CloseIdleConnections()
+	}
+	if bc.settings != nil {
+		bc.settings.CloseIdleConnections()
+	}
+	if bc.phone != nil {
+		bc.phone.CloseIdleConnections()
+	}
+	if bc.groups != nil {
+		bc.groups.CloseIdleConnections()
+	}
+	if bc.biz != nil {
+		bc.biz.CloseIdleConnections()
+	}
+	if bc.analytics != nil {
+		bc.analytics.CloseIdleConnections()
+	}
+	if bc.uploads != nil {
+		bc.uploads.CloseIdleConnections()
+	}
+	if bc.auth != nil {
+		bc.auth.CloseIdleConnections()
+	}
+	if bc.callbacks != nil {
+		bc.callbacks.CloseIdleConnections()
+	}
+	if bc.message != nil {
+		bc.message.CloseIdleConnections()
+	}
+	if bc.templates != nil {
+		bc.templates.CloseIdleConnections()
+	}
+}
+
+// CloseIdleConnections drains idle HTTP connections across all sub-clients.
+func (c *Client) CloseIdleConnections() {
+	c.sender.CloseIdleConnections()
 }

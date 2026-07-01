@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"sync"
 
 	"github.com/piusalfred/whatsapp/message"
 	"github.com/piusalfred/whatsapp/message/media"
@@ -44,10 +45,12 @@ import (
 //
 // # Concurrency
 //
-// Handler is not safe for concurrent modification. Register all handlers
-// before calling [Handler.HandleNotification] for the first time. Once the
-// server starts, only HandleNotification may be called concurrently — it is
-// safe for concurrent reads of the registered callbacks.
+// Handler protects its mutable state with a sync.Mutex. All registration
+// methods ([Handler.OnError], [Handler.OnFallback], and all On* methods on
+// sub-handlers) acquire the mutex before writing. [Handler.HandleNotification]
+// does not acquire the mutex; it is safe for concurrent reads after
+// registration is complete. Register all handlers during initialisation and
+// treat them as immutable once the server starts receiving requests.
 //
 // The same constraint applies to all sub-handlers reachable through the
 // Handler: [MessagesHandler], [FlowNotificationHandler],
@@ -56,17 +59,27 @@ import (
 // them as immutable afterward.
 type Handler struct {
 	flows               *FlowNotificationHandler
+	flowsOnce           sync.Once
 	business            *BusinessNotificationHandler
+	businessOnce        sync.Once
 	messages            *MessagesHandler
+	messagesOnce        sync.Once
 	groups              *GroupManagementHandler
+	groupsOnce          sync.Once
 	history             *HistoryHandler
+	historyOnce         sync.Once
 	calls               *CallsHandler
+	callsOnce           sync.Once
 	smbEcho             *SMBMessageEchoesHandler
+	smbEchoOnce         sync.Once
 	smbAppSync          *SMBAppStateSyncsHandler
+	smbAppSyncOnce      sync.Once
 	userPrefs           *UserPreferencesHandler
 	errorHandler        ErrorHandler
 	fallback            FallbackHandler
 	changeFieldHandlers changeFieldMap
+
+	mu sync.Mutex
 }
 
 // NewHandler creates a Handler with all callbacks initialized to no-ops.
@@ -137,6 +150,8 @@ func NewHandler() *Handler {
 //	    return nil // continue processing remaining messages
 //	}))
 func (handler *Handler) OnError(h ErrorHandler) {
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
 	handler.errorHandler = h
 }
 
@@ -146,6 +161,9 @@ func (handler *Handler) OnError(h ErrorHandler) {
 // fallback set — using adapter wrappers where the sub-handler fallback type
 // differs from FallbackHandler.
 func (handler *Handler) OnFallback(h FallbackHandler) {
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
 	handler.fallback = h
 
 	if handler.business != nil && handler.business.Fallback == nil {
@@ -295,69 +313,70 @@ func (handler *Handler) handleNotificationChange(
 	return nil
 }
 
-// ensureMessages lazily initialises handler.messages so that On* registration
-// methods never panic on a nil sub-handler. The MessagesHandler starts with all
-// handler fields nil — the fallback cascade treats nil as "not configured.".
+// ensureMessages lazily initialises handler.messages using sync.Once so that
+// concurrent calls during registration are safe. The MessagesHandler starts
+// with all handler fields nil — the fallback cascade treats nil as "not
+// configured."
 func (handler *Handler) ensureMessages() *MessagesHandler {
-	if handler.messages == nil {
+	handler.messagesOnce.Do(func() {
 		handler.messages = &MessagesHandler{}
-	}
+	})
 	return handler.messages
 }
 
 // ensureFlows lazily initialises handler.flows.
 func (handler *Handler) ensureFlows() *FlowNotificationHandler {
-	if handler.flows == nil {
+	handler.flowsOnce.Do(func() {
 		handler.flows = &FlowNotificationHandler{}
-	}
+	})
 	return handler.flows
 }
 
-// ensureBusiness lazily initialises handler.business.
+// ensureBusiness lazily initializes handler.business.
 func (handler *Handler) ensureBusiness() *BusinessNotificationHandler {
-	if handler.business == nil {
+	handler.businessOnce.Do(func() {
 		handler.business = &BusinessNotificationHandler{}
-	}
+	})
 	return handler.business
 }
 
-// ensureGroups lazily initialises handler.groups.
+// ensureGroups lazily initializes handler.groups.
 func (handler *Handler) ensureGroups() *GroupManagementHandler {
-	if handler.groups == nil {
+	handler.groupsOnce.Do(func() {
 		handler.groups = &GroupManagementHandler{}
-	}
+	})
 	return handler.groups
 }
 
-// ensureHistory lazily initialises handler.history.
+// ensureHistory lazily initializes handler.history.
 func (handler *Handler) ensureHistory() *HistoryHandler {
-	if handler.history == nil {
+	handler.historyOnce.Do(func() {
 		handler.history = &HistoryHandler{}
-	}
+	})
 	return handler.history
 }
 
-// ensureCalls lazily initialises handler.calls.
+// ensureCalls lazily initializes handler.calls.
 func (handler *Handler) ensureCalls() *CallsHandler {
-	if handler.calls == nil {
+	handler.callsOnce.Do(func() {
 		handler.calls = &CallsHandler{}
-	}
+	})
 	return handler.calls
 }
 
-// ensureSMBEchoes lazily initialises handler.smbEcho.
+// ensureSMBEchoes lazily initializes handler.smbEcho.
 func (handler *Handler) ensureSMBEchoes() *SMBMessageEchoesHandler {
-	if handler.smbEcho == nil {
+	handler.smbEchoOnce.Do(func() {
 		handler.smbEcho = &SMBMessageEchoesHandler{}
-	}
+	})
 	return handler.smbEcho
 }
 
-// ensureSMBAppSync lazily initialises handler.smbAppSync.
+// ensureSMBAppSync lazily initializes handler.smbAppSync.
 func (handler *Handler) ensureSMBAppSync() *SMBAppStateSyncsHandler {
-	if handler.smbAppSync == nil {
+	handler.smbAppSyncOnce.Do(func() {
 		handler.smbAppSync = &SMBAppStateSyncsHandler{}
-	}
+	})
 	return handler.smbAppSync
 }
 

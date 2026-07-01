@@ -356,13 +356,7 @@ func (bh *BusinessNotificationHandler) OnFallback(h FallbackHandler) {
 // handleError routes an error through the BusinessNotificationHandler's ErrorHandler.
 // When ErrorHandler is nil, the error is returned as-is (passthrough).
 func (bh *BusinessNotificationHandler) handleError(ctx context.Context, err error) error {
-	if bh.ErrorHandler == nil {
-		return err
-	}
-	if handlerErr := bh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
-	}
-	return nil
+	return handleSubHandlerError(ctx, bh.ErrorHandler, err)
 }
 
 // executeFallback routes an unhandled business event through the Fallback
@@ -534,15 +528,18 @@ func (value *Value) AlertNotification() *AlertNotification {
 }
 
 func (value *Value) TemplateStatusUpdate() *TemplateStatusUpdateNotification {
-	return &TemplateStatusUpdateNotification{
+	n := &TemplateStatusUpdateNotification{
 		Event:                   value.Event,
 		MessageTemplateID:       value.MessageTemplateID,
 		MessageTemplateName:     value.MessageTemplateName,
 		MessageTemplateLanguage: value.MessageTemplateLanguage,
-		Reason:                  *value.Reason,
 		DisableInfo:             value.DisableInfo,
 		OtherInfo:               value.OtherInfo,
 	}
+	if value.Reason != nil {
+		n.Reason = *value.Reason
+	}
+	return n
 }
 
 func (value *Value) TemplateCategoryUpdate() *TemplateCategoryUpdateNotification {

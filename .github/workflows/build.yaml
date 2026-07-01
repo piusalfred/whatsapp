@@ -24,6 +24,7 @@ jobs:
           - macos-latest
         go-version:
           - stable
+          - oldstable
 
     steps:
       - name: Checkout repository
@@ -33,29 +34,25 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
-          cache: false
+          cache: true
 
-      - name: Clear Go cache
-        run: |
-          go clean -modcache
-          go clean -cache
+      - name: Cache Go tool binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: ${{ runner.os }}-go-bin-${{ hashFiles('.gotools.env', 'tools/*.mod', 'tools/*.sum') }}
 
       - name: Install gotools
         run: go install github.com/piusalfred/gotools/cmd/gotools@latest
-        env:
-          GOPROXY: direct
 
-      - name: Download dependencies
-        run: go mod download
-        env:
-          GOPROXY: direct
+      - name: Verify tooling
+        run: gotools version
 
-      - name: Sanity Check
+      - name: Sanity checks (license, format, lint, mod-tidy, build)
         run: make check
+
+      - name: Vulnerability check
+        run: make check-vuln
 
       - name: Test
         run: make test
-
-      - name: Build
-        run: go build -v ./...
-    

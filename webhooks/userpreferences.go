@@ -88,13 +88,7 @@ func (uh *UserPreferencesHandler) OnFallback(h FallbackHandler) {
 }
 
 func (uh *UserPreferencesHandler) handleError(ctx context.Context, err error) error {
-	if uh.ErrorHandler == nil {
-		return err
-	}
-	if handlerErr := uh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
-	}
-	return nil
+	return handleSubHandlerError(ctx, uh.ErrorHandler, err)
 }
 
 func (uh *UserPreferencesHandler) executeFallback(ctx context.Context, ne NotificationEntry, change Change) error {

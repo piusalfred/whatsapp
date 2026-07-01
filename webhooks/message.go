@@ -436,13 +436,7 @@ func (mh *MessagesHandler) OnStatusChange(h ChangeValueHandler[Status]) {
 }
 
 func (mh *MessagesHandler) handleError(ctx context.Context, err error) error {
-	if mh.ErrorHandler == nil {
-		return err
-	}
-	if handlerErr := mh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
-	}
-	return nil
+	return handleSubHandlerError(ctx, mh.ErrorHandler, err)
 }
 
 // newMessageInfo extracts MessageInfo from a raw Message. All boolean

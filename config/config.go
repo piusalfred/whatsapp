@@ -86,6 +86,10 @@ func (c *Config) AuthConfig() whttp.AuthConfig {
 }
 
 func Validate(conf *Config) error {
+	if conf == nil {
+		return fmt.Errorf("%w: config is nil", ErrInvalidConfig)
+	}
+
 	errs := make([]error, 0)
 	if !whatsapp.IsCorrectAPIVersion(conf.APIVersion) {
 		errs = append(errs, fmt.Errorf("%w: got %s, minimum is %s",
@@ -99,6 +103,10 @@ func Validate(conf *Config) error {
 	}
 	if conf.SecureRequests && conf.AppSecret == "" {
 		errs = append(errs, ErrAppSecretRequired)
+	}
+	if conf.DebugLogLevel != "" && !whttp.ValidDebugLogLevel(conf.DebugLogLevel) {
+		errs = append(errs, fmt.Errorf("%w: debug log level %q is not valid (use all, info, or warning)",
+			ErrInvalidConfig, conf.DebugLogLevel))
 	}
 
 	return errors.Join(errs...)

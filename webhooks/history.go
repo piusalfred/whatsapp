@@ -150,13 +150,7 @@ func (hh *HistoryHandler) OnFallback(h FallbackHandler) {
 // handleError routes an error through the HistoryHandler's ErrorHandler.
 // When ErrorHandler is nil, the error is returned as-is (passthrough).
 func (hh *HistoryHandler) handleError(ctx context.Context, err error) error {
-	if hh.ErrorHandler == nil {
-		return err
-	}
-	if handlerErr := hh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
-	}
-	return nil
+	return handleSubHandlerError(ctx, hh.ErrorHandler, err)
 }
 
 // executeFallback routes an unhandled history event through the Fallback

@@ -19,19 +19,17 @@
 
 package http
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // BaseClient is a generic building block for domain-specific HTTP clients. It holds
-// a [Sender[T]] that domain code can call directly, and exposes the sender as an
-// exported field so tests can inject mocks by simple assignment.
+// an unexported sender that domain code calls via the [BaseClient.Send] method.
+// Tests inject mocks via [BaseClient.SetSender].
 //
-// The exported [Sender] field is intentionally unprotected to keep test injection
-// simple. Callers must ensure that [SetMiddlewares] and [SetSender] complete before
-// any concurrent calls to [Sender.Send]. These methods are not goroutine-safe with
-// respect to Send.
-//
-// [Sender] must not be nil when [Sender.Send] is called. Always construct via
-// [NewBaseClient] or set it explicitly before use.
+// [SetMiddlewares] and [SetSender] must complete before any concurrent calls to
+// [BaseClient.Send]. These methods are not goroutine-safe with respect to Send.
 //
 // Example:
 //
@@ -40,33 +38,57 @@ import "context"
 //	}
 //
 //	client := MyClient{BaseClient: http.NewBaseClient[MyRequest](opts...)}
-//	client.Sender.Send(ctx, req, decoder) // direct dispatch
+//	client.Send(ctx, req, decoder) // direct dispatch
 type BaseClient[T any] struct {
-	Sender Sender[T]
+	sender Sender[T]
 }
 
 // NewBaseClient creates a BaseClient[T] backed by a [CoreClient] configured with opts.
 // The returned BaseClient is safe for concurrent use as long as [SetMiddlewares] and
-// [SetSender] are not called concurrently with [Sender.Send].
+// [SetSender] are not called concurrently with [Send].
 func NewBaseClient[T any](opts ...CoreSenderOption) *BaseClient[T] {
-	return &BaseClient[T]{Sender: NewCoreClient[T](opts...)}
+	return &BaseClient[T]{sender: NewCoreClient[T](opts...)}
 }
 
-// SetMiddlewares wraps the [Sender] with the provided middlewares.
+// Send dispatches the request through the underlying [Sender].
+func (bc *BaseClient[T]) Send(ctx context.Context, req *Request[T], decoder ResponseDecoder) error {
+	if err := bc.sender.Send(ctx, req, decoder); err != nil {
+		return fmt.Errorf("send: %w", err)
+	}
+	return nil
+}
+
+// SetMiddlewares wraps the sender with the provided middlewares.
 // Middlewares are applied in order: middlewares[0] runs outermost.
 //
-// Must be called before any concurrent [Sender.Send] calls. Not goroutine-safe
+// Must be called before any concurrent [Send] calls. Not goroutine-safe
 // with respect to Send.
 func (bc *BaseClient[T]) SetMiddlewares(mws ...Middleware[T]) {
-	bc.Sender = WrapMiddlewareSender(bc.Sender, mws...)
+	bc.sender = WrapMiddlewareSender(bc.sender, mws...)
 }
 
-// SetSender replaces the [Sender], useful for injecting mocks in tests.
+// Sender returns the underlying [Sender], useful for tests that need to
+// inspect or wrap the current sender before calling [SetSender].
+func (bc *BaseClient[T]) Sender() Sender[T] {
+	return bc.sender
+}
+
+// SetSender replaces the sender, useful for injecting mocks in tests.
 //
-// Must be called before any concurrent [Sender.Send] calls. Not goroutine-safe
+// Must be called before any concurrent [Send] calls. Not goroutine-safe
 // with respect to Send.
 func (bc *BaseClient[T]) SetSender(sender Sender[T]) {
-	bc.Sender = sender
+	bc.sender = sender
+}
+
+// CloseIdleConnections closes idle connections in the underlying HTTP transport,
+// if the sender supports it. Call during graceful shutdown to drain the
+// connection pool and avoid leaking sockets.
+func (bc *BaseClient[T]) CloseIdleConnections() {
+	type closeIdler interface{ CloseIdleConnections() }
+	if c, ok := bc.sender.(closeIdler); ok {
+		c.CloseIdleConnections()
+	}
 }
 
 // WrapMiddlewareSender wraps a [Sender] with the provided middlewares and returns

@@ -69,7 +69,7 @@ func TestBaseClient_SetMiddlewares_Ordering(t *testing.T) {
 
 	client.SetMiddlewares(mw1, mw2, mw3)
 
-	_ = client.Sender.Send(context.Background(),
+	_ = client.Send(context.Background(),
 		whttp.MakeRequest[string]("GET", "http://example.com"),
 		nil,
 	)
@@ -112,7 +112,7 @@ func TestBaseClient_SetMiddlewares_SkipsNil(t *testing.T) {
 
 	client.SetMiddlewares(nil, mw, nil)
 
-	_ = client.Sender.Send(context.Background(),
+	_ = client.Send(context.Background(),
 		whttp.MakeRequest[string]("GET", "http://example.com"),
 		nil,
 	)

@@ -114,7 +114,7 @@ func (bc *BaseClient) DisableButtonClickTracking(ctx context.Context,
 	response := &DisableButtonClickTrackingResponse{}
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
 
-	if err := bc.Sender.Send(ctx, request, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, request, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 
@@ -143,7 +143,7 @@ func (bc *BaseClient) Enable(ctx context.Context, conf *config.Config) (string, 
 	response := &EnableTemplateAnalyticsResponse{}
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
 
-	if err := bc.Sender.Send(ctx, request, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, request, decoder); err != nil {
 		return "", fmt.Errorf("send request: %w", err)
 	}
 
@@ -188,7 +188,7 @@ func (bc *BaseClient) Fetch(ctx context.Context, conf *config.Config, params *Te
 	response := &TemplateAnalyticsResponse{}
 	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
 
-	if err := bc.Sender.Send(ctx, request, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, request, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 

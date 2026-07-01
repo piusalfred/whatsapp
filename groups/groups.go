@@ -259,11 +259,16 @@ func (r *BaseResponse) ActiveGroupsResponse() *ActiveGroupsResponse {
 }
 
 // JoinRequestsResponse extracts a JoinRequestsResponse from the general BaseResponse.
-func (r *BaseResponse) JoinRequestsResponse() *JoinRequestsResponse {
-	return &JoinRequestsResponse{
-		JoinRequests: r.JoinRequests(),
-		Paging:       r.Paging,
+// Returns an error if the join requests JSON is malformed.
+func (r *BaseResponse) JoinRequestsResponse() (*JoinRequestsResponse, error) {
+	items, err := r.JoinRequests()
+	if err != nil {
+		return nil, err
 	}
+	return &JoinRequestsResponse{
+		JoinRequests: items,
+		Paging:       r.Paging,
+	}, nil
 }
 
 // ApproveJoinRequestsResponse extracts an ApproveJoinRequestsResponse from the general BaseResponse.
@@ -286,14 +291,17 @@ func (r *BaseResponse) RejectJoinRequestsResponse() *RejectJoinRequestsResponse 
 	}
 }
 
-// JoinRequests returns the join requests from the Data field.
-func (r *BaseResponse) JoinRequests() []*ResponseDataItem {
+// JoinRequests decodes the Data field as a list of join requests.
+// It returns an error if the JSON is malformed or the schema is unexpected.
+func (r *BaseResponse) JoinRequests() ([]*ResponseDataItem, error) {
 	if len(r.Data) == 0 {
-		return nil
+		return nil, nil
 	}
 	var items []*ResponseDataItem
-	_ = json.Unmarshal(r.Data, &items)
-	return items
+	if err := json.Unmarshal(r.Data, &items); err != nil {
+		return nil, fmt.Errorf("join requests: %w", err)
+	}
+	return items, nil
 }
 
 // ActiveGroups returns the active groups from the Data field.
@@ -513,7 +521,7 @@ func (c *Client) GetJoinRequests(
 		return nil, fmt.Errorf("client: get join requests: %w", err)
 	}
 
-	return response.JoinRequestsResponse(), nil
+	return response.JoinRequestsResponse()
 }
 
 func (c *Client) ApproveJoinRequests(
@@ -681,7 +689,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	resp := &BaseResponse{}
 	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive())
 
-	if err = bc.Sender.Send(ctx, req, decoder); err != nil {
+	if err = bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 
@@ -867,7 +875,7 @@ func (bc *BaseClient) GetJoinRequests(
 		return nil, fmt.Errorf("base client: get join requests: %w", err)
 	}
 
-	return response.JoinRequestsResponse(), nil
+	return response.JoinRequestsResponse()
 }
 
 func (bc *BaseClient) ApproveJoinRequests(

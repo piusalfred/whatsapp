@@ -159,14 +159,24 @@ func encodeFormData( //nolint:gocognit // complexity is OK
 	pr, pw := io.Pipe()
 	multipartWriter := multipart.NewWriter(pw)
 
-	// Cancel the pipe when the context is done so the goroutine exits instead
-	// of leaking if the caller abandons the request.
+	// done signals the writer goroutine has completed. The context-watcher
+	// goroutine exits when either the context is cancelled or the writer
+	// finishes — whichever comes first. This prevents a goroutine leak when
+	// the caller uses an uncancelled context (e.g. context.Background()).
+	done := make(chan struct{})
+
 	go func() {
-		<-ctx.Done()
-		pw.CloseWithError(ctx.Err())
+		select {
+		case <-ctx.Done():
+			pw.CloseWithError(ctx.Err())
+		case <-done:
+			// Writer completed normally; nothing to do.
+		}
 	}()
 
 	go func() {
+		defer close(done)
+
 		var writeErr error
 
 		// Ensures the pipe is always closed and captures panics or streaming errors,

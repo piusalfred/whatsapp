@@ -1,0 +1,24 @@
+[general]
+# Ignore merge commits, revert commits, and fixup/squash commits
+ignore-merge-commits=true
+ignore-revert-commits=true
+ignore-fixup-commits=true
+ignore-squash-commits=true
+
+[title-max-length]
+line-length=72
+
+[title-match-regex]
+# Conventional Commits format: type(scope)!: description
+# Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+regex=^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: [A-Z].+
+
+[body-min-length]
+min-length=0
+
+[body-max-line-length]
+line-length=72
+
+[ignore-body-lines]
+# Allow lines that start with these patterns to exceed body-max-line-length
+regex=^Signed-off-by:|^Co-authored-by:|^https?://

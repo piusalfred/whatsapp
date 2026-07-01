@@ -175,13 +175,7 @@ func GroupChangeFields() []ChangeField {
 // handleError routes an error through the GroupManagementHandler's ErrorHandler.
 // When ErrorHandler is nil, the error is returned as-is (passthrough).
 func (gh *GroupManagementHandler) handleError(ctx context.Context, err error) error {
-	if gh.ErrorHandler == nil {
-		return err
-	}
-	if handlerErr := gh.ErrorHandler.Handle(ctx, err); handlerErr != nil {
-		return fmt.Errorf("error handler: %w", handlerErr)
-	}
-	return nil
+	return handleSubHandlerError(ctx, gh.ErrorHandler, err)
 }
 
 // executeFallback routes an unhandled group event through the Fallback
