@@ -1,6 +1,6 @@
 module github.com/piusalfred/whatsapp
 
-go 1.26
+go 1.26.5
 
 require (
 	github.com/google/go-cmp v0.7.0

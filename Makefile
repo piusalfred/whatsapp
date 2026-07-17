@@ -144,6 +144,6 @@ check-test: ## run all tests (must pass)
 
 # ── Meta-targets ──────────────────────────────────────────────────────────────
 
-check: check-license check-fmt check-lint check-mod-tidy check-build ## run fast sanity checks (pre-commit)
+check: check-license check-fmt check-lint check-mod-tidy check-build check-vuln ## run fast sanity checks (pre-commit)
 
 check-all: check check-vuln check-test ## run all sanity checks (CI)
