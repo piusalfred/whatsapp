@@ -17,6 +17,10 @@
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package types //nolint:revive // keep package name as types
+package types //nolint:revive // package name is intentionally concise
 
+// Metadata carries request-scoped key-value pairs that travel through the
+// context. It is injected via [http.InjectMessageMetadata] before a request
+// is sent and can be retrieved server-side from the incoming context. Typical
+// use: attaching a correlation ID or tenant identifier to every outgoing call.
 type Metadata map[string]any

@@ -20,6 +20,7 @@
 package http
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -93,6 +94,16 @@ const (
 	RequestTypeRejectJoinRequests
 	RequestTypeUpdateGroupCallStatus
 	RequestTypeCheckCallPermissions
+	RequestTypeGetBotDetails
+	RequestTypeCreateSystemUser
+	RequestTypeListSystemUsers
+	RequestTypeUpdateSystemUser
+	RequestTypeInvalidateSystemUserTokens
+	RequestTypeCreateTemplate
+	RequestTypeListTemplates
+	RequestTypeGetTemplate
+	RequestTypeEditTemplate
+	RequestTypeDeleteTemplate
 
 	// Sentinel (NOT a real request type): keep this last for testing purposes.
 	requestTypeCount
@@ -174,6 +185,16 @@ var requestTypeStrings = [...]string{ //nolint:gochecknoglobals // immutable str
 	"reject_join_requests",
 	"update_group_call_status",
 	"check_call_permissions",
+	"get_bot_details",
+	"create_system_user",
+	"list_system_users",
+	"update_system_user",
+	"invalidate_system_user_tokens",
+	"create_template",
+	"list_templates",
+	"get_template",
+	"edit_template",
+	"delete_template",
 }
 
 func (r RequestType) Name() string {
@@ -181,5 +202,8 @@ func (r RequestType) Name() string {
 }
 
 func (r RequestType) String() string {
+	if int(r) >= len(requestTypeStrings) {
+		return fmt.Sprintf("unknown_request_type(%d)", r)
+	}
 	return requestTypeStrings[r]
 }

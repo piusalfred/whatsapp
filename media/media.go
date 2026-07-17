@@ -2,7 +2,7 @@
  *  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
- *  and associated documentation files (the “Software”), to deal in the Software without restriction,
+ *  and associated documentation files (the "Software"), to deal in the Software without restriction,
  *  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
  *  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
  *  subject to the following conditions:
@@ -10,22 +10,93 @@
  *  The above copyright notice and this permission notice shall be included in all copies or substantial
  *  portions of the Software.
  *
- *  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
  *  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
  *  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
  *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+// Package media provides a client for the WhatsApp Business Media API.
+//
+// The Media API lets businesses upload, retrieve, download, and delete media
+// files such as images, audio, documents, stickers, and video.
+//
+// # Getting Started
+//
+// Create a [Client] using [NewClient] with a [config.Config] and optional sender options:
+//
+//	conf := &config.Config{
+//	    BaseURL:       "https://graph.facebook.com",
+//	    APIVersion:    "v22.0",
+//	    AccessToken:   "YOUR_ACCESS_TOKEN",
+//	    PhoneNumberID: "YOUR_PHONE_NUMBER_ID",
+//	}
+//
+//	client := media.NewClient(conf,
+//	    whttp.WithSenderHTTPClient(http.DefaultClient),
+//	    whttp.WithSenderTimeout(30*time.Second),
+//	)
+//
+// # Uploading Media
+//
+//	resp, err := client.Upload(ctx, &media.UploadRequest{
+//	    MediaType: media.TypeImageJPEG,
+//	    Filepath:  "/path/to/image.jpg",
+//	})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Println("Media ID:", resp.ID)
+//
+// # Retrieving Media Info
+//
+//	info, err := client.GetInfo(ctx, &media.BaseRequest{MediaID: resp.ID})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Println("URL:", info.URL) // URL is valid for 5 minutes
+//
+// # Downloading Media
+//
+//	err := client.DownloadByMediaID(ctx, &media.BaseRequest{MediaID: resp.ID},
+//	    media.ResponseDecoderFunc(func(ctx context.Context, resp *http.Response) error {
+//	        // handle response body
+//	        return nil
+//	    }),
+//	    media.WithDownloadRetries(2),
+//	)
+//
+// # Deleting Media
+//
+//	delResp, err := client.Delete(ctx, &media.BaseRequest{MediaID: resp.ID})
+//
+// # Configuration Options
+//
+// [whttp.CoreSenderOption] functions customize the underlying HTTP transport:
+//
+//	whttp.WithSenderHTTPClient(customHTTPClient)
+//	whttp.WithSenderRequestInterceptor(myRequestHook)
+//	whttp.WithSenderResponseInterceptor(myResponseHook)
+//	whttp.WithSenderTimeout(30 * time.Second)
+//	whttp.WithSenderMaxBodyBytes(10 << 20)
+//	whttp.WithSenderMaxHeaderBytes(1 << 20)
+//
+// # Testing
+//
+// For unit tests, inject a mock sender via [Client.SetBaseClient]:
+//
+//	client := media.NewClient(conf)
+//	client.SetBaseClient(mockSender)
 package media
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
 
-	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
@@ -61,11 +132,11 @@ const (
 	VideoMaxSize           = 16 * 1024 * 1024
 )
 
-const (
-	ErrMediaUpload   = whatsapp.Error("media upload failed")
-	ErrMediaDownload = whatsapp.Error("media download failed")
-	ErrMediaDelete   = whatsapp.Error("media delete failed")
-	ErrMediaGetInfo  = whatsapp.Error("media get info failed")
+var (
+	ErrMediaUpload   = errors.New("media upload failed")
+	ErrMediaDownload = errors.New("media download failed")
+	ErrMediaDelete   = errors.New("media delete failed")
+	ErrMediaGetInfo  = errors.New("media get info failed")
 )
 
 type Category string
@@ -220,34 +291,26 @@ func (mt Type) String() string {
 }
 
 type (
-	Type    string
-	Service interface {
-		Upload(ctx context.Context, req *UploadRequest) (*UploadMediaResponse, error)
-		GetInfo(ctx context.Context, request *BaseRequest) (*Information, error)
-		Delete(ctx context.Context, request *BaseRequest) (*DeleteMediaResponse, error)
-		Download(ctx context.Context, request *DownloadRequest, decoder whttp.ResponseDecoder) error
-		DownloadByMediaID(
-			ctx context.Context,
-			request *BaseRequest,
-			decoder whttp.ResponseDecoder,
-			options ...DownloadOptionFunc,
-		) error
-	}
+	Type string
 
+	// DownloadRequest carries the parameters for downloading media from a URL.
 	DownloadRequest struct {
 		URL     string
 		Retries int
 	}
 
+	// UploadRequest carries the parameters for uploading media.
 	UploadRequest struct {
 		MediaType Type
 		Filepath  string
 	}
 
+	// UploadMediaResponse is returned on a successful upload.
 	UploadMediaResponse struct {
 		ID string `json:"id"` // ID of the uploaded media
 	}
 
+	// Information describes a media object retrieved from the API.
 	Information struct {
 		MessagingProduct string `json:"messaging_product"`
 		URL              string `json:"url"`
@@ -257,20 +320,53 @@ type (
 		ID               string `json:"id"`
 	}
 
+	// DeleteMediaResponse indicates whether a delete operation succeeded.
 	DeleteMediaResponse struct {
 		Success bool `json:"success"`
 	}
 
+	// DownloadMediaResponse holds the binary content and MIME type of downloaded media.
 	DownloadMediaResponse struct {
 		FileContent []byte
 		ContentType string
 	}
 
-	BaseClient struct {
-		ConfReader config.Reader
-		Sender     whttp.AnySender
+	// Client is a high-level client bound to a fixed [config.Config].
+	Client struct {
+		sender *BaseClient
+		config *config.Config
 	}
 
+	// BaseClient is the low-level HTTP executor for the Media API. It accepts a
+	// concrete [*config.Config] per request, making it suitable for multi-tenant
+	// SaaS scenarios. For a fixed-configuration client, use [Client].
+	BaseClient struct {
+		whttp.BaseClient[any]
+	}
+
+	// Request is an internal unified context data carrier mapping operation
+	// metadata down to the HTTP executor.
+	Request struct {
+		Type          whttp.RequestType
+		MediaID       string
+		PhoneNumberID string
+		Form          *whttp.RequestForm
+	}
+
+	// BaseResponse acts as a flexible intermediate data capture layer unmarshaling
+	// varying response structures across disparate HTTP verbs.
+	BaseResponse struct {
+		ID               string `json:"id"`
+		Success          bool   `json:"success"`
+		URL              string `json:"url"`
+		MimeType         string `json:"mime_type"`
+		SHA256           string `json:"sha256"`
+		FileSize         int64  `json:"file_size"`
+		MessagingProduct string `json:"messaging_product"`
+	}
+
+	// BaseRequest carries the parameters for media operations that target a
+	// specific media object.
 	BaseRequest struct {
 		MediaID            string
 		RestrictToOwnMedia bool
@@ -278,133 +374,208 @@ type (
 	}
 )
 
-func NewBaseClient(confReader config.Reader, sender whttp.AnySender) *BaseClient {
-	return &BaseClient{
-		ConfReader: confReader,
-		Sender:     sender,
+func ID(mediaID string) *BaseRequest {
+	return &BaseRequest{
+		MediaID: mediaID,
 	}
 }
 
-func (s *BaseClient) Download(ctx context.Context, request *DownloadRequest, decoder whttp.ResponseDecoder) error {
-	conf, err := s.ConfReader.Read(ctx)
-	if err != nil {
-		return fmt.Errorf("%w: config read: %w", ErrMediaDownload, err)
+// NewClient creates a high-level [Client] with a fixed configuration.
+// Optional [SenderOption] functions tune the underlying HTTP transport.
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
+	return &Client{
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[any](options...)},
+		config: conf,
 	}
-
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestSecured[any](false),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestType[any](whttp.RequestTypeDownloadMedia),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	}
-
-	req := whttp.MakeDownloadRequest(request.URL, opts...)
-
-	for i := 0; i <= request.Retries; i++ {
-		if err = s.Sender.Send(ctx, req, decoder); err != nil {
-			if i < request.Retries {
-				continue
-			}
-
-			return fmt.Errorf("%w: %d attempts: %w", ErrMediaDownload, request.Retries+1, err)
-		}
-
-		return nil
-	}
-
-	return fmt.Errorf("%w: %d attempts", ErrMediaDownload, request.Retries+1)
 }
 
-func (s *BaseClient) Delete(ctx context.Context, req *BaseRequest) (*DeleteMediaResponse, error) {
-	conf, err := s.ConfReader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: config read: %w", ErrMediaDelete, err)
-	}
-
-	phoneNumberID := req.PhoneNumberID
-	if phoneNumberID == "" && req.RestrictToOwnMedia {
-		phoneNumberID = conf.PhoneNumberID
-	}
-
-	queryParams := map[string]string{}
-	if phoneNumberID != "" {
-		queryParams["phone_number_id"] = phoneNumberID
-	}
-
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestType[any](whttp.RequestTypeDeleteMedia),
-		whttp.WithRequestQueryParams[any](queryParams),
-		whttp.WithRequestEndpoints[any](conf.APIVersion, req.MediaID),
-	}
-
-	request := whttp.MakeRequest(http.MethodDelete, conf.BaseURL, opts...)
-
-	var resp DeleteMediaResponse
-	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
-
-	if err = s.Sender.Send(ctx, request, decoder); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrMediaDelete, err)
-	}
-
-	return &resp, nil
+// SetBaseClient replaces the underlying request sender. This is useful during
+// testing when you want to inject a mock [whttp.Sender] and bypass the default
+// HTTP stack entirely.
+func (c *Client) SetBaseClient(sender whttp.Sender[any]) {
+	c.sender.SetSender(sender)
 }
 
-func (s *BaseClient) GetInfo(ctx context.Context, req *BaseRequest) (*Information, error) {
-	conf, err := s.ConfReader.Read(ctx)
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[any]) {
+	c.sender.SetMiddlewares(mws...)
+}
+
+// Upload uploads a media file to WhatsApp.
+func (c *Client) Upload(ctx context.Context, req *UploadRequest) (*UploadMediaResponse, error) {
+	_, ok := InfoMap[req.MediaType]
+	isAnimated := req.MediaType == TypeStickerAnimated
+	if !ok && !isAnimated {
+		return nil, fmt.Errorf("%w: media type not supported", ErrMediaUpload)
+	}
+	fp, err := filepath.Abs(req.Filepath)
 	if err != nil {
-		return nil, fmt.Errorf("%w: config read: %w", ErrMediaGetInfo, err)
+		return nil, fmt.Errorf("determine absolute filepath for %s: %w: %w", req.Filepath, ErrMediaUpload, err)
 	}
-
-	phoneNumberID := req.PhoneNumberID
-	if phoneNumberID == "" && req.RestrictToOwnMedia {
-		phoneNumberID = conf.PhoneNumberID
+	form := &whttp.RequestForm{
+		Fields: map[string]string{
+			"type":              string(req.MediaType),
+			"messaging_product": "whatsapp",
+		},
+		FormFile: &whttp.FormFile{
+			Name: "file",
+			Path: fp,
+			Type: req.MediaType.String(),
+		},
 	}
-
-	queryParams := map[string]string{}
-	if phoneNumberID != "" {
-		queryParams["phone_number_id"] = phoneNumberID
+	request := &Request{
+		Type: whttp.RequestTypeUploadMedia,
+		Form: form,
 	}
-
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
-		whttp.WithRequestType[any](whttp.RequestTypeGetMedia),
-		whttp.WithRequestQueryParams[any](queryParams),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestEndpoints[any](conf.APIVersion, req.MediaID),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
+	resp, err := c.Send(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrMediaUpload, err)
 	}
+	return resp.ToUploadMediaResponse(), nil
+}
 
-	request := whttp.MakeRequest(http.MethodGet, conf.BaseURL, opts...)
-
-	var info Information
-	decoder := whttp.ResponseDecoderJSON(&info, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
-
-	if err = s.Sender.Send(ctx, request, decoder); err != nil {
+// GetInfo retrieves metadata and a temporary URL for a media object.
+func (c *Client) GetInfo(ctx context.Context, req *BaseRequest) (*Information, error) {
+	request := &Request{
+		Type:          whttp.RequestTypeGetMedia,
+		MediaID:       req.MediaID,
+		PhoneNumberID: resolvePhoneNumberID(req, c.config),
+	}
+	resp, err := c.Send(ctx, request)
+	if err != nil {
 		return nil, fmt.Errorf("get media info failed: %w", err)
 	}
-
-	return &info, nil
+	return resp.ToInformation(), nil
 }
 
-func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMediaResponse, error) {
-	conf, err := s.ConfReader.Read(ctx)
+// Delete removes a media object by ID.
+func (c *Client) Delete(ctx context.Context, req *BaseRequest) (*DeleteMediaResponse, error) {
+	request := &Request{
+		Type:          whttp.RequestTypeDeleteMedia,
+		MediaID:       req.MediaID,
+		PhoneNumberID: resolvePhoneNumberID(req, c.config),
+	}
+	resp, err := c.Send(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("%w: config read: %w", ErrMediaUpload, err)
+		return nil, fmt.Errorf("%w: %w", ErrMediaDelete, err)
+	}
+	return resp.ToDeleteMediaResponse(), nil
+}
+
+// Send dispatches a raw [Request] through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+	return response, nil
+}
+
+// Download downloads media from a pre-signed URL using a custom decoder.
+func (c *Client) Download(ctx context.Context, request *DownloadRequest, decoder whttp.ResponseDecoder) error {
+	return c.sender.Download(ctx, c.config, request, decoder)
+}
+
+// DownloadByMediaID retrieves the media info and then downloads the file.
+func (c *Client) DownloadByMediaID(
+	ctx context.Context,
+	request *BaseRequest,
+	decoder whttp.ResponseDecoder,
+	options ...DownloadOptionFunc,
+) error {
+	return c.sender.DownloadByMediaID(ctx, c.config, request, decoder, options...)
+}
+
+// ToUploadMediaResponse attempts to coerce a BaseResponse into an UploadMediaResponse.
+func (r *BaseResponse) ToUploadMediaResponse() *UploadMediaResponse {
+	return &UploadMediaResponse{ID: r.ID}
+}
+
+// ToInformation attempts to coerce a BaseResponse into an Information.
+func (r *BaseResponse) ToInformation() *Information {
+	return &Information{
+		MessagingProduct: r.MessagingProduct,
+		URL:              r.URL,
+		MimeType:         r.MimeType,
+		SHA256:           r.SHA256,
+		FileSize:         r.FileSize,
+		ID:               r.ID,
+	}
+}
+
+// ToDeleteMediaResponse attempts to coerce a BaseResponse into a DeleteMediaResponse.
+func (r *BaseResponse) ToDeleteMediaResponse() *DeleteMediaResponse {
+	return &DeleteMediaResponse{Success: r.Success}
+}
+
+// resolvePhoneNumberID returns the phone number ID to use for the request,
+// falling back to the config value when RestrictToOwnMedia is set.
+func resolvePhoneNumberID(req *BaseRequest, conf *config.Config) string {
+	if req.PhoneNumberID != "" {
+		return req.PhoneNumberID
+	}
+	if req.RestrictToOwnMedia {
+		return conf.PhoneNumberID
+	}
+	return ""
+}
+
+// Send translates a high-level [Request] into an HTTP transaction and returns
+// the decoded [BaseResponse].
+func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*BaseResponse, error) {
+	var method string
+
+	switch request.Type {
+	case whttp.RequestTypeUploadMedia:
+		method = http.MethodPost
+	case whttp.RequestTypeGetMedia:
+		method = http.MethodGet
+	case whttp.RequestTypeDeleteMedia:
+		method = http.MethodDelete
 	}
 
+	queryParams := map[string]string{}
+	if request.PhoneNumberID != "" {
+		queryParams["phone_number_id"] = request.PhoneNumberID
+	}
+
+	bld := whttp.NewRequestBuilder(method, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(request.Type)
+
+	if request.MediaID != "" {
+		bld = bld.Endpoints(conf.APIVersion, request.MediaID)
+	} else if request.Type == whttp.RequestTypeUploadMedia {
+		bld = bld.Endpoints(conf.APIVersion, conf.PhoneNumberID, "media")
+	}
+
+	if len(queryParams) > 0 {
+		bld = bld.QueryParams(queryParams)
+	}
+
+	if request.Form != nil {
+		bld = bld.Form(request.Form)
+	}
+
+	req := whttp.Build[any](bld, nil)
+
+	resp := &BaseResponse{}
+	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive())
+
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	return resp, nil
+}
+
+// Upload uploads a media file to WhatsApp.
+func (bc *BaseClient) Upload(
+	ctx context.Context,
+	conf *config.Config,
+	req *UploadRequest,
+) (*UploadMediaResponse, error) {
 	_, ok := InfoMap[req.MediaType]
 	isAnimated := req.MediaType == TypeStickerAnimated
 	if !ok && !isAnimated {
@@ -428,49 +599,102 @@ func (s *BaseClient) Upload(ctx context.Context, req *UploadRequest) (*UploadMed
 		},
 	}
 
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestType[any](whttp.RequestTypeUploadMedia),
-		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.PhoneNumberID, "media"),
-		whttp.WithRequestForm[any](form),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
+	request := &Request{
+		Type: whttp.RequestTypeUploadMedia,
+		Form: form,
 	}
 
-	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, opts...)
-
-	var resp UploadMediaResponse
-	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptions{
-		DisallowUnknownFields: false,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
-
-	if err = s.Sender.Send(ctx, request, decoder); err != nil {
+	resp, err := bc.Send(ctx, conf, request)
+	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrMediaUpload, err)
 	}
 
-	return &resp, nil
+	return resp.ToUploadMediaResponse(), nil
+}
+
+// GetInfo retrieves metadata and a temporary URL for a media object.
+func (bc *BaseClient) GetInfo(ctx context.Context, conf *config.Config, req *BaseRequest) (*Information, error) {
+	request := &Request{
+		Type:          whttp.RequestTypeGetMedia,
+		MediaID:       req.MediaID,
+		PhoneNumberID: resolvePhoneNumberID(req, conf),
+	}
+
+	resp, err := bc.Send(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("get media info failed: %w", err)
+	}
+
+	return resp.ToInformation(), nil
+}
+
+// Delete removes a media object by ID.
+func (bc *BaseClient) Delete(ctx context.Context, conf *config.Config, req *BaseRequest) (*DeleteMediaResponse, error) {
+	request := &Request{
+		Type:          whttp.RequestTypeDeleteMedia,
+		MediaID:       req.MediaID,
+		PhoneNumberID: resolvePhoneNumberID(req, conf),
+	}
+
+	resp, err := bc.Send(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrMediaDelete, err)
+	}
+
+	return resp.ToDeleteMediaResponse(), nil
+}
+
+// Download downloads media from a pre-signed URL using a custom decoder.
+func (bc *BaseClient) Download(
+	ctx context.Context,
+	conf *config.Config,
+	req *DownloadRequest,
+	decoder whttp.ResponseDecoder,
+) error {
+	bld := whttp.NewRequestBuilder(http.MethodGet, "").
+		Bearer(conf.AccessToken).
+		Type(whttp.RequestTypeDownloadMedia).
+		DownloadURL(req.URL).
+		DebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
+
+	request := whttp.Build[any](bld, nil)
+
+	for i := 0; i <= req.Retries; i++ {
+		if err := bc.BaseClient.Send(ctx, request, decoder); err != nil {
+			if i < req.Retries {
+				continue
+			}
+
+			return fmt.Errorf("%w: %d attempts: %w", ErrMediaDownload, req.Retries+1, err)
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("%w: %d attempts", ErrMediaDownload, req.Retries+1)
 }
 
 type downloadOption struct {
 	Retries int
 }
 
+// DownloadOptionFunc configures retry behaviour for [BaseClient.DownloadByMediaID].
 type DownloadOptionFunc func(*downloadOption)
 
+// WithDownloadRetries sets the number of retries for a download operation.
 func WithDownloadRetries(retries int) DownloadOptionFunc {
 	return func(opt *downloadOption) {
 		opt.Retries = retries
 	}
 }
 
+// DefaultRetries is the default number of download retries.
 const DefaultRetries = 2
 
-// DownloadByMediaID downloads media by its ID.
-func (s *BaseClient) DownloadByMediaID(
+// DownloadByMediaID retrieves the media info and then downloads the file.
+func (bc *BaseClient) DownloadByMediaID(
 	ctx context.Context,
+	conf *config.Config,
 	request *BaseRequest,
 	decoder whttp.ResponseDecoder,
 	options ...DownloadOptionFunc,
@@ -482,7 +706,7 @@ func (s *BaseClient) DownloadByMediaID(
 		opt(dOptions)
 	}
 
-	info, err := s.GetInfo(ctx, request)
+	info, err := bc.GetInfo(ctx, conf, request)
 	if err != nil {
 		return fmt.Errorf("retrieve info for media(id: %s) %w: %w", request.MediaID, ErrMediaDownload, err)
 	}
@@ -492,7 +716,7 @@ func (s *BaseClient) DownloadByMediaID(
 		Retries: dOptions.Retries,
 	}
 
-	if err = s.Download(ctx, downloadRequest, decoder); err != nil {
+	if err = bc.Download(ctx, conf, downloadRequest, decoder); err != nil {
 		return fmt.Errorf("download media(id: %s) %w: %w", request.MediaID, ErrMediaDownload, err)
 	}
 

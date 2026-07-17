@@ -27,12 +27,23 @@ import (
 
 const messageMetadataContextKey = "message-metadata-key"
 
+// messageContextKey is a typed string to avoid collisions with other packages
+// using [context.WithValue] on the same string value. Because the type is
+// unexported, external packages cannot construct an equivalent key, which
+// guarantees that only functions within this package can inject or retrieve
+// this context entry.
 type messageContextKey string
 
+// InjectMessageMetadata stores [types.Metadata] in ctx so it travels with the
+// request. Called internally by [RequestWithContext]; server-side handlers use
+// [RetrieveMessageMetadata] to extract it. Typical use cases include correlation
+// IDs and tenant identifiers.
 func InjectMessageMetadata(ctx context.Context, metadata types.Metadata) context.Context {
 	return context.WithValue(ctx, messageContextKey(messageMetadataContextKey), metadata)
 }
 
+// RetrieveMessageMetadata extracts [types.Metadata] that was previously stored
+// via [InjectMessageMetadata]. Returns nil when no metadata was injected.
 func RetrieveMessageMetadata(ctx context.Context) types.Metadata {
 	metadata, ok := ctx.Value(messageContextKey(messageMetadataContextKey)).(types.Metadata)
 	if !ok {

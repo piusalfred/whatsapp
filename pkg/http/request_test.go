@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,7 +9,7 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -156,6 +156,16 @@ func TestRequestWithContext(t *testing.T) {
 					t.Errorf("RequestWithContext() header %v mismatch, want %v,"+
 						" got %v", key, tt.want.Header.Get(key), got.Header.Get(key))
 				}
+			}
+
+			// Ensure Content-Type is NOT set for GET with no body
+			if tt.req.Method == http.MethodGet && tt.req.Message == nil && tt.req.Form == nil &&
+				tt.req.BodyReader == nil &&
+				got.Header.Get("Content-Type") != "" {
+				t.Errorf(
+					"expected no Content-Type for GET request without body, got %s",
+					got.Header.Get("Content-Type"),
+				)
 			}
 
 			if tt.want.Body != nil {
@@ -475,11 +485,10 @@ func TestRequestSetters(t *testing.T) {
 		t.Parallel()
 
 		req := &whttp.Request[TestMessage]{
-			Method:  http.MethodGet,
-			BaseURL: "https://api.example.com",
+			Method:    http.MethodGet,
+			BaseURL:   "https://api.example.com",
+			Endpoints: []string{"v1", "messages", "123"},
 		}
-
-		req.SetEndpoints("v1", "messages", "123")
 
 		if len(req.Endpoints) != 3 {
 			t.Errorf("expected 3 endpoints, got %d", len(req.Endpoints))
@@ -492,13 +501,12 @@ func TestRequestSetters(t *testing.T) {
 	t.Run("SetRequestMessage", func(t *testing.T) {
 		t.Parallel()
 
+		msg := &TestMessage{Name: "test", Value: 999}
 		req := &whttp.Request[TestMessage]{
 			Method:  http.MethodPost,
 			BaseURL: "https://api.example.com",
+			Message: msg,
 		}
-
-		msg := &TestMessage{Name: "test", Value: 999}
-		req.SetRequestMessage(msg)
 
 		if req.Message != msg {
 			t.Error("expected message to be set")
@@ -559,6 +567,29 @@ func TestRequestWithContextErrors(t *testing.T) {
 						Name: "file",
 						Path: "/nonexistent/path/file.txt",
 					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing form file returns error",
+			req: &whttp.Request[TestMessage]{
+				Method:  http.MethodPost,
+				BaseURL: "https://api.example.com",
+				Form: &whttp.RequestForm{
+					Fields: map[string]string{"field": "value"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "multiple body sources returns error",
+			req: &whttp.Request[TestMessage]{
+				Method:  http.MethodPost,
+				BaseURL: "https://api.example.com",
+				Message: &TestMessage{Name: "test", Value: 1},
+				Form: &whttp.RequestForm{
+					Fields: map[string]string{"field": "value"},
 				},
 			},
 			wantErr: true,

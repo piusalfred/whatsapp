@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,7 +9,7 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -18,6 +18,7 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/piusalfred/whatsapp/webhooks"
@@ -25,7 +26,7 @@ import (
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
-type SimpleMux interface {
+type Mux interface {
 	http.Handler
 	Handle(pattern string, handler http.Handler)
 }
@@ -35,9 +36,9 @@ type Endpoints struct {
 	SubscriptionVerification string
 }
 
-// SimpleRouter wires a webhooks.Listener into an HTTP mux with configurable endpoints and middleware support.
+// WebhookRouter wires a webhooks.Listener into an HTTP mux with configurable endpoints and middleware support.
 //
-// The SimpleMux interface is intentionally thin, requiring only Handle() and ServeHTTP() methods.
+// The Mux interface is intentionally thin, requiring only Handle() and ServeHTTP() methods.
 // This means most popular HTTP routers (like chi, gorilla/mux, etc.) satisfy this interface
 // without any adaptation, allowing you to use your preferred router seamlessly.
 //
@@ -45,55 +46,57 @@ type Endpoints struct {
 //  1. Route-specific middlewares (webhookMiddlewares or subscriptionVerificationMiddlewares)
 //  2. Global middlewares (applied to all routes including custom ones added via Handle())
 //
-// All defaults can be customized using the provided SimpleRouterOption functions.
-type SimpleRouter struct {
+// All defaults can be customized using the provided WebhookRouterOption functions.
+type WebhookRouter struct {
 	listener                            *webhooks.Listener
-	mux                                 SimpleMux
+	mux                                 Mux
 	endpoints                           Endpoints
 	globalMiddlewares                   []MiddlewareFunc
 	webhookMiddlewares                  []MiddlewareFunc
 	subscriptionVerificationMiddlewares []MiddlewareFunc
 }
 
-type SimpleRouterOption interface {
-	apply(*SimpleRouter)
+type WebhookRouterOption interface {
+	apply(*WebhookRouter)
 }
 
-type SimpleRouterOptionFunc func(*SimpleRouter)
+type WebhookRouterOptionFunc func(*WebhookRouter)
 
-func (f SimpleRouterOptionFunc) apply(r *SimpleRouter) {
+func (f WebhookRouterOptionFunc) apply(r *WebhookRouter) {
 	f(r)
 }
 
-func WithSimpleRouterMux(m SimpleMux) SimpleRouterOption {
-	return SimpleRouterOptionFunc(func(r *SimpleRouter) {
+func WithWebhookRouterMux(m Mux) WebhookRouterOption {
+	return WebhookRouterOptionFunc(func(r *WebhookRouter) {
 		r.mux = m
 	})
 }
 
-func WithSimpleRouterGlobalMiddlewares(mw ...MiddlewareFunc) SimpleRouterOption {
-	return SimpleRouterOptionFunc(func(r *SimpleRouter) {
+func WithWebhookRouterGlobalMiddlewares(mw ...MiddlewareFunc) WebhookRouterOption {
+	return WebhookRouterOptionFunc(func(r *WebhookRouter) {
 		r.globalMiddlewares = append(r.globalMiddlewares, mw...)
 	})
 }
 
-func WithSimpleRouterWebhookMiddlewares(mw ...MiddlewareFunc) SimpleRouterOption {
-	return SimpleRouterOptionFunc(func(r *SimpleRouter) {
+func WithWebhookRouterWebhookMiddlewares(mw ...MiddlewareFunc) WebhookRouterOption {
+	return WebhookRouterOptionFunc(func(r *WebhookRouter) {
 		r.webhookMiddlewares = append(r.webhookMiddlewares, mw...)
 	})
 }
 
-func WithSimpleRouterSubscriptionVerificationMiddlewares(mw ...MiddlewareFunc) SimpleRouterOption {
-	return SimpleRouterOptionFunc(func(r *SimpleRouter) {
+func WithWebhookRouterSubscriptionVerificationMiddlewares(mw ...MiddlewareFunc) WebhookRouterOption {
+	return WebhookRouterOptionFunc(func(r *WebhookRouter) {
 		r.subscriptionVerificationMiddlewares = append(r.subscriptionVerificationMiddlewares, mw...)
 	})
 }
 
-func WithSimpleRouterEndpoints(e Endpoints) SimpleRouterOption {
-	return SimpleRouterOptionFunc(func(r *SimpleRouter) { r.endpoints = e })
+func WithWebhookRouterEndpoints(e Endpoints) WebhookRouterOption {
+	return WebhookRouterOptionFunc(func(r *WebhookRouter) { r.endpoints = e })
 }
 
-// NewSimpleRouter creates a new SimpleRouter with the given listener and options.
+const defaultEndpoint = "/webhooks"
+
+// NewWebhookRouter creates a new WebhookRouter with the given listener and options.
 //
 // Defaults (if not modified by options):
 //   - Mux: http.NewServeMux()
@@ -104,38 +107,38 @@ func WithSimpleRouterEndpoints(e Endpoints) SimpleRouterOption {
 // Example usage:
 //
 //	// Basic usage with defaults
-//	router, err := NewSimpleRouter(listener)
+//	router, err := NewWebhookRouter(listener)
 //	if err != nil {
 //		log.Fatal(err)
 //	}
 //
 //	// With custom endpoints
-//	router, err := NewSimpleRouter(listener,
-//		WithSimpleRouterEndpoints(Endpoints{
+//	router, err := NewWebhookRouter(listener,
+//		WithWebhookRouterEndpoints(Endpoints{
 //			Webhook:                  "/whatsapp/webhook",
 //			SubscriptionVerification: "/whatsapp/verify",
 //		}),
 //	)
 //
 //	// With middlewares
-//	router, err := NewSimpleRouter(listener,
-//		WithSimpleRouterGlobalMiddlewares(loggingMiddleware, authMiddleware),
-//		WithSimpleRouterWebhookMiddlewares(rateLimitMiddleware),
+//	router, err := NewWebhookRouter(listener,
+//		WithWebhookRouterGlobalMiddlewares(loggingMiddleware, authMiddleware),
+//		WithWebhookRouterWebhookMiddlewares(rateLimitMiddleware),
 //	)
 //
 //	// With custom mux (e.g., chi router)
 //	chiRouter := chi.NewRouter()
-//	router, err := NewSimpleRouter(listener,
-//		WithSimpleRouterMux(chiRouter),
-//		WithSimpleRouterGlobalMiddlewares(middleware.Logger),
+//	router, err := NewWebhookRouter(listener,
+//		WithWebhookRouterMux(chiRouter),
+//		WithWebhookRouterGlobalMiddlewares(middleware.Logger),
 //	)
-func NewSimpleRouter(listener *webhooks.Listener, opts ...SimpleRouterOption) (*SimpleRouter, error) {
-	r := &SimpleRouter{
+func NewWebhookRouter(listener *webhooks.Listener, opts ...WebhookRouterOption) (*WebhookRouter, error) {
+	r := &WebhookRouter{
 		listener: listener,
 		mux:      http.NewServeMux(),
 		endpoints: Endpoints{
-			Webhook:                  "/webhooks",
-			SubscriptionVerification: "/webhooks",
+			Webhook:                  defaultEndpoint,
+			SubscriptionVerification: defaultEndpoint,
 		},
 	}
 
@@ -143,30 +146,34 @@ func NewSimpleRouter(listener *webhooks.Listener, opts ...SimpleRouterOption) (*
 		opt.apply(r)
 	}
 
-	postWebhook := r.applyMiddlewares(
-		http.HandlerFunc(listener.HandleNotification),
-		r.webhookMiddlewares,
+	var (
+		postEndpoint = fmt.Sprintf("POST %s", r.endpoints.Webhook)
+		getEndpoint  = fmt.Sprintf("GET %s", r.endpoints.SubscriptionVerification)
+		postHandler  = r.applyMiddlewares(
+			http.HandlerFunc(listener.HandleNotification),
+			r.webhookMiddlewares,
+		)
+		getHandler = r.applyMiddlewares(
+			http.HandlerFunc(listener.HandleSubscriptionVerification),
+			r.subscriptionVerificationMiddlewares,
+		)
 	)
-	r.mux.Handle("POST "+r.endpoints.Webhook, postWebhook)
 
-	getVerification := r.applyMiddlewares(
-		http.HandlerFunc(listener.HandleSubscriptionVerification),
-		r.subscriptionVerificationMiddlewares,
-	)
-	r.mux.Handle("GET "+r.endpoints.SubscriptionVerification, getVerification)
+	r.mux.Handle(postEndpoint, postHandler)
+	r.mux.Handle(getEndpoint, getHandler)
 
 	return r, nil
 }
 
-func (r *SimpleRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (r *WebhookRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.mux.ServeHTTP(w, req)
 }
 
-func (r *SimpleRouter) Handle(pattern string, h http.Handler) {
+func (r *WebhookRouter) Handle(pattern string, h http.Handler) {
 	r.mux.Handle(pattern, r.applyMiddlewares(h, nil))
 }
 
-func (r *SimpleRouter) applyMiddlewares(
+func (r *WebhookRouter) applyMiddlewares(
 	h http.Handler,
 	branch []MiddlewareFunc,
 ) http.Handler {

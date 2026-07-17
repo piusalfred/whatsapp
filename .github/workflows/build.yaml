@@ -1,5 +1,4 @@
 name: Build
-
 on:
   push:
     branches:
@@ -7,15 +6,12 @@ on:
   pull_request:
     branches:
       - main
-
 permissions:
   contents: read
-
 jobs:
   build-and-test:
     name: Build and Test
     runs-on: ${{ matrix.os }}
-
     strategy:
       fail-fast: false
       matrix:
@@ -24,38 +20,27 @@ jobs:
           - macos-latest
         go-version:
           - stable
-
+          - oldstable
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
-          cache: false
-
-      - name: Clear Go cache
-        run: |
-          go clean -modcache
-          go clean -cache
-
+          cache: true
+      - name: Cache Go tool binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: ${{ runner.os }}-go-bin-${{ hashFiles('.gotools.env', 'tools/*.mod', 'tools/*.sum') }}
       - name: Install gotools
         run: go install github.com/piusalfred/gotools/cmd/gotools@latest
-        env:
-          GOPROXY: direct
-
-      - name: Download dependencies
-        run: go mod download
-        env:
-          GOPROXY: direct
-
-      - name: Sanity Check
+      - name: Verify tooling
+        run: gotools version
+      - name: Sanity checks (license, format, lint, mod-tidy, build)
         run: make check
-
+      - name: Vulnerability check
+        run: make check-vuln
       - name: Test
         run: make test
-
-      - name: Build
-        run: go build -v ./...
-    

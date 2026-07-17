@@ -11,86 +11,84 @@ package webhooks
 
 import (
 	context "context"
-	http "net/http"
 	reflect "reflect"
 
 	webhooks "github.com/piusalfred/whatsapp/webhooks"
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockConfigReader is a mock of ConfigReader interface.
-type MockConfigReader struct {
+// MockErrorHandler is a mock of ErrorHandler interface.
+type MockErrorHandler struct {
 	ctrl     *gomock.Controller
-	recorder *MockConfigReaderMockRecorder
+	recorder *MockErrorHandlerMockRecorder
 	isgomock struct{}
 }
 
-// MockConfigReaderMockRecorder is the mock recorder for MockConfigReader.
-type MockConfigReaderMockRecorder struct {
-	mock *MockConfigReader
+// MockErrorHandlerMockRecorder is the mock recorder for MockErrorHandler.
+type MockErrorHandlerMockRecorder struct {
+	mock *MockErrorHandler
 }
 
-// NewMockConfigReader creates a new mock instance.
-func NewMockConfigReader(ctrl *gomock.Controller) *MockConfigReader {
-	mock := &MockConfigReader{ctrl: ctrl}
-	mock.recorder = &MockConfigReaderMockRecorder{mock}
+// NewMockErrorHandler creates a new mock instance.
+func NewMockErrorHandler(ctrl *gomock.Controller) *MockErrorHandler {
+	mock := &MockErrorHandler{ctrl: ctrl}
+	mock.recorder = &MockErrorHandlerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockConfigReader) EXPECT() *MockConfigReaderMockRecorder {
+func (m *MockErrorHandler) EXPECT() *MockErrorHandlerMockRecorder {
 	return m.recorder
 }
 
-// ReadConfig mocks base method.
-func (m *MockConfigReader) ReadConfig(request *http.Request) (*webhooks.Config, error) {
+// Handle mocks base method.
+func (m *MockErrorHandler) Handle(ctx context.Context, err error) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadConfig", request)
-	ret0, _ := ret[0].(*webhooks.Config)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ReadConfig indicates an expected call of ReadConfig.
-func (mr *MockConfigReaderMockRecorder) ReadConfig(request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConfig", reflect.TypeOf((*MockConfigReader)(nil).ReadConfig), request)
-}
-
-// MockNotificationHandler is a mock of NotificationHandler interface.
-type MockNotificationHandler struct {
-	ctrl     *gomock.Controller
-	recorder *MockNotificationHandlerMockRecorder
-	isgomock struct{}
-}
-
-// MockNotificationHandlerMockRecorder is the mock recorder for MockNotificationHandler.
-type MockNotificationHandlerMockRecorder struct {
-	mock *MockNotificationHandler
-}
-
-// NewMockNotificationHandler creates a new mock instance.
-func NewMockNotificationHandler(ctrl *gomock.Controller) *MockNotificationHandler {
-	mock := &MockNotificationHandler{ctrl: ctrl}
-	mock.recorder = &MockNotificationHandlerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockNotificationHandler) EXPECT() *MockNotificationHandlerMockRecorder {
-	return m.recorder
-}
-
-// HandleNotification mocks base method.
-func (m *MockNotificationHandler) HandleNotification(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HandleNotification", ctx, notification)
-	ret0, _ := ret[0].(*webhooks.Response)
+	ret := m.ctrl.Call(m, "Handle", ctx, err)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// HandleNotification indicates an expected call of HandleNotification.
-func (mr *MockNotificationHandlerMockRecorder) HandleNotification(ctx, notification any) *gomock.Call {
+// Handle indicates an expected call of Handle.
+func (mr *MockErrorHandlerMockRecorder) Handle(ctx, err any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleNotification", reflect.TypeOf((*MockNotificationHandler)(nil).HandleNotification), ctx, notification)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockErrorHandler)(nil).Handle), ctx, err)
+}
+
+// MockFallbackHandler is a mock of FallbackHandler interface.
+type MockFallbackHandler struct {
+	ctrl     *gomock.Controller
+	recorder *MockFallbackHandlerMockRecorder
+	isgomock struct{}
+}
+
+// MockFallbackHandlerMockRecorder is the mock recorder for MockFallbackHandler.
+type MockFallbackHandlerMockRecorder struct {
+	mock *MockFallbackHandler
+}
+
+// NewMockFallbackHandler creates a new mock instance.
+func NewMockFallbackHandler(ctrl *gomock.Controller) *MockFallbackHandler {
+	mock := &MockFallbackHandler{ctrl: ctrl}
+	mock.recorder = &MockFallbackHandlerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockFallbackHandler) EXPECT() *MockFallbackHandlerMockRecorder {
+	return m.recorder
+}
+
+// Handle mocks base method.
+func (m *MockFallbackHandler) Handle(ctx context.Context, event webhooks.NotificationEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Handle", ctx, event)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Handle indicates an expected call of Handle.
+func (mr *MockFallbackHandlerMockRecorder) Handle(ctx, event any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockFallbackHandler)(nil).Handle), ctx, event)
 }
