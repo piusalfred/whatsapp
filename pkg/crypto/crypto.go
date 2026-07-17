@@ -17,7 +17,7 @@
 
 // Package crypto provides cryptographic utilities for WhatsApp Cloud API request
 // authentication. It generates appsecret_proof values ([GenerateAppSecretProof])
-// and validates X-Hub-Signature-256 headers ([ValidateSignature]) for webhook
+// and validates X-Hub-Signature-256 headers ([VerifySignature]) for webhook
 // payloads.
 package crypto
 

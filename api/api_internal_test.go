@@ -151,14 +151,12 @@ func TestGetCalls_ConcurrentInit(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 10 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			c := bc.getCalls()
 			if c == nil {
 				t.Error("getCalls() returned nil under concurrent access")
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

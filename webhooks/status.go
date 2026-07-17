@@ -96,12 +96,6 @@ func (f ChangeValueHandlerFunc[T]) Handle(ctx context.Context, req *ChangeValueR
 	return f(ctx, req)
 }
 
-func NewNoOpChangeValueHandler[T any]() ChangeValueHandler[T] {
-	return ChangeValueHandlerFunc[T](func(_ context.Context, _ *ChangeValueRequest[T]) error {
-		return nil
-	})
-}
-
 // OnNotificationErrors sets the handler for notification-level errors on the
 // "messages" field. This is a convenience wrapper around
 // [MessagesHandler.OnNotificationErrors].

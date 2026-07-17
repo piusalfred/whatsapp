@@ -36,7 +36,6 @@ import (
 const (
 	BaseURL                   = "https://graph.facebook.com"
 	LowestSupportedAPIVersion = "v20.0"
-	MessageProduct            = "whatsapp"
 	lowestMajorVersion        = 20
 )
 

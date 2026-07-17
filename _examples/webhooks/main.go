@@ -127,15 +127,15 @@ func main() {
 		LoggingMiddleware,
 	)
 
-	muxOptions := []router.SimpleRouterOption{
-		router.WithSimpleRouterEndpoints(router.Endpoints{
+	muxOptions := []router.WebhookRouterOption{
+		router.WithWebhookRouterEndpoints(router.Endpoints{
 			Webhook:                  "/webhooks/messages",
 			SubscriptionVerification: "/webhooks/messages",
 		}),
-		router.WithSimpleRouterMux(chi.NewMux()),
+		router.WithWebhookRouterMux(chi.NewMux()),
 	}
 
-	mux, err := router.NewSimpleRouter(messageListener, muxOptions...)
+	mux, err := router.NewWebhookRouter(messageListener, muxOptions...)
 	if err != nil {
 		log.Fatal(err)
 	}

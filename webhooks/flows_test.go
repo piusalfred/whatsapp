@@ -20,6 +20,7 @@ package webhooks_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/piusalfred/whatsapp/webhooks"
@@ -29,8 +30,6 @@ var errDummy = errors.New("dummy error")
 
 func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 	t.Parallel()
-
-	ne := webhooks.NotificationEntry{Object: "whatsapp_business_account", ID: "entry-1", Time: 123456}
 
 	tests := []struct {
 		name      string
@@ -182,11 +181,14 @@ func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 			fh := &webhooks.FlowNotificationHandler{}
 			called := tt.setupFn(fh)
 
-			change := webhooks.Change{
-				Field: webhooks.ChangeFieldFlows.String(),
-				Value: tt.value,
+			event := webhooks.NotificationEvent{
+				Object:  "whatsapp_business_account",
+				EntryID: "entry-1",
+				Time:    123456,
+				Field:   webhooks.ChangeFieldFlows.String(),
+				Value:   tt.value,
 			}
-			err := fh.Handle(context.Background(), ne, change)
+			err := fh.Handle(context.Background(), event)
 
 			if tt.wantError && err == nil {
 				t.Error("expected error, got nil")
@@ -204,8 +206,6 @@ func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 func TestFlowNotificationHandler_Fallback(t *testing.T) {
 	t.Parallel()
 
-	ne := webhooks.NotificationEntry{Object: "whatsapp_business_account", ID: "entry-1", Time: 123456}
-
 	t.Run("known event with nil dedicated handler calls FallbackHandler", func(t *testing.T) {
 		t.Parallel()
 
@@ -214,22 +214,25 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 		fh := &webhooks.FlowNotificationHandler{}
 		fh.OnFallback(
 			webhooks.FallbackHandlerFunc(
-				func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
+				func(_ context.Context, _ webhooks.NotificationEvent) error {
 					fallbackCalled = true
 					return nil
 				},
 			),
 		)
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldFlows.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldFlows.String(),
 			Value: &webhooks.Value{
 				Event:     webhooks.EventFlowStatusChange,
 				OldStatus: "DRAFT",
 				NewStatus: "PUBLISHED",
 			},
 		}
-		err := fh.Handle(context.Background(), ne, change)
+		err := fh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -246,24 +249,27 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 		fh := &webhooks.FlowNotificationHandler{}
 		fh.OnFallback(
 			webhooks.FallbackHandlerFunc(
-				func(_ context.Context, _ webhooks.NotificationEntry, c webhooks.Change) error {
+				func(_ context.Context, ev webhooks.NotificationEvent) error {
 					fallbackCalled = true
-					if c.Value == nil || c.Value.Event != "NEW_FLOW_EVENT" {
-						t.Errorf("fallback value.Event = %q, want %q", c.Value.Event, "NEW_FLOW_EVENT")
+					if ev.Value == nil || ev.Value.Event != "NEW_FLOW_EVENT" {
+						t.Errorf("fallback value.Event = %q, want %q", ev.Value.Event, "NEW_FLOW_EVENT")
 					}
 					return nil
 				},
 			),
 		)
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldFlows.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldFlows.String(),
 			Value: &webhooks.Value{
 				Event:   "NEW_FLOW_EVENT",
 				Message: "A new flow event",
 			},
 		}
-		err := fh.Handle(context.Background(), ne, change)
+		err := fh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -277,13 +283,16 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 
 		fh := &webhooks.FlowNotificationHandler{} // no handlers, no fallback
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldFlows.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldFlows.String(),
 			Value: &webhooks.Value{
 				Event: webhooks.EventFlowStatusChange,
 			},
 		}
-		err := fh.Handle(context.Background(), ne, change)
+		err := fh.Handle(context.Background(), event)
 		if err != nil {
 			t.Errorf("expected nil for unhandled event, got: %v", err)
 		}
@@ -294,13 +303,16 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 
 		fh := &webhooks.FlowNotificationHandler{}
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldFlows.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldFlows.String(),
 			Value: &webhooks.Value{
 				Event: "SOME_RANDOM_EVENT",
 			},
 		}
-		err := fh.Handle(context.Background(), ne, change)
+		err := fh.Handle(context.Background(), event)
 		if err != nil {
 			t.Errorf("expected nil for unknown event, got: %v", err)
 		}
@@ -367,7 +379,7 @@ func TestFlowNotificationHandler_Setters(t *testing.T) {
 		fh := &webhooks.FlowNotificationHandler{}
 		fh.OnFallback(
 			webhooks.FallbackHandlerFunc(
-				func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
+				func(_ context.Context, _ webhooks.NotificationEvent) error {
 					return nil
 				},
 			),
@@ -394,8 +406,6 @@ func TestFlowNotificationHandler_Setters(t *testing.T) {
 func TestFlowNotificationHandler_DedicatedOverridesFallback(t *testing.T) {
 	t.Parallel()
 
-	ne := webhooks.NotificationEntry{Object: "whatsapp_business_account", ID: "entry-1", Time: 123456}
-
 	fh := &webhooks.FlowNotificationHandler{}
 
 	var dedicatedCalled, fallbackCalled bool
@@ -408,22 +418,25 @@ func TestFlowNotificationHandler_DedicatedOverridesFallback(t *testing.T) {
 	))
 	fh.OnFallback(
 		webhooks.FallbackHandlerFunc(
-			func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
+			func(_ context.Context, _ webhooks.NotificationEvent) error {
 				fallbackCalled = true
 				return nil
 			},
 		),
 	)
 
-	change := webhooks.Change{
-		Field: webhooks.ChangeFieldFlows.String(),
+	event := webhooks.NotificationEvent{
+		Object:  "whatsapp_business_account",
+		EntryID: "entry-1",
+		Time:    123456,
+		Field:   webhooks.ChangeFieldFlows.String(),
 		Value: &webhooks.Value{
 			Event:     webhooks.EventFlowStatusChange,
 			OldStatus: "DRAFT",
 			NewStatus: "PUBLISHED",
 		},
 	}
-	err := fh.Handle(context.Background(), ne, change)
+	err := fh.Handle(context.Background(), event)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -432,5 +445,198 @@ func TestFlowNotificationHandler_DedicatedOverridesFallback(t *testing.T) {
 	}
 	if fallbackCalled {
 		t.Error("FallbackHandler should not be called when dedicated handler is set")
+	}
+}
+
+// flowsStatusPayload returns a flows notification for FLOW_STATUS_CHANGE.
+func flowsStatusPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "123456789",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "flows",
+						Value: &webhooks.Value{
+							Event:     "FLOW_STATUS_CHANGE",
+							FlowID:    "123456789",
+							Message:   "Flow status changed to PUBLISHED",
+							OldStatus: "DRAFT",
+							NewStatus: "PUBLISHED",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func flowsEndpointLatencyPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "123456789",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "flows",
+						Value: &webhooks.Value{
+							Event:         "ENDPOINT_LATENCY",
+							FlowID:        "123456789",
+							Message:       "P90 latency exceeded threshold",
+							P50Latency:    1200,
+							P90Latency:    5200,
+							RequestsCount: 100,
+							Threshold:     5000,
+							AlertState:    "ACTIVATED",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFallback_Flows_NoSubHandler_Silent200(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), flowsStatusPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack for nil sub-handler), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_Flows_NoSubHandler_GeneralFallbackFires(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	var fired bool
+	var gotField string
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			gotField = ev.Field
+			return nil
+		},
+	))
+
+	resp := h.HandleNotification(context.Background(), flowsStatusPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("general fallback was not invoked for nil flows sub-handler")
+	}
+	if gotField != "flows" {
+		t.Errorf("expected field 'flows', got %q", gotField)
+	}
+}
+
+func TestFallback_Flows_DedicatedHandlerFires(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	var fired bool
+	h.OnFlowStatusChange(webhooks.FlowEventHandlerFunc[webhooks.StatusChangeDetails](
+		func(_ context.Context, req *webhooks.FlowRequest[webhooks.StatusChangeDetails]) error {
+			fired = true
+			return nil
+		},
+	))
+
+	resp := h.HandleNotification(context.Background(), flowsStatusPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("dedicated handler was not invoked")
+	}
+}
+
+func TestFallback_Flows_SubFallbackFires(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	h.OnFlowStatusChange(webhooks.FlowEventHandlerFunc[webhooks.StatusChangeDetails](
+		func(_ context.Context, req *webhooks.FlowRequest[webhooks.StatusChangeDetails]) error {
+			t.Error("status handler should not fire for latency event")
+			return nil
+		},
+	))
+
+	var subFired bool
+	h.Flows().OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			subFired = true
+			return nil
+		},
+	))
+
+	resp := h.HandleNotification(context.Background(), flowsEndpointLatencyPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !subFired {
+		t.Fatal("sub-handler fallback was not invoked for unhandled flow event")
+	}
+}
+
+func TestFallback_Flows_NoSubFallback_Silent200(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	h.OnFlowStatusChange(webhooks.FlowEventHandlerFunc[webhooks.StatusChangeDetails](
+		func(_ context.Context, req *webhooks.FlowRequest[webhooks.StatusChangeDetails]) error {
+			return nil
+		},
+	))
+
+	resp := h.HandleNotification(context.Background(), flowsEndpointLatencyPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_Flows_OnFallbackPropagates(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	h.OnFlowStatusChange(webhooks.FlowEventHandlerFunc[webhooks.StatusChangeDetails](
+		func(_ context.Context, req *webhooks.FlowRequest[webhooks.StatusChangeDetails]) error {
+			return nil
+		},
+	))
+
+	if h.Flows().Fallback != nil {
+		t.Fatal("Flows.Fallback should be nil before OnFallback")
+	}
+
+	var fired bool
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			return nil
+		},
+	))
+
+	if h.Flows().Fallback == nil {
+		t.Fatal("OnFallback did not propagate to Flows.Fallback")
+	}
+
+	resp := h.HandleNotification(context.Background(), flowsEndpointLatencyPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("propagated fallback was not invoked for unhandled flow event")
 	}
 }

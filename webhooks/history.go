@@ -155,11 +155,11 @@ func (hh *HistoryHandler) handleError(ctx context.Context, err error) error {
 
 // executeFallback routes an unhandled history event through the Fallback
 // catch-all. Returns nil when Fallback is nil (silent skip).
-func (hh *HistoryHandler) executeFallback(ctx context.Context, ne NotificationEntry, change Change) error {
+func (hh *HistoryHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
 	if hh.Fallback == nil {
 		return nil
 	}
-	if err := hh.Fallback.Handle(ctx, ne, change); err != nil {
+	if err := hh.Fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("history fallback: %w", err)
 	}
 	return nil
@@ -169,32 +169,31 @@ func (hh *HistoryHandler) executeFallback(ctx context.Context, ne NotificationEn
 //
 // Two forms are recognized:
 //
-//  1. change.Value.History contains entries → dispatched to [Messages].
-//  2. change.Value.Messages is populated → dispatched to [MediaMessages].
+//  1. event.Value.History contains entries → dispatched to [Messages].
+//  2. event.Value.Messages is populated → dispatched to [MediaMessages].
 //
 // If neither handler is set for the matching form, falls back to [Fallback].
 // If [Fallback] is also nil, the webhook is silently acknowledged (HTTP 200).
 func (hh *HistoryHandler) Handle(
 	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
+	event NotificationEvent,
 ) error {
 	nctx := &MessageNotificationContext{
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		NotificationObject: ne.Object,
-		MessagingProduct:   change.Value.MessagingProduct,
-		Metadata:           change.Value.Metadata,
+		EntryID:            event.EntryID,
+		EntryTime:          event.Time,
+		NotificationObject: event.Object,
+		MessagingProduct:   event.Value.MessagingProduct,
+		Metadata:           event.Value.Metadata,
 	}
 
 	// Form 1: chat history entries (threads of messages).
-	if len(change.Value.History) > 0 {
+	if len(event.Value.History) > 0 {
 		if hh.Messages == nil {
-			return hh.executeFallback(ctx, ne, change)
+			return hh.executeFallback(ctx, event)
 		}
-		entries := make([]*HistoryEntry, len(change.Value.History))
-		for i := range change.Value.History {
-			entries[i] = &change.Value.History[i]
+		entries := make([]*HistoryEntry, len(event.Value.History))
+		for i := range event.Value.History {
+			entries[i] = &event.Value.History[i]
 		}
 		req := &ChangeValueRequest[HistoryEntry]{
 			Notification: nctx,
@@ -208,11 +207,11 @@ func (hh *HistoryHandler) Handle(
 
 	// Form 2: media content for history messages (contains "messages" array
 	// with full payload including media asset IDs).
-	if len(change.Value.Messages) > 0 {
+	if len(event.Value.Messages) > 0 {
 		if hh.MediaMessages == nil {
-			return hh.executeFallback(ctx, ne, change)
+			return hh.executeFallback(ctx, event)
 		}
-		for _, msg := range change.Value.Messages {
+		for _, msg := range event.Value.Messages {
 			if msg == nil {
 				continue
 			}
@@ -227,7 +226,7 @@ func (hh *HistoryHandler) Handle(
 		return nil
 	}
 
-	return hh.executeFallback(ctx, ne, change)
+	return hh.executeFallback(ctx, event)
 }
 
 // OnHistorySync registers a handler for chat history entries (threads of

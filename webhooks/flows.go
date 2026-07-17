@@ -165,20 +165,19 @@ func (fh *FlowNotificationHandler) handleError(ctx context.Context, err error) e
 // catch-all. Returns nil when Fallback is nil (silent skip).
 func (fh *FlowNotificationHandler) executeFallback(
 	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
+	event NotificationEvent,
 ) error {
 	if fh.Fallback == nil {
 		return nil
 	}
-	if err := fh.Fallback.Handle(ctx, ne, change); err != nil {
+	if err := fh.Fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("flow fallback: %w", err)
 	}
 	return nil
 }
 
 // Handle dispatches the flow value to the correct event handler based on
-// change.Value.Event.
+// event.Value.Event.
 //
 //  1. If a dedicated handler is registered and not nil, it is called with
 //     the extracted details (e.g., [Value.FlowStatusChange]).
@@ -188,24 +187,23 @@ func (fh *FlowNotificationHandler) executeFallback(
 //     (HTTP 200).
 func (fh *FlowNotificationHandler) Handle(
 	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
+	event NotificationEvent,
 ) error {
-	if change.Value == nil {
+	if event.Value == nil {
 		return nil
 	}
 
 	nctx := &FlowNotificationContext{
-		NotificationObject: ne.Object,
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		ChangeField:        change.Field,
-		EventName:          change.Value.Event,
-		EventMessage:       change.Value.Message,
-		FlowID:             change.Value.FlowID,
+		NotificationObject: event.Object,
+		EntryID:            event.EntryID,
+		EntryTime:          event.Time,
+		ChangeField:        event.Field,
+		EventName:          event.Value.Event,
+		EventMessage:       event.Value.Message,
+		FlowID:             event.Value.FlowID,
 	}
 
-	value := change.Value
+	value := event.Value
 
 	switch value.Event {
 	case EventFlowStatusChange:
@@ -250,7 +248,7 @@ func (fh *FlowNotificationHandler) Handle(
 		}
 	}
 
-	return fh.executeFallback(ctx, ne, change)
+	return fh.executeFallback(ctx, event)
 }
 
 // FlowStatusChange extracts status change details from a flows webhook value.

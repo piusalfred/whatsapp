@@ -103,11 +103,11 @@ func (sh *SMBMessageEchoesHandler) handleError(ctx context.Context, err error) e
 
 // executeFallback routes an unhandled echo through the Fallback catch-all.
 // Returns nil when Fallback is nil (silent skip).
-func (sh *SMBMessageEchoesHandler) executeFallback(ctx context.Context, ne NotificationEntry, change Change) error {
+func (sh *SMBMessageEchoesHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
 	if sh.Fallback == nil {
 		return nil
 	}
-	if err := sh.Fallback.Handle(ctx, ne, change); err != nil {
+	if err := sh.Fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("smb echo fallback: %w", err)
 	}
 	return nil
@@ -121,28 +121,27 @@ func (sh *SMBMessageEchoesHandler) executeFallback(ctx context.Context, ne Notif
 //  3. If [Fallback] is also nil, the event is silently skipped (HTTP 200).
 func (sh *SMBMessageEchoesHandler) Handle(
 	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
+	event NotificationEvent,
 ) error {
-	if change.Value == nil {
+	if event.Value == nil {
 		return nil
 	}
 
 	// No dedicated handler → fallback or silent skip.
 	if sh.Handler == nil {
-		return sh.executeFallback(ctx, ne, change)
+		return sh.executeFallback(ctx, event)
 	}
 
 	nctx := &MessageNotificationContext{
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		NotificationObject: ne.Object,
-		MessagingProduct:   change.Value.MessagingProduct,
-		Contacts:           change.Value.Contacts,
-		Metadata:           change.Value.Metadata,
+		EntryID:            event.EntryID,
+		EntryTime:          event.Time,
+		NotificationObject: event.Object,
+		MessagingProduct:   event.Value.MessagingProduct,
+		Contacts:           event.Value.Contacts,
+		Metadata:           event.Value.Metadata,
 	}
 
-	for _, msg := range change.Value.MessageEchoes {
+	for _, msg := range event.Value.MessageEchoes {
 		if msg == nil {
 			continue
 		}
@@ -225,11 +224,11 @@ func (sh *SMBAppStateSyncsHandler) handleError(ctx context.Context, err error) e
 	return handleSubHandlerError(ctx, sh.ErrorHandler, err)
 }
 
-func (sh *SMBAppStateSyncsHandler) executeFallback(ctx context.Context, ne NotificationEntry, change Change) error {
+func (sh *SMBAppStateSyncsHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
 	if sh.Fallback == nil {
 		return nil
 	}
-	if err := sh.Fallback.Handle(ctx, ne, change); err != nil {
+	if err := sh.Fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("smb app state sync fallback: %w", err)
 	}
 	return nil
@@ -243,28 +242,27 @@ func (sh *SMBAppStateSyncsHandler) executeFallback(ctx context.Context, ne Notif
 //  3. If [Fallback] is also nil, the event is silently skipped (HTTP 200).
 func (sh *SMBAppStateSyncsHandler) Handle(
 	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
+	event NotificationEvent,
 ) error {
-	if change.Value == nil {
+	if event.Value == nil {
 		return nil
 	}
 
 	if sh.Handler == nil {
-		return sh.executeFallback(ctx, ne, change)
+		return sh.executeFallback(ctx, event)
 	}
 
 	nctx := &MessageNotificationContext{
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		NotificationObject: ne.Object,
-		MessagingProduct:   change.Value.MessagingProduct,
-		Contacts:           change.Value.Contacts,
-		Metadata:           change.Value.Metadata,
+		EntryID:            event.EntryID,
+		EntryTime:          event.Time,
+		NotificationObject: event.Object,
+		MessagingProduct:   event.Value.MessagingProduct,
+		Contacts:           event.Value.Contacts,
+		Metadata:           event.Value.Metadata,
 	}
 
-	for i := range change.Value.StateSync {
-		if err := sh.Handler.Handle(ctx, nctx, &change.Value.StateSync[i]); err != nil {
+	for i := range event.Value.StateSync {
+		if err := sh.Handler.Handle(ctx, nctx, &event.Value.StateSync[i]); err != nil {
 			return sh.handleError(ctx, fmt.Errorf("smb app state sync: %w", err))
 		}
 	}

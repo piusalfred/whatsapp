@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "strategy": "split",
+  "dir": "tools",
+  "go_version": "inherit",
+  "module_prefix": "github.com/piusalfred/whatsapp",
+  "tools": {
+    "addlicense": {
+      "source": "go",
+      "package": "github.com/google/addlicense",
+      "version": "v1.2.0"
+    },
+    "golangci-lint": {
+      "source": "go",
+      "package": "github.com/golangci/golangci-lint/v2/cmd/golangci-lint",
+      "version": "v2.4.0"
+    },
+    "mockgen": {
+      "source": "go",
+      "package": "go.uber.org/mock/mockgen",
+      "version": "v0.6.0"
+    },
+    "tparse": {
+      "source": "go",
+      "package": "github.com/mfridman/tparse",
+      "version": "v0.18.0"
+    }
+  }
+}

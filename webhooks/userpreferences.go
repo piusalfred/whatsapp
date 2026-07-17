@@ -91,11 +91,11 @@ func (uh *UserPreferencesHandler) handleError(ctx context.Context, err error) er
 	return handleSubHandlerError(ctx, uh.ErrorHandler, err)
 }
 
-func (uh *UserPreferencesHandler) executeFallback(ctx context.Context, ne NotificationEntry, change Change) error {
+func (uh *UserPreferencesHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
 	if uh.Fallback == nil {
 		return nil
 	}
-	if err := uh.Fallback.Handle(ctx, ne, change); err != nil {
+	if err := uh.Fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("user preferences fallback: %w", err)
 	}
 	return nil
@@ -109,27 +109,26 @@ func (uh *UserPreferencesHandler) executeFallback(ctx context.Context, ne Notifi
 //  3. If [Fallback] is also nil, the event is silently skipped (HTTP 200).
 func (uh *UserPreferencesHandler) Handle(
 	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
+	event NotificationEvent,
 ) error {
-	if change.Value == nil {
+	if event.Value == nil {
 		return nil
 	}
 
 	if uh.Handler == nil {
-		return uh.executeFallback(ctx, ne, change)
+		return uh.executeFallback(ctx, event)
 	}
 
 	nctx := &MessageNotificationContext{
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		NotificationObject: ne.Object,
-		MessagingProduct:   change.Value.MessagingProduct,
-		Contacts:           change.Value.Contacts,
-		Metadata:           change.Value.Metadata,
+		EntryID:            event.EntryID,
+		EntryTime:          event.Time,
+		NotificationObject: event.Object,
+		MessagingProduct:   event.Value.MessagingProduct,
+		Contacts:           event.Value.Contacts,
+		Metadata:           event.Value.Metadata,
 	}
 
-	for _, pref := range change.Value.UserPreferences {
+	for _, pref := range event.Value.UserPreferences {
 		if pref == nil {
 			continue
 		}

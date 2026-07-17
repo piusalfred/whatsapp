@@ -59,6 +59,10 @@ test: ## run tests with race detector
 	@echo "🧪 running tests"
 	@$(GO) test -race -json -coverpkg ./... -parallel=4 ./... | $(TPARSE) --all
 
+webhook-test: ## run webhooks package tests only
+	@echo "🧪 running webhooks tests"
+	@$(GO) test -race -json -coverpkg ./... -parallel=4 ./webhooks/... | $(TPARSE) --all
+
 clean: ## remove build artifacts, coverage files, and caches
 	@echo "🧹 cleaning"
 	@rm -f coverage.out coverage.html

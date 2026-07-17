@@ -136,14 +136,6 @@ func (fn MessageErrorsHandlerFunc) Handle(ctx context.Context,
 	return fn(ctx, req, errors)
 }
 
-func NewNoOpMessageErrorsHandler() MessageErrorsHandler {
-	return MessageErrorsHandlerFunc(
-		func(_ context.Context, _ *MessageRequest[Message], _ []*werrors.Error) error {
-			return nil
-		},
-	)
-}
-
 type (
 	MediaMessageHandler MessageHandler[media.Info]
 
@@ -173,12 +165,6 @@ type (
 
 func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, req *MessageRequest[T]) error {
 	return fn(ctx, req)
-}
-
-func NewNoOpMessageHandler[T any]() MessageHandler[T] {
-	return MessageHandlerFunc[T](func(_ context.Context, _ *MessageRequest[T]) error {
-		return nil
-	})
 }
 
 // OnTextMessage registers a handler for text messages in the messages webhook.
@@ -473,27 +459,26 @@ func newMessageRequest[T any](nctx *MessageNotificationContext, info *MessageInf
 // [ErrorHandler].
 func (mh *MessagesHandler) Handle(
 	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
+	event NotificationEvent,
 ) error {
-	if change.Value == nil {
+	if event.Value == nil {
 		return nil
 	}
 
 	nctx := &MessageNotificationContext{
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		NotificationObject: ne.Object,
-		MessagingProduct:   change.Value.MessagingProduct,
-		Contacts:           change.Value.Contacts,
-		Metadata:           change.Value.Metadata,
+		EntryID:            event.EntryID,
+		EntryTime:          event.Time,
+		NotificationObject: event.Object,
+		MessagingProduct:   event.Value.MessagingProduct,
+		Contacts:           event.Value.Contacts,
+		Metadata:           event.Value.Metadata,
 	}
 
 	// Phase 1: notification-level errors.
 	if mh.NotificationErrors != nil {
 		req := &ChangeValueRequest[werrors.Error]{
 			Notification: nctx,
-			Payload:      ErrorInfosAsErrors(change.Value.Errors),
+			Payload:      ErrorInfosAsErrors(event.Value.Errors),
 		}
 		if err := mh.NotificationErrors.Handle(ctx, req); err != nil {
 			return mh.handleError(ctx, err)
@@ -504,7 +489,7 @@ func (mh *MessagesHandler) Handle(
 	if mh.StatusChange != nil {
 		req := &ChangeValueRequest[Status]{
 			Notification: nctx,
-			Payload:      change.Value.Statuses,
+			Payload:      event.Value.Statuses,
 		}
 		if err := mh.StatusChange.Handle(ctx, req); err != nil {
 			return mh.handleError(ctx, err)
@@ -512,7 +497,7 @@ func (mh *MessagesHandler) Handle(
 	}
 
 	// Phase 3: incoming messages.
-	for _, msg := range change.Value.Messages {
+	for _, msg := range event.Value.Messages {
 		if msg == nil {
 			continue
 		}
@@ -659,13 +644,11 @@ func (mh *MessagesHandler) handleOne(
 			return nil
 		}
 		if mh.Fallback != nil {
-			ne := NotificationEntry{
-				Object: nctx.NotificationObject,
-				ID:     nctx.EntryID,
-				Time:   nctx.EntryTime,
-			}
-			change := Change{
-				Field: "messages",
+			fallbackEvent := NotificationEvent{
+				Object:  nctx.NotificationObject,
+				EntryID: nctx.EntryID,
+				Time:    nctx.EntryTime,
+				Field:   "messages",
 				Value: &Value{
 					MessagingProduct: nctx.MessagingProduct,
 					Metadata:         nctx.Metadata,
@@ -673,7 +656,7 @@ func (mh *MessagesHandler) handleOne(
 					Messages:         []*Message{message},
 				},
 			}
-			if err := mh.Fallback.Handle(ctx, ne, change); err != nil {
+			if err := mh.Fallback.Handle(ctx, fallbackEvent); err != nil {
 				return fmt.Errorf("handle fallback: %w", err)
 			}
 		}

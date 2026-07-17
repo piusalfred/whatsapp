@@ -19,6 +19,7 @@ package webhooks_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/piusalfred/whatsapp/webhooks"
@@ -26,8 +27,6 @@ import (
 
 func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 	t.Parallel()
-
-	ne := webhooks.NotificationEntry{Object: "whatsapp_business_account", ID: "entry-1", Time: 123456}
 
 	t.Run("history entries calls Messages handler", func(t *testing.T) {
 		t.Parallel()
@@ -50,8 +49,11 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		))
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				History: []webhooks.HistoryEntry{
 					{Metadata: webhooks.HistoryMetadata{Phase: 1, ChunkOrder: 1, Progress: 50}},
@@ -59,7 +61,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -89,8 +91,11 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		))
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				Messages: []*webhooks.Message{
 					{
@@ -103,7 +108,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -118,14 +123,17 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 		hh := &webhooks.HistoryHandler{}
 		var fallbackCalled bool
 		hh.OnFallback(webhooks.FallbackHandlerFunc(
-			func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
+			func(_ context.Context, _ webhooks.NotificationEvent) error {
 				fallbackCalled = true
 				return nil
 			},
 		))
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				History: []webhooks.HistoryEntry{
 					{Metadata: webhooks.HistoryMetadata{Phase: 0}},
@@ -133,7 +141,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -148,14 +156,17 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 		hh := &webhooks.HistoryHandler{}
 		var fallbackCalled bool
 		hh.OnFallback(webhooks.FallbackHandlerFunc(
-			func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
+			func(_ context.Context, _ webhooks.NotificationEvent) error {
 				fallbackCalled = true
 				return nil
 			},
 		))
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				Messages: []*webhooks.Message{
 					{ID: "wamid.xyz", Type: "image"},
@@ -163,7 +174,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -182,8 +193,11 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		))
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				History: []webhooks.HistoryEntry{
 					{Metadata: webhooks.HistoryMetadata{Phase: 0}},
@@ -191,7 +205,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err == nil {
 			t.Error("expected error from Messages handler, got nil")
 		}
@@ -207,8 +221,11 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		))
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				Messages: []*webhooks.Message{
 					{ID: "mid-1", Type: "image"},
@@ -216,7 +233,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err == nil {
 			t.Error("expected error from MediaMessages handler, got nil")
 		}
@@ -228,18 +245,21 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 		hh := &webhooks.HistoryHandler{}
 		var fallbackCalled bool
 		hh.OnFallback(webhooks.FallbackHandlerFunc(
-			func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
+			func(_ context.Context, _ webhooks.NotificationEvent) error {
 				fallbackCalled = true
 				return nil
 			},
 		))
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
-			Value: &webhooks.Value{},
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
+			Value:   &webhooks.Value{},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -253,12 +273,15 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 
 		hh := &webhooks.HistoryHandler{} // no handlers, no fallback
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
-			Value: &webhooks.Value{},
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
+			Value:   &webhooks.Value{},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Errorf("expected nil for empty payload with no fallback, got: %v", err)
 		}
@@ -298,7 +321,7 @@ func TestHistoryHandler_Setters(t *testing.T) {
 		t.Parallel()
 		hh := &webhooks.HistoryHandler{}
 		hh.OnFallback(webhooks.FallbackHandlerFunc(
-			func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
+			func(_ context.Context, _ webhooks.NotificationEvent) error {
 				return nil
 			},
 		))
@@ -310,8 +333,6 @@ func TestHistoryHandler_Setters(t *testing.T) {
 
 func TestHistoryHandler_DedicatedOverridesFallback(t *testing.T) {
 	t.Parallel()
-
-	ne := webhooks.NotificationEntry{Object: "whatsapp_business_account", ID: "entry-1", Time: 123456}
 
 	t.Run("history entries prefer Messages over fallback", func(t *testing.T) {
 		t.Parallel()
@@ -326,14 +347,17 @@ func TestHistoryHandler_DedicatedOverridesFallback(t *testing.T) {
 			},
 		))
 		hh.OnFallback(webhooks.FallbackHandlerFunc(
-			func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
+			func(_ context.Context, _ webhooks.NotificationEvent) error {
 				fallbackCalled = true
 				return nil
 			},
 		))
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				History: []webhooks.HistoryEntry{
 					{Metadata: webhooks.HistoryMetadata{Phase: 1}},
@@ -341,7 +365,7 @@ func TestHistoryHandler_DedicatedOverridesFallback(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -366,14 +390,17 @@ func TestHistoryHandler_DedicatedOverridesFallback(t *testing.T) {
 			},
 		))
 		hh.OnFallback(webhooks.FallbackHandlerFunc(
-			func(_ context.Context, _ webhooks.NotificationEntry, _ webhooks.Change) error {
+			func(_ context.Context, _ webhooks.NotificationEvent) error {
 				fallbackCalled = true
 				return nil
 			},
 		))
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				Messages: []*webhooks.Message{
 					{ID: "msg-1", Type: "video"},
@@ -381,7 +408,7 @@ func TestHistoryHandler_DedicatedOverridesFallback(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -397,8 +424,6 @@ func TestHistoryHandler_DedicatedOverridesFallback(t *testing.T) {
 func TestHistoryHandler_ErrorHandler(t *testing.T) {
 	t.Parallel()
 
-	ne := webhooks.NotificationEntry{Object: "whatsapp_business_account", ID: "entry-1", Time: 123456}
-
 	t.Run("ErrorHandler swallows non-fatal errors from Messages", func(t *testing.T) {
 		t.Parallel()
 
@@ -412,8 +437,11 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			return nil // non-fatal, continue
 		})
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				History: []webhooks.HistoryEntry{
 					{Metadata: webhooks.HistoryMetadata{Phase: 0}},
@@ -421,7 +449,7 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Errorf("expected nil after non-fatal error handler, got: %v", err)
 		}
@@ -440,8 +468,11 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			return err // fatal, escalate
 		})
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				History: []webhooks.HistoryEntry{
 					{Metadata: webhooks.HistoryMetadata{Phase: 0}},
@@ -449,7 +480,7 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err == nil {
 			t.Error("expected error after fatal error handler, got nil")
 		}
@@ -470,8 +501,11 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			return nil
 		})
 
-		change := webhooks.Change{
-			Field: webhooks.ChangeFieldHistory.String(),
+		event := webhooks.NotificationEvent{
+			Object:  "whatsapp_business_account",
+			EntryID: "entry-1",
+			Time:    123456,
+			Field:   webhooks.ChangeFieldHistory.String(),
 			Value: &webhooks.Value{
 				Messages: []*webhooks.Message{
 					{ID: "msg-1", Type: "image"},
@@ -479,7 +513,7 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), ne, change)
+		err := hh.Handle(context.Background(), event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -487,4 +521,220 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			t.Error("ErrorHandler was not called for MediaMessages error")
 		}
 	})
+}
+
+// historyEntriesPayload returns a history sync notification with chat history entries.
+func historyEntriesPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "123456789",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "history",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+							History: []webhooks.HistoryEntry{
+								{
+									Metadata: webhooks.HistoryMetadata{
+										Phase:      1,
+										ChunkOrder: 0,
+										Progress:   50,
+									},
+									Threads: []webhooks.HistoryThread{
+										{
+											ID: "15550001111",
+											Messages: []*webhooks.Message{
+												{
+													From:      "15550001111",
+													ID:        "wamid.test123",
+													Timestamp: "1739321024",
+													Type:      "text",
+													Text:      &webhooks.Text{Body: "Historical message"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func historyUnknownPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "123456789",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "history",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFallback_History_NoSubHandler_Silent200(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), historyEntriesPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack for nil sub-handler), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_History_NoSubHandler_GeneralFallbackFires(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	var fired bool
+	var gotField string
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			gotField = ev.Field
+			return nil
+		},
+	))
+
+	resp := h.HandleNotification(context.Background(), historyEntriesPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("general fallback was not invoked for nil history sub-handler")
+	}
+	if gotField != "history" {
+		t.Errorf("expected field 'history', got %q", gotField)
+	}
+}
+
+func TestFallback_History_DedicatedHandlerFires(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	var fired bool
+	h.OnHistorySync(webhooks.ChangeValueHandlerFunc[webhooks.HistoryEntry](
+		func(_ context.Context, req *webhooks.ChangeValueRequest[webhooks.HistoryEntry]) error {
+			fired = true
+			return nil
+		},
+	))
+
+	resp := h.HandleNotification(context.Background(), historyEntriesPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("dedicated handler was not invoked")
+	}
+}
+
+func TestFallback_History_SubFallbackFires(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	h.OnHistorySync(webhooks.ChangeValueHandlerFunc[webhooks.HistoryEntry](
+		func(_ context.Context, req *webhooks.ChangeValueRequest[webhooks.HistoryEntry]) error {
+			t.Error("history sync handler should not fire for unknown payload")
+			return nil
+		},
+	))
+	h.History().Messages = nil
+
+	var subFired bool
+	h.History().OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			subFired = true
+			return nil
+		},
+	))
+
+	resp := h.HandleNotification(context.Background(), historyUnknownPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !subFired {
+		t.Fatal("sub-handler fallback was not invoked for unrecognized history payload")
+	}
+}
+
+func TestFallback_History_NoSubFallback_Silent200(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	h.OnHistorySync(webhooks.ChangeValueHandlerFunc[webhooks.HistoryEntry](
+		func(_ context.Context, req *webhooks.ChangeValueRequest[webhooks.HistoryEntry]) error {
+			return nil
+		},
+	))
+	h.History().Messages = nil
+
+	resp := h.HandleNotification(context.Background(), historyUnknownPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_History_OnFallbackPropagates(t *testing.T) {
+	t.Parallel()
+
+	h := webhooks.NewHandler()
+
+	h.OnHistorySync(webhooks.ChangeValueHandlerFunc[webhooks.HistoryEntry](
+		func(_ context.Context, req *webhooks.ChangeValueRequest[webhooks.HistoryEntry]) error {
+			return nil
+		},
+	))
+	h.History().Messages = nil
+
+	if h.History().Fallback != nil {
+		t.Fatal("History.Fallback should be nil before OnFallback")
+	}
+
+	var fired bool
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			return nil
+		},
+	))
+
+	if h.History().Fallback == nil {
+		t.Fatal("OnFallback did not propagate to History.Fallback")
+	}
+
+	resp := h.HandleNotification(context.Background(), historyUnknownPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("fallback was not invoked for unrecognized history payload")
+	}
 }

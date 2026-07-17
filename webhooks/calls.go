@@ -63,14 +63,6 @@ func (f CallsEventHandlerFunc[T]) Handle(ctx context.Context, req *CallRequest[T
 	return f(ctx, req)
 }
 
-// NewNoOpCallsEventHandler returns a [CallsEventHandler] that silently
-// discards all events. Useful as a placeholder.
-func NewNoOpCallsEventHandler[T any]() CallsEventHandler[T] {
-	return CallsEventHandlerFunc[T](func(_ context.Context, _ *CallRequest[T]) error {
-		return nil
-	})
-}
-
 // Type aliases for each call event type. Each accepts a [CallsEventHandler]
 // parameterized on the appropriate payload type.
 type (
@@ -168,11 +160,11 @@ func (ch *CallsHandler) handleError(ctx context.Context, err error) error {
 
 // executeFallback routes an unhandled call event through the Fallback
 // catch-all. Returns nil when Fallback is nil (silent skip).
-func (ch *CallsHandler) executeFallback(ctx context.Context, ne NotificationEntry, change Change) error {
+func (ch *CallsHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
 	if ch.Fallback == nil {
 		return nil
 	}
-	if err := ch.Fallback.Handle(ctx, ne, change); err != nil {
+	if err := ch.Fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("calls fallback: %w", err)
 	}
 	return nil
@@ -190,26 +182,25 @@ func (ch *CallsHandler) executeFallback(ctx context.Context, ne NotificationEntr
 //nolint:gocognit // dispatch switch
 func (ch *CallsHandler) Handle(
 	ctx context.Context,
-	ne NotificationEntry,
-	change Change,
+	event NotificationEvent,
 ) error {
-	if change.Value == nil {
+	if event.Value == nil {
 		return nil
 	}
 
 	nctx := &CallNotificationContext{
-		NotificationObject: ne.Object,
-		EntryID:            ne.ID,
-		EntryTime:          ne.Time,
-		ChangeField:        change.Field,
-		MessagingProduct:   change.Value.MessagingProduct,
-		Contacts:           change.Value.Contacts,
-		Metadata:           change.Value.Metadata,
+		NotificationObject: event.Object,
+		EntryID:            event.EntryID,
+		EntryTime:          event.Time,
+		ChangeField:        event.Field,
+		MessagingProduct:   event.Value.MessagingProduct,
+		Contacts:           event.Value.Contacts,
+		Metadata:           event.Value.Metadata,
 	}
 
 	// Phase 1: Dispatch call statuses (type "call"). These arrive as a
 	// statuses array in the value, distinct from the calls array.
-	for _, status := range change.Value.Statuses {
+	for _, status := range event.Value.Statuses {
 		if status == nil || status.Type != "call" {
 			continue
 		}
@@ -224,11 +215,11 @@ func (ch *CallsHandler) Handle(
 			return nil
 		}
 		// No dedicated status handler → fallback.
-		return ch.executeFallback(ctx, ne, change)
+		return ch.executeFallback(ctx, event)
 	}
 
 	// Phase 2: Dispatch call events from the calls array.
-	for _, call := range change.Value.Calls {
+	for _, call := range event.Value.Calls {
 		if call == nil {
 			continue
 		}
@@ -268,7 +259,7 @@ func (ch *CallsHandler) Handle(
 			}
 		}
 		// Unknown event type or nil handler → fallback for this call.
-		return ch.executeFallback(ctx, ne, change)
+		return ch.executeFallback(ctx, event)
 	}
 
 	return nil

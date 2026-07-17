@@ -18,7 +18,9 @@
 package webhooks_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -102,38 +104,38 @@ func ExampleConfigReader_ReadConfig() {
 	envConfig := TestEnvConfig{
 		Dev: TestConfigMap{
 			"acme": {
-				Token:     "acme-dev-token",
-				Validate:  false,
-				AppSecret: "acme-dev-app-secret",
+				Token:           "acme-dev-token",
+				ValidatePayload: false,
+				AppSecret:       "acme-dev-app-secret",
 			},
 			"shield": {
-				Token:     "shield-dev-token",
-				Validate:  false,
-				AppSecret: "shield-dev-app-secret",
+				Token:           "shield-dev-token",
+				ValidatePayload: false,
+				AppSecret:       "shield-dev-app-secret",
 			},
 		},
 		Stg: TestConfigMap{
 			"acme": {
-				Token:     "acme-stg-token",
-				Validate:  false,
-				AppSecret: "acme-stg-app-secret",
+				Token:           "acme-stg-token",
+				ValidatePayload: false,
+				AppSecret:       "acme-stg-app-secret",
 			},
 			"shield": {
-				Token:     "shield-stg-token",
-				Validate:  false,
-				AppSecret: "shield-stg-app-secret",
+				Token:           "shield-stg-token",
+				ValidatePayload: false,
+				AppSecret:       "shield-stg-app-secret",
 			},
 		},
 		Prod: TestConfigMap{
 			"acme": {
-				Token:     "acme-prod-token",
-				Validate:  true,
-				AppSecret: "acme-prod-app-secret",
+				Token:           "acme-prod-token",
+				ValidatePayload: true,
+				AppSecret:       "acme-prod-app-secret",
 			},
 			"shield": {
-				Token:     "shield-prod-token",
-				Validate:  true,
-				AppSecret: "shield-prod-app-secret",
+				Token:           "shield-prod-token",
+				ValidatePayload: true,
+				AppSecret:       "shield-prod-app-secret",
 			},
 		},
 	}
@@ -162,7 +164,7 @@ func ExampleConfigReader_ReadConfig() {
 
 	printFn := func(cfg *webhooks.Config) {
 		fmt.Printf("Token: %s\n", cfg.Token)
-		fmt.Printf("Validate: %t\n", cfg.Validate)
+		fmt.Printf("ValidatePayload: %t\n", cfg.ValidatePayload)
 		fmt.Printf("AppSecret: %s\n", cfg.AppSecret)
 	}
 
@@ -181,10 +183,10 @@ func ExampleConfigReader_ReadConfig() {
 
 	// Output:
 	// Token: acme-dev-token
-	// Validate: false
+	// ValidatePayload: false
 	// AppSecret: acme-dev-app-secret
 	// Token: shield-prod-token
-	// Validate: true
+	// ValidatePayload: true
 	// AppSecret: shield-prod-app-secret
 }
 
@@ -300,8 +302,8 @@ func TestListener_HandleNotification_MultipleMessages(t *testing.T) {
 		Handler: handler,
 		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
 			return &webhooks.Config{
-				Token:    "dummy-verify-token",
-				Validate: false,
+				Token:           "dummy-verify-token",
+				ValidatePayload: false,
 			}, nil
 		}),
 	}
@@ -428,8 +430,8 @@ func TestListener_HandleNotification_MultipleChangeValues(t *testing.T) {
 		Handler: handler,
 		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
 			return &webhooks.Config{
-				Token:    "dummy-verify-token",
-				Validate: false,
+				Token:           "dummy-verify-token",
+				ValidatePayload: false,
 			}, nil
 		}),
 	}
@@ -644,8 +646,8 @@ func TestListener_HandleNotification_MultipleChangeValues1(t *testing.T) {
 		Handler: handler,
 		ConfigReader: webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
 			return &webhooks.Config{
-				Token:    "dummy-verify-token",
-				Validate: false,
+				Token:           "dummy-verify-token",
+				ValidatePayload: false,
 			}, nil
 		}),
 	}
@@ -1763,15 +1765,15 @@ func TestListener_HandleNotification_UnrecognizedField(t *testing.T) {
 
 	handler := webhooks.NewHandler()
 	handler.OnFallback(webhooks.FallbackHandlerFunc(func(ctx context.Context,
-		ne webhooks.NotificationEntry, c webhooks.Change,
+		ev webhooks.NotificationEvent,
 	) error {
 		handled = true
-		gotField = c.Field
+		gotField = ev.Field
 		return nil
 	}))
 
 	reader := webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
-		return &webhooks.Config{Token: "test", Validate: false}, nil
+		return &webhooks.Config{Token: "test", ValidatePayload: false}, nil
 	})
 
 	server := NewTestWebhookServer(t, TestServerConfig{
@@ -1816,7 +1818,7 @@ func TestHandler_UnrecognizedField_DefaultSilent(t *testing.T) {
 	// No OnUnrecognizedField set — default nil behaviour.
 
 	reader := webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
-		return &webhooks.Config{Token: "test", Validate: false}, nil
+		return &webhooks.Config{Token: "test", ValidatePayload: false}, nil
 	})
 
 	server := NewTestWebhookServer(t, TestServerConfig{
@@ -1833,5 +1835,1113 @@ func TestHandler_UnrecognizedField_DefaultSilent(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected 200 (silent ack for unknown field), got %d", resp.StatusCode)
+	}
+}
+
+// Example demonstrates creating a Handler and registering handlers for
+// WhatsApp webhook notifications.
+func Example() {
+	h := webhooks.NewHandler()
+	_ = h
+	fmt.Println("handler created")
+	// Output: handler created
+}
+
+// FuzzNotificationUnmarshal verifies that Notification unmarshaling never
+// panics on arbitrary input.
+func FuzzNotificationUnmarshal(f *testing.F) {
+	f.Add([]byte(`{"object":"whatsapp_business_account","entry":[]}`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(`null`))
+	f.Add([]byte(`{"object": "not_whatsapp"}`))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var n webhooks.Notification
+		_ = json.Unmarshal(data, &n)
+	})
+}
+
+func FuzzValueUnmarshal(f *testing.F) {
+	f.Add([]byte(`{}`))
+	f.Add([]byte(`{"messaging_product":"whatsapp"}`))
+	f.Add([]byte(`{"statuses":[{"status":"sent"}]}`))
+	f.Add([]byte(`{"errors":[{"code":400}]}`))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var v webhooks.Value
+		_ = json.Unmarshal(data, &v)
+	})
+}
+
+func FuzzMessageUnmarshal(f *testing.F) {
+	f.Add([]byte(`{}`))
+	f.Add([]byte(`{"type":"text","text":{"body":"hello"}}`))
+	f.Add([]byte(`{"type":"unknown_xyz","from":"123"}`))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var m webhooks.Message
+		_ = json.Unmarshal(data, &m)
+	})
+}
+
+func FuzzExtractAndValidatePayload(f *testing.F) {
+	f.Add([]byte(`{"object":"whatsapp_business_account","entry":[]}`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(`not json`))
+
+	f.Fuzz(func(t *testing.T, body []byte) {
+		r := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		_, _ = webhooks.ParseNotification(r, &webhooks.ParseNotificationOptions{
+			VerifyPayloadSignature: false,
+		})
+	})
+}
+
+func FuzzHandleNotification(f *testing.F) {
+	f.Add([]byte(`{"object":"whatsapp_business_account","entry":[]}`))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var n webhooks.Notification
+		if err := json.Unmarshal(data, &n); err != nil {
+			return
+		}
+
+		h := webhooks.NewHandler()
+		resp := h.HandleNotification(context.Background(), &n)
+		if resp.StatusCode != http.StatusOK &&
+			resp.StatusCode != http.StatusInternalServerError &&
+			resp.StatusCode != http.StatusGatewayTimeout {
+			t.Errorf("unexpected status %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestDefect002_MiddlewarePanic_NotRecovered(t *testing.T) {
+	t.Parallel()
+
+	handler := webhooks.NewHandler()
+	cfgReader := webhooks.ConfigReaderFunc(func(r *http.Request) (*webhooks.Config, error) {
+		return &webhooks.Config{ValidatePayload: false}, nil
+	})
+
+	panickingMiddleware := func(next webhooks.NotificationHandler) webhooks.NotificationHandler {
+		return webhooks.NotificationHandlerFunc(
+			func(ctx context.Context, n *webhooks.Notification) *webhooks.Response {
+				panic("middleware bug")
+			},
+		)
+	}
+
+	listener := webhooks.NewListener(handler, cfgReader, panickingMiddleware)
+
+	payload := `{"object":"whatsapp_business_account","entry":[]}`
+	r := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(payload))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	didPanic := false
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				didPanic = true
+			}
+		}()
+		listener.HandleNotification(w, r)
+	}()
+
+	if didPanic {
+		t.Error("FIXME: Listener.HandleNotification panicked on middleware panic. " +
+			"Add recover() to Listener.HandleNotification to catch this.")
+	}
+}
+
+func TestDefect003_NilListenerFields_Panics(t *testing.T) {
+	t.Parallel()
+
+	listener := &webhooks.Listener{}
+	r := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+
+	didPanic := false
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				didPanic = true
+			}
+		}()
+		listener.HandleNotification(w, r)
+	}()
+
+	if didPanic {
+		t.Error("FIXME: Zero-value Listener panics on HandleNotification. " +
+			"Add nil checks for listener.handler and listener.configReader.")
+	}
+}
+
+func TestDefect005_PanicRecovery_WrapsPanicAsPanicError(t *testing.T) {
+	t.Parallel()
+
+	handler := webhooks.NewHandler()
+	handler.OnTextMessage(webhooks.MessageHandlerFunc[webhooks.Text](
+		func(ctx context.Context, req *webhooks.MessageRequest[webhooks.Text]) error {
+			panic("intentional test panic in text handler")
+		},
+	))
+
+	notification := &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{{
+			ID:   "1",
+			Time: 1719000000,
+			Changes: []webhooks.Change{{
+				Field: "messages",
+				Value: &webhooks.Value{
+					MessagingProduct: "whatsapp",
+					Contacts:         []*webhooks.Contact{{WaID: "12345", Profile: &webhooks.Profile{Name: "Test"}}},
+					Metadata:         &webhooks.Metadata{PhoneNumberID: "123", DisplayPhoneNumber: "123456789"},
+					Messages: []*webhooks.Message{{
+						Type: "text",
+						From: "12345",
+						ID:   "msg1",
+						Text: &webhooks.Text{Body: "hello"},
+					}},
+				},
+			}},
+		}},
+	}
+
+	resp := handler.HandleNotification(context.Background(), notification)
+
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Errorf("expected 500 for handler panic, got %d", resp.StatusCode)
+	}
+}
+
+func callConnectPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "123456789",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "calls",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+							Contacts: []*webhooks.Contact{
+								{WaID: "15550001111", Profile: &webhooks.Profile{Name: "Test User"}},
+							},
+							Calls: []*webhooks.Call{
+								{
+									ID:        "wacid.test123",
+									To:        "15550001111",
+									From:      "15550783881",
+									Event:     "connect",
+									Timestamp: "1739321024",
+									Direction: "USER_INITIATED",
+									Session: &webhooks.CallSession{
+										SDPType: "answer",
+										SDP:     "v=0...",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func callTerminatePayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "123456789",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "calls",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+							Calls: []*webhooks.Call{
+								{
+									ID:        "wacid.test456",
+									To:        "15550001111",
+									From:      "15550783881",
+									Event:     "terminate",
+									Timestamp: "1739321024",
+									Direction: "USER_INITIATED",
+									Status:    "COMPLETED",
+									StartTime: "1739321000",
+									EndTime:   "1739321120",
+									Duration:  120,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func callStatusPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "123456789",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "calls",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+							Statuses: []*webhooks.Status{
+								{
+									ID:          "wacid.status123",
+									Timestamp:   "1739321024",
+									Type:        "call",
+									StatusValue: "RINGING",
+									RecipientID: "15550001111",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFallback_Calls_NoSubHandler_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), callConnectPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (calls silently skipped when sub-handler nil), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_Calls_NoSubHandler_GeneralFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var fired bool
+	var gotField string
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			gotField = ev.Field
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), callConnectPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("general fallback was not invoked for nil calls sub-handler")
+	}
+	if gotField != "calls" {
+		t.Errorf("expected field 'calls', got %q", gotField)
+	}
+}
+
+func TestFallback_Calls_DedicatedHandlerFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var fired bool
+	h.OnCallConnect(webhooks.CallsEventHandlerFunc[webhooks.Call](
+		func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+			fired = true
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), callConnectPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("dedicated handler was not invoked")
+	}
+}
+
+func TestFallback_Calls_SubFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnCallConnect(webhooks.CallsEventHandlerFunc[webhooks.Call](
+		func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+			t.Error("connect handler should not fire for terminate event")
+			return nil
+		},
+	))
+	var subFired bool
+	h.Calls().Fallback = webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			subFired = true
+			return nil
+		},
+	)
+	resp := h.HandleNotification(context.Background(), callTerminatePayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !subFired {
+		t.Fatal("sub-handler fallback was not invoked for unhandled call event")
+	}
+}
+
+func TestFallback_Calls_NoSubFallback_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnCallConnect(webhooks.CallsEventHandlerFunc[webhooks.Call](
+		func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), callTerminatePayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_Calls_OnFallbackPropagates(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnCallConnect(webhooks.CallsEventHandlerFunc[webhooks.Call](
+		func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+			return nil
+		},
+	))
+	if h.Calls().Fallback != nil {
+		t.Fatal("Calls.Fallback should be nil before OnFallback")
+	}
+	var fired bool
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			return nil
+		},
+	))
+	if h.Calls().Fallback == nil {
+		t.Fatal("OnFallback did not propagate to CallsHandler.Fallback")
+	}
+	resp := h.HandleNotification(context.Background(), callTerminatePayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("propagated fallback was not invoked for unhandled call event")
+	}
+}
+
+func TestFallback_Calls_DedicatedStatusHandlerFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var fired bool
+	h.OnCallStatus(webhooks.CallsEventHandlerFunc[webhooks.Status](
+		func(_ context.Context, req *webhooks.CallRequest[webhooks.Status]) error {
+			fired = true
+			if req.Payload.Type != "call" {
+				t.Errorf("expected status type 'call', got %q", req.Payload.Type)
+			}
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), callStatusPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("dedicated call status handler was not invoked")
+	}
+}
+
+func TestFallback_Calls_ErrorPropagationToErrorHandler(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnCallConnect(webhooks.CallsEventHandlerFunc[webhooks.Call](
+		func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+			return context.Canceled
+		},
+	))
+	var gotErr error
+	h.Calls().ErrorHandler = webhooks.ErrorHandlerFunc(
+		func(_ context.Context, err error) error {
+			gotErr = err
+			return nil
+		},
+	)
+	resp := h.HandleNotification(context.Background(), callConnectPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (non-fatal error), got %d", resp.StatusCode)
+	}
+	if gotErr == nil {
+		t.Fatal("error handler was not invoked for handler error")
+	}
+}
+
+func TestPanicError_Recovery(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnCallConnect(webhooks.CallsEventHandlerFunc[webhooks.Call](
+		func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+			panic("unexpected nil map in handler")
+		},
+	))
+	resp := h.HandleNotification(context.Background(), callConnectPayload())
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for panicking handler, got %d", resp.StatusCode)
+	}
+}
+
+func TestPanicError_IsPanicError(t *testing.T) {
+	t.Parallel()
+	pe := &webhooks.PanicError{Value: "test panic"}
+	got, ok := webhooks.IsPanicError(pe)
+	if !ok {
+		t.Fatal("IsPanicError returned false for a PanicError")
+	}
+	if got.Value != "test panic" {
+		t.Errorf("Value = %v, want 'test panic'", got.Value)
+	}
+	_, ok = webhooks.IsPanicError(context.Canceled)
+	if ok {
+		t.Error("IsPanicError returned true for context.Canceled")
+	}
+}
+
+func groupStatusUpdatePayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "123456789",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "group_status_update",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+							Groups: []*webhooks.Group{
+								{GroupID: "GROUP_ID_123", Type: "group_suspend"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFallback_NoSubHandler_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), groupStatusUpdatePayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack for nil sub-handler), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_NoSubHandler_GeneralFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var fired bool
+	var gotField string
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			gotField = ev.Field
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), groupStatusUpdatePayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("general fallback was not invoked for nil sub-handler")
+	}
+	if gotField != "group_status_update" {
+		t.Errorf("expected field 'group_status_update', got %q", gotField)
+	}
+}
+
+func TestFallback_DedicatedHandlerFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var fired bool
+	h.OnGroupStatusUpdate(webhooks.ChangeValueHandlerFunc[webhooks.Group](
+		func(_ context.Context, req *webhooks.ChangeValueRequest[webhooks.Group]) error {
+			fired = true
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), groupStatusUpdatePayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("dedicated handler was not invoked")
+	}
+}
+
+func TestFallback_SubHandlerFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnGroupLifecycleUpdate(webhooks.ChangeValueHandlerFunc[webhooks.Group](
+		func(_ context.Context, req *webhooks.ChangeValueRequest[webhooks.Group]) error {
+			t.Error("lifecycle handler should not fire for status update")
+			return nil
+		},
+	))
+	var subFallbackFired bool
+	h.Groups().OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			subFallbackFired = true
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), groupStatusUpdatePayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !subFallbackFired {
+		t.Fatal("sub-handler fallback was not invoked for unhandled group field")
+	}
+}
+
+func TestFallback_NoSubFallback_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnGroupLifecycleUpdate(webhooks.ChangeValueHandlerFunc[webhooks.Group](
+		func(_ context.Context, req *webhooks.ChangeValueRequest[webhooks.Group]) error {
+			t.Error("lifecycle handler should not fire")
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), groupStatusUpdatePayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_OnFallbackPropagates(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnGroupLifecycleUpdate(webhooks.ChangeValueHandlerFunc[webhooks.Group](
+		func(_ context.Context, req *webhooks.ChangeValueRequest[webhooks.Group]) error {
+			return nil
+		},
+	))
+	if h.Groups().Fallback != nil {
+		t.Fatal("groups.Fallback should be nil before OnFallback")
+	}
+	var fallbackFired bool
+	var fallbackField string
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fallbackFired = true
+			fallbackField = ev.Field
+			return nil
+		},
+	))
+	if h.Groups().Fallback == nil {
+		t.Fatal("OnFallback did not propagate to groups.Fallback")
+	}
+	resp := h.HandleNotification(context.Background(), groupStatusUpdatePayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fallbackFired {
+		t.Fatal("fallback was not invoked for unhandled group field")
+	}
+	if fallbackField != "group_status_update" {
+		t.Errorf("expected field 'group_status_update', got %q", fallbackField)
+	}
+}
+
+func smbAppStateSyncPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "102290129340398",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "smb_app_state_sync",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+							StateSync: []webhooks.SMBAppStateSync{
+								{
+									Type:   "contact",
+									Action: "add",
+									Contact: &webhooks.SMBContactSync{
+										FullName:    "Pablo Morales",
+										FirstName:   "Pablo",
+										PhoneNumber: "16505551234",
+									},
+									Metadata: &webhooks.SMBMetadata{Timestamp: 1739321024},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFallback_SMBAppState_NoSubHandler_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), smbAppStateSyncPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack for nil sub-handler), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_SMBAppState_NoSubHandler_GeneralFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var fired bool
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), smbAppStateSyncPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("general fallback was not invoked for nil sub-handler")
+	}
+}
+
+func TestFallback_SMBAppState_DedicatedHandlerFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var gotAction string
+	h.OnSMBAppStateSync(webhooks.SMBAppStateSyncHandlerFunc(
+		func(_ context.Context, nctx *webhooks.MessageNotificationContext, s *webhooks.SMBAppStateSync) error {
+			gotAction = s.Action
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), smbAppStateSyncPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if gotAction != "add" {
+		t.Errorf("expected action 'add', got %q", gotAction)
+	}
+}
+
+func TestFallback_SMBAppState_SubFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var subFired bool
+	h.SMBAppSync().Fallback = webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			subFired = true
+			return nil
+		},
+	)
+	resp := h.HandleNotification(context.Background(), smbAppStateSyncPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !subFired {
+		t.Fatal("sub-handler fallback was not invoked when Handler is nil")
+	}
+}
+
+func TestFallback_SMBAppState_NoSubFallback_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), smbAppStateSyncPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_SMBAppState_OnFallbackPropagates(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnSMBAppStateSync(webhooks.SMBAppStateSyncHandlerFunc(
+		func(_ context.Context, nctx *webhooks.MessageNotificationContext, s *webhooks.SMBAppStateSync) error {
+			return nil
+		},
+	))
+	if h.SMBAppSync().Fallback != nil {
+		t.Fatal("Fallback should be nil before OnFallback")
+	}
+	var fired bool
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			return nil
+		},
+	))
+	if h.SMBAppSync().Fallback == nil {
+		t.Fatal("OnFallback did not propagate to SMBAppSync.Fallback")
+	}
+	h.SMBAppSync().Handler = nil
+	resp := h.HandleNotification(context.Background(), smbAppStateSyncPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("propagated fallback was not invoked")
+	}
+}
+
+func smbTextEchoPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "102290129340398",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "smb_message_echoes",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+							MessageEchoes: []*webhooks.Message{
+								{
+									From:      "15550783881",
+									To:        "16505551234",
+									ID:        "wamid.test123",
+									Timestamp: "1739321024",
+									Type:      "text",
+									Text:      &webhooks.Text{Body: "Hello from business app"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func smbRevokeEchoPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "102290129340398",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "smb_message_echoes",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+							MessageEchoes: []*webhooks.Message{
+								{
+									From:      "15550783881",
+									To:        "16505551234",
+									ID:        "wamid.test456",
+									Timestamp: "1749854575",
+									Type:      "revoke",
+									Revoke: &webhooks.Revoke{
+										OriginalMessageID: "wamid.original123",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFallback_SMB_NoSubHandler_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), smbTextEchoPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (SMB echoes silently skipped when sub-handler nil), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_SMB_NoSubHandler_GeneralFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var fired bool
+	var gotField string
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			gotField = ev.Field
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), smbTextEchoPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("general fallback was not invoked for nil SMB echo sub-handler")
+	}
+	if gotField != "smb_message_echoes" {
+		t.Errorf("expected field 'smb_message_echoes', got %q", gotField)
+	}
+}
+
+func TestFallback_SMB_DedicatedHandlerFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var gotMsgType string
+	h.OnSMBMessageEcho(webhooks.SMBMessageEchoHandlerFunc(
+		func(_ context.Context, nctx *webhooks.MessageNotificationContext, msg *webhooks.Message) error {
+			gotMsgType = msg.Type
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), smbTextEchoPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if gotMsgType != "text" {
+		t.Errorf("expected msg type 'text', got %q", gotMsgType)
+	}
+}
+
+func TestFallback_SMB_SubFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var subFired bool
+	h.SMBEchoes().Fallback = webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			subFired = true
+			return nil
+		},
+	)
+	resp := h.HandleNotification(context.Background(), smbTextEchoPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !subFired {
+		t.Fatal("sub-handler fallback was not invoked when Handler is nil")
+	}
+}
+
+func TestFallback_SMB_NoSubFallback_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), smbRevokeEchoPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_SMB_OnFallbackPropagates(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnSMBMessageEcho(webhooks.SMBMessageEchoHandlerFunc(
+		func(_ context.Context, nctx *webhooks.MessageNotificationContext, msg *webhooks.Message) error {
+			return nil
+		},
+	))
+	if h.SMBEchoes().Fallback != nil {
+		t.Fatal("SMBEchoes.Fallback should be nil before OnFallback")
+	}
+	var fired bool
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			return nil
+		},
+	))
+	if h.SMBEchoes().Fallback == nil {
+		t.Fatal("OnFallback did not propagate to SMBEchoes.Fallback")
+	}
+	h.SMBEchoes().Handler = nil
+	resp := h.HandleNotification(context.Background(), smbTextEchoPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("propagated fallback was not invoked")
+	}
+}
+
+func userPreferencesPayload() *webhooks.Notification {
+	return &webhooks.Notification{
+		Object: "whatsapp_business_account",
+		Entry: []webhooks.Entry{
+			{
+				ID:   "102290129340398",
+				Time: 1739321024,
+				Changes: []webhooks.Change{
+					{
+						Field: "user_preferences",
+						Value: &webhooks.Value{
+							MessagingProduct: "whatsapp",
+							Metadata: &webhooks.Metadata{
+								DisplayPhoneNumber: "15550783881",
+								PhoneNumberID:      "106540352242922",
+							},
+							Contacts: []*webhooks.Contact{
+								{WaID: "16505551234"},
+							},
+							UserPreferences: []*webhooks.UserPreference{
+								{
+									WaID:      "16505551234",
+									Detail:    "User requested to stop marketing messages",
+									Category:  "marketing_messages",
+									Value:     "stop",
+									Timestamp: "1731705721",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFallback_UserPrefs_NoSubHandler_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), userPreferencesPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack for nil sub-handler), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_UserPrefs_NoSubHandler_GeneralFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var fired bool
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), userPreferencesPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("general fallback was not invoked for nil sub-handler")
+	}
+}
+
+func TestFallback_UserPrefs_DedicatedHandlerFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var gotValue string
+	h.OnUserPreferencesUpdate(webhooks.UserPreferenceHandlerFunc(
+		func(_ context.Context, nctx *webhooks.MessageNotificationContext, p *webhooks.UserPreference) error {
+			gotValue = p.Value
+			return nil
+		},
+	))
+	resp := h.HandleNotification(context.Background(), userPreferencesPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if gotValue != "stop" {
+		t.Errorf("expected 'stop', got %q", gotValue)
+	}
+}
+
+func TestFallback_UserPrefs_SubFallbackFires(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	var subFired bool
+	h.UserPrefs().Fallback = webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			subFired = true
+			return nil
+		},
+	)
+	resp := h.HandleNotification(context.Background(), userPreferencesPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !subFired {
+		t.Fatal("sub-handler fallback was not invoked when Handler is nil")
+	}
+}
+
+func TestFallback_UserPrefs_NoSubFallback_Silent200(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	resp := h.HandleNotification(context.Background(), userPreferencesPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 (silent ack), got %d", resp.StatusCode)
+	}
+}
+
+func TestFallback_UserPrefs_OnFallbackPropagates(t *testing.T) {
+	t.Parallel()
+	h := webhooks.NewHandler()
+	h.OnUserPreferencesUpdate(webhooks.UserPreferenceHandlerFunc(
+		func(_ context.Context, nctx *webhooks.MessageNotificationContext, p *webhooks.UserPreference) error {
+			return nil
+		},
+	))
+	if h.UserPrefs().Fallback != nil {
+		t.Fatal("Fallback should be nil before OnFallback")
+	}
+	var fired bool
+	h.OnFallback(webhooks.FallbackHandlerFunc(
+		func(_ context.Context, ev webhooks.NotificationEvent) error {
+			fired = true
+			return nil
+		},
+	))
+	if h.UserPrefs().Fallback == nil {
+		t.Fatal("OnFallback did not propagate to UserPrefs.Fallback")
+	}
+	h.UserPrefs().Handler = nil
+	resp := h.HandleNotification(context.Background(), userPreferencesPayload())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !fired {
+		t.Fatal("propagated fallback was not invoked")
 	}
 }

@@ -11,89 +11,11 @@ package webhooks
 
 import (
 	context "context"
-	http "net/http"
 	reflect "reflect"
 
 	webhooks "github.com/piusalfred/whatsapp/webhooks"
 	gomock "go.uber.org/mock/gomock"
 )
-
-// MockConfigReader is a mock of ConfigReader interface.
-type MockConfigReader struct {
-	ctrl     *gomock.Controller
-	recorder *MockConfigReaderMockRecorder
-	isgomock struct{}
-}
-
-// MockConfigReaderMockRecorder is the mock recorder for MockConfigReader.
-type MockConfigReaderMockRecorder struct {
-	mock *MockConfigReader
-}
-
-// NewMockConfigReader creates a new mock instance.
-func NewMockConfigReader(ctrl *gomock.Controller) *MockConfigReader {
-	mock := &MockConfigReader{ctrl: ctrl}
-	mock.recorder = &MockConfigReaderMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockConfigReader) EXPECT() *MockConfigReaderMockRecorder {
-	return m.recorder
-}
-
-// ReadConfig mocks base method.
-func (m *MockConfigReader) ReadConfig(request *http.Request) (*webhooks.Config, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadConfig", request)
-	ret0, _ := ret[0].(*webhooks.Config)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ReadConfig indicates an expected call of ReadConfig.
-func (mr *MockConfigReaderMockRecorder) ReadConfig(request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConfig", reflect.TypeOf((*MockConfigReader)(nil).ReadConfig), request)
-}
-
-// MockNotificationHandler is a mock of NotificationHandler interface.
-type MockNotificationHandler struct {
-	ctrl     *gomock.Controller
-	recorder *MockNotificationHandlerMockRecorder
-	isgomock struct{}
-}
-
-// MockNotificationHandlerMockRecorder is the mock recorder for MockNotificationHandler.
-type MockNotificationHandlerMockRecorder struct {
-	mock *MockNotificationHandler
-}
-
-// NewMockNotificationHandler creates a new mock instance.
-func NewMockNotificationHandler(ctrl *gomock.Controller) *MockNotificationHandler {
-	mock := &MockNotificationHandler{ctrl: ctrl}
-	mock.recorder = &MockNotificationHandlerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockNotificationHandler) EXPECT() *MockNotificationHandlerMockRecorder {
-	return m.recorder
-}
-
-// HandleNotification mocks base method.
-func (m *MockNotificationHandler) HandleNotification(ctx context.Context, notification *webhooks.Notification) *webhooks.Response {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HandleNotification", ctx, notification)
-	ret0, _ := ret[0].(*webhooks.Response)
-	return ret0
-}
-
-// HandleNotification indicates an expected call of HandleNotification.
-func (mr *MockNotificationHandlerMockRecorder) HandleNotification(ctx, notification any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleNotification", reflect.TypeOf((*MockNotificationHandler)(nil).HandleNotification), ctx, notification)
-}
 
 // MockErrorHandler is a mock of ErrorHandler interface.
 type MockErrorHandler struct {
@@ -158,15 +80,15 @@ func (m *MockFallbackHandler) EXPECT() *MockFallbackHandlerMockRecorder {
 }
 
 // Handle mocks base method.
-func (m *MockFallbackHandler) Handle(ctx context.Context, ne webhooks.NotificationEntry, change webhooks.Change) error {
+func (m *MockFallbackHandler) Handle(ctx context.Context, event webhooks.NotificationEvent) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Handle", ctx, ne, change)
+	ret := m.ctrl.Call(m, "Handle", ctx, event)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Handle indicates an expected call of Handle.
-func (mr *MockFallbackHandlerMockRecorder) Handle(ctx, ne, change any) *gomock.Call {
+func (mr *MockFallbackHandlerMockRecorder) Handle(ctx, event any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockFallbackHandler)(nil).Handle), ctx, ne, change)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Handle", reflect.TypeOf((*MockFallbackHandler)(nil).Handle), ctx, event)
 }

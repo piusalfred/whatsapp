@@ -25,9 +25,7 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"runtime/debug"
 	"sync"
 
 	"github.com/piusalfred/whatsapp/message"
@@ -119,7 +117,7 @@ func NewHandler() *Handler {
 	)
 
 	fallback := FallbackHandlerFunc(
-		func(_ context.Context, _ NotificationEntry, _ Change) error {
+		func(_ context.Context, _ NotificationEvent) error {
 			return nil
 		},
 	)
@@ -200,117 +198,20 @@ func (handler *Handler) OnFallback(h FallbackHandler) {
 // to the correct handler based on change.Field. Returns a Response indicating
 // success (200), gateway timeout (504), or internal server error (500).
 func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *Response {
-	for _, entry := range notification.Entry {
-		select {
-		case <-ctx.Done():
-			return &Response{StatusCode: http.StatusGatewayTimeout}
-		default:
-		}
-		for _, change := range entry.Changes {
-			select {
-			case <-ctx.Done():
-				return &Response{StatusCode: http.StatusGatewayTimeout}
-			default:
-			}
-			if err := handler.handleNotificationChange(ctx, notification, entry, change); err != nil {
-				return &Response{StatusCode: http.StatusInternalServerError}
-			}
+	select {
+	case <-ctx.Done():
+		return &Response{StatusCode: http.StatusGatewayTimeout}
+	default:
+	}
+
+	events := notification.Events()
+	for _, event := range events {
+		if eventErr := handler.dispatchEvent(ctx, event); eventErr != nil {
+			return &Response{StatusCode: http.StatusInternalServerError}
 		}
 	}
 
 	return &Response{StatusCode: http.StatusOK}
-}
-
-// handleNotificationChange routes each incoming webhook change to the correct
-// handler based on change.Field. Unknown fields are short-circuited via
-// [isKnownField] and routed to the general fallback (if set) or silently
-// acknowledged.
-//
-//nolint:gocognit // dispatch switch
-func (handler *Handler) handleNotificationChange(
-	ctx context.Context,
-	notification *Notification,
-	entry Entry,
-	change Change,
-) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = &PanicError{Value: r, Stack: debug.Stack()}
-		}
-	}()
-
-	if change.Value == nil {
-		return nil
-	}
-
-	ne := NotificationEntry{
-		Object:       notification.Object,
-		ID:           entry.ID,
-		Time:         entry.Time,
-		EntryCount:   len(notification.Entry),
-		ChangesCount: len(entry.Changes),
-	}
-
-	_, isImplemented := handler.changeFieldHandlers.Check(change.Field)
-	if !isImplemented {
-		if handler.fallback != nil {
-			err = handler.fallback.Handle(ctx, ne, change)
-			if err != nil {
-				return fmt.Errorf("general fallback: %w", err)
-			}
-		}
-		return nil
-	}
-
-	cfc := GetChangeFieldCategory(change.Field)
-
-	switch cfc {
-	case ChangeFieldCategoryFlows:
-		if handler.flows != nil {
-			return handler.flows.Handle(ctx, ne, change)
-		}
-	case ChangeFieldCategoryBusiness:
-		if handler.business != nil {
-			return handler.business.Handle(ctx, ne, change)
-		}
-	case ChangeFieldCategoryCalls:
-		if handler.calls != nil {
-			return handler.calls.Handle(ctx, ne, change)
-		}
-	case ChangeFieldCategoryUserPreferences:
-		if handler.userPrefs != nil {
-			return handler.userPrefs.Handle(ctx, ne, change)
-		}
-	case ChangeFieldCategorySMBAppStateSync:
-		if handler.smbAppSync != nil {
-			return handler.smbAppSync.Handle(ctx, ne, change)
-		}
-	case ChangeFieldCategoryMessages:
-		if handler.messages != nil {
-			return handler.messages.Handle(ctx, ne, change)
-		}
-	case ChangeFieldCategorySMBMessageEchoes:
-		if handler.smbEcho != nil {
-			return handler.smbEcho.Handle(ctx, ne, change)
-		}
-	case ChangeFieldCategoryGroups:
-		if handler.groups != nil {
-			return handler.groups.Handle(ctx, ne, change)
-		}
-	case ChangeFieldCategoryHistory:
-		if handler.history != nil {
-			return handler.history.Handle(ctx, ne, change)
-		}
-	}
-
-	// Nil sub-handler or unknown category → try the general fallback.
-	if handler.fallback != nil {
-		err = handler.fallback.Handle(ctx, ne, change)
-		if err != nil {
-			return fmt.Errorf("fallback: %w", err)
-		}
-	}
-	return nil
 }
 
 // ensureMessages lazily initialises handler.messages using sync.Once so that
@@ -467,12 +368,6 @@ type (
 
 func (f FlowEventHandlerFunc[T]) Handle(ctx context.Context, req *FlowRequest[T]) error {
 	return f(ctx, req)
-}
-
-func NewNoOpFlowEventHandler[T any]() FlowEventHandler[T] {
-	return FlowEventHandlerFunc[T](func(_ context.Context, _ *FlowRequest[T]) error {
-		return nil
-	})
 }
 
 type (
