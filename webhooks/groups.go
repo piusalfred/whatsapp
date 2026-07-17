@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,16 +9,22 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Group types, GroupManagementHandler, and Handler registration methods for
+// WhatsApp Groups API webhooks. Covers group lifecycle (create/delete),
+// participant updates (join/leave/approve), settings changes, and status
+// (suspension/clearance).
+
 package webhooks
 
 import (
 	"context"
+	"fmt"
 
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 )
@@ -46,11 +52,11 @@ type (
 		GroupDescription    *GroupSettingText        `json:"group_description,omitempty"`
 	}
 	GroupParticipant struct {
-		WaID  string `json:"wa_id"`
-		Input string `json:"input"`
+		WaID  string `json:"wa_id,omitempty"`
+		Input string `json:"input,omitempty"`
 	}
 	FailedGroupParticipant struct {
-		Input  string          `json:"input"`
+		Input  string          `json:"input,omitempty"`
 		Errors []werrors.Error `json:"errors,omitempty"`
 	}
 	GroupProfilePicture struct {
@@ -66,50 +72,178 @@ type (
 	}
 )
 
-func (handler *Handler) OnGroupLifecycleUpdate(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
-) {
-	handler.groupLifecycleUpdate = MessageChangeValueHandlerFunc[Group](fn)
+func (handler *Handler) OnGroupLifecycleUpdate(h GroupLifecycleUpdateHandler) {
+	handler.ensureGroups().LifecycleUpdate = h
 }
 
-func (handler *Handler) SetGroupLifecycleUpdateHandler(
-	h GroupLifecycleUpdateHandler,
-) {
-	handler.groupLifecycleUpdate = h
+func (handler *Handler) OnGroupParticipantsUpdate(h GroupParticipantsUpdateHandler) {
+	handler.ensureGroups().ParticipantsUpdate = h
 }
 
-func (handler *Handler) OnGroupParticipantsUpdate(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
-) {
-	handler.groupParticipantsUpdate = MessageChangeValueHandlerFunc[Group](fn)
+func (handler *Handler) OnGroupSettingsUpdate(h GroupSettingsUpdateHandler) {
+	handler.ensureGroups().SettingsUpdate = h
 }
 
-func (handler *Handler) SetGroupParticipantsUpdateHandler(
-	h GroupParticipantsUpdateHandler,
-) {
-	handler.groupParticipantsUpdate = h
+func (handler *Handler) OnGroupStatusUpdate(h GroupStatusUpdateHandler) {
+	handler.ensureGroups().StatusUpdate = h
 }
 
-func (handler *Handler) OnGroupSettingsUpdate(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
-) {
-	handler.groupSettingsUpdate = MessageChangeValueHandlerFunc[Group](fn)
+// GroupManagementHandler groups all group webhook field handlers into a single
+// dispatch unit. Each field accepts a [ChangeValueHandler[Group]] for one
+// WhatsApp group notification type. Leave a field nil to silently skip that
+// notification type (HTTP 200).
+//
+// Group lifecycle events cover create/delete (success and failure variants).
+// Participant events cover joins via invite, join requests, request
+// cancellation, join approval, removal, and departures — each with per-user
+// success/failure arrays. Settings events cover subject, description, and
+// profile picture updates — each with per-field success/failure flags. Status
+// events cover group suspension and clearance.
+//
+// Usage:
+//
+//	gh := &GroupManagementHandler{}
+//	gh.OnLifecycleUpdate(myLifecycleHandler)
+//	gh.OnParticipantsUpdate(myParticipantsHandler)
+type GroupManagementHandler struct {
+	LifecycleUpdate    ChangeValueHandler[Group]
+	ParticipantsUpdate ChangeValueHandler[Group]
+	SettingsUpdate     ChangeValueHandler[Group]
+	StatusUpdate       ChangeValueHandler[Group]
+
+	Fallback     FallbackHandler
+	ErrorHandler ErrorHandler
 }
 
-func (handler *Handler) SetGroupSettingsUpdateHandler(
-	h GroupSettingsUpdateHandler,
-) {
-	handler.groupSettingsUpdate = h
+// OnLifecycleUpdate sets the handler for group_lifecycle_update webhooks
+// (group creation and deletion, with success and failure variants).
+func (gh *GroupManagementHandler) OnLifecycleUpdate(h ChangeValueHandler[Group]) {
+	gh.LifecycleUpdate = h
 }
 
-func (handler *Handler) OnGroupStatusUpdate(
-	fn func(ctx context.Context, notificationContext *MessageNotificationContext, groups []*Group) error,
-) {
-	handler.groupStatusUpdate = MessageChangeValueHandlerFunc[Group](fn)
+// OnParticipantsUpdate sets the handler for group_participants_update webhooks
+// (participants joining via invite, requesting to join, cancelling requests,
+// join request approval, participant removal, and participant departures).
+func (gh *GroupManagementHandler) OnParticipantsUpdate(h ChangeValueHandler[Group]) {
+	gh.ParticipantsUpdate = h
 }
 
-func (handler *Handler) SetGroupStatusUpdateHandler(
-	h GroupStatusUpdateHandler,
-) {
-	handler.groupStatusUpdate = h
+// OnSettingsUpdate sets the handler for group_settings_update webhooks
+// (group subject, description, and profile picture changes with per-field
+// success/failure reporting).
+func (gh *GroupManagementHandler) OnSettingsUpdate(h ChangeValueHandler[Group]) {
+	gh.SettingsUpdate = h
+}
+
+// OnStatusUpdate sets the handler for group_status_update webhooks
+// (group suspension and suspension clearance).
+func (gh *GroupManagementHandler) OnStatusUpdate(h ChangeValueHandler[Group]) {
+	gh.StatusUpdate = h
+}
+
+// OnFallback sets the catch-all handler for group events without a dedicated
+// sub-category handler. When nil, the general [Handler] fallback is tried.
+func (gh *GroupManagementHandler) OnFallback(h FallbackHandler) {
+	gh.Fallback = h
+}
+
+// IsGroupManagementWebhook reports whether field is one of the four group
+// management webhook fields (lifecycle, participants, settings, status).
+func (f ChangeField) IsGroupManagementWebhook() bool {
+	switch f {
+	case ChangeFieldGroupLifecycleUpdate,
+		ChangeFieldGroupParticipantsUpdate,
+		ChangeFieldGroupSettingsUpdate,
+		ChangeFieldGroupStatusUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
+// handleError routes an error through the GroupManagementHandler's ErrorHandler.
+// When ErrorHandler is nil, the error is returned as-is (passthrough).
+func (gh *GroupManagementHandler) handleError(ctx context.Context, err error) error {
+	return handleSubHandlerError(ctx, gh.ErrorHandler, err)
+}
+
+// executeFallback routes an unhandled group event through the Fallback
+// catch-all. Returns nil when Fallback is nil (silent skip).
+func (gh *GroupManagementHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
+	if gh.Fallback == nil {
+		return nil
+	}
+	if err := gh.Fallback.Handle(ctx, event); err != nil {
+		return fmt.Errorf("group fallback: %w", err)
+	}
+	return nil
+}
+
+// Handle dispatches the group notification to the correct handler based on
+// event.Field. Nil handlers route to Fallback if set, otherwise silently
+// skip (HTTP 200).
+func (gh *GroupManagementHandler) Handle(
+	ctx context.Context,
+	event NotificationEvent,
+) error {
+	nctx := &MessageNotificationContext{
+		EntryID:            event.EntryID,
+		EntryTime:          event.Time,
+		NotificationObject: event.Object,
+		MessagingProduct:   event.Value.MessagingProduct,
+		Metadata:           event.Value.Metadata,
+		Contacts:           event.Value.Contacts,
+	}
+
+	switch event.Field {
+	case ChangeFieldGroupLifecycleUpdate.String():
+		if gh.LifecycleUpdate == nil {
+			return gh.executeFallback(ctx, event)
+		}
+		if err := gh.LifecycleUpdate.Handle(
+			ctx,
+			&ChangeValueRequest[Group]{Notification: nctx, Payload: event.Value.Groups},
+		); err != nil {
+			return gh.handleError(ctx, fmt.Errorf("group lifecycle update: %w", err))
+		}
+		return nil
+
+	case ChangeFieldGroupParticipantsUpdate.String():
+		if gh.ParticipantsUpdate == nil {
+			return gh.executeFallback(ctx, event)
+		}
+		if err := gh.ParticipantsUpdate.Handle(
+			ctx,
+			&ChangeValueRequest[Group]{Notification: nctx, Payload: event.Value.Groups},
+		); err != nil {
+			return gh.handleError(ctx, fmt.Errorf("group participants update: %w", err))
+		}
+		return nil
+
+	case ChangeFieldGroupSettingsUpdate.String():
+		if gh.SettingsUpdate == nil {
+			return gh.executeFallback(ctx, event)
+		}
+		if err := gh.SettingsUpdate.Handle(
+			ctx,
+			&ChangeValueRequest[Group]{Notification: nctx, Payload: event.Value.Groups},
+		); err != nil {
+			return gh.handleError(ctx, fmt.Errorf("group settings update: %w", err))
+		}
+		return nil
+
+	case ChangeFieldGroupStatusUpdate.String():
+		if gh.StatusUpdate == nil {
+			return gh.executeFallback(ctx, event)
+		}
+		if err := gh.StatusUpdate.Handle(
+			ctx,
+			&ChangeValueRequest[Group]{Notification: nctx, Payload: event.Value.Groups},
+		); err != nil {
+			return gh.handleError(ctx, fmt.Errorf("group status update: %w", err))
+		}
+		return nil
+	}
+
+	return nil
 }

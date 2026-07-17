@@ -1,23 +1,33 @@
-/*
- *  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
- *
- *  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
- *  and associated documentation files (the “Software”), to deal in the Software without restriction,
- *  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
- *  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
- *  subject to the following conditions:
- *
- *  The above copyright notice and this permission notice shall be included in all copies or substantial
- *  portions of the Software.
- *
- *  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
- *  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- *  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- *  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
+//  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
+//  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+//  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+//  subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in all copies or substantial
+//  portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+//  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package message
+// Package template provides types and constructors for WhatsApp message
+// templates — the only message type that can be sent outside customer service
+// windows.
+//
+// Templates must be approved before sending. Categories are authentication,
+// marketing, or utility. Parameters use named ({{first_name}}) or positional
+// ({{1}}) format. Each WABA can have up to 250 templates (6,000 if verified),
+// with a creation limit of 100 per hour.
+package template
+
+import (
+	"github.com/piusalfred/whatsapp/message/media"
+)
 
 const (
 	TemplateComponentTypeCarousel         = "carousel"
@@ -36,10 +46,14 @@ const (
 	TemplateComponentTypeLimitedTimeOffer = "limited_time_offer"
 	TemplateButtonSubTypeCopyCode         = "copy_code"
 	TemplateButtonSubTypeURL              = "url"
+
+	// HeaderFormatLocation declares the header component as a location map.
+	// Used when creating location templates.
+	HeaderFormatLocation = "LOCATION"
 )
 
 type (
-	TemplateButton struct {
+	Button struct {
 		Type           string `json:"type,omitempty"`
 		Payload        string `json:"payload,omitempty"`
 		Text           string `json:"text,omitempty"`
@@ -49,39 +63,40 @@ type (
 	}
 
 	Template struct {
-		Name       string               `json:"name,omitempty"`
-		Language   *TemplateLanguage    `json:"language,omitempty"`
-		Category   string               `json:"category,omitempty"`
-		Components []*TemplateComponent `json:"components,omitempty"`
+		Name       string       `json:"name,omitempty"`
+		Language   *Language    `json:"language,omitempty"`
+		Category   string       `json:"category,omitempty"`
+		Components []*Component `json:"components,omitempty"`
 	}
 
-	TemplateLanguage struct {
+	Language struct {
 		Code   string `json:"code"`
-		Policy string `json:"policy"`
+		Policy string `json:"policy,omitempty"`
 	}
 
-	TemplateComponent struct {
-		Type       string               `json:"type"`
-		SubType    string               `json:"sub_type,omitempty"`
-		Index      int                  `json:"index"`
-		Parameters []*TemplateParameter `json:"parameters"`
-		Buttons    []*TemplateButton    `json:"buttons,omitempty"`
-		Text       string               `json:"text,omitempty"`
-		Cards      []*MediaCard         `json:"cards,omitempty"`
+	Component struct {
+		Type       string       `json:"type"`
+		Format     string       `json:"format,omitempty"`
+		SubType    string       `json:"sub_type,omitempty"`
+		Index      int          `json:"index,omitempty"`
+		Parameters []*Parameter `json:"parameters,omitempty"`
+		Buttons    []*Button    `json:"buttons,omitempty"`
+		Text       string       `json:"text,omitempty"`
+		Cards      []*MediaCard `json:"cards,omitempty"`
 	}
 
-	TemplateParameter struct {
+	Parameter struct {
 		Type             string            `json:"type"`
-		Text             string            `json:"text"`
+		Text             string            `json:"text,omitempty"`
 		Name             string            `json:"parameter_name,omitempty"`
 		Payload          string            `json:"payload,omitempty"`
-		Currency         *TemplateCurrency `json:"currency"`
-		DateTime         *TemplateDateTime `json:"date_time"`
+		Currency         *Currency         `json:"currency,omitempty"`
+		DateTime         *DateTime         `json:"date_time,omitempty"`
 		LimitedTimeOffer *LimitedTimeOffer `json:"limited_time_offer,omitempty"`
-		Image            *Image            `json:"image"`
-		Document         *Document         `json:"document"`
-		Video            *Video            `json:"video"`
-		Location         *Location         `json:"location"`
+		Image            *media.Image      `json:"image,omitempty"`
+		Document         *media.Document   `json:"document,omitempty"`
+		Video            *media.Video      `json:"video,omitempty"`
+		Location         *media.Location   `json:"location,omitempty"`
 		CouponCode       string            `json:"coupon_code,omitempty"`
 	}
 
@@ -89,13 +104,13 @@ type (
 		ExpirationTimeMs int64 `json:"expiration_time_ms"`
 	}
 
-	TemplateCurrency struct {
+	Currency struct {
 		FallbackValue string  `json:"fallback_value"`
 		Code          string  `json:"code"`
 		Amount1000    float64 `json:"amount_1000"`
 	}
 
-	TemplateDateTime struct {
+	DateTime struct {
 		FallbackValue string `json:"fallback_value"`
 		DayOfWeek     int    `json:"day_of_week"`
 		Year          int    `json:"year"`
@@ -109,10 +124,10 @@ type (
 	InteractiveButtonTemplate struct {
 		SubType string
 		Index   int
-		Button  *TemplateButton
+		Button  *Button
 	}
 
-	TemplateFlowButton struct {
+	FlowButton struct {
 		Type           string `json:"type"`
 		Text           string `json:"text"`
 		FlowID         string `json:"flow_id"`
@@ -121,35 +136,49 @@ type (
 	}
 )
 
-func WithTemplateMessage(tmpl *Template) Option {
-	return func(message *Message) {
-		message.Type = TypeTemplate
-		message.Template = tmpl
+// NewLocationHeader returns a location header component for template creation.
+// The actual coordinates (latitude, longitude, name, address) are provided at
+// send time via [Parameter] with Type=[TemplateParameterTypeLocation] and
+// a [media.Location] value.
+func NewLocationHeader() *Component {
+	return &Component{
+		Type:   TemplateComponentTypeHeader,
+		Format: HeaderFormatLocation,
 	}
 }
 
-func NewInteractiveTemplate(name string, language *TemplateLanguage, headers []*TemplateParameter,
-	bodies []*TemplateParameter, buttons []*InteractiveButtonTemplate,
+// NewLocationParameter creates a location parameter for send time. Use this
+// with a location template built via [NewLocationHeader] to provide the
+// actual coordinates at message send time.
+func NewLocationParameter(loc *media.Location) *Parameter {
+	return &Parameter{
+		Type:     TemplateParameterTypeLocation,
+		Location: loc,
+	}
+}
+
+func NewInteractiveTemplate(name string, language *Language, headers []*Parameter,
+	bodies []*Parameter, buttons []*InteractiveButtonTemplate,
 ) *Template {
-	components := make([]*TemplateComponent, 0, 2+len(buttons)) //nolint:mnd // 2 = fixed header + body components
-	headerTemplate := &TemplateComponent{
+	components := make([]*Component, 0, 2+len(buttons)) //nolint:mnd // 2 = fixed header + body components
+	headerTemplate := &Component{
 		Type:       TemplateComponentTypeHeader,
 		Parameters: headers,
 	}
 	components = append(components, headerTemplate)
 
-	bodyTemplate := &TemplateComponent{
+	bodyTemplate := &Component{
 		Type:       TemplateComponentTypeBody,
 		Parameters: bodies,
 	}
 	components = append(components, bodyTemplate)
 
 	for _, button := range buttons {
-		b := &TemplateComponent{
+		b := &Component{
 			Type:    TemplateComponentTypeButton,
 			SubType: button.SubType,
 			Index:   button.Index,
-			Parameters: []*TemplateParameter{
+			Parameters: []*Parameter{
 				{
 					Type:    button.Button.Type,
 					Text:    button.Button.Text,
@@ -180,30 +209,30 @@ type AuthTemplateRequest struct {
 }
 
 func NewAuthTemplate(request *AuthTemplateRequest) *Template {
-	parameter := &TemplateParameter{
+	parameter := &Parameter{
 		Type: TemplateParameterTypeText,
 		Text: request.OneTimePassword,
 	}
 
-	bodyComponent := &TemplateComponent{
+	bodyComponent := &Component{
 		Type:       TemplateComponentTypeBody,
-		Parameters: []*TemplateParameter{parameter},
+		Parameters: []*Parameter{parameter},
 	}
 
-	buttonComponent := &TemplateComponent{
+	buttonComponent := &Component{
 		Type:       TemplateComponentTypeButton,
 		SubType:    TemplateComponentButtonSubTypeURL,
 		Index:      0,
-		Parameters: []*TemplateParameter{parameter},
+		Parameters: []*Parameter{parameter},
 	}
 
 	tmpl := &Template{
 		Name: request.Name,
-		Language: &TemplateLanguage{
+		Language: &Language{
 			Code:   request.LanguageCode,
 			Policy: request.LanguagePolicy,
 		},
-		Components: []*TemplateComponent{bodyComponent, buttonComponent},
+		Components: []*Component{bodyComponent, buttonComponent},
 	}
 
 	return tmpl
@@ -212,16 +241,16 @@ func NewAuthTemplate(request *AuthTemplateRequest) *Template {
 type (
 	MediaCardTemplateRequest struct {
 		Name     string
-		Language *TemplateLanguage
+		Language *Language
 		BodyText string
 		Cards    []*MediaCard
 		Category string
 	}
 
 	MediaCard struct {
-		Header  *MediaCardHeader  `json:"header"`
-		Body    *MediaCardBody    `json:"body"`
-		Buttons []*TemplateButton `json:"buttons,omitempty"`
+		Header  *MediaCardHeader `json:"header"`
+		Body    *MediaCardBody   `json:"body"`
+		Buttons []*Button        `json:"buttons,omitempty"`
 	}
 
 	MediaCardHeader struct {
@@ -239,7 +268,7 @@ func NewMediaCardTemplate(req *MediaCardTemplateRequest) *Template {
 		Name:     req.Name,
 		Language: req.Language,
 		Category: req.Category,
-		Components: []*TemplateComponent{
+		Components: []*Component{
 			{
 				Type: TemplateComponentTypeBody,
 				Text: req.BodyText,
@@ -254,18 +283,18 @@ func NewMediaCardTemplate(req *MediaCardTemplateRequest) *Template {
 
 type LimitedTimeOfferTemplateRequest struct {
 	Name            string
-	Language        *TemplateLanguage
-	HeaderComponent *TemplateComponent
-	Body            []*TemplateParameter
+	Language        *Language
+	HeaderComponent *Component
+	Body            []*Parameter
 	ExpirationTime  int64
 	CouponCode      *string
 	URLVariable     string
 }
 
-func NewLimitedTimeOfferTemplateImageHeader(image *Image) *TemplateComponent {
-	return &TemplateComponent{
+func NewLimitedTimeOfferTemplateImageHeader(image *media.Image) *Component {
+	return &Component{
 		Type: TemplateComponentTypeHeader,
-		Parameters: []*TemplateParameter{
+		Parameters: []*Parameter{
 			{
 				Type:  "image",
 				Image: image,
@@ -274,10 +303,10 @@ func NewLimitedTimeOfferTemplateImageHeader(image *Image) *TemplateComponent {
 	}
 }
 
-func NewLimitedTimeOfferTemplateDocumentHeader(document *Document) *TemplateComponent {
-	return &TemplateComponent{
+func NewLimitedTimeOfferTemplateDocumentHeader(document *media.Document) *Component {
+	return &Component{
 		Type: TemplateComponentTypeHeader,
-		Parameters: []*TemplateParameter{
+		Parameters: []*Parameter{
 			{
 				Type:     "document",
 				Document: document,
@@ -286,12 +315,12 @@ func NewLimitedTimeOfferTemplateDocumentHeader(document *Document) *TemplateComp
 	}
 }
 
-func NewTemplateComponentLimitedTimeOffer(expiresAt int64) *TemplateComponent {
-	cmp := &TemplateComponent{
+func NewTemplateComponentLimitedTimeOffer(expiresAt int64) *Component {
+	cmp := &Component{
 		Type:    TemplateComponentTypeLimitedTimeOffer,
 		SubType: "",
 		Index:   0,
-		Parameters: []*TemplateParameter{
+		Parameters: []*Parameter{
 			{
 				Type:             TemplateComponentTypeLimitedTimeOffer,
 				LimitedTimeOffer: &LimitedTimeOffer{ExpirationTimeMs: expiresAt},
@@ -307,12 +336,12 @@ type ButtonParams struct {
 	Text  string
 }
 
-func NewCopyCodeButton(params *ButtonParams) *TemplateComponent {
-	return &TemplateComponent{
+func NewCopyCodeButton(params *ButtonParams) *Component {
+	return &Component{
 		Type:    TemplateComponentTypeButton,
 		SubType: TemplateButtonSubTypeCopyCode,
 		Index:   params.Index,
-		Parameters: []*TemplateParameter{
+		Parameters: []*Parameter{
 			{
 				Type: "coupon_code",
 				Text: params.Text,
@@ -321,12 +350,12 @@ func NewCopyCodeButton(params *ButtonParams) *TemplateComponent {
 	}
 }
 
-func NewURLButton(params *ButtonParams) *TemplateComponent {
-	return &TemplateComponent{
+func NewURLButton(params *ButtonParams) *Component {
+	return &Component{
 		Type:    TemplateComponentTypeButton,
 		SubType: TemplateButtonSubTypeURL,
 		Index:   params.Index,
-		Parameters: []*TemplateParameter{
+		Parameters: []*Parameter{
 			{
 				Type: "text",
 				Text: params.Text,
@@ -336,7 +365,7 @@ func NewURLButton(params *ButtonParams) *TemplateComponent {
 }
 
 func NewLimitedTimeOfferTemplate(req *LimitedTimeOfferTemplateRequest) *Template {
-	components := []*TemplateComponent{
+	components := []*Component{
 		req.HeaderComponent,
 		{
 			Type:       TemplateComponentTypeBody,
@@ -367,15 +396,15 @@ func NewLimitedTimeOfferTemplate(req *LimitedTimeOfferTemplateRequest) *Template
 }
 
 type CouponCodeTemplateRequest struct {
-	Name        string               // Template name
-	Language    *TemplateLanguage    // Language code and policy
-	Body        []*TemplateParameter // Parameters for the body text
-	CouponCode  string               // Coupon code to be copied
-	ButtonIndex int                  // Index of the button in the template
+	Name        string       // Template name
+	Language    *Language    // Language code and policy
+	Body        []*Parameter // Parameters for the body text
+	CouponCode  string       // Coupon code to be copied
+	ButtonIndex int          // Index of the button in the template
 }
 
 func NewCouponCodeTemplate(req *CouponCodeTemplateRequest) *Template {
-	components := []*TemplateComponent{
+	components := []*Component{
 		{
 			Type:       TemplateComponentTypeBody,
 			Parameters: req.Body,

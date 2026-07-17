@@ -2,7 +2,7 @@
  *  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
- *  and associated documentation files (the “Software”), to deal in the Software without restriction,
+ *  and associated documentation files (the "Software"), to deal in the Software without restriction,
  *  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
  *  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
  *  subject to the following conditions:
@@ -10,7 +10,7 @@
  *  The above copyright notice and this permission notice shall be included in all copies or substantial
  *  portions of the Software.
  *
- *  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
  *  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
  *  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
  *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -64,10 +64,12 @@ type (
 		NameStatus             string         `json:"name_status,omitempty"`
 	}
 
-	BaseClient struct {
-		Sender Sender
-		Config config.Reader
+	Request struct {
+		RequestType whttp.RequestType
+		QueryParams map[string]string
 	}
+
+	BaseRequest struct{}
 
 	GetRequest struct {
 		ID     string
@@ -93,193 +95,116 @@ func (response *Response) PhoneNumber() *PhoneNumber {
 	}
 }
 
-func NewBaseClient(reader config.Reader, sender Sender, middlewares ...SenderMiddleware) (*BaseClient, error) {
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		mw := middlewares[i]
-		if mw != nil {
-			sender = mw(sender.Send)
-		}
-	}
-
-	client := &BaseClient{
-		Config: reader,
-		Sender: sender,
-	}
-
-	return client, nil
+// Client orchestrates high-level Phone Number API operations.
+type Client struct {
+	sender *BaseClient
+	config *config.Config
 }
 
-func (c *BaseClient) List(ctx context.Context) (*ListResponse, error) {
-	req := &BaseRequest{
-		Type:        whttp.RequestTypeListPhoneNumbers,
-		Method:      http.MethodGet,
+// List retrieves all phone numbers associated with the business account.
+func (c *Client) List(ctx context.Context) (*ListResponse, error) {
+	req := &Request{
+		RequestType: whttp.RequestTypeListPhoneNumbers,
 		QueryParams: map[string]string{},
 	}
 
-	conf, err := c.Config.Read(ctx)
+	resp, err := c.Send(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
+		return nil, fmt.Errorf("list phone numbers: %w", err)
 	}
 
-	response, err := c.Sender.Send(ctx, conf, req)
-	if err != nil {
-		return nil, fmt.Errorf("list: %w", err)
-	}
-
-	return response.ListPhoneNumbersResponse(), nil
+	return resp.ListPhoneNumbersResponse(), nil
 }
 
-func (c *BaseClient) Get(ctx context.Context, req *GetRequest) (*PhoneNumber, error) {
-	request := &BaseRequest{
-		Type:   whttp.RequestTypeGetPhoneNumber,
-		Method: http.MethodGet,
+// Get retrieves details for a specific phone number.
+func (c *Client) Get(ctx context.Context, req *GetRequest) (*PhoneNumber, error) {
+	request := &Request{
+		RequestType: whttp.RequestTypeGetPhoneNumber,
 		QueryParams: map[string]string{
 			"fields": strings.Join(req.Fields, ";"),
 		},
 	}
 
-	conf, err := c.Config.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
-	}
-
-	response, err := c.Sender.Send(ctx, conf, request)
+	resp, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("get phone number: %w", err)
 	}
 
-	return response.PhoneNumber(), nil
+	return resp.PhoneNumber(), nil
 }
 
-type (
-	BaseRequest struct {
-		Type        whttp.RequestType
-		Method      string
-		QueryParams map[string]string
-	}
-
-	BaseSender struct {
-		Sender whttp.AnySender
-	}
-
-	Sender interface {
-		Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error)
-	}
-
-	SenderFunc func(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error)
-
-	SenderMiddleware func(sender SenderFunc) SenderFunc
-)
-
-func (fn SenderFunc) Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error) {
-	return fn(ctx, conf, req)
-}
-
-func (c *BaseSender) Send(ctx context.Context, conf *config.Config, req *BaseRequest) (*Response, error) {
-	if req.QueryParams == nil {
-		req.QueryParams = map[string]string{}
-	}
-	req.QueryParams["access_token"] = conf.AccessToken
-
-	endpoints := []string{conf.APIVersion}
-	if req.Type == whttp.RequestTypeListPhoneNumbers {
-		endpoints = append(endpoints, conf.BusinessAccountID, "phone_numbers")
-	} else {
-		endpoints = append(endpoints, conf.PhoneNumberID)
-	}
-
-	opts := []whttp.RequestOption[any]{
-		whttp.WithRequestEndpoints[any](endpoints...),
-		whttp.WithRequestQueryParams[any](req.QueryParams),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestType[any](req.Type),
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	}
-
-	request := whttp.MakeRequest(req.Method, conf.BaseURL, opts...)
-
-	response := &Response{}
-
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
-	if err := c.Sender.Send(ctx, request, decoder); err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+// Send dispatches a raw Request through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *Request) (*Response, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
 	}
 
 	return response, nil
 }
 
-type Client struct {
-	Config *config.Config
-	Sender Sender
+// NewClient creates a high-level Client for the Phone Number API. The conf
+// argument provides endpoint and credential configuration. Optional SenderOption
+// functions tune the underlying HTTP transport.
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
+	return &Client{
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
+		config: conf,
+	}
 }
 
-func NewClient(ctx context.Context, reader config.Reader, sender Sender,
-	middlewares ...SenderMiddleware,
-) (*Client, error) {
-	conf, err := reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		mw := middlewares[i]
-		if mw != nil {
-			sender = mw(sender.Send)
-		}
-	}
-
-	client := &Client{
-		Config: conf,
-		Sender: sender,
-	}
-
-	return client, nil
+// SetBaseClient replaces the underlying request sender. This is useful during
+// testing when you want to inject a mock whttp.Sender and bypass the default
+// HTTP stack entirely.
+func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
+	c.sender.SetSender(sender)
 }
 
-func (c *Client) List(ctx context.Context) (*ListResponse, error) {
-	req := &BaseRequest{
-		Type:        whttp.RequestTypeListPhoneNumbers,
-		Method:      http.MethodGet,
-		QueryParams: map[string]string{},
-	}
-
-	response, err := c.Sender.Send(ctx, c.Config, req)
-	if err != nil {
-		return nil, fmt.Errorf("list phone numbers: %w", err)
-	}
-
-	return response.ListPhoneNumbersResponse(), nil
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	c.sender.SetMiddlewares(mws...)
 }
 
-func (c *Client) Get(ctx context.Context, req *GetRequest) (*PhoneNumber, error) {
-	request := &BaseRequest{
-		Type:   whttp.RequestTypeGetPhoneNumber,
-		Method: http.MethodGet,
-		QueryParams: map[string]string{
-			"fields": strings.Join(req.Fields, ";"),
-		},
-	}
-
-	response, err := c.Sender.Send(ctx, c.Config, request)
-	if err != nil {
-		return nil, fmt.Errorf("get phone number: %w", err)
-	}
-
-	return response.PhoneNumber(), nil
+// BaseClient is the low-level HTTP executor for the Phone Number API. It
+// converts domain Request values into HTTP traffic and decodes JSON responses.
+type BaseClient struct {
+	whttp.BaseClient[BaseRequest]
 }
 
-type Service interface {
-	List(ctx context.Context) (*ListResponse, error)
-	Get(ctx context.Context, request *GetRequest) (*PhoneNumber, error)
-}
+// Send translates a high-level Request into an HTTP transaction and returns
+// the decoded Response.
+func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*Response, error) {
+	var endpoints []string
 
-var (
-	_ Service = (*Client)(nil)
-	_ Service = (*BaseClient)(nil)
-)
+	switch request.RequestType {
+	case whttp.RequestTypeListPhoneNumbers:
+		endpoints = []string{conf.APIVersion, conf.BusinessAccountID, "phone_numbers"}
+
+	case whttp.RequestTypeGetPhoneNumber:
+		endpoints = []string{conf.APIVersion, conf.PhoneNumberID}
+
+	default:
+		return nil, fmt.Errorf("%w: %s", whttp.ErrUnknownRequestType, request.RequestType)
+	}
+
+	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(request.RequestType).
+		Endpoints(endpoints...)
+
+	if len(request.QueryParams) > 0 {
+		b = b.QueryParams(request.QueryParams)
+	}
+
+	req := whttp.Build[BaseRequest](b, nil)
+
+	resp := &Response{}
+	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive())
+
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	return resp, nil
+}

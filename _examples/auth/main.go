@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,7 +9,7 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
@@ -21,59 +21,14 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"net/http/httputil"
 	"os"
 
 	"github.com/joho/godotenv"
 
 	"github.com/piusalfred/whatsapp/auth"
+	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
-
-// Config holds the WhatsApp Cloud API configuration parameters.
-type Config struct {
-	BaseURL           string // Base URL for the API
-	APIVersion        string // API version (e.g., v21.0)
-	AccessToken       string // Access token for API requests
-	PhoneNumberID     string // Phone number ID used in the API
-	BusinessAccountID string // Business account ID
-	TestRecipient     string // Test recipient phone number
-	ApplicationID     string // Application ID
-	ApplicationSecret string // Application secret
-	BusinessID        string // Business ID
-	ClientToken       string // Client token
-	ClientID          string // Client ID
-	SystemUserID      string // System user ID
-	DebugLogLevel     string
-}
-
-// LoadConfigFromFile loads configuration parameters from the provided .env file.
-func LoadConfigFromFile(filepath string) (*Config, error) {
-	// Load the .env file from the given path
-	err := godotenv.Load(filepath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Populate the Config struct with environment variables
-	conf := &Config{
-		BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
-		APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
-		AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
-		PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
-		BusinessAccountID: os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID"),
-		TestRecipient:     os.Getenv("WHATSAPP_CLOUD_API_TEST_RECIPIENT"),
-		ApplicationID:     os.Getenv("WHATSAPP_CLOUD_API_APPLICATION_ID"),
-		ApplicationSecret: os.Getenv("WHATSAPP_CLOUD_API_APP_SECRET"),
-		BusinessID:        os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ID"),
-		ClientToken:       os.Getenv("WHATSAPP_CLOUD_API_CLIENT_TOKEN"),
-		ClientID:          os.Getenv("WHATSAPP_CLOUD_API_CLIENT_ID"),
-		SystemUserID:      os.Getenv("WHATSAPP_CLOUD_API_SYSTEM_USER_ID"),
-		DebugLogLevel:     os.Getenv("WHATSAPP_CLOUD_API_DEBUG_LOG_LEVEL"),
-	}
-
-	return conf, nil
-}
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
@@ -81,47 +36,39 @@ func main() {
 		Level:     slog.LevelDebug,
 	}))
 
-	clientOptions := []whttp.CoreClientOption[any]{
-		whttp.WithCoreClientRequestInterceptor[any](
+	_ = godotenv.Load("api.env")
+
+	conf := &config.Config{
+		BaseURL:           os.Getenv("WHATSAPP_CLOUD_API_BASE_URL"),
+		APIVersion:        os.Getenv("WHATSAPP_CLOUD_API_API_VERSION"),
+		AccessToken:       os.Getenv("WHATSAPP_CLOUD_API_ACCESS_TOKEN"),
+		PhoneNumberID:     os.Getenv("WHATSAPP_CLOUD_API_PHONE_NUMBER_ID"),
+		BusinessAccountID: os.Getenv("WHATSAPP_CLOUD_API_BUSINESS_ACCOUNT_ID"),
+		AppSecret:         os.Getenv("WHATSAPP_CLOUD_API_APP_SECRET"),
+		AppID:             os.Getenv("WHATSAPP_CLOUD_API_APP_ID"),
+		SecureRequests:    os.Getenv("WHATSAPP_CLOUD_API_SECURE_REQUESTS") == "true",
+		DebugLogLevel:     os.Getenv("WHATSAPP_CLOUD_API_DEBUG_LOG_LEVEL"),
+	}
+
+	client := auth.NewClient(conf,
+		whttp.WithSenderRequestInterceptor(
 			func(ctx context.Context, req *http.Request) error {
 				logger.LogAttrs(ctx, slog.LevelInfo, "request intercepted",
-					slog.String("http.request.method", req.Method),
-					slog.String("http.request.url", req.URL.String()),
+					slog.String("method", req.Method),
+					slog.String("url", req.URL.String()),
 				)
 				return nil
 			},
 		),
-		whttp.WithCoreClientResponseInterceptor[any](
-			func(ctx context.Context, resp *http.Response) error {
-				dumpResponse, _ := httputil.DumpResponse(resp, true)
+	)
 
-				logger.LogAttrs(ctx, slog.LevelInfo, "response intercepted",
-					slog.String("http.response.status", resp.Status),
-					slog.Int("http.response.code", resp.StatusCode),
-					slog.String("body", string(dumpResponse)),
-				)
-				return nil
-			},
-		),
-	}
 	ctx := context.Background()
 
-	coreClient := whttp.NewAnySender(clientOptions...)
-
-	conf, err := LoadConfigFromFile("api.env")
-	if err != nil {
-		logger.LogAttrs(ctx, slog.LevelError, "error loading configs", slog.String("error", err.Error()))
-		return
-	}
-
-	client := auth.NewClient(conf.BaseURL, conf.APIVersion, coreClient)
-	client.SetDebugLogLevel(whttp.ParseDebugLogLevel(conf.DebugLogLevel))
-
-	response, err := client.GenerateAccessToken(ctx, auth.GenerateAccessTokenParams{
+	response, err := client.GenerateAccessToken(ctx, &auth.GenerateAccessTokenParams{
 		AccessToken:  conf.AccessToken,
-		AppID:        conf.ApplicationID,
+		AppID:        conf.AppID,
 		SystemUserID: conf.SystemUserID,
-		AppSecret:    conf.ApplicationSecret,
+		AppSecret:    conf.AppSecret,
 		Scopes: []string{
 			auth.TokenScopeWhatsappBusinessManagement,
 			auth.TokenScopeWhatsappBusinessMessaging,
@@ -129,8 +76,9 @@ func main() {
 		SetTokenExpiresIn60: true,
 	})
 	if err != nil {
+		logger.Error("generate access token", "error", err)
 		return
 	}
 
-	logger.LogAttrs(ctx, slog.LevelInfo, "token", slog.Any("response", response))
+	logger.Info("token generated", "response", response)
 }

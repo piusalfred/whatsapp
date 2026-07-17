@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -19,12 +19,12 @@ package analytics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/piusalfred/whatsapp"
 	"github.com/piusalfred/whatsapp/config"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
 )
@@ -62,16 +62,26 @@ type (
 		Data   []TemplateAnalyticsData `json:"data,omitempty"`
 		Paging *whttp.Paging           `json:"paging,omitempty"`
 	}
-
-	TemplatesClient struct {
-		reader config.Reader
-		sender whttp.AnySender
-	}
 )
 
-// NewTemplateAnalyticsClient returns a new instance of the TemplatesClient.
-func NewTemplateAnalyticsClient(reader config.Reader, sender whttp.AnySender) *TemplatesClient {
-	return &TemplatesClient{reader: reader, sender: sender}
+// DisableButtonClickTracking disables button click tracking for a template.
+func (c *Client) DisableButtonClickTracking(ctx context.Context,
+	req *DisableButtonClickTrackingRequest,
+) (*DisableButtonClickTrackingResponse, error) {
+	return c.sender.DisableButtonClickTracking(ctx, c.config, req)
+}
+
+// Enable confirms template analytics on your WhatsApp Business Account. Once confirmed,
+// template analytics cannot be disabled.
+func (c *Client) Enable(ctx context.Context) (string, error) {
+	return c.sender.Enable(ctx, c.config)
+}
+
+// Fetch fetches template analytics for the specified templates within the specified date range.
+func (c *Client) Fetch(ctx context.Context, params *TemplateAnalyticsRequest) (
+	*TemplateAnalyticsResponse, error,
+) {
+	return c.sender.Fetch(ctx, c.config, params)
 }
 
 type DisableButtonClickTrackingRequest struct {
@@ -84,40 +94,27 @@ type DisableButtonClickTrackingResponse struct {
 	Success bool `json:"success"`
 }
 
-func (c *TemplatesClient) DisableButtonClickTracking(ctx context.Context,
+func (bc *BaseClient) DisableButtonClickTracking(ctx context.Context,
+	conf *config.Config,
 	req *DisableButtonClickTrackingRequest,
 ) (*DisableButtonClickTrackingResponse, error) {
-	conf, err := c.reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-
 	queryParams := map[string]string{
 		"cta_url_link_tracking_opted_out": strconv.FormatBool(req.OptOut),
 		"category":                        req.Category,
 	}
 
-	options := []whttp.RequestOption[any]{
-		whttp.WithRequestType[any](whttp.RequestTypeDisableButtonClickTracking),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestEndpoints[any](conf.APIVersion, req.TemplateID),
-		whttp.WithRequestQueryParams[any](queryParams),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	}
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeDisableButtonClickTracking).
+		Endpoints(conf.APIVersion, req.TemplateID).
+		QueryParams(queryParams)
 
-	request := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
+	request := whttp.BuildRequest(b, (*BaseRequest)(nil))
 
 	response := &DisableButtonClickTrackingResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
 
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
-
-	if err = c.sender.Send(ctx, request, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, request, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 
@@ -130,37 +127,23 @@ type EnableTemplateAnalyticsResponse struct {
 
 // Enable confirms template analytics on your WhatsApp Business Account. Once confirmed,
 // template analytics cannot be disabled.
-func (c *TemplatesClient) Enable(ctx context.Context) (string, error) {
-	conf, err := c.reader.Read(ctx)
-	if err != nil {
-		return "", fmt.Errorf("read config: %w", err)
-	}
-
+func (bc *BaseClient) Enable(ctx context.Context, conf *config.Config) (string, error) {
 	queryParams := map[string]string{
 		"is_enabled_for_insights": "true",
 	}
 
-	options := []whttp.RequestOption[any]{
-		whttp.WithRequestType[any](whttp.RequestTypeEnableTemplatesAnalytics),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.BusinessAccountID),
-		whttp.WithRequestQueryParams[any](queryParams),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	}
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeEnableTemplatesAnalytics).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID).
+		QueryParams(queryParams)
 
-	req := whttp.MakeRequest(http.MethodPost, conf.BaseURL, options...)
+	request := whttp.BuildRequest(b, (*BaseRequest)(nil))
 
 	response := &EnableTemplateAnalyticsResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
 
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
-
-	if err = c.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, request, decoder); err != nil {
 		return "", fmt.Errorf("send request: %w", err)
 	}
 
@@ -174,10 +157,10 @@ type TemplateAnalyticsRequest struct {
 	MetricTypes []string `json:"metric_types,omitempty"`
 }
 
-const ErrInvalidTemplatesCount = whatsapp.Error("invalid number of templates")
+var ErrInvalidTemplatesCount = errors.New("invalid number of templates")
 
 // Fetch fetches template analytics for the specified templates within the specified date range.
-func (c *TemplatesClient) Fetch(ctx context.Context, params *TemplateAnalyticsRequest) (
+func (bc *BaseClient) Fetch(ctx context.Context, conf *config.Config, params *TemplateAnalyticsRequest) (
 	*TemplateAnalyticsResponse, error,
 ) {
 	queryParams := map[string]string{}
@@ -194,46 +177,20 @@ func (c *TemplatesClient) Fetch(ctx context.Context, params *TemplateAnalyticsRe
 		queryParams["metric_types"] = strings.Join(params.MetricTypes, ",")
 	}
 
-	conf, err := c.reader.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
+	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeFetchTemplateAnalytics).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID, string(TypeTemplateAnalytics)).
+		QueryParams(queryParams)
 
-	options := []whttp.RequestOption[any]{
-		whttp.WithRequestType[any](whttp.RequestTypeFetchTemplateAnalytics),
-		whttp.WithRequestSecured[any](conf.SecureRequests),
-		whttp.WithRequestAppSecret[any](conf.AppSecret),
-		whttp.WithRequestBearer[any](conf.AccessToken),
-		whttp.WithRequestEndpoints[any](conf.APIVersion, conf.BusinessAccountID, string(TypeTemplateAnalytics)),
-		whttp.WithRequestQueryParams[any](queryParams),
-		whttp.WithRequestDebugLogLevel[any](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	}
-
-	req := whttp.MakeRequest(http.MethodGet, conf.BaseURL,
-		options...,
-	)
+	request := whttp.BuildRequest(b, (*BaseRequest)(nil))
 
 	response := &TemplateAnalyticsResponse{}
+	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsStrict())
 
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowUnknownFields: true,
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
-
-	if err = c.sender.Send(ctx, req, decoder); err != nil {
+	if err := bc.BaseClient.Send(ctx, request, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 
 	return response, nil
-}
-
-type TemplatesAnalytics interface {
-	DisableButtonClickTracking(ctx context.Context,
-		req *DisableButtonClickTrackingRequest,
-	) (*DisableButtonClickTrackingResponse, error)
-	Enable(ctx context.Context) (string, error)
-	Fetch(ctx context.Context, params *TemplateAnalyticsRequest) (
-		*TemplateAnalyticsResponse, error,
-	)
 }

@@ -1,7 +1,7 @@
 //  Copyright 2023 Pius Alfred <me.pius1102@gmail.com>
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-//  and associated documentation files (the “Software”), to deal in the Software without restriction,
+//  and associated documentation files (the "Software"), to deal in the Software without restriction,
 //  including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
 //  and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
 //  subject to the following conditions:
@@ -9,12 +9,16 @@
 //  The above copyright notice and this permission notice shall be included in all copies or substantial
 //  portions of the Software.
 //
-//  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 //  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 //  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 //  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// Package groups provides a client for the WhatsApp Cloud API Groups endpoints.
+// It supports creating, deleting, and managing group participants, invite links,
+// join requests, and group settings. Both [Client] (single-tenant, fixed config)
+// and [BaseClient] (multi-tenant, per-call config) variants are available.
 package groups
 
 import (
@@ -106,7 +110,7 @@ type (
 		JoinRequests []string
 	}
 
-	// Request is the combined struct that holds all fields needed for any group management operation.
+	// Request is the domain model that holds all fields needed for any group management operation.
 	Request struct {
 		MessagingProduct   string            `json:"messaging_product"`
 		Subject            string            `json:"subject,omitempty"`
@@ -121,6 +125,16 @@ type (
 		Limit              int               `json:"-"`
 		After              string            `json:"-"`
 		Before             string            `json:"-"`
+	}
+
+	// BaseRequest is the wire-format payload sent to the Groups API.
+	BaseRequest struct {
+		MessagingProduct string           `json:"messaging_product"`
+		Subject          string           `json:"subject,omitempty"`
+		Description      string           `json:"description,omitempty"`
+		JoinApprovalMode JoinApprovalMode `json:"join_approval_mode,omitempty"`
+		Participants     []*Participants  `json:"participants,omitempty"`
+		JoinRequests     []string         `json:"join_requests,omitempty"`
 	}
 
 	Participants struct {
@@ -145,10 +159,10 @@ type (
 		Errors        []werrors.Error `json:"errors,omitempty"`
 	}
 
-	// Response is the general response struct that captures all possible fields
+	// BaseResponse is the general response struct that captures all possible fields
 	// returned by the Groups API. Use the typed helper methods to extract
 	// operation-specific responses.
-	Response struct {
+	BaseResponse struct {
 		MessagingProduct      string               `json:"messaging_product"`
 		Subject               string               `json:"subject,omitempty"`
 		CreationTimestamp     string               `json:"creation_timestamp,omitempty"`
@@ -214,8 +228,8 @@ type (
 	}
 )
 
-// GroupInfoResponse extracts a GroupInfoResponse from the general Response.
-func (r *Response) GroupInfoResponse() *GroupInfoResponse {
+// GroupInfoResponse extracts a GroupInfoResponse from the general BaseResponse.
+func (r *BaseResponse) GroupInfoResponse() *GroupInfoResponse {
 	return &GroupInfoResponse{
 		ID:                    r.ID,
 		Subject:               r.Subject,
@@ -228,32 +242,37 @@ func (r *Response) GroupInfoResponse() *GroupInfoResponse {
 	}
 }
 
-// GroupInviteLinkResponse extracts a GroupInviteLinkResponse from the general Response.
-func (r *Response) GroupInviteLinkResponse() *GroupInviteLinkResponse {
+// GroupInviteLinkResponse extracts a GroupInviteLinkResponse from the general BaseResponse.
+func (r *BaseResponse) GroupInviteLinkResponse() *GroupInviteLinkResponse {
 	return &GroupInviteLinkResponse{
 		MessagingProduct: r.MessagingProduct,
 		InviteLink:       r.InviteLink,
 	}
 }
 
-// ActiveGroupsResponse extracts an ActiveGroupsResponse from the general Response.
-func (r *Response) ActiveGroupsResponse() *ActiveGroupsResponse {
+// ActiveGroupsResponse extracts an ActiveGroupsResponse from the general BaseResponse.
+func (r *BaseResponse) ActiveGroupsResponse() *ActiveGroupsResponse {
 	return &ActiveGroupsResponse{
 		Groups: r.ActiveGroups(),
 		Paging: r.Paging,
 	}
 }
 
-// JoinRequestsResponse extracts a JoinRequestsResponse from the general Response.
-func (r *Response) JoinRequestsResponse() *JoinRequestsResponse {
-	return &JoinRequestsResponse{
-		JoinRequests: r.JoinRequests(),
-		Paging:       r.Paging,
+// JoinRequestsResponse extracts a JoinRequestsResponse from the general BaseResponse.
+// Returns an error if the join requests JSON is malformed.
+func (r *BaseResponse) JoinRequestsResponse() (*JoinRequestsResponse, error) {
+	items, err := r.JoinRequests()
+	if err != nil {
+		return nil, err
 	}
+	return &JoinRequestsResponse{
+		JoinRequests: items,
+		Paging:       r.Paging,
+	}, nil
 }
 
-// ApproveJoinRequestsResponse extracts an ApproveJoinRequestsResponse from the general Response.
-func (r *Response) ApproveJoinRequestsResponse() *ApproveJoinRequestsResponse {
+// ApproveJoinRequestsResponse extracts an ApproveJoinRequestsResponse from the general BaseResponse.
+func (r *BaseResponse) ApproveJoinRequestsResponse() *ApproveJoinRequestsResponse {
 	return &ApproveJoinRequestsResponse{
 		MessagingProduct:     r.MessagingProduct,
 		ApprovedJoinRequests: r.ApprovedJoinRequests,
@@ -262,8 +281,8 @@ func (r *Response) ApproveJoinRequestsResponse() *ApproveJoinRequestsResponse {
 	}
 }
 
-// RejectJoinRequestsResponse extracts a RejectJoinRequestsResponse from the general Response.
-func (r *Response) RejectJoinRequestsResponse() *RejectJoinRequestsResponse {
+// RejectJoinRequestsResponse extracts a RejectJoinRequestsResponse from the general BaseResponse.
+func (r *BaseResponse) RejectJoinRequestsResponse() *RejectJoinRequestsResponse {
 	return &RejectJoinRequestsResponse{
 		MessagingProduct:     r.MessagingProduct,
 		RejectedJoinRequests: r.RejectedJoinRequests,
@@ -272,18 +291,21 @@ func (r *Response) RejectJoinRequestsResponse() *RejectJoinRequestsResponse {
 	}
 }
 
-// JoinRequests returns the join requests from the Data field.
-func (r *Response) JoinRequests() []*ResponseDataItem {
+// JoinRequests decodes the Data field as a list of join requests.
+// It returns an error if the JSON is malformed or the schema is unexpected.
+func (r *BaseResponse) JoinRequests() ([]*ResponseDataItem, error) {
 	if len(r.Data) == 0 {
-		return nil
+		return nil, nil
 	}
 	var items []*ResponseDataItem
-	_ = json.Unmarshal(r.Data, &items)
-	return items
+	if err := json.Unmarshal(r.Data, &items); err != nil {
+		return nil, fmt.Errorf("join requests: %w", err)
+	}
+	return items, nil
 }
 
 // ActiveGroups returns the active groups from the Data field.
-func (r *Response) ActiveGroups() []*ActiveGroup {
+func (r *BaseResponse) ActiveGroups() []*ActiveGroup {
 	if len(r.Data) == 0 {
 		return nil
 	}
@@ -296,22 +318,45 @@ func (r *Response) ActiveGroups() []*ActiveGroup {
 	return wrapper.Groups
 }
 
+// Client orchestrates high-level Groups API operations.
 type Client struct {
 	sender *BaseClient
 	config *config.Config
 }
 
-func NewClient(conf *config.Config, sender whttp.Sender[Request]) *Client {
+// NewClient creates a high-level Client for the Groups API.
+func NewClient(conf *config.Config, options ...whttp.CoreSenderOption) *Client {
 	return &Client{
+		sender: &BaseClient{BaseClient: *whttp.NewBaseClient[BaseRequest](options...)},
 		config: conf,
-		sender: NewBaseSender(sender),
 	}
 }
 
-func (client *Client) CreateGroup(
+// SetBaseClient replaces the underlying request sender.
+func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
+	c.sender.SetSender(sender)
+}
+
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+// Middlewares are applied in order: middlewares[0] runs outermost.
+func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
+	c.sender.SetMiddlewares(mws...)
+}
+
+// Send dispatches a raw Request through the underlying BaseClient.
+func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
+	response, err := c.sender.Send(ctx, c.config, request)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	return response, nil
+}
+
+func (c *Client) CreateGroup(
 	ctx context.Context,
 	req *CreateGroupRequest,
-) (*Response, error) {
+) (*BaseResponse, error) {
 	request := &Request{
 		RequestType:      whttp.RequestTypeCreateGroup,
 		MessagingProduct: messagingProduct,
@@ -320,7 +365,7 @@ func (client *Client) CreateGroup(
 		JoinApprovalMode: req.JoinApprovalMode,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: create group: %w", err)
 	}
@@ -328,16 +373,16 @@ func (client *Client) CreateGroup(
 	return response, nil
 }
 
-func (client *Client) DeleteGroup(
+func (c *Client) DeleteGroup(
 	ctx context.Context,
 	req *DeleteGroupRequest,
-) (*Response, error) {
+) (*BaseResponse, error) {
 	request := &Request{
 		RequestType: whttp.RequestTypeDeleteGroup,
 		GroupID:     req.GroupID,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: delete group: %w", err)
 	}
@@ -345,7 +390,7 @@ func (client *Client) DeleteGroup(
 	return response, nil
 }
 
-func (client *Client) GetGroupInviteLink(
+func (c *Client) GetGroupInviteLink(
 	ctx context.Context,
 	req *GetGroupInviteLinkRequest,
 ) (*GroupInviteLinkResponse, error) {
@@ -354,7 +399,7 @@ func (client *Client) GetGroupInviteLink(
 		GroupID:     req.GroupID,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: get group invite link: %w", err)
 	}
@@ -362,7 +407,7 @@ func (client *Client) GetGroupInviteLink(
 	return response.GroupInviteLinkResponse(), nil
 }
 
-func (client *Client) ResetGroupInviteLink(
+func (c *Client) ResetGroupInviteLink(
 	ctx context.Context,
 	req *ResetGroupInviteLinkRequest,
 ) (*GroupInviteLinkResponse, error) {
@@ -372,7 +417,7 @@ func (client *Client) ResetGroupInviteLink(
 		MessagingProduct: messagingProduct,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: reset group invite link: %w", err)
 	}
@@ -380,10 +425,10 @@ func (client *Client) ResetGroupInviteLink(
 	return response.GroupInviteLinkResponse(), nil
 }
 
-func (client *Client) RemoveGroupParticipants(
+func (c *Client) RemoveGroupParticipants(
 	ctx context.Context,
 	req *RemoveGroupParticipantsRequest,
-) (*Response, error) {
+) (*BaseResponse, error) {
 	participants := make([]*Participants, len(req.Participants))
 	for i, p := range req.Participants {
 		participants[i] = &Participants{User: p}
@@ -396,7 +441,7 @@ func (client *Client) RemoveGroupParticipants(
 		Participants:     participants,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: remove group participants: %w", err)
 	}
@@ -404,7 +449,7 @@ func (client *Client) RemoveGroupParticipants(
 	return response, nil
 }
 
-func (client *Client) GetGroupInfo(
+func (c *Client) GetGroupInfo(
 	ctx context.Context,
 	req *GetGroupInfoRequest,
 ) (*GroupInfoResponse, error) {
@@ -414,7 +459,7 @@ func (client *Client) GetGroupInfo(
 		GroupInfoFields: req.Fields,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: get group info: %w", err)
 	}
@@ -422,7 +467,7 @@ func (client *Client) GetGroupInfo(
 	return response.GroupInfoResponse(), nil
 }
 
-func (client *Client) GetActiveGroups(
+func (c *Client) GetActiveGroups(
 	ctx context.Context,
 	req *GetActiveGroupsRequest,
 ) (*ActiveGroupsResponse, error) {
@@ -433,7 +478,7 @@ func (client *Client) GetActiveGroups(
 		Before:      req.Before,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: get active groups: %w", err)
 	}
@@ -441,10 +486,10 @@ func (client *Client) GetActiveGroups(
 	return response.ActiveGroupsResponse(), nil
 }
 
-func (client *Client) UpdateGroupSettings(
+func (c *Client) UpdateGroupSettings(
 	ctx context.Context,
 	req *UpdateGroupSettingsRequest,
-) (*Response, error) {
+) (*BaseResponse, error) {
 	request := &Request{
 		RequestType:        whttp.RequestTypeUpdateGroupSettings,
 		GroupID:            req.GroupID,
@@ -454,7 +499,7 @@ func (client *Client) UpdateGroupSettings(
 		ProfilePictureFile: req.ProfilePictureFile,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: update group settings: %w", err)
 	}
@@ -462,7 +507,7 @@ func (client *Client) UpdateGroupSettings(
 	return response, nil
 }
 
-func (client *Client) GetJoinRequests(
+func (c *Client) GetJoinRequests(
 	ctx context.Context,
 	req *GetJoinRequestsRequest,
 ) (*JoinRequestsResponse, error) {
@@ -471,15 +516,15 @@ func (client *Client) GetJoinRequests(
 		GroupID:     req.GroupID,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: get join requests: %w", err)
 	}
 
-	return response.JoinRequestsResponse(), nil
+	return response.JoinRequestsResponse()
 }
 
-func (client *Client) ApproveJoinRequests(
+func (c *Client) ApproveJoinRequests(
 	ctx context.Context,
 	req *ApproveJoinRequestsRequest,
 ) (*ApproveJoinRequestsResponse, error) {
@@ -490,7 +535,7 @@ func (client *Client) ApproveJoinRequests(
 		JoinRequests:     req.JoinRequests,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: approve join requests: %w", err)
 	}
@@ -498,7 +543,7 @@ func (client *Client) ApproveJoinRequests(
 	return response.ApproveJoinRequestsResponse(), nil
 }
 
-func (client *Client) RejectJoinRequests(
+func (c *Client) RejectJoinRequests(
 	ctx context.Context,
 	req *RejectJoinRequestsRequest,
 ) (*RejectJoinRequestsResponse, error) {
@@ -509,7 +554,7 @@ func (client *Client) RejectJoinRequests(
 		JoinRequests:     req.JoinRequests,
 	}
 
-	response, err := client.Send(ctx, request)
+	response, err := c.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("client: reject join requests: %w", err)
 	}
@@ -517,54 +562,33 @@ func (client *Client) RejectJoinRequests(
 	return response.RejectJoinRequestsResponse(), nil
 }
 
-func (client *Client) Send(ctx context.Context, request *Request) (*Response, error) {
-	response, err := client.sender.Send(ctx, client.config, request)
-	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
-	}
-
-	return response, nil
-}
-
+// BaseClient is the low-level HTTP executor for the Groups API.
 type BaseClient struct {
-	sender whttp.Sender[Request]
+	whttp.BaseClient[BaseRequest]
 }
 
-func NewBaseSender(sender whttp.Sender[Request]) *BaseClient {
-	return &BaseClient{sender: sender}
-}
-
-func (client *BaseClient) Send(
-	ctx context.Context,
+//nolint:funlen // mechanical request-type mapping
+func buildGroupRequestParams(
 	conf *config.Config,
 	request *Request,
-) (*Response, error) {
-	req := buildHTTPRequest(conf, request)
-
-	response := &Response{}
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptions{
-		DisallowEmptyResponse: true,
-		InspectResponseError:  true,
-	})
-
-	if err := client.sender.Send(ctx, req, decoder); err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
-	}
-
-	return response, nil
-}
-
-func buildHTTPRequest(conf *config.Config, request *Request) *whttp.Request[Request] {
+) (string, []string, map[string]string, *BaseRequest, error) {
 	var (
 		method      string
 		endpoints   []string
 		queryParams = map[string]string{}
+		message     *BaseRequest
 	)
 
 	switch request.RequestType {
 	case whttp.RequestTypeCreateGroup:
 		method = http.MethodPost
 		endpoints = []string{conf.APIVersion, conf.PhoneNumberID, "groups"}
+		message = &BaseRequest{
+			MessagingProduct: request.MessagingProduct,
+			Subject:          request.Subject,
+			Description:      request.Description,
+			JoinApprovalMode: request.JoinApprovalMode,
+		}
 
 	case whttp.RequestTypeDeleteGroup:
 		method = http.MethodDelete
@@ -577,10 +601,15 @@ func buildHTTPRequest(conf *config.Config, request *Request) *whttp.Request[Requ
 	case whttp.RequestTypeResetGroupInviteLink:
 		method = http.MethodPost
 		endpoints = []string{conf.APIVersion, request.GroupID, "invite_link"}
+		message = &BaseRequest{MessagingProduct: request.MessagingProduct}
 
 	case whttp.RequestTypeRemoveGroupParticipants:
 		method = http.MethodDelete
 		endpoints = []string{conf.APIVersion, request.GroupID, "participants"}
+		message = &BaseRequest{
+			MessagingProduct: request.MessagingProduct,
+			Participants:     request.Participants,
+		}
 
 	case whttp.RequestTypeGetGroupInfo:
 		method = http.MethodGet
@@ -605,6 +634,11 @@ func buildHTTPRequest(conf *config.Config, request *Request) *whttp.Request[Requ
 	case whttp.RequestTypeUpdateGroupSettings:
 		method = http.MethodPost
 		endpoints = []string{conf.APIVersion, request.GroupID}
+		message = &BaseRequest{
+			MessagingProduct: request.MessagingProduct,
+			Subject:          request.Subject,
+			Description:      request.Description,
+		}
 
 	case whttp.RequestTypeGetJoinRequests:
 		method = http.MethodGet
@@ -613,31 +647,62 @@ func buildHTTPRequest(conf *config.Config, request *Request) *whttp.Request[Requ
 	case whttp.RequestTypeApproveJoinRequests:
 		method = http.MethodPost
 		endpoints = []string{conf.APIVersion, request.GroupID, "join_requests"}
+		message = &BaseRequest{
+			MessagingProduct: request.MessagingProduct,
+			JoinRequests:     request.JoinRequests,
+		}
 
 	case whttp.RequestTypeRejectJoinRequests:
 		method = http.MethodDelete
 		endpoints = []string{conf.APIVersion, request.GroupID, "join_requests"}
+		message = &BaseRequest{
+			MessagingProduct: request.MessagingProduct,
+			JoinRequests:     request.JoinRequests,
+		}
+
 	default:
-		panic("unhandled default case")
+		return "", nil, nil, nil, fmt.Errorf("%w: %s", whttp.ErrUnknownRequestType, request.RequestType)
 	}
 
-	return whttp.MakeRequest[Request](method, conf.BaseURL,
-		whttp.WithRequestType[Request](request.RequestType),
-		whttp.WithRequestEndpoints[Request](endpoints...),
-		whttp.WithRequestQueryParams[Request](queryParams),
-		whttp.WithRequestMessage[Request](request),
-		whttp.WithRequestBearer[Request](conf.AccessToken),
-		whttp.WithRequestAppSecret[Request](conf.AppSecret),
-		whttp.WithRequestSecured[Request](conf.SecureRequests),
-		whttp.WithRequestDebugLogLevel[Request](whttp.ParseDebugLogLevel(conf.DebugLogLevel)),
-	)
+	return method, endpoints, queryParams, message, nil
 }
 
-func (client *BaseClient) CreateGroup(
+// Send translates a high-level Request into an HTTP transaction and returns
+// the decoded BaseResponse.
+func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Request) (*BaseResponse, error) {
+	method, endpoints, queryParams, message, err := buildGroupRequestParams(conf, request)
+	if err != nil {
+		return nil, err
+	}
+
+	b := whttp.NewRequestBuilder(method, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(request.RequestType).
+		Endpoints(endpoints...)
+
+	if len(queryParams) > 0 {
+		b = b.QueryParams(queryParams)
+	}
+
+	req := whttp.Build(b, message)
+
+	resp := &BaseResponse{}
+	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive())
+
+	if err = bc.BaseClient.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+
+	return resp, nil
+}
+
+// SetMiddlewares wraps the underlying Sender with the provided middlewares.
+
+func (bc *BaseClient) CreateGroup(
 	ctx context.Context,
 	conf *config.Config,
 	req *CreateGroupRequest,
-) (*Response, error) {
+) (*BaseResponse, error) {
 	request := &Request{
 		RequestType:      whttp.RequestTypeCreateGroup,
 		MessagingProduct: messagingProduct,
@@ -646,7 +711,7 @@ func (client *BaseClient) CreateGroup(
 		JoinApprovalMode: req.JoinApprovalMode,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: create group: %w", err)
 	}
@@ -654,17 +719,17 @@ func (client *BaseClient) CreateGroup(
 	return response, nil
 }
 
-func (client *BaseClient) DeleteGroup(
+func (bc *BaseClient) DeleteGroup(
 	ctx context.Context,
 	conf *config.Config,
 	req *DeleteGroupRequest,
-) (*Response, error) {
+) (*BaseResponse, error) {
 	request := &Request{
 		RequestType: whttp.RequestTypeDeleteGroup,
 		GroupID:     req.GroupID,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: delete group: %w", err)
 	}
@@ -672,7 +737,7 @@ func (client *BaseClient) DeleteGroup(
 	return response, nil
 }
 
-func (client *BaseClient) GetGroupInviteLink(
+func (bc *BaseClient) GetGroupInviteLink(
 	ctx context.Context,
 	conf *config.Config,
 	req *GetGroupInviteLinkRequest,
@@ -682,7 +747,7 @@ func (client *BaseClient) GetGroupInviteLink(
 		GroupID:     req.GroupID,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: get group invite link: %w", err)
 	}
@@ -690,7 +755,7 @@ func (client *BaseClient) GetGroupInviteLink(
 	return response.GroupInviteLinkResponse(), nil
 }
 
-func (client *BaseClient) ResetGroupInviteLink(
+func (bc *BaseClient) ResetGroupInviteLink(
 	ctx context.Context,
 	conf *config.Config,
 	req *ResetGroupInviteLinkRequest,
@@ -701,7 +766,7 @@ func (client *BaseClient) ResetGroupInviteLink(
 		MessagingProduct: messagingProduct,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: reset group invite link: %w", err)
 	}
@@ -709,11 +774,11 @@ func (client *BaseClient) ResetGroupInviteLink(
 	return response.GroupInviteLinkResponse(), nil
 }
 
-func (client *BaseClient) RemoveGroupParticipants(
+func (bc *BaseClient) RemoveGroupParticipants(
 	ctx context.Context,
 	conf *config.Config,
 	req *RemoveGroupParticipantsRequest,
-) (*Response, error) {
+) (*BaseResponse, error) {
 	participants := make([]*Participants, len(req.Participants))
 	for i, p := range req.Participants {
 		participants[i] = &Participants{User: p}
@@ -726,7 +791,7 @@ func (client *BaseClient) RemoveGroupParticipants(
 		Participants:     participants,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: remove group participants: %w", err)
 	}
@@ -734,7 +799,7 @@ func (client *BaseClient) RemoveGroupParticipants(
 	return response, nil
 }
 
-func (client *BaseClient) GetGroupInfo(
+func (bc *BaseClient) GetGroupInfo(
 	ctx context.Context,
 	conf *config.Config,
 	req *GetGroupInfoRequest,
@@ -745,7 +810,7 @@ func (client *BaseClient) GetGroupInfo(
 		GroupInfoFields: req.Fields,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: get group info: %w", err)
 	}
@@ -753,7 +818,7 @@ func (client *BaseClient) GetGroupInfo(
 	return response.GroupInfoResponse(), nil
 }
 
-func (client *BaseClient) GetActiveGroups(
+func (bc *BaseClient) GetActiveGroups(
 	ctx context.Context,
 	conf *config.Config,
 	req *GetActiveGroupsRequest,
@@ -765,7 +830,7 @@ func (client *BaseClient) GetActiveGroups(
 		Before:      req.Before,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: get active groups: %w", err)
 	}
@@ -773,11 +838,11 @@ func (client *BaseClient) GetActiveGroups(
 	return response.ActiveGroupsResponse(), nil
 }
 
-func (client *BaseClient) UpdateGroupSettings(
+func (bc *BaseClient) UpdateGroupSettings(
 	ctx context.Context,
 	conf *config.Config,
 	req *UpdateGroupSettingsRequest,
-) (*Response, error) {
+) (*BaseResponse, error) {
 	request := &Request{
 		RequestType:        whttp.RequestTypeUpdateGroupSettings,
 		GroupID:            req.GroupID,
@@ -787,7 +852,7 @@ func (client *BaseClient) UpdateGroupSettings(
 		ProfilePictureFile: req.ProfilePictureFile,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: update group settings: %w", err)
 	}
@@ -795,7 +860,7 @@ func (client *BaseClient) UpdateGroupSettings(
 	return response, nil
 }
 
-func (client *BaseClient) GetJoinRequests(
+func (bc *BaseClient) GetJoinRequests(
 	ctx context.Context,
 	conf *config.Config,
 	req *GetJoinRequestsRequest,
@@ -805,15 +870,15 @@ func (client *BaseClient) GetJoinRequests(
 		GroupID:     req.GroupID,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: get join requests: %w", err)
 	}
 
-	return response.JoinRequestsResponse(), nil
+	return response.JoinRequestsResponse()
 }
 
-func (client *BaseClient) ApproveJoinRequests(
+func (bc *BaseClient) ApproveJoinRequests(
 	ctx context.Context,
 	conf *config.Config,
 	req *ApproveJoinRequestsRequest,
@@ -825,7 +890,7 @@ func (client *BaseClient) ApproveJoinRequests(
 		JoinRequests:     req.JoinRequests,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: approve join requests: %w", err)
 	}
@@ -833,7 +898,7 @@ func (client *BaseClient) ApproveJoinRequests(
 	return response.ApproveJoinRequestsResponse(), nil
 }
 
-func (client *BaseClient) RejectJoinRequests(
+func (bc *BaseClient) RejectJoinRequests(
 	ctx context.Context,
 	conf *config.Config,
 	req *RejectJoinRequestsRequest,
@@ -845,7 +910,7 @@ func (client *BaseClient) RejectJoinRequests(
 		JoinRequests:     req.JoinRequests,
 	}
 
-	response, err := client.Send(ctx, conf, request)
+	response, err := bc.Send(ctx, conf, request)
 	if err != nil {
 		return nil, fmt.Errorf("base client: reject join requests: %w", err)
 	}
