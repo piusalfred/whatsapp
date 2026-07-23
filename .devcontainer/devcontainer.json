@@ -1,0 +1,46 @@
+{
+  "name": "WhatsApp Go",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  "remoteUser": "vscode",
+
+  // Go module cache persisted across rebuilds
+  "mounts": [
+    "source=whatsapp-go-modcache,target=/go/pkg/mod,type=volume"
+  ],
+
+  // VS Code extensions for Go development
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        "EditorConfig.EditorConfig"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "workspace",
+        "go.formatTool": "goimports",
+        "go.testFlags": ["-race", "-parallel=4"],
+        "editor.formatOnSave": true,
+        "[go]": {
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        }
+      }
+    }
+  },
+
+  // Install gotools wrapper and download tool dependencies
+  "postCreateCommand": "go install github.com/piusalfred/gotools/cmd/gotools@v0.4.1 && cd tools && for f in *.mod; do gotools download \"$f\" 2>/dev/null || true; done",
+
+  "containerEnv": {
+    "SHELL": "/bin/bash"
+  }
+}
