@@ -188,7 +188,7 @@ func TestFlowNotificationHandler_DedicatedHandlers(t *testing.T) {
 				Field:   webhooks.ChangeFieldFlows.String(),
 				Value:   tt.value,
 			}
-			err := fh.Handle(context.Background(), event)
+			err := webhooks.HandleEvent(context.Background(), fh, event)
 
 			if tt.wantError && err == nil {
 				t.Error("expected error, got nil")
@@ -232,7 +232,7 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 				NewStatus: "PUBLISHED",
 			},
 		}
-		err := fh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), fh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -269,7 +269,7 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 				Message: "A new flow event",
 			},
 		}
-		err := fh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), fh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -292,7 +292,7 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 				Event: webhooks.EventFlowStatusChange,
 			},
 		}
-		err := fh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), fh, event)
 		if err != nil {
 			t.Errorf("expected nil for unhandled event, got: %v", err)
 		}
@@ -312,93 +312,9 @@ func TestFlowNotificationHandler_Fallback(t *testing.T) {
 				Event: "SOME_RANDOM_EVENT",
 			},
 		}
-		err := fh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), fh, event)
 		if err != nil {
 			t.Errorf("expected nil for unknown event, got: %v", err)
-		}
-	})
-}
-
-func TestFlowNotificationHandler_Setters(t *testing.T) {
-	t.Parallel()
-
-	t.Run("OnFlowStatusChange sets Status", func(t *testing.T) {
-		t.Parallel()
-		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowStatusChange(webhooks.FlowEventHandlerFunc[webhooks.StatusChangeDetails](
-			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.StatusChangeDetails]) error {
-				return nil
-			},
-		))
-		if fh.Status == nil {
-			t.Error("Status should not be nil after OnFlowStatusChange")
-		}
-	})
-
-	t.Run("OnFlowClientErrorRate sets ClientErrorRate", func(t *testing.T) {
-		t.Parallel()
-		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowClientErrorRate(webhooks.FlowEventHandlerFunc[webhooks.ClientErrorRateDetails](
-			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.ClientErrorRateDetails]) error {
-				return nil
-			},
-		))
-		if fh.ClientErrorRate == nil {
-			t.Error("ClientErrorRate should not be nil after OnFlowClientErrorRate")
-		}
-	})
-
-	t.Run("OnFlowEndpointErrorRate sets EndpointErrorRate", func(t *testing.T) {
-		t.Parallel()
-		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowEndpointErrorRate(webhooks.FlowEventHandlerFunc[webhooks.EndpointErrorRateDetails](
-			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.EndpointErrorRateDetails]) error {
-				return nil
-			},
-		))
-		if fh.EndpointErrorRate == nil {
-			t.Error("EndpointErrorRate should not be nil after OnFlowEndpointErrorRate")
-		}
-	})
-
-	t.Run("OnFlowEndpointLatency sets EndpointLatency", func(t *testing.T) {
-		t.Parallel()
-		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowEndpointLatency(webhooks.FlowEventHandlerFunc[webhooks.EndpointLatencyDetails](
-			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.EndpointLatencyDetails]) error {
-				return nil
-			},
-		))
-		if fh.EndpointLatency == nil {
-			t.Error("EndpointLatency should not be nil after OnFlowEndpointLatency")
-		}
-	})
-
-	t.Run("OnFallback sets FallbackHandler", func(t *testing.T) {
-		t.Parallel()
-		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFallback(
-			webhooks.FallbackHandlerFunc(
-				func(_ context.Context, _ webhooks.NotificationEvent) error {
-					return nil
-				},
-			),
-		)
-		if fh.Fallback == nil {
-			t.Error("Fallback should not be nil after OnFallback")
-		}
-	})
-
-	t.Run("OnFlowEndpointAvailability sets EndpointAvailability", func(t *testing.T) {
-		t.Parallel()
-		fh := &webhooks.FlowNotificationHandler{}
-		fh.OnFlowEndpointAvailability(webhooks.FlowEventHandlerFunc[webhooks.EndpointAvailabilityDetails](
-			func(_ context.Context, _ *webhooks.FlowRequest[webhooks.EndpointAvailabilityDetails]) error {
-				return nil
-			},
-		))
-		if fh.EndpointAvailability == nil {
-			t.Error("EndpointAvailability should not be nil after OnFlowEndpointAvailability")
 		}
 	})
 }
@@ -436,7 +352,7 @@ func TestFlowNotificationHandler_DedicatedOverridesFallback(t *testing.T) {
 			NewStatus: "PUBLISHED",
 		},
 	}
-	err := fh.Handle(context.Background(), event)
+	err := webhooks.HandleEvent(context.Background(), fh, event)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -616,10 +532,6 @@ func TestFallback_Flows_OnFallbackPropagates(t *testing.T) {
 		},
 	))
 
-	if h.Flows().Fallback != nil {
-		t.Fatal("Flows.Fallback should be nil before OnFallback")
-	}
-
 	var fired bool
 	h.OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
@@ -627,10 +539,6 @@ func TestFallback_Flows_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-
-	if h.Flows().Fallback == nil {
-		t.Fatal("OnFallback did not propagate to Flows.Fallback")
-	}
 
 	resp := h.HandleNotification(context.Background(), flowsEndpointLatencyPayload())
 	if resp.StatusCode != http.StatusOK {

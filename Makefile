@@ -45,15 +45,8 @@ fmt: ## format, fix, lint-fix, add license headers, regenerate mocks
 
 mocks: ## regenerate all mocks
 	@echo "🤖 generating mocks"
-	@$(MOCKGEN) -destination=./mocks/phonenumber/mock_phonenumber.go -package=phonenumber -source=./phonenumber/phonenumber.go
-	@$(MOCKGEN) -destination=./mocks/qrcode/mock_qrcode.go         -package=qrcode        -source=./qrcode/qrcode.go
-	@$(MOCKGEN) -destination=./mocks/webhooks/mock_webhooks_handlers.go -package=webhooks -source=./webhooks/handler.go
-	@$(MOCKGEN) -destination=./mocks/auth/mock_auth.go             -package=auth          -source=./auth/auth.go
-	@$(MOCKGEN) -destination=./mocks/conversation/automation/mock_automation.go -package=automation -source=./conversation/automation/automation.go
-	@$(MOCKGEN) -destination=./mocks/config/config_mock.go         -package=config        -source=./config/config.go
-	@$(MOCKGEN) -destination=./mocks/http/mock_http.go             -package=http          -source=./pkg/http/http.go
-	@$(MOCKGEN) -destination=./mocks/webhooks/mock_webhooks.go     -package=webhooks      -source=./webhooks/webhooks.go
-	@$(MOCKGEN) -destination=./mocks/business/analytics/mock_analytics.go -package=analytics -source=./business/analytics/analytics.go
+	@$(MOCKGEN) -destination=./mocks/config/config_mock.go -package=config -source=./config/config.go
+	@$(MOCKGEN) -destination=./mocks/http/mock_http.go     -package=http   -source=./pkg/http/core_client.go
 
 test: ## run tests with race detector
 	@echo "🧪 running tests"

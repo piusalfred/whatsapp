@@ -100,20 +100,20 @@ func (f ChangeValueHandlerFunc[T]) Handle(ctx context.Context, req *ChangeValueR
 // "messages" field. This is a convenience wrapper around
 // [MessagesHandler.OnNotificationErrors].
 func (handler *Handler) OnNotificationErrors(h NotificationErrorsHandler) {
-	handler.ensureMessages().OnNotificationErrors(h)
+	handler.messages.OnNotificationErrors(h)
 }
 
 // OnMessageStatusChange sets the handler for message delivery status updates
 // (sent, delivered, read, failed). This is a convenience wrapper around
 // [MessagesHandler.OnStatusChange].
 func (handler *Handler) OnMessageStatusChange(h MessageStatusChangeHandler) {
-	handler.ensureMessages().OnStatusChange(h)
+	handler.messages.OnStatusChange(h)
 }
 
 func (handler *Handler) OnMessageErrors(h MessageErrorsHandler) {
-	handler.ensureMessages().Unknown = h
+	handler.messages.Unknown = h
 }
 
 func (handler *Handler) OnUnsupportedMessage(h MessageErrorsHandler) {
-	handler.ensureMessages().Unsupported = h
+	handler.messages.Unsupported = h
 }

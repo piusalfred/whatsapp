@@ -141,6 +141,7 @@ type (
 		PrefilledMessage string `json:"prefilled_message"`
 		DeepLinkURL      string `json:"deep_link_url"`
 		QRImageURL       string `json:"qr_image_url"`
+		ResponseDump     whttp.ResponseDump
 	}
 
 	// Information describes a single QR code without the image URL.
@@ -148,16 +149,19 @@ type (
 		Code             string `json:"code"`
 		PrefilledMessage string `json:"prefilled_message"`
 		DeepLinkURL      string `json:"deep_link_url"`
+		ResponseDump     whttp.ResponseDump
 	}
 
 	// ListResponse contains the collection of QR codes.
 	ListResponse struct {
-		Data []*Information `json:"data,omitempty"`
+		Data         []*Information `json:"data,omitempty"`
+		ResponseDump whttp.ResponseDump
 	}
 
 	// SuccessResponse indicates whether a mutating operation succeeded.
 	SuccessResponse struct {
-		Success bool `json:"success"`
+		Success      bool `json:"success"`
+		ResponseDump whttp.ResponseDump
 	}
 
 	// Client is a high-level client bound to a fixed [config.Config].
@@ -184,7 +188,8 @@ type (
 	}
 
 	// BaseResponse acts as a flexible intermediate data capture layer unmarshaling
-	// varying response structures across disparate HTTP verbs.
+	// varying response structures across disparate HTTP verbs. It also carries the
+	// raw HTTP [whttp.ResponseDump] for inspection by higher-level callers.
 	BaseResponse struct {
 		Data             []*Information `json:"data,omitempty"`
 		Success          bool           `json:"success"`
@@ -192,6 +197,7 @@ type (
 		PrefilledMessage string         `json:"prefilled_message"`
 		DeepLinkURL      string         `json:"deep_link_url"`
 		QRImageURL       string         `json:"qr_image_url"`
+		ResponseDump     whttp.ResponseDump
 	}
 )
 
@@ -203,19 +209,22 @@ var (
 	ErrUpdateQRCode = errors.New("failed to update qr code")
 )
 
-// ToCreateResponse attempts to coerce a BaseResponse into a CreateResponse.
+// ToCreateResponse maps the fields of [BaseResponse] into a [CreateResponse],
+// including the captured [whttp.ResponseDump].
 func (r *BaseResponse) ToCreateResponse() *CreateResponse {
 	return &CreateResponse{
 		Code:             r.Code,
 		PrefilledMessage: r.PrefilledMessage,
 		DeepLinkURL:      r.DeepLinkURL,
 		QRImageURL:       r.QRImageURL,
+		ResponseDump:     r.ResponseDump,
 	}
 }
 
-// ToListResponse attempts to coerce a BaseResponse into a ListResponse.
+// ToListResponse maps the fields of [BaseResponse] into a [ListResponse],
+// including the captured [whttp.ResponseDump].
 func (r *BaseResponse) ToListResponse() *ListResponse {
-	return &ListResponse{Data: r.Data}
+	return &ListResponse{Data: r.Data, ResponseDump: r.ResponseDump}
 }
 
 // NewClient creates a high-level [Client] with a fixed configuration.
@@ -254,6 +263,7 @@ func (c *Client) Create(ctx context.Context, req *CreateRequest) (*CreateRespons
 }
 
 // Get retrieves metadata for a specific QR code by its code identifier.
+// The returned [Information] carries the [whttp.ResponseDump] from the HTTP response.
 func (c *Client) Get(ctx context.Context, qrCodeID string) (*Information, error) {
 	request := &Request{
 		Type:     whttp.RequestTypeGetQR,
@@ -266,7 +276,9 @@ func (c *Client) Get(ctx context.Context, qrCodeID string) (*Information, error)
 	if len(resp.Data) == 0 {
 		return nil, fmt.Errorf("%w: qr code not found", ErrGetQRCode)
 	}
-	return resp.Data[0], nil
+	info := resp.Data[0]
+	info.ResponseDump = resp.ResponseDump
+	return info, nil
 }
 
 // List returns all QR codes associated with the phone number.
@@ -292,7 +304,7 @@ func (c *Client) Delete(ctx context.Context, qrCodeID string) (*SuccessResponse,
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrDeleteQRCode, err)
 	}
-	return &SuccessResponse{Success: resp.Success}, nil
+	return &SuccessResponse{Success: resp.Success, ResponseDump: resp.ResponseDump}, nil
 }
 
 // Update modifies the prefilled message and/or image format of an existing QR code.
@@ -307,7 +319,7 @@ func (c *Client) Update(ctx context.Context, req *UpdateRequest) (*SuccessRespon
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUpdateQRCode, err)
 	}
-	return &SuccessResponse{Success: resp.Success}, nil
+	return &SuccessResponse{Success: resp.Success, ResponseDump: resp.ResponseDump}, nil
 }
 
 // Send dispatches a raw [Request] through the underlying BaseClient.
@@ -400,12 +412,12 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	req := whttp.Build(bld, message)
 
 	resp := &BaseResponse{}
-	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive())
-
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive()))
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
+	resp.ResponseDump = decoder.DumpResponse()
 	return resp, nil
 }
 
@@ -425,7 +437,8 @@ func (bc *BaseClient) Create(ctx context.Context, conf *config.Config, req *Crea
 	return resp.ToCreateResponse(), nil
 }
 
-// Get retrieves a single QR code by ID.
+// Get retrieves a single QR code by ID. The returned [Information] carries
+// the [whttp.ResponseDump] from the HTTP response.
 func (bc *BaseClient) Get(ctx context.Context, conf *config.Config, qrCodeID string) (*Information, error) {
 	request := &Request{
 		Type:     whttp.RequestTypeGetQR,
@@ -441,7 +454,9 @@ func (bc *BaseClient) Get(ctx context.Context, conf *config.Config, qrCodeID str
 		return nil, fmt.Errorf("%w: qr code not found", ErrGetQRCode)
 	}
 
-	return resp.Data[0], nil
+	info := resp.Data[0]
+	info.ResponseDump = resp.ResponseDump
+	return info, nil
 }
 
 // List returns all QR codes for the phone number.
@@ -471,7 +486,7 @@ func (bc *BaseClient) Delete(ctx context.Context, conf *config.Config, qrCodeID 
 		return nil, fmt.Errorf("%w: %w", ErrDeleteQRCode, err)
 	}
 
-	return &SuccessResponse{Success: resp.Success}, nil
+	return &SuccessResponse{Success: resp.Success, ResponseDump: resp.ResponseDump}, nil
 }
 
 // Update modifies an existing QR code.
@@ -488,5 +503,5 @@ func (bc *BaseClient) Update(ctx context.Context, conf *config.Config, req *Upda
 		return nil, fmt.Errorf("%w: %w", ErrUpdateQRCode, err)
 	}
 
-	return &SuccessResponse{Success: resp.Success}, nil
+	return &SuccessResponse{Success: resp.Success, ResponseDump: resp.ResponseDump}, nil
 }

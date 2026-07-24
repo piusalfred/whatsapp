@@ -89,17 +89,17 @@ type HistoryContext struct {
 
 // HistoryHandler handles both forms of the history sync webhook.
 //
-//   - [Messages] receives chat history entries (threads of messages with
-//     delivery status). A single webhook can carry thousands of messages.
-//     Do NOT process synchronously — persist to a queue immediately.
+//   - Chat history entries (threads of messages with delivery status) are
+//     dispatched via [OnMessages]. A single webhook can carry thousands of
+//     messages. Do NOT process synchronously — persist to a queue immediately.
 //
-//   - [MediaMessages] receives full message payloads (including media
-//     asset IDs) for media messages that originally appeared as
-//     "media_placeholder" in history threads. These arrive under the
-//     same "history" field but contain a "messages" array instead of
-//     a "history" array.
+//   - Media content webhooks containing full message payloads (including
+//     media asset IDs) for messages that originally appeared as
+//     "media_placeholder" in history threads are dispatched via
+//     [OnMediaMessages]. These arrive under the same "history" field but
+//     contain a "messages" array instead of a "history" array.
 //
-//   - [Fallback] catches history webhooks that don't match either form.
+//   - Events that don't match either form are routed to the [Fallback] method.
 //
 // Usage:
 //
@@ -107,21 +107,23 @@ type HistoryContext struct {
 //	hh.OnMessages(myHistoryHandler)
 //	hh.OnMediaMessages(myMediaHandler)
 type HistoryHandler struct {
-	// Messages handles chat history entries (threads with delivery status).
-	Messages ChangeValueHandler[HistoryEntry]
+	// message handles chat history entries (threads with delivery status).
+	message ChangeValueHandler[HistoryEntry]
 
-	// MediaMessages handles media content webhooks that arrive under
+	// media handles media content webhooks that arrive under
 	// the "history" field with a "messages" array. These carry full
 	// message payloads (including media asset IDs) for messages that
 	// appeared as "media_placeholder" in the history threads.
-	MediaMessages MessageHandler[Message]
+	media MessageHandler[Message]
 
-	// Fallback catches history webhooks that don't match either form.
+	// fallback catches history webhooks that don't match either form.
 	// When nil, unrecognized payloads are silently skipped.
-	Fallback FallbackHandler
+	fallback FallbackHandler
 
-	ErrorHandler ErrorHandler
+	error ErrorHandler
 }
+
+var _ EventHandler = (*HistoryHandler)(nil)
 
 // OnMessages sets the handler for chat history entries.
 //
@@ -130,7 +132,7 @@ type HistoryHandler struct {
 // messages and will cause a timeout. Persist to a queue and process
 // asynchronously.
 func (hh *HistoryHandler) OnMessages(h ChangeValueHandler[HistoryEntry]) {
-	hh.Messages = h
+	hh.message = h
 }
 
 // OnMediaMessages sets the handler for media content webhooks that arrive
@@ -138,42 +140,63 @@ func (hh *HistoryHandler) OnMessages(h ChangeValueHandler[HistoryEntry]) {
 // media asset IDs) for messages that appeared as "media_placeholder" in
 // the history threads.
 func (hh *HistoryHandler) OnMediaMessages(h MessageHandler[Message]) {
-	hh.MediaMessages = h
+	hh.media = h
 }
 
 // OnFallback sets the catch-all handler for history webhooks without a
 // dedicated handler.
 func (hh *HistoryHandler) OnFallback(h FallbackHandler) {
-	hh.Fallback = h
+	hh.fallback = h
 }
 
-// handleError routes an error through the HistoryHandler's ErrorHandler.
-// When ErrorHandler is nil, the error is returned as-is (passthrough).
-func (hh *HistoryHandler) handleError(ctx context.Context, err error) error {
-	return handleSubHandlerError(ctx, hh.ErrorHandler, err)
+// OnError sets the error handler for this domain handler. When nil, errors
+// bubble up to the general error handler configured on [Handler].
+func (hh *HistoryHandler) OnError(h ErrorHandler) {
+	hh.error = h
 }
 
-// executeFallback routes an unhandled history event through the Fallback
-// catch-all. Returns nil when Fallback is nil (silent skip).
-func (hh *HistoryHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
-	if hh.Fallback == nil {
+// HandleError routes an error through the HistoryHandler's ErrorHandler.
+// When the dedicated error handler is nil, the error is returned as-is.
+func (hh *HistoryHandler) HandleError(ctx context.Context, err error) error {
+	return execErrorHandler(ctx, hh.error, err)
+}
+
+// Fallback routes an unhandled history event through the fallback
+// catch-all. Returns nil when fallback is nil (silent skip).
+func (hh *HistoryHandler) Fallback(ctx context.Context, event NotificationEvent) error {
+	if hh.fallback == nil {
 		return nil
 	}
-	if err := hh.Fallback.Handle(ctx, event); err != nil {
+	if err := hh.fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("history fallback: %w", err)
 	}
 	return nil
+}
+
+// IsEventHandlerImplemented reports whether a handler is registered for the
+// specific event form carried by this NotificationEvent. It returns true when
+// event.Value.History is non-empty and a messages handler is set, or when
+// event.Value.Messages is non-empty and a media handler is set.
+func (hh *HistoryHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+	if len(event.Value.History) > 0 {
+		return hh.message != nil
+	}
+	if len(event.Value.Messages) > 0 {
+		return hh.media != nil
+	}
+	return false
 }
 
 // Handle dispatches the history webhook to the correct handler.
 //
 // Two forms are recognized:
 //
-//  1. event.Value.History contains entries → dispatched to [Messages].
-//  2. event.Value.Messages is populated → dispatched to [MediaMessages].
+//  1. event.Value.History contains entries → dispatched via [OnMessages].
+//  2. event.Value.Messages is populated → dispatched via [OnMediaMessages].
 //
-// If neither handler is set for the matching form, falls back to [Fallback].
-// If [Fallback] is also nil, the webhook is silently acknowledged (HTTP 200).
+// Returns [ErrEventNotHandled] when no handler is registered for the matching
+// form, signalling the caller (typically [HandleEvent]) to invoke the
+// [Fallback] method.
 func (hh *HistoryHandler) Handle(
 	ctx context.Context,
 	event NotificationEvent,
@@ -188,8 +211,8 @@ func (hh *HistoryHandler) Handle(
 
 	// Form 1: chat history entries (threads of messages).
 	if len(event.Value.History) > 0 {
-		if hh.Messages == nil {
-			return hh.executeFallback(ctx, event)
+		if hh.message == nil {
+			return ErrEventNotHandled
 		}
 		entries := make([]*HistoryEntry, len(event.Value.History))
 		for i := range event.Value.History {
@@ -199,8 +222,8 @@ func (hh *HistoryHandler) Handle(
 			Notification: nctx,
 			Payload:      entries,
 		}
-		if err := hh.Messages.Handle(ctx, req); err != nil {
-			return hh.handleError(ctx, err)
+		if err := hh.message.Handle(ctx, req); err != nil {
+			return hh.HandleError(ctx, err)
 		}
 		return nil
 	}
@@ -208,31 +231,31 @@ func (hh *HistoryHandler) Handle(
 	// Form 2: media content for history messages (contains "messages" array
 	// with full payload including media asset IDs).
 	if len(event.Value.Messages) > 0 {
-		if hh.MediaMessages == nil {
-			return hh.executeFallback(ctx, event)
+		if hh.media == nil {
+			return ErrEventNotHandled
 		}
 		for _, msg := range event.Value.Messages {
 			if msg == nil {
 				continue
 			}
-			if err := hh.MediaMessages.Handle(ctx, &MessageRequest[Message]{
+			if err := hh.media.Handle(ctx, &MessageRequest[Message]{
 				Notification: nctx,
 				Info:         newMessageInfo(msg),
 				Payload:      msg,
 			}); err != nil {
-				return hh.handleError(ctx, err)
+				return hh.HandleError(ctx, err)
 			}
 		}
 		return nil
 	}
 
-	return hh.executeFallback(ctx, event)
+	return ErrEventNotHandled
 }
 
 // OnHistorySync registers a handler for chat history entries (threads of
 // messages with delivery status).
 func (handler *Handler) OnHistorySync(h ChangeValueHandler[HistoryEntry]) {
-	handler.ensureHistory().OnMessages(h)
+	handler.history.OnMessages(h)
 }
 
 // OnHistoryMediaMessages registers a handler for media content webhooks
@@ -240,11 +263,11 @@ func (handler *Handler) OnHistorySync(h ChangeValueHandler[HistoryEntry]) {
 // (including media asset IDs) for messages that appeared as
 // "media_placeholder" in the history threads.
 func (handler *Handler) OnHistoryMediaMessages(h MessageHandler[Message]) {
-	handler.ensureHistory().OnMediaMessages(h)
+	handler.history.OnMediaMessages(h)
 }
 
 // OnHistoryFallback registers a catch-all handler for history webhooks
 // that don't match either chat history entries or media content.
 func (handler *Handler) OnHistoryFallback(h FallbackHandler) {
-	handler.ensureHistory().OnFallback(h)
+	handler.history.OnFallback(h)
 }

@@ -26,11 +26,28 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/piusalfred/whatsapp/message"
 	"github.com/piusalfred/whatsapp/message/media"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
+)
+
+// Mode controls how events within a single notification are dispatched.
+type Mode int
+
+const (
+	// Sequential dispatches events one after another. When an event handler
+	// returns an error, processing stops and the remaining events are skipped.
+	// This is the default.
+	Sequential Mode = iota
+
+	// Parallel dispatches all events concurrently. All events are processed
+	// independently; a context cancellation or handler error in one event does
+	// not affect the others. Use when event ordering is not important and
+	// latency matters.
+	Parallel
 )
 
 // Handler registers callbacks for every WhatsApp webhook event type. Each
@@ -43,46 +60,59 @@ import (
 //
 // # Concurrency
 //
-// Handler protects its mutable state with a sync.Mutex. All registration
-// methods ([Handler.OnError], [Handler.OnFallback], and all On* methods on
-// sub-handlers) acquire the mutex before writing. [Handler.HandleNotification]
-// does not acquire the mutex; it is safe for concurrent reads after
-// registration is complete. Register all handlers during initialisation and
-// treat them as immutable once the server starts receiving requests.
+// Handler registers callbacks for every WhatsApp webhook event type. All
+// handlers and configuration are set at creation time via [NewHandler]
+// options and are immutable thereafter. [Handler.HandleNotification] is
+// safe for concurrent use.
 //
-// The same constraint applies to all sub-handlers reachable through the
-// Handler: [MessagesHandler], [FlowNotificationHandler],
-// [BusinessNotificationHandler], [GroupManagementHandler], and
-// [HistoryHandler]. Register their callbacks during initialisation and treat
-// them as immutable afterward.
+//	handler := webhooks.NewHandler(
+//	    webhooks.WithErrorHandler(myErrorHandler),
+//	    webhooks.WithFallbackHandler(myFallback),
+//	    webhooks.WithMode(webhooks.Parallel),
+//	)
+//	handler.OnTextMessage(myTextHandler)
+//
+// The same immutability constraint applies to all domain handlers. Register
+// callbacks during initialisation before serving requests.
 type Handler struct {
 	flows               *FlowNotificationHandler
-	flowsOnce           sync.Once
 	business            *BusinessNotificationHandler
-	businessOnce        sync.Once
 	messages            *MessagesHandler
-	messagesOnce        sync.Once
 	groups              *GroupManagementHandler
-	groupsOnce          sync.Once
 	history             *HistoryHandler
-	historyOnce         sync.Once
 	calls               *CallsHandler
-	callsOnce           sync.Once
 	smbEcho             *SMBMessageEchoesHandler
-	smbEchoOnce         sync.Once
 	smbAppSync          *SMBAppStateSyncsHandler
-	smbAppSyncOnce      sync.Once
 	userPrefs           *UserPreferencesHandler
-	errorHandler        ErrorHandler
+	error               ErrorHandler
 	fallback            FallbackHandler
+	mode                Mode
 	changeFieldHandlers changeFieldMap
+}
 
-	mu sync.Mutex
+type HandlerOption interface {
+	apply(*Handler)
+}
+
+type handlerOptionFunc func(*Handler)
+
+func (f handlerOptionFunc) apply(h *Handler) {
+	f(h)
 }
 
 // NewHandler creates a Handler with all callbacks initialized to no-ops.
 // Register handlers via the Set* methods before attaching to a Listener.
-func NewHandler() *Handler {
+func NewHandler(options ...HandlerOption) *Handler {
+	passThroughOnError := ErrorHandlerFunc(
+		func(_ context.Context, err error) error { return err },
+	)
+
+	fallback := FallbackHandlerFunc(
+		func(_ context.Context, _ NotificationEvent) error {
+			return nil
+		},
+	)
+
 	implemented := []ChangeField{
 		ChangeFieldFlows,
 		ChangeFieldAccountAlerts,
@@ -112,26 +142,51 @@ func NewHandler() *Handler {
 		ChangeFieldSMBMessageEchoes,
 	}
 
-	passThroughOnError := ErrorHandlerFunc(
-		func(_ context.Context, err error) error { return err },
-	)
-
-	fallback := FallbackHandlerFunc(
-		func(_ context.Context, _ NotificationEvent) error {
-			return nil
-		},
-	)
-
 	h := &Handler{
-		errorHandler:        passThroughOnError,
-		changeFieldHandlers: initChangeFieldMap(implemented...),
+		flows:               new(FlowNotificationHandler),
+		business:            new(BusinessNotificationHandler),
+		messages:            new(MessagesHandler),
+		groups:              new(GroupManagementHandler),
+		history:             new(HistoryHandler),
+		calls:               new(CallsHandler),
+		smbEcho:             new(SMBMessageEchoesHandler),
+		smbAppSync:          new(SMBAppStateSyncsHandler),
+		userPrefs:           new(UserPreferencesHandler),
+		error:               passThroughOnError,
 		fallback:            fallback,
+		mode:                Sequential,
+		changeFieldHandlers: initChangeFieldMap(implemented...),
 	}
+
+	for _, option := range options {
+		option.apply(h)
+	}
+
+	// Set the default error handler for all sub-handlers to the pass-through handler and
+	// fallback handler to no op
+	h.flows.OnError(h.error)
+	h.flows.OnFallback(h.fallback)
+	h.business.OnError(h.error)
+	h.business.OnFallback(h.fallback)
+	h.messages.OnError(h.error)
+	h.messages.OnFallback(h.fallback)
+	h.groups.OnError(h.error)
+	h.groups.OnFallback(h.fallback)
+	h.history.OnError(h.error)
+	h.history.OnFallback(h.fallback)
+	h.calls.OnError(h.error)
+	h.calls.OnFallback(h.fallback)
+	h.smbEcho.OnError(h.error)
+	h.smbEcho.OnFallback(h.fallback)
+	h.smbAppSync.OnError(h.error)
+	h.smbAppSync.OnFallback(h.fallback)
+	h.userPrefs.OnError(h.error)
+	h.userPrefs.OnFallback(h.fallback)
 
 	return h
 }
 
-// OnError configures a callback which is invoked whenever an error occurs
+// WithErrorHandler configures a callback which is invoked whenever an error occurs
 // while processing the webhook payload. The callback can decide whether the
 // error is "fatal" or "non-fatal":
 //
@@ -140,63 +195,72 @@ func NewHandler() *Handler {
 //
 //   - If the callback returns a non-nil error, processing stops immediately,
 //     and an HTTP 500 is returned to WhatsApp (which may trigger a retry).
-//
-// Example:
-//
-//	handler.OnError(webhooks.ErrorHandlerFunc(func(ctx context.Context, err error) error {
-//	    log.Printf("webhook error: %v", err)
-//	    return nil // continue processing remaining messages
-//	}))
-func (handler *Handler) OnError(h ErrorHandler) {
-	handler.mu.Lock()
-	defer handler.mu.Unlock()
-	handler.errorHandler = h
+func WithErrorHandler(handler ErrorHandler) HandlerOption {
+	return handlerOptionFunc(func(h *Handler) {
+		h.error = handler
+	})
 }
 
-// OnFallback sets the general fallback handler for change.Field values not in
-// the known set. It also propagates to every non-nil sub-handler (Business,
-// Groups, History, Messages, Flows) that doesn't already have a dedicated
-// fallback set — using adapter wrappers where the sub-handler fallback type
-// differs from FallbackHandler.
+// WithMode sets the dispatch mode for [Handler.HandleNotification].
+// [Sequential] is the default. Use [Parallel] to process events concurrently.
+func WithMode(m Mode) HandlerOption {
+	return handlerOptionFunc(func(h *Handler) {
+		h.mode = m
+	})
+}
+
+// OnError sets the error handler on every domain handler. Call during
+// initialisation before serving requests.
+func (handler *Handler) OnError(h ErrorHandler) {
+	handler.error = h
+	handler.flows.OnError(h)
+	handler.business.OnError(h)
+	handler.messages.OnError(h)
+	handler.groups.OnError(h)
+	handler.history.OnError(h)
+	handler.calls.OnError(h)
+	handler.smbEcho.OnError(h)
+	handler.smbAppSync.OnError(h)
+	handler.userPrefs.OnError(h)
+}
+
+// OnFallback sets the fallback handler on every domain handler. Call during
+// initialisation before serving requests.
 func (handler *Handler) OnFallback(h FallbackHandler) {
-	handler.mu.Lock()
-	defer handler.mu.Unlock()
-
 	handler.fallback = h
+	handler.flows.OnFallback(h)
+	handler.business.OnFallback(h)
+	handler.messages.OnFallback(h)
+	handler.groups.OnFallback(h)
+	handler.history.OnFallback(h)
+	handler.calls.OnFallback(h)
+	handler.smbEcho.OnFallback(h)
+	handler.smbAppSync.OnFallback(h)
+	handler.userPrefs.OnFallback(h)
+}
 
-	if handler.business != nil && handler.business.Fallback == nil {
-		handler.business.Fallback = h
-	}
-	if handler.groups != nil && handler.groups.Fallback == nil {
-		handler.groups.Fallback = h
-	}
-	if handler.history != nil && handler.history.Fallback == nil {
-		handler.history.Fallback = h
-	}
-	if handler.messages != nil && handler.messages.Fallback == nil {
-		handler.messages.Fallback = h
-	}
-	if handler.flows != nil && handler.flows.Fallback == nil {
-		handler.flows.Fallback = h
-	}
-	if handler.calls != nil && handler.calls.Fallback == nil {
-		handler.calls.Fallback = h
-	}
-	if handler.smbEcho != nil && handler.smbEcho.Fallback == nil {
-		handler.smbEcho.Fallback = h
-	}
-	if handler.smbAppSync != nil && handler.smbAppSync.Fallback == nil {
-		handler.smbAppSync.Fallback = h
-	}
-	if handler.userPrefs != nil && handler.userPrefs.Fallback == nil {
-		handler.userPrefs.Fallback = h
-	}
+// WithFallbackHandler sets the general fallback handler and propagates it to
+// every domain handler. Equivalent to calling [Handler.OnFallback] after
+// construction.
+func WithFallbackHandler(handler FallbackHandler) HandlerOption {
+	return handlerOptionFunc(func(h *Handler) {
+		h.fallback = handler
+	})
 }
 
 // HandleNotification processes an incoming WhatsApp webhook notification.
-// It iterates over every entry and change in the payload, dispatching each
-// to the correct handler based on change.Field. Returns a Response indicating
-// success (200), gateway timeout (504), or internal server error (500).
+// It flattens the payload into events and dispatches each to the correct
+// handler based on change.Field.
+//
+// Dispatch order is controlled by [Handler.mode]:
+//
+//   - [Sequential] (default): events are processed one after another. The
+//     first handler error stops processing and returns 500.
+//   - [Parallel]: events are processed concurrently via an errgroup. All
+//     events run independently; a context cancellation returns 504.
+//
+// Returns a Response indicating success (200), gateway timeout (504), or
+// internal server error (500).
 func (handler *Handler) HandleNotification(ctx context.Context, notification *Notification) *Response {
 	select {
 	case <-ctx.Done():
@@ -205,140 +269,95 @@ func (handler *Handler) HandleNotification(ctx context.Context, notification *No
 	}
 
 	events := notification.Events()
+	if len(events) == 0 {
+		return &Response{StatusCode: http.StatusOK}
+	}
+
+	switch handler.mode {
+	case Parallel:
+		return handler.dispatchParallel(ctx, events)
+	default:
+		return handler.dispatchSequential(ctx, events)
+	}
+}
+
+// dispatchSequential processes events one after another. The first error
+// stops processing and returns 500.
+func (handler *Handler) dispatchSequential(ctx context.Context, events []NotificationEvent) *Response {
 	for _, event := range events {
 		if eventErr := handler.dispatchEvent(ctx, event); eventErr != nil {
 			return &Response{StatusCode: http.StatusInternalServerError}
 		}
 	}
-
 	return &Response{StatusCode: http.StatusOK}
 }
 
-// ensureMessages lazily initialises handler.messages using sync.Once so that
-// concurrent calls during registration are safe. The MessagesHandler starts
-// with all handler fields nil — the fallback cascade treats nil as "not
-// configured".
-func (handler *Handler) ensureMessages() *MessagesHandler {
-	handler.messagesOnce.Do(func() {
-		handler.messages = &MessagesHandler{}
-	})
+// dispatchParallel processes events concurrently via an errgroup. All events
+// run independently; a context cancellation returns 504.
+func (handler *Handler) dispatchParallel(ctx context.Context, events []NotificationEvent) *Response {
+	g, gCtx := errgroup.WithContext(ctx)
+	for _, event := range events {
+		ev := event
+		g.Go(func() error {
+			return handler.HandleNotificationEvent(gCtx, ev)
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return &Response{StatusCode: http.StatusGatewayTimeout}
+	}
+	return &Response{StatusCode: http.StatusOK}
+}
+
+// Messages returns the MessagesHandler. Use this to configure sub-handler
+// fields (Media, Interactive, Fallback) directly when the On* convenience
+// methods are insufficient.
+func (handler *Handler) Messages() *MessagesHandler {
 	return handler.messages
 }
 
-// ensureFlows lazily initialises handler.flows.
-func (handler *Handler) ensureFlows() *FlowNotificationHandler {
-	handler.flowsOnce.Do(func() {
-		handler.flows = &FlowNotificationHandler{}
-	})
+// Flows returns the FlowNotificationHandler.
+func (handler *Handler) Flows() *FlowNotificationHandler {
 	return handler.flows
 }
 
-// ensureBusiness lazily initializes handler.business.
-func (handler *Handler) ensureBusiness() *BusinessNotificationHandler {
-	handler.businessOnce.Do(func() {
-		handler.business = &BusinessNotificationHandler{}
-	})
+// Business returns the BusinessNotificationHandler.
+func (handler *Handler) Business() *BusinessNotificationHandler {
 	return handler.business
 }
 
-// ensureGroups lazily initializes handler.groups.
-func (handler *Handler) ensureGroups() *GroupManagementHandler {
-	handler.groupsOnce.Do(func() {
-		handler.groups = &GroupManagementHandler{}
-	})
+// Groups returns the GroupManagementHandler.
+func (handler *Handler) Groups() *GroupManagementHandler {
 	return handler.groups
 }
 
-// ensureHistory lazily initializes handler.history.
-func (handler *Handler) ensureHistory() *HistoryHandler {
-	handler.historyOnce.Do(func() {
-		handler.history = &HistoryHandler{}
-	})
+// History returns the HistoryHandler.
+func (handler *Handler) History() *HistoryHandler {
 	return handler.history
 }
 
-// ensureCalls lazily initializes handler.calls.
-func (handler *Handler) ensureCalls() *CallsHandler {
-	handler.callsOnce.Do(func() {
-		handler.calls = &CallsHandler{}
-	})
+// Calls returns the CallsHandler. Use this to configure sub-handler fields
+// (Connect, Created, Terminate, Status, Fallback) directly when the On*
+// convenience methods are insufficient.
+func (handler *Handler) Calls() *CallsHandler {
 	return handler.calls
 }
 
-// ensureSMBEchoes lazily initializes handler.smbEcho.
-func (handler *Handler) ensureSMBEchoes() *SMBMessageEchoesHandler {
-	handler.smbEchoOnce.Do(func() {
-		handler.smbEcho = &SMBMessageEchoesHandler{}
-	})
+// SMBEchoes returns the SMBMessageEchoesHandler. Use this to set the
+// Fallback or ErrorHandler directly.
+func (handler *Handler) SMBEchoes() *SMBMessageEchoesHandler {
 	return handler.smbEcho
 }
 
-// ensureSMBAppSync lazily initializes handler.smbAppSync.
-func (handler *Handler) ensureSMBAppSync() *SMBAppStateSyncsHandler {
-	handler.smbAppSyncOnce.Do(func() {
-		handler.smbAppSync = &SMBAppStateSyncsHandler{}
-	})
+// SMBAppSync returns the SMBAppStateSyncsHandler. Use this to set the
+// Fallback or ErrorHandler directly.
+func (handler *Handler) SMBAppSync() *SMBAppStateSyncsHandler {
 	return handler.smbAppSync
 }
 
-// Messages returns the MessagesHandler, lazily initialising it if necessary.
-// Use this to configure sub-handler fields (Media, Interactive, Fallback)
-// directly when the On* convenience methods are insufficient.
-func (handler *Handler) Messages() *MessagesHandler {
-	return handler.ensureMessages()
-}
-
-// Flows returns the FlowNotificationHandler, lazily initialising it if necessary.
-func (handler *Handler) Flows() *FlowNotificationHandler {
-	return handler.ensureFlows()
-}
-
-// Business returns the BusinessNotificationHandler, lazily initialising it if necessary.
-func (handler *Handler) Business() *BusinessNotificationHandler {
-	return handler.ensureBusiness()
-}
-
-// Groups returns the GroupManagementHandler, lazily initialising it if necessary.
-func (handler *Handler) Groups() *GroupManagementHandler {
-	return handler.ensureGroups()
-}
-
-// History returns the HistoryHandler, lazily initialising it if necessary.
-func (handler *Handler) History() *HistoryHandler {
-	return handler.ensureHistory()
-}
-
-// Calls returns the CallsHandler, lazily initialising it if necessary.
-// Use this to configure sub-handler fields (Connect, Created, Terminate,
-// Status, Fallback) directly when the On* convenience methods are insufficient.
-func (handler *Handler) Calls() *CallsHandler {
-	return handler.ensureCalls()
-}
-
-// SMBEchoes returns the SMBMessageEchoesHandler, lazily initialising it
-// if necessary. Use this to set the Fallback or ErrorHandler directly.
-func (handler *Handler) SMBEchoes() *SMBMessageEchoesHandler {
-	return handler.ensureSMBEchoes()
-}
-
-// SMBAppSync returns the SMBAppStateSyncsHandler, lazily initialising it
-// if necessary. Use this to set the Fallback or ErrorHandler directly.
-func (handler *Handler) SMBAppSync() *SMBAppStateSyncsHandler {
-	return handler.ensureSMBAppSync()
-}
-
-// ensureUserPrefs lazily initialises handler.userPrefs.
-func (handler *Handler) ensureUserPrefs() *UserPreferencesHandler {
-	if handler.userPrefs == nil {
-		handler.userPrefs = &UserPreferencesHandler{}
-	}
-	return handler.userPrefs
-}
-
-// UserPrefs returns the UserPreferencesHandler, lazily initialising it
-// if necessary. Use this to set the Fallback or ErrorHandler directly.
+// UserPrefs returns the UserPreferencesHandler. Use this to set the
+// Fallback or ErrorHandler directly.
 func (handler *Handler) UserPrefs() *UserPreferencesHandler {
-	return handler.ensureUserPrefs()
+	return handler.userPrefs
 }
 
 const (
@@ -367,22 +386,6 @@ type (
 )
 
 func (f FlowEventHandlerFunc[T]) Handle(ctx context.Context, req *FlowRequest[T]) error {
-	return f(ctx, req)
-}
-
-type (
-	// EventHandler is the generic interface for handling typed webhook events.
-	// CtxT is the context type carried in the BusinessRequest (e.g.,
-	// BusinessNotificationContext), and T is the typed payload.
-	EventHandler[CtxT any, T any] interface {
-		Handle(ctx context.Context, req *BusinessRequest[T]) error
-	}
-
-	// EventHandlerFunc adapts a bare function to the EventHandler interface.
-	EventHandlerFunc[CtxT any, T any] func(ctx context.Context, req *BusinessRequest[T]) error
-)
-
-func (f EventHandlerFunc[CtxT, T]) Handle(ctx context.Context, req *BusinessRequest[T]) error {
 	return f(ctx, req)
 }
 

@@ -607,12 +607,12 @@ func TestFallback_Messages_SubFallbackFires(t *testing.T) {
 	))
 
 	var subFired bool
-	h.Messages().Fallback = webhooks.FallbackHandlerFunc(
+	h.Messages().OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
 			subFired = true
 			return nil
 		},
-	)
+	))
 
 	resp := h.HandleNotification(context.Background(), messageUnknownTypePayload())
 	if resp.StatusCode != http.StatusOK {
@@ -651,10 +651,6 @@ func TestFallback_Messages_OnFallbackPropagates(t *testing.T) {
 		},
 	))
 
-	if h.Messages().Fallback != nil {
-		t.Fatal("Messages.Fallback should be nil before OnFallback")
-	}
-
 	var fired bool
 	h.OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
@@ -662,10 +658,6 @@ func TestFallback_Messages_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-
-	if h.Messages().Fallback == nil {
-		t.Fatal("OnFallback did not propagate to Messages.Fallback")
-	}
 
 	resp := h.HandleNotification(context.Background(), messageUnknownTypePayload())
 	if resp.StatusCode != http.StatusOK {

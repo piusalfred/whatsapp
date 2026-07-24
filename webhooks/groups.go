@@ -73,19 +73,19 @@ type (
 )
 
 func (handler *Handler) OnGroupLifecycleUpdate(h GroupLifecycleUpdateHandler) {
-	handler.ensureGroups().LifecycleUpdate = h
+	handler.groups.OnLifecycleUpdate(h)
 }
 
 func (handler *Handler) OnGroupParticipantsUpdate(h GroupParticipantsUpdateHandler) {
-	handler.ensureGroups().ParticipantsUpdate = h
+	handler.groups.OnParticipantsUpdate(h)
 }
 
 func (handler *Handler) OnGroupSettingsUpdate(h GroupSettingsUpdateHandler) {
-	handler.ensureGroups().SettingsUpdate = h
+	handler.groups.OnSettingsUpdate(h)
 }
 
 func (handler *Handler) OnGroupStatusUpdate(h GroupStatusUpdateHandler) {
-	handler.ensureGroups().StatusUpdate = h
+	handler.groups.OnStatusUpdate(h)
 }
 
 // GroupManagementHandler groups all group webhook field handlers into a single
@@ -106,49 +106,73 @@ func (handler *Handler) OnGroupStatusUpdate(h GroupStatusUpdateHandler) {
 //	gh.OnLifecycleUpdate(myLifecycleHandler)
 //	gh.OnParticipantsUpdate(myParticipantsHandler)
 type GroupManagementHandler struct {
-	LifecycleUpdate    ChangeValueHandler[Group]
-	ParticipantsUpdate ChangeValueHandler[Group]
-	SettingsUpdate     ChangeValueHandler[Group]
-	StatusUpdate       ChangeValueHandler[Group]
+	lifecycleUpdate    ChangeValueHandler[Group]
+	participantsUpdate ChangeValueHandler[Group]
+	settingsUpdate     ChangeValueHandler[Group]
+	statusUpdate       ChangeValueHandler[Group]
 
-	Fallback     FallbackHandler
-	ErrorHandler ErrorHandler
+	fallback     FallbackHandler
+	errorHandler ErrorHandler
+}
+
+// OnError sets the error handler for this domain handler. When nil, errors
+// bubble up to the general error handler configured on [Handler].
+func (gh *GroupManagementHandler) OnError(h ErrorHandler) {
+	gh.errorHandler = h
 }
 
 // OnLifecycleUpdate sets the handler for group_lifecycle_update webhooks
 // (group creation and deletion, with success and failure variants).
 func (gh *GroupManagementHandler) OnLifecycleUpdate(h ChangeValueHandler[Group]) {
-	gh.LifecycleUpdate = h
+	gh.lifecycleUpdate = h
 }
 
 // OnParticipantsUpdate sets the handler for group_participants_update webhooks
 // (participants joining via invite, requesting to join, cancelling requests,
 // join request approval, participant removal, and participant departures).
 func (gh *GroupManagementHandler) OnParticipantsUpdate(h ChangeValueHandler[Group]) {
-	gh.ParticipantsUpdate = h
+	gh.participantsUpdate = h
 }
 
 // OnSettingsUpdate sets the handler for group_settings_update webhooks
 // (group subject, description, and profile picture changes with per-field
 // success/failure reporting).
 func (gh *GroupManagementHandler) OnSettingsUpdate(h ChangeValueHandler[Group]) {
-	gh.SettingsUpdate = h
+	gh.settingsUpdate = h
 }
 
 // OnStatusUpdate sets the handler for group_status_update webhooks
 // (group suspension and suspension clearance).
 func (gh *GroupManagementHandler) OnStatusUpdate(h ChangeValueHandler[Group]) {
-	gh.StatusUpdate = h
+	gh.statusUpdate = h
 }
 
 // OnFallback sets the catch-all handler for group events without a dedicated
 // sub-category handler. When nil, the general [Handler] fallback is tried.
 func (gh *GroupManagementHandler) OnFallback(h FallbackHandler) {
-	gh.Fallback = h
+	gh.fallback = h
 }
 
-// IsGroupManagementWebhook reports whether field is one of the four group
-// management webhook fields (lifecycle, participants, settings, status).
+// IsEventHandlerImplemented reports whether a handler is registered for the
+// group event carried by this NotificationEvent. It checks the event field
+// against the four group management fields and returns true when the matching
+// sub-handler is non-nil.
+func (gh *GroupManagementHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+	switch event.Field {
+	case ChangeFieldGroupLifecycleUpdate.String():
+		return gh.lifecycleUpdate != nil
+	case ChangeFieldGroupParticipantsUpdate.String():
+		return gh.participantsUpdate != nil
+	case ChangeFieldGroupSettingsUpdate.String():
+		return gh.settingsUpdate != nil
+	case ChangeFieldGroupStatusUpdate.String():
+		return gh.statusUpdate != nil
+	}
+	return false
+}
+
+var _ EventHandler = (*GroupManagementHandler)(nil)
+
 func (f ChangeField) IsGroupManagementWebhook() bool {
 	switch f {
 	case ChangeFieldGroupLifecycleUpdate,
@@ -161,26 +185,26 @@ func (f ChangeField) IsGroupManagementWebhook() bool {
 	}
 }
 
-// handleError routes an error through the GroupManagementHandler's ErrorHandler.
-// When ErrorHandler is nil, the error is returned as-is (passthrough).
-func (gh *GroupManagementHandler) handleError(ctx context.Context, err error) error {
-	return handleSubHandlerError(ctx, gh.ErrorHandler, err)
+// HandleError routes an error through the GroupManagementHandler's ErrorHandler.
+// When the dedicated error handler is nil, the error is returned as-is.
+func (gh *GroupManagementHandler) HandleError(ctx context.Context, err error) error {
+	return execErrorHandler(ctx, gh.errorHandler, err)
 }
 
-// executeFallback routes an unhandled group event through the Fallback
-// catch-all. Returns nil when Fallback is nil (silent skip).
-func (gh *GroupManagementHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
-	if gh.Fallback == nil {
+// Fallback routes an unhandled group event through the Fallback
+// catch-all. Returns nil when no fallback handler is set (silent skip).
+func (gh *GroupManagementHandler) Fallback(ctx context.Context, event NotificationEvent) error {
+	if gh.fallback == nil {
 		return nil
 	}
-	if err := gh.Fallback.Handle(ctx, event); err != nil {
+	if err := gh.fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("group fallback: %w", err)
 	}
 	return nil
 }
 
 // Handle dispatches the group notification to the correct handler based on
-// event.Field. Nil handlers route to Fallback if set, otherwise silently
+// event.Field. Nil handlers return [ErrEventNotHandled], signalling the silently
 // skip (HTTP 200).
 func (gh *GroupManagementHandler) Handle(
 	ctx context.Context,
@@ -197,50 +221,50 @@ func (gh *GroupManagementHandler) Handle(
 
 	switch event.Field {
 	case ChangeFieldGroupLifecycleUpdate.String():
-		if gh.LifecycleUpdate == nil {
-			return gh.executeFallback(ctx, event)
+		if gh.lifecycleUpdate == nil {
+			return ErrEventNotHandled
 		}
-		if err := gh.LifecycleUpdate.Handle(
+		if err := gh.lifecycleUpdate.Handle(
 			ctx,
 			&ChangeValueRequest[Group]{Notification: nctx, Payload: event.Value.Groups},
 		); err != nil {
-			return gh.handleError(ctx, fmt.Errorf("group lifecycle update: %w", err))
+			return gh.HandleError(ctx, fmt.Errorf("group lifecycle update: %w", err))
 		}
 		return nil
 
 	case ChangeFieldGroupParticipantsUpdate.String():
-		if gh.ParticipantsUpdate == nil {
-			return gh.executeFallback(ctx, event)
+		if gh.participantsUpdate == nil {
+			return ErrEventNotHandled
 		}
-		if err := gh.ParticipantsUpdate.Handle(
+		if err := gh.participantsUpdate.Handle(
 			ctx,
 			&ChangeValueRequest[Group]{Notification: nctx, Payload: event.Value.Groups},
 		); err != nil {
-			return gh.handleError(ctx, fmt.Errorf("group participants update: %w", err))
+			return gh.HandleError(ctx, fmt.Errorf("group participants update: %w", err))
 		}
 		return nil
 
 	case ChangeFieldGroupSettingsUpdate.String():
-		if gh.SettingsUpdate == nil {
-			return gh.executeFallback(ctx, event)
+		if gh.settingsUpdate == nil {
+			return ErrEventNotHandled
 		}
-		if err := gh.SettingsUpdate.Handle(
+		if err := gh.settingsUpdate.Handle(
 			ctx,
 			&ChangeValueRequest[Group]{Notification: nctx, Payload: event.Value.Groups},
 		); err != nil {
-			return gh.handleError(ctx, fmt.Errorf("group settings update: %w", err))
+			return gh.HandleError(ctx, fmt.Errorf("group settings update: %w", err))
 		}
 		return nil
 
 	case ChangeFieldGroupStatusUpdate.String():
-		if gh.StatusUpdate == nil {
-			return gh.executeFallback(ctx, event)
+		if gh.statusUpdate == nil {
+			return ErrEventNotHandled
 		}
-		if err := gh.StatusUpdate.Handle(
+		if err := gh.statusUpdate.Handle(
 			ctx,
 			&ChangeValueRequest[Group]{Notification: nctx, Payload: event.Value.Groups},
 		); err != nil {
-			return gh.handleError(ctx, fmt.Errorf("group status update: %w", err))
+			return gh.HandleError(ctx, fmt.Errorf("group status update: %w", err))
 		}
 		return nil
 	}

@@ -449,7 +449,7 @@ func (bc *BaseClient) doRequest(
 	req := whttp.BuildRequest(b, body)
 
 	resp := &BaseResponse{}
-	decoder := whttp.ResponseDecoderJSON(resp, decodeOpts)
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(resp, decodeOpts))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("%s: %w", label, err)

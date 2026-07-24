@@ -63,12 +63,12 @@ type (
 	// validates signatures, decodes the notification payload, and delegates
 	// to the wrapped NotificationHandler. Construct via NewListener.
 	Listener struct {
-		middlewares     []Middleware
-		originalHandler NotificationHandler
-		handler         NotificationHandler
-		configReader    ConfigReader
-		sigVerifier     SignatureVerifier
-		onError         func(ctx context.Context, r *http.Request, err error)
+		middlewares []Middleware
+		rawHandler  NotificationHandler
+		handler     NotificationHandler
+		config      ConfigReader
+		verifier    SignatureVerifier
+		onError     func(ctx context.Context, r *http.Request, err error)
 	}
 
 	// Config holds the webhook configuration for a single business account.
@@ -131,19 +131,6 @@ type (
 		HandleNotification(ctx context.Context, notification *Notification) *Response
 	}
 
-	// PanicError captures a panic that occurred during webhook handler dispatch.
-	// It is returned through the normal error path so callers can inspect it
-	// with [IsPanicError] instead of having the panic crash the server.
-	//
-	// The Stack field contains the goroutine stack trace at the point of the panic,
-	// captured via [runtime/debug.Stack].
-	PanicError struct {
-		// Value is the argument passed to panic().
-		Value any
-		// Stack is the formatted goroutine stack trace at the panic point.
-		Stack []byte
-	}
-
 	// ParseNotificationOptions controls whether and how incoming payloads are authenticated.
 	ParseNotificationOptions struct {
 		VerifyPayloadSignature bool
@@ -175,11 +162,11 @@ func NewListener(
 	}
 
 	return &Listener{
-		middlewares:     middlewares,
-		originalHandler: handler,
-		handler:         wrapped,
-		configReader:    reader,
-		sigVerifier:     SignatureVerifierFunc(VerifyPayloadSignature),
+		middlewares: middlewares,
+		rawHandler:  handler,
+		handler:     wrapped,
+		config:      reader,
+		verifier:    SignatureVerifierFunc(VerifyPayloadSignature),
 	}
 }
 
@@ -202,7 +189,7 @@ func (ls *Listener) OnError(handler func(ctx context.Context, r *http.Request, e
 // against the request body and app secret. You can provide a custom implementation of the SignatureVerifier
 // interface to change this behavior.
 func (ls *Listener) SetSignatureVerifier(validator SignatureVerifier) {
-	ls.sigVerifier = validator
+	ls.verifier = validator
 }
 
 // HandleSubscriptionVerification responds to WhatsApp's GET handshake. It reads the hub.mode,
@@ -211,12 +198,12 @@ func (ls *Listener) SetSignatureVerifier(validator SignatureVerifier) {
 func (ls *Listener) HandleSubscriptionVerification(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
-	if ls.configReader == nil {
+	if ls.config == nil {
 		ls.respondError(ctx, writer, request, ErrConfigReaderNotConfigured, http.StatusInternalServerError)
 		return
 	}
 
-	config, err := ls.configReader.ReadConfig(request)
+	config, err := ls.config.ReadConfig(request)
 	if err != nil {
 		ls.respondError(ctx, writer, request, err, http.StatusInternalServerError)
 		return
@@ -250,7 +237,7 @@ func (ls *Listener) HandleNotification(writer http.ResponseWriter, request *http
 		ls.respondError(ctx, writer, request, ErrHandlerNotConfigured, http.StatusInternalServerError)
 		return
 	}
-	if ls.configReader == nil {
+	if ls.config == nil {
 		ls.respondError(ctx, writer, request, ErrConfigReaderNotConfigured, http.StatusInternalServerError)
 		return
 	}
@@ -262,7 +249,7 @@ func (ls *Listener) HandleNotification(writer http.ResponseWriter, request *http
 		}
 	}()
 
-	config, err := ls.configReader.ReadConfig(request)
+	config, err := ls.config.ReadConfig(request)
 	if err != nil {
 		ls.respondError(ctx, writer, request, err, http.StatusInternalServerError)
 
@@ -272,7 +259,7 @@ func (ls *Listener) HandleNotification(writer http.ResponseWriter, request *http
 	notification, err := ParseNotification(request, &ParseNotificationOptions{
 		VerifyPayloadSignature: config.ValidatePayload,
 		AppSecret:              config.AppSecret,
-		SignatureVerifier:      ls.sigVerifier,
+		SignatureVerifier:      ls.verifier,
 	})
 	if err != nil {
 		ls.respondError(ctx, writer, request, err, http.StatusBadRequest)
@@ -285,14 +272,8 @@ func (ls *Listener) HandleNotification(writer http.ResponseWriter, request *http
 	writer.WriteHeader(response.StatusCode)
 }
 
-// ParseNotification reads the request body, optionally validates the
-// signature header against the app secret, and decodes the JSON into a
-// Notification. The request body is restored afterward so it can be re-read.
-//
-// This function assumes the Webhooks "Include Values" setting is enabled in
-// the App Dashboard. If values are disabled, changes arrive as
-// "changed_fields" arrays instead of "changes" objects with values, and
-// decoding will produce empty Change.Value fields.
+// ParseNotification reads the request body, optionally validates the signature header against the app secret,
+// and decodes the JSON into a Notification. The request body is restored afterward so it can be re-read.
 func ParseNotification(request *http.Request, options *ParseNotificationOptions) (*Notification, error) {
 	var buff bytes.Buffer
 	_, err := io.Copy(&buff, io.LimitReader(request.Body, MaxPayloadBytes))
@@ -354,7 +335,6 @@ func VerifyPayloadSignature(header http.Header, payload []byte, secret string) e
 }
 
 // ExtractSignatureFromHeader extracts the signature from the HTTP header.
-//
 // The X-Hub-Signature-256 header contains the signature as a SHA256 hash of the payload,
 // prefixed with "sha256=". This function strips that prefix and returns the actual signature.
 //
@@ -403,16 +383,6 @@ func VerifySignature(payload []byte, params VerifySignatureOptions) error {
 	return nil
 }
 
-// IsPanicError checks whether err is a [PanicError] and returns it.
-// Use this to distinguish programmatic bugs (panics in user callbacks)
-// from expected operational errors.
-func IsPanicError(err error) (*PanicError, bool) {
-	if pe, ok := errors.AsType[*PanicError](err); ok {
-		return pe, true
-	}
-	return nil, false
-}
-
 // verifySubscriptionRequest validates the GET query parameters during the initial Webhook connection.
 func verifySubscriptionRequest(request *http.Request, token string) (string, error) {
 	q := request.URL.Query()
@@ -451,9 +421,32 @@ func (fn NotificationHandlerFunc) HandleNotification(ctx context.Context, notifi
 	return fn(ctx, notification)
 }
 
+// PanicError captures a panic that occurred during webhook handler dispatch.
+// It is returned through the normal error path so callers can inspect it
+// with [IsPanicError] instead of having the panic crash the server.
+//
+// The Stack field contains the goroutine stack trace at the point of the panic,
+// captured via [runtime/debug.Stack].
+type PanicError struct {
+	// Value is the argument passed to panic().
+	Value any
+	// Stack is the formatted goroutine stack trace at the panic point.
+	Stack []byte
+}
+
 // Error returns a description of the panic including the original value.
 func (e *PanicError) Error() string {
 	return fmt.Sprintf("handler panic: %v", e.Value)
+}
+
+// IsPanicError checks whether err is a [PanicError] and returns it.
+// Use this to distinguish programmatic bugs (panics in user callbacks)
+// from expected operational errors.
+func IsPanicError(err error) (*PanicError, bool) {
+	if pe, ok := errors.AsType[*PanicError](err); ok {
+		return pe, true
+	}
+	return nil, false
 }
 
 type (

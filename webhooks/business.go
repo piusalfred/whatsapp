@@ -27,14 +27,16 @@ import (
 	"fmt"
 )
 
-// BusinessEventHandler is a shorthand for EventHandler[BusinessNotificationContext, T].
-type (
-	BusinessEventHandler[T any] EventHandler[BusinessNotificationContext, T]
+// BusinessEventHandler is the interface for handling typed business-account
+// webhook events. T is the typed payload.
+type BusinessEventHandler[T any] interface {
+	Handle(ctx context.Context, req *BusinessRequest[T]) error
+}
 
-	// BusinessEventHandlerFunc is a shorthand for EventHandlerFunc[BusinessNotificationContext, T].
-	BusinessEventHandlerFunc[T any] EventHandlerFunc[BusinessNotificationContext, T]
-)
+// BusinessEventHandlerFunc adapts a bare function to the BusinessEventHandler interface.
+type BusinessEventHandlerFunc[T any] func(ctx context.Context, req *BusinessRequest[T]) error
 
+// Handle implements BusinessEventHandler by calling the underlying function.
 func (f BusinessEventHandlerFunc[T]) Handle(ctx context.Context, req *BusinessRequest[T]) error {
 	return f(ctx, req)
 }
@@ -254,8 +256,8 @@ type (
 // BusinessNotificationHandler groups all per-field-type handlers for business
 // account webhooks (alerts, templates, phone numbers, calls, security).
 //
-// Each exported field accepts a BusinessEventHandler[T] for one WhatsApp
-// business notification field type. Leave a field nil to silently skip that
+// Each field accepts a BusinessEventHandler[T] for one WhatsApp
+// business notification field type. Leave a handler nil to silently skip that
 // notification type (HTTP 200).
 //
 // Usage:
@@ -263,117 +265,123 @@ type (
 //	bh := &BusinessNotificationHandler{}
 //	bh.OnAlerts(myAlertHandler)
 type BusinessNotificationHandler struct {
-	Alerts             BusinessEventHandler[AlertNotification]
-	TemplateStatus     BusinessEventHandler[TemplateStatusUpdateNotification]
-	TemplateCategory   BusinessEventHandler[TemplateCategoryUpdateNotification]
-	TemplateQuality    BusinessEventHandler[TemplateQualityUpdateNotification]
-	TemplateComponents BusinessEventHandler[TemplateComponentsUpdateNotification]
-	PhoneNumberName    BusinessEventHandler[PhoneNumberNameUpdate]
-	PhoneNumberQuality BusinessEventHandler[PhoneNumberQualityUpdate]
-	AccountReview      BusinessEventHandler[AccountReviewUpdate]
-	Account            BusinessEventHandler[AccountUpdate]
-	Capability         BusinessEventHandler[CapabilityUpdate]
-	PhoneSettings      BusinessEventHandler[PhoneNumberSettings]
-	Calls              BusinessEventHandler[CallStatusUpdate]
-	Security           BusinessEventHandler[SecurityNotification]
-	Fallback           FallbackHandler
-	ErrorHandler       ErrorHandler
+	alerts             BusinessEventHandler[AlertNotification]
+	templateStatus     BusinessEventHandler[TemplateStatusUpdateNotification]
+	templateCategory   BusinessEventHandler[TemplateCategoryUpdateNotification]
+	templateQuality    BusinessEventHandler[TemplateQualityUpdateNotification]
+	templateComponents BusinessEventHandler[TemplateComponentsUpdateNotification]
+	phoneNumberName    BusinessEventHandler[PhoneNumberNameUpdate]
+	phoneNumberQuality BusinessEventHandler[PhoneNumberQualityUpdate]
+	accountReview      BusinessEventHandler[AccountReviewUpdate]
+	account            BusinessEventHandler[AccountUpdate]
+	capability         BusinessEventHandler[CapabilityUpdate]
+	phoneSettings      BusinessEventHandler[PhoneNumberSettings]
+	calls              BusinessEventHandler[CallStatusUpdate]
+	security           BusinessEventHandler[SecurityNotification]
+	fallback           FallbackHandler
+	errorHandler       ErrorHandler
 }
 
 // OnAlerts sets the handler for account_alerts events.
 func (bh *BusinessNotificationHandler) OnAlerts(h BusinessEventHandler[AlertNotification]) {
-	bh.Alerts = h
+	bh.alerts = h
 }
 
 // OnTemplateStatus sets the handler for message_template_status_update events.
 func (bh *BusinessNotificationHandler) OnTemplateStatus(h BusinessEventHandler[TemplateStatusUpdateNotification]) {
-	bh.TemplateStatus = h
+	bh.templateStatus = h
 }
 
 // OnTemplateCategory sets the handler for message_template_category_update events.
 func (bh *BusinessNotificationHandler) OnTemplateCategory(h BusinessEventHandler[TemplateCategoryUpdateNotification]) {
-	bh.TemplateCategory = h
+	bh.templateCategory = h
 }
 
 // OnTemplateQuality sets the handler for message_template_quality_update events.
 func (bh *BusinessNotificationHandler) OnTemplateQuality(h BusinessEventHandler[TemplateQualityUpdateNotification]) {
-	bh.TemplateQuality = h
+	bh.templateQuality = h
 }
 
 // OnTemplateComponents sets the handler for message_template_components_update events.
 func (bh *BusinessNotificationHandler) OnTemplateComponents(
 	h BusinessEventHandler[TemplateComponentsUpdateNotification],
 ) {
-	bh.TemplateComponents = h
+	bh.templateComponents = h
 }
 
 // OnPhoneNumberName sets the handler for phone_number_name_update events.
 func (bh *BusinessNotificationHandler) OnPhoneNumberName(h BusinessEventHandler[PhoneNumberNameUpdate]) {
-	bh.PhoneNumberName = h
+	bh.phoneNumberName = h
 }
 
 // OnPhoneNumberQuality sets the handler for phone_number_quality_update events.
 func (bh *BusinessNotificationHandler) OnPhoneNumberQuality(h BusinessEventHandler[PhoneNumberQualityUpdate]) {
-	bh.PhoneNumberQuality = h
+	bh.phoneNumberQuality = h
 }
 
 // OnAccountReview sets the handler for account_review_update events.
 func (bh *BusinessNotificationHandler) OnAccountReview(h BusinessEventHandler[AccountReviewUpdate]) {
-	bh.AccountReview = h
+	bh.accountReview = h
 }
 
 // OnAccount sets the handler for account_update events.
 func (bh *BusinessNotificationHandler) OnAccount(h BusinessEventHandler[AccountUpdate]) {
-	bh.Account = h
+	bh.account = h
 }
 
 // OnCapability sets the handler for business_capability_update events.
 func (bh *BusinessNotificationHandler) OnCapability(h BusinessEventHandler[CapabilityUpdate]) {
-	bh.Capability = h
+	bh.capability = h
 }
 
 // OnPhoneSettings sets the handler for account_settings_update events.
 func (bh *BusinessNotificationHandler) OnPhoneSettings(h BusinessEventHandler[PhoneNumberSettings]) {
-	bh.PhoneSettings = h
+	bh.phoneSettings = h
 }
 
 // OnCalls sets the handler for calls events.
 func (bh *BusinessNotificationHandler) OnCalls(h BusinessEventHandler[CallStatusUpdate]) {
-	bh.Calls = h
+	bh.calls = h
 }
 
 // OnSecurity sets the handler for security events.
 func (bh *BusinessNotificationHandler) OnSecurity(h BusinessEventHandler[SecurityNotification]) {
-	bh.Security = h
+	bh.security = h
 }
 
 // OnFallback sets the catch-all handler for business events without a dedicated
 // sub-category handler.
 func (bh *BusinessNotificationHandler) OnFallback(h FallbackHandler) {
-	bh.Fallback = h
+	bh.fallback = h
 }
 
-// handleError routes an error through the BusinessNotificationHandler's ErrorHandler.
-// When ErrorHandler is nil, the error is returned as-is (passthrough).
-func (bh *BusinessNotificationHandler) handleError(ctx context.Context, err error) error {
-	return handleSubHandlerError(ctx, bh.ErrorHandler, err)
+// OnError sets the error handler for this domain handler. When nil, errors
+// bubble up to the general error handler configured on [Handler].
+func (bh *BusinessNotificationHandler) OnError(h ErrorHandler) {
+	bh.errorHandler = h
 }
 
-// executeFallback routes an unhandled business event through the Fallback
-// catch-all. Returns nil when Fallback is nil (silent skip).
-func (bh *BusinessNotificationHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
-	if bh.Fallback == nil {
+// HandleError routes an error through the BusinessNotificationHandler's ErrorHandler.
+// When the dedicated error handler is nil, the error is returned as-is.
+func (bh *BusinessNotificationHandler) HandleError(ctx context.Context, err error) error {
+	return execErrorHandler(ctx, bh.errorHandler, err)
+}
+
+// Fallback routes an unhandled business event through the Fallback
+// catch-all. Returns nil when no fallback handler is set (silent skip).
+func (bh *BusinessNotificationHandler) Fallback(ctx context.Context, event NotificationEvent) error {
+	if bh.fallback == nil {
 		return nil
 	}
-	if err := bh.Fallback.Handle(ctx, event); err != nil {
+	if err := bh.fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("business fallback: %w", err)
 	}
 	return nil
 }
 
 // Handle dispatches the business notification change to the correct handler
-// based on event.Field. Nil handlers route to Fallback if set, otherwise
-// silently skip.
+// based on event.Field. Nil handlers return [ErrEventNotHandled], signalling
+// the caller (typically [HandleEvent]) to invoke the [Fallback] method.
 //
 //nolint:funlen,gocognit,gocyclo,cyclop // dispatch switch
 func (bh *BusinessNotificationHandler) Handle(
@@ -389,48 +397,48 @@ func (bh *BusinessNotificationHandler) Handle(
 
 	switch event.Field {
 	case ChangeFieldAccountAlerts.String():
-		if bh.Alerts != nil {
+		if bh.alerts != nil {
 			req := &BusinessRequest[AlertNotification]{Context: nctx, Payload: event.Value.AlertNotification()}
-			if err := bh.Alerts.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business alerts: %w", err))
+			if err := bh.alerts.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business alerts: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldTemplateStatusUpdate.String():
-		if bh.TemplateStatus != nil {
+		if bh.templateStatus != nil {
 			req := &BusinessRequest[TemplateStatusUpdateNotification]{
 				Context: nctx,
 				Payload: event.Value.TemplateStatusUpdate(),
 			}
-			if err := bh.TemplateStatus.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business template status: %w", err))
+			if err := bh.templateStatus.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business template status: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldTemplateCategoryUpdate.String():
-		if bh.TemplateCategory != nil {
+		if bh.templateCategory != nil {
 			req := &BusinessRequest[TemplateCategoryUpdateNotification]{
 				Context: nctx,
 				Payload: event.Value.TemplateCategoryUpdate(),
 			}
-			if err := bh.TemplateCategory.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business template category: %w", err))
+			if err := bh.templateCategory.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business template category: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldTemplateQualityUpdate.String():
-		if bh.TemplateQuality != nil {
+		if bh.templateQuality != nil {
 			req := &BusinessRequest[TemplateQualityUpdateNotification]{
 				Context: nctx,
 				Payload: event.Value.TemplateQualityUpdate(),
 			}
-			if err := bh.TemplateQuality.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business template quality: %w", err))
+			if err := bh.templateQuality.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business template quality: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldTemplateComponentsUpdate.String():
-		if bh.TemplateComponents != nil {
+		if bh.templateComponents != nil {
 			data := &TemplateComponentsUpdateNotification{
 				MessageTemplateID:       event.Value.MessageTemplateID,
 				MessageTemplateName:     event.Value.MessageTemplateName,
@@ -441,78 +449,78 @@ func (bh *BusinessNotificationHandler) Handle(
 				Buttons:                 event.Value.MessageTemplateButtons,
 			}
 			req := &BusinessRequest[TemplateComponentsUpdateNotification]{Context: nctx, Payload: data}
-			if err := bh.TemplateComponents.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business template components: %w", err))
+			if err := bh.templateComponents.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business template components: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldPhoneNumberNameUpdate.String():
-		if bh.PhoneNumberName != nil {
+		if bh.phoneNumberName != nil {
 			req := &BusinessRequest[PhoneNumberNameUpdate]{Context: nctx, Payload: event.Value.PhoneNumberNameUpdate()}
-			if err := bh.PhoneNumberName.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business phone name: %w", err))
+			if err := bh.phoneNumberName.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business phone name: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldPhoneNumberQualityUpdate.String():
-		if bh.PhoneNumberQuality != nil {
+		if bh.phoneNumberQuality != nil {
 			req := &BusinessRequest[PhoneNumberQualityUpdate]{
 				Context: nctx,
 				Payload: event.Value.PhoneNumberQualityUpdate(),
 			}
-			if err := bh.PhoneNumberQuality.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business phone quality: %w", err))
+			if err := bh.phoneNumberQuality.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business phone quality: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldAccountReviewUpdate.String():
-		if bh.AccountReview != nil {
+		if bh.accountReview != nil {
 			req := &BusinessRequest[AccountReviewUpdate]{Context: nctx, Payload: event.Value.AccountReviewUpdate()}
-			if err := bh.AccountReview.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business account review: %w", err))
+			if err := bh.accountReview.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business account review: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldAccountUpdate.String():
-		if bh.Account != nil {
+		if bh.account != nil {
 			req := &BusinessRequest[AccountUpdate]{Context: nctx, Payload: event.Value.AccountUpdate()}
-			if err := bh.Account.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business account: %w", err))
+			if err := bh.account.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business account: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldBusinessCapabilityUpdate.String():
-		if bh.Capability != nil {
+		if bh.capability != nil {
 			req := &BusinessRequest[CapabilityUpdate]{Context: nctx, Payload: event.Value.CapabilityUpdate()}
-			if err := bh.Capability.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business capability: %w", err))
+			if err := bh.capability.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business capability: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldAccountSettingsUpdate.String():
-		if bh.PhoneSettings != nil {
+		if bh.phoneSettings != nil {
 			req := &BusinessRequest[PhoneNumberSettings]{Context: nctx, Payload: event.Value.PhoneNumberSettings}
-			if err := bh.PhoneSettings.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business phone settings: %w", err))
+			if err := bh.phoneSettings.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business phone settings: %w", err))
 			}
 			return nil
 		}
 	case ChangeFieldSecurity.String():
-		if bh.Security != nil {
+		if bh.security != nil {
 			data := &SecurityNotification{
 				Event:              event.Value.Event,
 				DisplayPhoneNumber: event.Value.DisplayPhoneNumber,
 				Requester:          event.Value.Requester,
 			}
 			req := &BusinessRequest[SecurityNotification]{Context: nctx, Payload: data}
-			if err := bh.Security.Handle(ctx, req); err != nil {
-				return bh.handleError(ctx, fmt.Errorf("business security: %w", err))
+			if err := bh.security.Handle(ctx, req); err != nil {
+				return bh.HandleError(ctx, fmt.Errorf("business security: %w", err))
 			}
 			return nil
 		}
 	}
 
-	return bh.executeFallback(ctx, event)
+	return ErrEventNotHandled
 }
 
 func (value *Value) AlertNotification() *AlertNotification {
@@ -599,50 +607,88 @@ func (value *Value) CapabilityUpdate() *CapabilityUpdate {
 	}
 }
 
+// IsEventHandlerImplemented reports whether a handler is registered for the
+// business event carried by this NotificationEvent. It checks event.Field
+// against known business notification fields and returns true when the
+// matching sub-handler is non-nil.
+func (bh *BusinessNotificationHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+	switch event.Field {
+	case ChangeFieldAccountAlerts.String():
+		return bh.alerts != nil
+	case ChangeFieldTemplateStatusUpdate.String():
+		return bh.templateStatus != nil
+	case ChangeFieldTemplateCategoryUpdate.String():
+		return bh.templateCategory != nil
+	case ChangeFieldTemplateQualityUpdate.String():
+		return bh.templateQuality != nil
+	case ChangeFieldTemplateComponentsUpdate.String():
+		return bh.templateComponents != nil
+	case ChangeFieldPhoneNumberNameUpdate.String():
+		return bh.phoneNumberName != nil
+	case ChangeFieldPhoneNumberQualityUpdate.String():
+		return bh.phoneNumberQuality != nil
+	case ChangeFieldAccountReviewUpdate.String():
+		return bh.accountReview != nil
+	case ChangeFieldAccountUpdate.String():
+		return bh.account != nil
+	case ChangeFieldBusinessCapabilityUpdate.String():
+		return bh.capability != nil
+	case ChangeFieldAccountSettingsUpdate.String():
+		return bh.phoneSettings != nil
+	case ChangeFieldCalls.String():
+		return bh.calls != nil
+	case ChangeFieldSecurity.String():
+		return bh.security != nil
+	}
+	return false
+}
+
+var _ EventHandler = (*BusinessNotificationHandler)(nil)
+
 func (handler *Handler) OnBusinessAlertNotification(h AlertsHandler) {
-	handler.ensureBusiness().Alerts = h
+	handler.business.OnAlerts(h)
 }
 
 func (handler *Handler) OnBusinessTemplateStatusUpdate(h TemplateStatusHandler) {
-	handler.ensureBusiness().TemplateStatus = h
+	handler.business.OnTemplateStatus(h)
 }
 
 func (handler *Handler) OnBusinessTemplateCategoryUpdate(h TemplateCategoryHandler) {
-	handler.ensureBusiness().TemplateCategory = h
+	handler.business.OnTemplateCategory(h)
 }
 
 func (handler *Handler) OnBusinessTemplateQualityUpdate(h TemplateQualityHandler) {
-	handler.ensureBusiness().TemplateQuality = h
+	handler.business.OnTemplateQuality(h)
 }
 
 func (handler *Handler) OnTemplateComponentsUpdate(h TemplateComponentsHandler) {
-	handler.ensureBusiness().TemplateComponents = h
+	handler.business.OnTemplateComponents(h)
 }
 
 func (handler *Handler) OnBusinessPhoneNumberNameUpdate(h PhoneNumberNameUpdateHandler) {
-	handler.ensureBusiness().PhoneNumberName = h
+	handler.business.OnPhoneNumberName(h)
 }
 
 func (handler *Handler) OnBusinessPhoneNumberQualityUpdate(h PhoneNumberQualityUpdateHandler) {
-	handler.ensureBusiness().PhoneNumberQuality = h
+	handler.business.OnPhoneNumberQuality(h)
 }
 
 func (handler *Handler) OnBusinessAccountReviewUpdate(h AccountReviewUpdateHandler) {
-	handler.ensureBusiness().AccountReview = h
+	handler.business.OnAccountReview(h)
 }
 
 func (handler *Handler) OnBusinessAccountUpdate(h AccountUpdateHandler) {
-	handler.ensureBusiness().Account = h
+	handler.business.OnAccount(h)
 }
 
 func (handler *Handler) OnPhoneSettingsUpdate(h PhoneSettingsHandler) {
-	handler.ensureBusiness().PhoneSettings = h
+	handler.business.OnPhoneSettings(h)
 }
 
 func (handler *Handler) OnBusinessCapabilityUpdate(h CapabilityUpdateHandler) {
-	handler.ensureBusiness().Capability = h
+	handler.business.OnCapability(h)
 }
 
 func (handler *Handler) OnSecurityUpdate(h SecurityHandler) {
-	handler.ensureBusiness().Security = h
+	handler.business.OnSecurity(h)
 }

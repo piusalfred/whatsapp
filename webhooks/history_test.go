@@ -61,7 +61,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -108,7 +108,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -141,7 +141,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -174,7 +174,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -205,7 +205,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err == nil {
 			t.Error("expected error from Messages handler, got nil")
 		}
@@ -233,7 +233,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err == nil {
 			t.Error("expected error from MediaMessages handler, got nil")
 		}
@@ -259,7 +259,7 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			Value:   &webhooks.Value{},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -281,52 +281,9 @@ func TestHistoryHandler_DedicatedHandlers(t *testing.T) {
 			Value:   &webhooks.Value{},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Errorf("expected nil for empty payload with no fallback, got: %v", err)
-		}
-	})
-}
-
-func TestHistoryHandler_Setters(t *testing.T) {
-	t.Parallel()
-
-	t.Run("OnMessages sets Messages", func(t *testing.T) {
-		t.Parallel()
-		hh := &webhooks.HistoryHandler{}
-		hh.OnMessages(webhooks.ChangeValueHandlerFunc[webhooks.HistoryEntry](
-			func(_ context.Context, _ *webhooks.ChangeValueRequest[webhooks.HistoryEntry]) error {
-				return nil
-			},
-		))
-		if hh.Messages == nil {
-			t.Error("Messages should not be nil after OnMessages")
-		}
-	})
-
-	t.Run("OnMediaMessages sets MediaMessages", func(t *testing.T) {
-		t.Parallel()
-		hh := &webhooks.HistoryHandler{}
-		hh.OnMediaMessages(webhooks.MessageHandlerFunc[webhooks.Message](
-			func(_ context.Context, _ *webhooks.MessageRequest[webhooks.Message]) error {
-				return nil
-			},
-		))
-		if hh.MediaMessages == nil {
-			t.Error("MediaMessages should not be nil after OnMediaMessages")
-		}
-	})
-
-	t.Run("OnFallback sets Fallback", func(t *testing.T) {
-		t.Parallel()
-		hh := &webhooks.HistoryHandler{}
-		hh.OnFallback(webhooks.FallbackHandlerFunc(
-			func(_ context.Context, _ webhooks.NotificationEvent) error {
-				return nil
-			},
-		))
-		if hh.Fallback == nil {
-			t.Error("Fallback should not be nil after OnFallback")
 		}
 	})
 }
@@ -365,7 +322,7 @@ func TestHistoryHandler_DedicatedOverridesFallback(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -408,7 +365,7 @@ func TestHistoryHandler_DedicatedOverridesFallback(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -433,9 +390,9 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 				return errDummy
 			},
 		))
-		hh.ErrorHandler = webhooks.ErrorHandlerFunc(func(_ context.Context, err error) error {
+		hh.OnError(webhooks.ErrorHandlerFunc(func(_ context.Context, err error) error {
 			return nil // non-fatal, continue
-		})
+		}))
 
 		event := webhooks.NotificationEvent{
 			Object:  "whatsapp_business_account",
@@ -449,7 +406,7 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Errorf("expected nil after non-fatal error handler, got: %v", err)
 		}
@@ -464,9 +421,9 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 				return errDummy
 			},
 		))
-		hh.ErrorHandler = webhooks.ErrorHandlerFunc(func(_ context.Context, err error) error {
+		hh.OnError(webhooks.ErrorHandlerFunc(func(_ context.Context, err error) error {
 			return err // fatal, escalate
-		})
+		}))
 
 		event := webhooks.NotificationEvent{
 			Object:  "whatsapp_business_account",
@@ -480,7 +437,7 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err == nil {
 			t.Error("expected error after fatal error handler, got nil")
 		}
@@ -496,10 +453,10 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 				return errDummy
 			},
 		))
-		hh.ErrorHandler = webhooks.ErrorHandlerFunc(func(_ context.Context, _ error) error {
+		hh.OnError(webhooks.ErrorHandlerFunc(func(_ context.Context, _ error) error {
 			onErrorCalled = true
 			return nil
-		})
+		}))
 
 		event := webhooks.NotificationEvent{
 			Object:  "whatsapp_business_account",
@@ -513,7 +470,7 @@ func TestHistoryHandler_ErrorHandler(t *testing.T) {
 			},
 		}
 
-		err := hh.Handle(context.Background(), event)
+		err := webhooks.HandleEvent(context.Background(), hh, event)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -665,7 +622,6 @@ func TestFallback_History_SubFallbackFires(t *testing.T) {
 			return nil
 		},
 	))
-	h.History().Messages = nil
 
 	var subFired bool
 	h.History().OnFallback(webhooks.FallbackHandlerFunc(
@@ -694,7 +650,6 @@ func TestFallback_History_NoSubFallback_Silent200(t *testing.T) {
 			return nil
 		},
 	))
-	h.History().Messages = nil
 
 	resp := h.HandleNotification(context.Background(), historyUnknownPayload())
 	if resp.StatusCode != http.StatusOK {
@@ -712,11 +667,6 @@ func TestFallback_History_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-	h.History().Messages = nil
-
-	if h.History().Fallback != nil {
-		t.Fatal("History.Fallback should be nil before OnFallback")
-	}
 
 	var fired bool
 	h.OnFallback(webhooks.FallbackHandlerFunc(
@@ -725,10 +675,6 @@ func TestFallback_History_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-
-	if h.History().Fallback == nil {
-		t.Fatal("OnFallback did not propagate to History.Fallback")
-	}
 
 	resp := h.HandleNotification(context.Background(), historyUnknownPayload())
 	if resp.StatusCode != http.StatusOK {

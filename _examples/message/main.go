@@ -21,7 +21,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -37,11 +36,9 @@ import (
 
 func main() {
 	ctx := context.Background()
-	telemetry, err := InitTelemetry(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func() { _ = telemetry.Close(context.Background()) }()
+	logger := slog.New(slog.NewTextHandler(os.Stdout,
+		&slog.HandlerOptions{Level: slog.LevelDebug, AddSource: true}),
+	)
 
 	conf := &config.Config{
 		BaseURL:           whatsapp.BaseURL,
@@ -58,19 +55,67 @@ func main() {
 	// Client with OTEL-instrumented transport and sender middleware.
 	client := message.NewClient(conf,
 		whttp.WithSenderHTTPClient(&http.Client{
-			Transport: OTelHTTPTransport(&TransportParams{
-				Propagators:    telemetry.Propagator,
-				MeterProvider:  telemetry.MeterProvider,
-				TracerProvider: telemetry.TraceProvider,
-				ServerName:     "whatsapp-cloud-api-server",
-			}),
+			Transport: &http.Transport{
+				TLSHandshakeTimeout:    0,
+				DisableKeepAlives:      false,
+				DisableCompression:     false,
+				MaxIdleConns:           0,
+				MaxIdleConnsPerHost:    0,
+				MaxConnsPerHost:        0,
+				IdleConnTimeout:        0,
+				ResponseHeaderTimeout:  0,
+				ExpectContinueTimeout:  0,
+				MaxResponseHeaderBytes: 0,
+				WriteBufferSize:        0,
+				ReadBufferSize:         0,
+				ForceAttemptHTTP2:      false,
+			},
 			Timeout: 30 * time.Second,
 		}),
 	)
 
-	client.SetMiddlewares(telemetry.Middleware())
+	mw := whttp.Middleware[message.BaseRequest](
+		func(next whttp.SenderFunc[message.BaseRequest]) whttp.SenderFunc[message.BaseRequest] {
+			fn := whttp.SenderFunc[message.BaseRequest](
+				func(ctx context.Context, request *whttp.Request[message.BaseRequest],
+					decoder whttp.ResponseDecoder,
+				) error {
+					logger.LogAttrs(ctx, slog.LevelDebug, "sending request",
+						slog.String("method", request.Method),
+						slog.Any("message", request.Message),
+						slog.Any("headers", request.Headers),
+					)
+
+					responseCapturer := whttp.NewResponseCapturer(decoder)
+
+					if err := next.Send(ctx, request, responseCapturer); err != nil {
+						logger.LogAttrs(ctx, slog.LevelError, "request failed",
+							slog.String("error", err.Error()),
+						)
+						return err
+					}
+
+					logger.LogAttrs(ctx, slog.LevelDebug, "request sent successfully",
+						slog.Int("status_code", responseCapturer.StatusCode()),
+						slog.Any("response_headers", responseCapturer.Header()),
+						slog.Any("response_body", responseCapturer.Body()),
+					)
+
+					return nil
+				},
+			)
+
+			return fn
+		},
+	)
+
+	client.SetMiddlewares(mw)
 
 	recipient := message.SendTo(os.Getenv("WHATSAPP_CLOUD_API_TEST_NUMBER"))
+	recipient.Metadata(map[string]any{})
+	recipient.RecipientType(message.RecipientTypeIndividual)
+	// recipient.AsGroupMessage()
+	recipient.BizOpaqueCallbackData("test-callback-data")
 
 	tmpl := template.NewInteractiveTemplate(
 		"hello_world",
@@ -79,20 +124,29 @@ func main() {
 	)
 	resp, err := client.SendTemplateMessage(ctx, recipient, tmpl)
 	if err != nil {
-		telemetry.Logger.Error("template message", "error", err)
+		logger.LogAttrs(ctx, slog.LevelError, "template message failed",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
-	telemetry.Logger.Info("template message sent", "id", resp.Messages[0].ID)
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "template message sent",
+		slog.String("id", resp.Messages[0].ID),
+		slog.Any("debug", resp.Debug),
+		slog.Any("debug_headers", resp.DebugHeaders),
+	)
 
 	resp, err = client.SendTextMessage(ctx, recipient, &message.Text{
 		PreviewURL: true,
 		Body:       "Visit the repo at https://github.com/piusalfred/whatsapp",
 	})
 	if err != nil {
-		telemetry.Logger.Error("text message", "error", err)
+		logger.LogAttrs(ctx, slog.LevelError, "text message failed",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
-	telemetry.Logger.InfoContext(ctx, "text message sent",
+	logger.LogAttrs(ctx, slog.LevelInfo, "text message sent",
 		slog.String("id", resp.Messages[0].ID),
 		slog.Any("debug", resp.Debug),
 		slog.Any("debug_headers", resp.DebugHeaders),
@@ -108,21 +162,29 @@ func main() {
 		}),
 	)
 	if err != nil {
-		telemetry.Logger.Error("interactive CTA", "error", err)
+		logger.LogAttrs(ctx, slog.LevelError, "interactive CTA failed",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
-	telemetry.Logger.Info("interactive CTA sent", "id", resp.Messages[0].ID)
+	logger.LogAttrs(ctx, slog.LevelInfo, "interactive CTA sent",
+		slog.String("id", resp.Messages[0].ID),
+	)
 
 	resp, err = client.SendInteractiveMessage(ctx, recipient,
 		interactive.LocationRequest("Where are you?"),
 	)
 	if err != nil {
-		telemetry.Logger.Error("location request", "error", err)
+		logger.LogAttrs(ctx, slog.LevelError, "location request failed",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
-	telemetry.Logger.Info("location request sent", "id", resp.Messages[0].ID)
+	logger.LogAttrs(ctx, slog.LevelInfo, "location request sent",
+		slog.String("id", resp.Messages[0].ID),
+	)
 
 	resp, err = client.SendLocationMessage(ctx, recipient, &message.Location{
 		Longitude: -3.688344,
@@ -131,10 +193,15 @@ func main() {
 		Address:   "Av. de Concha Espina, 1, Chamartín, 28036 Madrid, Spain",
 	})
 	if err != nil {
-		telemetry.Logger.Error("location", "error", err)
+		logger.LogAttrs(ctx, slog.LevelError, "location message failed",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
-	telemetry.Logger.Info("location sent", "id", resp.Messages[0].ID)
+
+	logger.LogAttrs(ctx, slog.LevelInfo, "location sent",
+		slog.String("id", resp.Messages[0].ID),
+	)
 
 	contacts := &message.Contacts{
 		message.NewContact(
@@ -151,18 +218,26 @@ func main() {
 	}
 	resp, err = client.SendContactsMessage(ctx, recipient, contacts)
 	if err != nil {
-		telemetry.Logger.Error("contacts", "error", err)
+		logger.LogAttrs(ctx, slog.LevelError, "contacts message failed",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
-	telemetry.Logger.Info("contacts sent", "id", resp.Messages[0].ID)
+	logger.LogAttrs(ctx, slog.LevelInfo, "contacts message sent",
+		slog.String("id", resp.Messages[0].ID),
+	)
 
 	resp, err = client.SendReactionMessage(ctx, recipient, &message.Reaction{
 		MessageID: resp.Messages[0].ID,
 		Emoji:     "🤝",
 	})
 	if err != nil {
-		telemetry.Logger.Error("reaction", "error", err)
+		logger.LogAttrs(ctx, slog.LevelError, "reaction message failed",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
-	telemetry.Logger.Info("reaction sent", "id", resp.Messages[0].ID)
+	logger.LogAttrs(ctx, slog.LevelInfo, "reaction message sent",
+		slog.String("id", resp.Messages[0].ID),
+	)
 }

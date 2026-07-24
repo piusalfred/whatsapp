@@ -224,7 +224,7 @@ func (bc *BaseClient) TwoStepVerification(
 	decodeOptions := whttp.DecodeOptions{
 		Flags: whttp.JSONDecodeDisallowEmptyResponse | whttp.JSONDecodeInspectResponseError,
 	}
-	decoder := whttp.ResponseDecoderJSON(res, decodeOptions)
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, decodeOptions))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send two step verification code: %w", err)

@@ -654,7 +654,7 @@ func TestDecodeRequestJSON_NilRequest(t *testing.T) {
 func TestDecodeRequestJSON_NilTarget(t *testing.T) {
 	t.Parallel()
 
-	req, _ := http.NewRequest(http.MethodPost, "http://example.com", strings.NewReader(`{"name":"test"}`))
+	req, _ := http.NewRequest(http.MethodPost, "https://example.com", strings.NewReader(`{"name":"test"}`))
 
 	err := whttp.DecodeRequestJSON[TestMessage](req, nil, whttp.DecodeOptions{})
 
@@ -665,7 +665,7 @@ func TestDecodeRequestJSON_NilTarget(t *testing.T) {
 func TestDecodeRequestJSON_EmptyBodyAllowed(t *testing.T) {
 	t.Parallel()
 
-	req, _ := http.NewRequest(http.MethodPost, "http://example.com", strings.NewReader(""))
+	req, _ := http.NewRequest(http.MethodPost, "https://example.com", strings.NewReader(""))
 
 	var result TestMessage
 	err := whttp.DecodeRequestJSON[TestMessage](req, &result, whttp.DecodeOptions{})
@@ -676,7 +676,7 @@ func TestDecodeRequestJSON_EmptyBodyAllowed(t *testing.T) {
 func TestDecodeRequestJSON_WithDisallowUnknownFields(t *testing.T) {
 	t.Parallel()
 
-	req, _ := http.NewRequest(http.MethodPost, "http://example.com",
+	req, _ := http.NewRequest(http.MethodPost, "https://example.com",
 		strings.NewReader(`{"name":"test","value":123,"unknown":"field"}`))
 
 	var result TestMessage
@@ -754,7 +754,7 @@ type mockDecoder struct {
 	called       bool
 }
 
-func (m *mockDecoder) Decode(ctx context.Context, response *http.Response) error {
+func (m *mockDecoder) Decode(_ context.Context, response *http.Response) error {
 	m.called = true
 	if response.Body != nil {
 		// Read the body to verify the capturer properly restored it
@@ -775,7 +775,7 @@ var (
 // errReader simulates a network failure during body reading.
 type errReader struct{}
 
-func (errReader) Read(p []byte) (int, error) {
+func (errReader) Read(_ []byte) (int, error) {
 	return 0, errSimulatedRead
 }
 
@@ -884,14 +884,14 @@ func TestResponseCapturer_Decode(t *testing.T) {
 				return
 			}
 
-			if capturer.StatusCode != tt.wantStatus {
-				t.Errorf("StatusCode = %v, want %v", capturer.StatusCode, tt.wantStatus)
+			if capturer.StatusCode() != tt.wantStatus {
+				t.Errorf("StatusCode = %v, want %v", capturer.StatusCode(), tt.wantStatus)
 			}
-			if !reflect.DeepEqual(capturer.Header, tt.wantHeader) {
-				t.Errorf("Header = %v, want %v", capturer.Header, tt.wantHeader)
+			if !reflect.DeepEqual(capturer.Header(), tt.wantHeader) {
+				t.Errorf("Header = %v, want %v", capturer.Header(), tt.wantHeader)
 			}
-			if !bytes.Equal(capturer.Body, tt.wantBody) {
-				t.Errorf("Body = %q, want %q", capturer.Body, tt.wantBody)
+			if !bytes.Equal(capturer.Body(), tt.wantBody) {
+				t.Errorf("Body = %q, want %q", capturer.Body(), tt.wantBody)
 			}
 
 			if tt.innerDecoder != nil {
@@ -919,20 +919,20 @@ func TestResponseCapturer_Reset(t *testing.T) {
 	}
 	test.AssertNoError(t, "dirtying capturer", capturer.Decode(context.Background(), resp))
 
-	if capturer.Body == nil || capturer.StatusCode == 0 || capturer.Header == nil {
+	if capturer.Body() == nil || capturer.StatusCode() == 0 || capturer.Header() == nil {
 		t.Fatal("expected dirty state before Reset")
 	}
 
 	capturer.Reset()
 
-	if capturer.Body != nil {
-		t.Errorf("Expected Body to be nil after Reset, got %q", capturer.Body)
+	if capturer.Body() != nil {
+		t.Errorf("Expected Body to be nil after Reset, got %q", capturer.Body())
 	}
-	if capturer.StatusCode != 0 {
-		t.Errorf("Expected StatusCode to be 0 after Reset, got %d", capturer.StatusCode)
+	if capturer.StatusCode() != 0 {
+		t.Errorf("Expected StatusCode to be 0 after Reset, got %d", capturer.StatusCode())
 	}
-	if capturer.Header != nil {
-		t.Errorf("Expected Header to be nil after Reset, got %v", capturer.Header)
+	if capturer.Header() != nil {
+		t.Errorf("Expected Header to be nil after Reset, got %v", capturer.Header())
 	}
 
 	resp2 := &http.Response{
@@ -941,11 +941,11 @@ func TestResponseCapturer_Reset(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader("fresh data")),
 	}
 	test.AssertNoError(t, "capturer should still work after Reset", capturer.Decode(context.Background(), resp2))
-	if capturer.StatusCode != http.StatusOK {
-		t.Errorf("StatusCode after reset = %d, want %d", capturer.StatusCode, http.StatusOK)
+	if capturer.StatusCode() != http.StatusOK {
+		t.Errorf("StatusCode after reset = %d, want %d", capturer.StatusCode(), http.StatusOK)
 	}
-	if !bytes.Equal(capturer.Body, []byte("fresh data")) {
-		t.Errorf("Body after reset = %q, want %q", capturer.Body, "fresh data")
+	if !bytes.Equal(capturer.Body(), []byte("fresh data")) {
+		t.Errorf("Body after reset = %q, want %q", capturer.Body(), "fresh data")
 	}
 }
 
@@ -964,7 +964,7 @@ func TestResponseCapturer_HeaderCloning(t *testing.T) {
 
 	resp.Header.Set("X-Test", "mutated")
 
-	if capturedVal := capturer.Header.Get("X-Test"); capturedVal != "original" {
+	if capturedVal := capturer.Header().Get("X-Test"); capturedVal != "original" {
 		t.Errorf("capturer Header was affected by mutation. Got %q, want %q", capturedVal, "original")
 	}
 }

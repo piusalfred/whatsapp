@@ -16,63 +16,73 @@
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 /*
-Package webhooks implements a WhatsApp Cloud API webhook receiver with two
-usage paths: a fine-grained event-driven API built on [Handler], and a
-general-purpose HTTP listener built on [Listener].
+Package webhooks implements a WhatsApp Cloud API webhook receiver.
 
 # Architecture
 
-The package operates at three layers:
+Three layers:
 
-  - [ParseNotification] — reads the HTTP request body, optionally verifies
-    the X-Hub-Signature-256 header, and decodes the JSON into a
-    [Notification] envelope.
+  - [ParseNotification] — reads the HTTP request body, verifies the
+    X-Hub-Signature-256 header, and decodes JSON into a [Notification].
 
-  - [Handler] — routes typed webhook events to your callbacks. It owns the
-    dispatch table and can operate standalone (fine-grained events path) or
-    be wrapped by a [Listener] (general HTTP path).
+  - [Handler] — the central dispatch unit. Owns nine domain handlers
+    (Flows, Business, Messages, Groups, History, Calls,
+    SMBMessageEchoes, SMBAppStateSyncs, UserPreferences) that each
+    implement [EventHandler]. Routes events by change field and
+    delegates to [HandleEvent] for the error/fallback pipeline.
 
-  - [Listener] — HTTP entry point that wires [ParseNotification], signature
-    verification, middleware, and a [Handler] together. It handles both
-    subscription verification (GET) and event notifications (POST).
+  - [Listener] — HTTP entry point that wires [ParseNotification],
+    signature verification, middleware, and a [Handler] together.
+    Handles subscription verification (GET) and event notifications
+    (POST).
+
+# Dispatch Pipeline
+
+Each event flows through:
+
+	dispatchEvent → EventHandler → HandleEvent
+	                      │
+	                      ├─ IsEventHandlerImplemented?
+	                      │    NO  → Fallback()
+	                      │    YES → Handle()
+	                      │           ├─ ErrEventNotHandled → Fallback()
+	                      │           ├─ other error → HandleError()
+	                      │           └─ nil → done
 
 # Choosing a Path
 
-Use the fine-grained events path when you need:
+Use [Handler] directly when you need:
 
-  - Selective, per-event-type async processing
+  - Selective, per-event-type processing
   - Direct control over concurrency and error propagation
   - To feed individual events into a queue or pipeline
   - To bypass middleware and HTTP wiring
 
-Use the general Listener path when you need:
+Use [Listener] when you need:
 
   - Standard HTTP handler integration (net/http, chi, gorilla/mux)
   - Middleware for logging, auth, rate-limiting
   - Signature verification via X-Hub-Signature-256
   - A turn-key solution for subscription verification and event delivery
 
-# Fine-Grained Events Path
+# Handler Path
 
-Register typed callbacks on a [Handler], then call [Handler.HandleNotificationEvents]
-to flatten and concurrently dispatch all events in a notification:
+Register typed callbacks, then call [Handler.HandleNotification]:
 
-	handler := webhooks.NewHandler()
-	handler.OnError(webhooks.ErrorHandlerFunc(func(ctx context.Context, err error) error {
-	    log.Printf("webhook error: %v", err)
-	    return nil // continue processing remaining events
-	}))
+	handler := webhooks.NewHandler(
+	    webhooks.WithMode(webhooks.Parallel), // optional: concurrent dispatch
+	)
 
 	handler.OnTextMessage(webhooks.MessageHandlerFunc[webhooks.Text](
 	    func(ctx context.Context, req *webhooks.MessageRequest[webhooks.Text]) error {
-	        log.Printf("text from %s: %s", req.MessageInfo.From, req.Payload.Body)
+	        log.Printf("text from %s: %s", req.Info.From, req.Payload.Body)
 	        return nil
 	    },
 	))
 
-	handler.OnReactionMessage(webhooks.MessageHandlerFunc[media.Reaction](
-	    func(ctx context.Context, req *webhooks.MessageRequest[media.Reaction]) error {
-	        log.Printf("reaction: %s", req.Payload.Emoji)
+	handler.OnFallback(webhooks.FallbackHandlerFunc(
+	    func(ctx context.Context, ev webhooks.NotificationEvent) error {
+	        log.Printf("unhandled event: %s", ev.Field)
 	        return nil
 	    },
 	))
@@ -87,11 +97,11 @@ to flatten and concurrently dispatch all events in a notification:
 	    return
 	}
 
-	resp := handler.HandleNotificationEvents(r.Context(), notif)
+	resp := handler.HandleNotification(r.Context(), notif)
 	w.WriteHeader(resp.StatusCode)
 
-You can also process individual events selectively by calling
-[Notification.Events] and [Handler.HandleNotificationEvent] directly:
+For selective processing, flatten events with [Notification.Events] and
+dispatch individually with [Handler.HandleNotificationEvent]:
 
 	for _, event := range notif.Events() {
 	    if event.Field == "messages" {
@@ -99,15 +109,44 @@ You can also process individual events selectively by calling
 	    }
 	}
 
-# General Listener Path
+# Dispatch Mode
 
-Wrap a [Handler] in a [Listener] to get HTTP routing, middleware, and
-signature verification:
+[Handler.HandleNotification] supports two dispatch modes controlled via
+[WithMode] (default: [Sequential]):
+
+  - [Sequential] — events are processed one after another. The first
+    handler error stops processing and returns HTTP 500.
+
+  - [Parallel] — events are processed concurrently via an errgroup.
+    All events run independently; a context cancellation returns
+    HTTP 504. Use when event ordering is not important.
+
+# Domain Handlers
+
+Each domain handler implements [EventHandler] and owns typed dispatch:
+
+  - [FlowNotificationHandler] — flow status, client/endpoint errors
+  - [BusinessNotificationHandler] — account alerts, template updates,
+    phone number changes, security, calls
+  - [MessagesHandler] — text, media, interactive, reactions, orders,
+    statuses, notification errors
+  - [GroupManagementHandler] — lifecycle, participants, settings, status
+  - [HistoryHandler] — chat history entries, media content
+  - [CallsHandler] — connect, created, terminate, status
+  - [SMBMessageEchoesHandler] — SMB message echoes
+  - [SMBAppStateSyncsHandler] — SMB app state sync
+  - [UserPreferencesHandler] — marketing message opt-in/out
+
+Each has its own [EventHandler.OnError] and [EventHandler.OnFallback]
+for fine-grained control. Setting them on [Handler] propagates to all
+domain handlers.
+
+# Listener Path
 
 	handler := webhooks.NewHandler()
 	handler.OnTextMessage(webhooks.MessageHandlerFunc[webhooks.Text](
 	    func(ctx context.Context, req *webhooks.MessageRequest[webhooks.Text]) error {
-	        log.Printf("text from %s: %s", req.MessageInfo.From, req.Payload.Body)
+	        log.Printf("text from %s: %s", req.Info.From, req.Payload.Body)
 	        return nil
 	    },
 	))
@@ -122,12 +161,10 @@ signature verification:
 	    },
 	))
 
-	// Attach an error observer (purely observational — cannot change responses).
 	listener.OnError(func(ctx context.Context, r *http.Request, err error) {
 	    log.Printf("listener error: %v", err)
 	})
 
-	// Wire into net/http.
 	http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
 	    switch r.Method {
 	    case http.MethodGet:
@@ -137,8 +174,7 @@ signature verification:
 	    }
 	})
 
-For more complex routing, use [router.WebhookRouter] which supports
-path prefixes, global and route-specific middleware:
+For more complex routing, use [router.WebhookRouter]:
 
 	wr, _ := router.NewWebhookRouter(listener,
 	    router.WithWebhookRouterEndpoints(router.Endpoints{
@@ -146,7 +182,6 @@ path prefixes, global and route-specific middleware:
 	        SubscriptionVerification: "/webhooks",
 	    }),
 	    router.WithWebhookRouterGlobalMiddlewares(loggingMiddleware),
-	    router.WithWebhookRouterWebhookMiddlewares(rateLimitMiddleware),
 	)
 	mux := http.NewServeMux()
 	mux.Handle("/whatsapp/", http.StripPrefix("/whatsapp", wr))
@@ -159,21 +194,45 @@ inside-out: middlewares[0] is the outermost wrapper.
 	authMiddleware := func(next webhooks.NotificationHandler) webhooks.NotificationHandler {
 	    return webhooks.NotificationHandlerFunc(
 	        func(ctx context.Context, n *webhooks.Notification) *webhooks.Response {
-	            // Short-circuit: return early to skip the handler.
 	            if !isAuthorized(ctx) {
 	                return &webhooks.Response{StatusCode: http.StatusForbidden}
 	            }
-	            resp := next.HandleNotification(ctx, n)
-	            // Modify the response after the handler runs.
-	            if resp.StatusCode == http.StatusOK {
-	                log.Printf("processed notification with %d entries", len(n.Entry))
-	            }
-	            return resp
+	            return next.HandleNotification(ctx, n)
 	        },
 	    )
 	}
 
 	listener := webhooks.NewListener(handler, configReader, authMiddleware)
+
+# Error Handling
+
+[EventHandler.HandleError] is called when a typed handler returns an
+error. Return nil to suppress the error and continue processing; return
+a non-nil error to stop processing and trigger an HTTP 500 response
+(which causes WhatsApp to retry).
+
+Set error handlers per-domain or globally:
+
+	handler.OnError(webhooks.ErrorHandlerFunc(func(ctx context.Context, err error) error {
+	    if errors.Is(err, webhooks.ErrInvalidSignature) {
+	        return nil // don't retry
+	    }
+	    return err
+	}))
+
+[Listener.OnError] is purely observational — it receives every error but
+cannot change the HTTP response. Use it for logging, metrics, and
+alerting.
+
+# Panic Recovery
+
+Panics in handler callbacks are caught by [HandleEvent] and wrapped in
+[PanicError] (which includes the goroutine stack trace). Use
+[IsPanicError] to distinguish panics from expected errors:
+
+	if pe, ok := webhooks.IsPanicError(err); ok {
+	    log.Printf("handler panic: %v\n%s", pe.Value, pe.Stack)
+	}
 
 # Signature Verification
 
@@ -181,8 +240,7 @@ The Listener verifies X-Hub-Signature-256 headers using HMAC-SHA256.
 Verification is enabled when [Config.ValidatePayload] is true and
 Config.AppSecret is set.
 
-To customise the verification logic (e.g., constant-time comparison,
-multi-tenant secret lookup), implement [SignatureVerifier] and set it:
+Customise verification by implementing [SignatureVerifier]:
 
 	listener.SetSignatureVerifier(webhooks.SignatureVerifierFunc(
 	    func(header http.Header, payload []byte, secret string) error {
@@ -190,51 +248,11 @@ multi-tenant secret lookup), implement [SignatureVerifier] and set it:
 	    },
 	))
 
-# Error Handling
-
-Handler callbacks and middleware return errors. By default, errors
-propagate through the [ErrorHandler] chain:
-
-  - Return nil to acknowledge success. The error is logged/discarded and
-    processing continues to the next event.
-
-  - Return a non-nil error to signal a fatal failure. The Handler stops
-    processing and returns an error to the Listener, which returns a
-    non-200 status to WhatsApp. WhatsApp retries non-200 responses for up
-    to 7 days with decreasing frequency.
-
-Use [Handler.OnError] to install a custom error handler that can suppress
-non-fatal errors:
-
-	handler.OnError(webhooks.ErrorHandlerFunc(func(ctx context.Context, err error) error {
-	    if errors.Is(err, webhooks.ErrInvalidSignature) {
-	        return nil // don't retry — this payload will never be valid
-	    }
-	    return err // everything else triggers a retry
-	}))
-
-For the Listener level, [Listener.OnError] is purely observational — it
-receives every error but cannot change the HTTP response. Use it for
-logging, metrics, and alerting.
-
-# Panic Recovery
-
-Panics in handler callbacks and middleware are caught at both the
-[Handler] layer (via [Handler.dispatchChange]) and the [Listener]
-layer (via [Listener.HandleNotification]). A panic is wrapped in
-[PanicError] (which includes the goroutine stack trace) and surfaced
-through the error path. Use [IsPanicError] to distinguish panics from
-expected errors:
-
-	if pe, ok := webhooks.IsPanicError(err); ok {
-	    log.Printf("handler panic: %v\n%s", pe.Value, pe.Stack)
-	}
-
 # Context Lifetime
 
 The context passed to webhook callbacks is the HTTP request context. It
-is cancelled after the HTTP response is written. If you need to perform
-background work after acknowledging receipt, use [context.Background]:
+is cancelled after the HTTP response is written. If you need background
+work after acknowledging receipt, use [context.Background]:
 
 	handler.OnTextMessage(webhooks.MessageHandlerFunc[webhooks.Text](
 	    func(ctx context.Context, req *webhooks.MessageRequest[webhooks.Text]) error {
@@ -246,9 +264,9 @@ background work after acknowledging receipt, use [context.Background]:
 # Subscription Verification
 
 WhatsApp sends a GET request with hub.mode, hub.challenge, and
-hub.verify_token. [Listener.HandleSubscriptionVerification] validates the
-token and writes the challenge back. If the token does not match or the
-mode is not "subscribe", it returns HTTP 403.
+hub.verify_token. [Listener.HandleSubscriptionVerification] validates
+the token and writes the challenge back. If the token does not match or
+the mode is not "subscribe", it returns HTTP 403.
 
 # Payload Limits
 

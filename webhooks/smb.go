@@ -72,42 +72,48 @@ func (f SMBMessageEchoHandlerFunc) Handle(ctx context.Context, nctx *MessageNoti
 //	))
 type SMBMessageEchoesHandler struct {
 	// Handler receives every SMB message echo regardless of type. When nil,
-	// echoes fall through to [FallbackHandler].
-	Handler SMBMessageEchoHandler
+	// echoes fall through to the [Fallback] method.
+	handler SMBMessageEchoHandler
 
 	// Fallback is called when Handler is nil or when the Handler returns an
 	// error that the ErrorHandler considers non-fatal. When nil, the event
 	// is silently acknowledged (HTTP 200).
-	Fallback FallbackHandler
+	fallback FallbackHandler
 
 	// ErrorHandler is called when Handler returns an error. When nil, the
 	// error is returned as-is (passthrough).
-	ErrorHandler ErrorHandler
+	errorHandler ErrorHandler
+}
+
+// OnError sets the error handler for this domain handler. When nil, errors
+// bubble up to the general error handler configured on [Handler].
+func (sh *SMBMessageEchoesHandler) OnError(h ErrorHandler) {
+	sh.errorHandler = h
 }
 
 // OnEcho sets the handler for all SMB message echo messages.
 func (sh *SMBMessageEchoesHandler) OnEcho(h SMBMessageEchoHandler) {
-	sh.Handler = h
+	sh.handler = h
 }
 
 // OnFallback sets the catch-all handler for echoes when [Handler] is nil.
 func (sh *SMBMessageEchoesHandler) OnFallback(h FallbackHandler) {
-	sh.Fallback = h
+	sh.fallback = h
 }
 
-// handleError routes an error through the SMBMessageEchoesHandler's
-// ErrorHandler. When ErrorHandler is nil, the error is returned as-is.
-func (sh *SMBMessageEchoesHandler) handleError(ctx context.Context, err error) error {
-	return handleSubHandlerError(ctx, sh.ErrorHandler, err)
+// HandleError routes an error through the SMBMessageEchoesHandler's
+// ErrorHandler. When the dedicated error handler is nil, the error is returned as-is.
+func (sh *SMBMessageEchoesHandler) HandleError(ctx context.Context, err error) error {
+	return execErrorHandler(ctx, sh.errorHandler, err)
 }
 
-// executeFallback routes an unhandled echo through the Fallback catch-all.
-// Returns nil when Fallback is nil (silent skip).
-func (sh *SMBMessageEchoesHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
-	if sh.Fallback == nil {
+// Fallback routes an unhandled echo through the Fallback catch-all.
+// Returns nil when no fallback handler is set (silent skip).
+func (sh *SMBMessageEchoesHandler) Fallback(ctx context.Context, event NotificationEvent) error {
+	if sh.fallback == nil {
 		return nil
 	}
-	if err := sh.Fallback.Handle(ctx, event); err != nil {
+	if err := sh.fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("smb echo fallback: %w", err)
 	}
 	return nil
@@ -117,7 +123,7 @@ func (sh *SMBMessageEchoesHandler) executeFallback(ctx context.Context, event No
 //
 //  1. If [Handler] is set, each message in value.MessageEchoes is passed
 //     to it. Errors are routed through [ErrorHandler].
-//  2. If [Handler] is nil, falls back to [Fallback].
+//  2. If [Handler] is nil, returns [ErrEventNotHandled].
 //  3. If [Fallback] is also nil, the event is silently skipped (HTTP 200).
 func (sh *SMBMessageEchoesHandler) Handle(
 	ctx context.Context,
@@ -128,8 +134,8 @@ func (sh *SMBMessageEchoesHandler) Handle(
 	}
 
 	// No dedicated handler → fallback or silent skip.
-	if sh.Handler == nil {
-		return sh.executeFallback(ctx, event)
+	if sh.handler == nil {
+		return ErrEventNotHandled
 	}
 
 	nctx := &MessageNotificationContext{
@@ -145,19 +151,31 @@ func (sh *SMBMessageEchoesHandler) Handle(
 		if msg == nil {
 			continue
 		}
-		if err := sh.Handler.Handle(ctx, nctx, msg); err != nil {
-			return sh.handleError(ctx, fmt.Errorf("smb message echo: %w", err))
+		if err := sh.handler.Handle(ctx, nctx, msg); err != nil {
+			return sh.HandleError(ctx, fmt.Errorf("smb message echo: %w", err))
 		}
 	}
 
 	return nil
 }
 
+// IsEventHandlerImplemented reports whether a handler is registered for
+// SMB message echoes. Returns true when the handler is non-nil.
+func (sh *SMBMessageEchoesHandler) IsEventHandlerImplemented(_ NotificationEvent) bool {
+	return sh.handler != nil
+}
+
+func (sh *SMBMessageEchoesHandler) OnHandler(h SMBMessageEchoHandler) {
+	sh.handler = h
+}
+
+var _ EventHandler = (*SMBMessageEchoesHandler)(nil)
+
 // OnSMBMessageEcho sets the handler for SMB message echo messages. Each
 // echo message is delivered to the handler regardless of its type (text,
 // image, revoke, edit, etc.).
 func (handler *Handler) OnSMBMessageEcho(h SMBMessageEchoHandler) {
-	handler.ensureSMBEchoes().OnEcho(h)
+	handler.smbEcho.OnEcho(h)
 }
 
 // SMBAppStateSyncHandler is the interface for handling a single SMB app
@@ -198,37 +216,43 @@ func (f SMBAppStateSyncHandlerFunc) Handle(
 //	))
 type SMBAppStateSyncsHandler struct {
 	// Handler receives every state sync entry regardless of action. When nil,
-	// entries fall through to [FallbackHandler].
-	Handler SMBAppStateSyncHandler
+	// entries fall through to the [Fallback] method.
+	handler SMBAppStateSyncHandler
 
 	// Fallback is called when Handler is nil. When nil, the event is silently
 	// acknowledged (HTTP 200).
-	Fallback FallbackHandler
+	fallback FallbackHandler
 
 	// ErrorHandler is called when Handler returns an error. When nil, the
 	// error is returned as-is (passthrough).
-	ErrorHandler ErrorHandler
+	errorHandler ErrorHandler
+}
+
+// OnError sets the error handler for this domain handler. When nil, errors
+// bubble up to the general error handler configured on [Handler].
+func (sh *SMBAppStateSyncsHandler) OnError(h ErrorHandler) {
+	sh.errorHandler = h
 }
 
 // OnSync sets the handler for all SMB app state sync entries.
 func (sh *SMBAppStateSyncsHandler) OnSync(h SMBAppStateSyncHandler) {
-	sh.Handler = h
+	sh.handler = h
 }
 
 // OnFallback sets the catch-all handler for sync entries when [Handler] is nil.
 func (sh *SMBAppStateSyncsHandler) OnFallback(h FallbackHandler) {
-	sh.Fallback = h
+	sh.fallback = h
 }
 
-func (sh *SMBAppStateSyncsHandler) handleError(ctx context.Context, err error) error {
-	return handleSubHandlerError(ctx, sh.ErrorHandler, err)
+func (sh *SMBAppStateSyncsHandler) HandleError(ctx context.Context, err error) error {
+	return execErrorHandler(ctx, sh.errorHandler, err)
 }
 
-func (sh *SMBAppStateSyncsHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
-	if sh.Fallback == nil {
+func (sh *SMBAppStateSyncsHandler) Fallback(ctx context.Context, event NotificationEvent) error {
+	if sh.fallback == nil {
 		return nil
 	}
-	if err := sh.Fallback.Handle(ctx, event); err != nil {
+	if err := sh.fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("smb app state sync fallback: %w", err)
 	}
 	return nil
@@ -238,7 +262,7 @@ func (sh *SMBAppStateSyncsHandler) executeFallback(ctx context.Context, event No
 //
 //  1. If [Handler] is set, each entry in value.StateSync is passed to it.
 //     Errors are routed through [ErrorHandler].
-//  2. If [Handler] is nil, falls back to [Fallback].
+//  2. If [Handler] is nil, returns [ErrEventNotHandled].
 //  3. If [Fallback] is also nil, the event is silently skipped (HTTP 200).
 func (sh *SMBAppStateSyncsHandler) Handle(
 	ctx context.Context,
@@ -248,8 +272,8 @@ func (sh *SMBAppStateSyncsHandler) Handle(
 		return nil
 	}
 
-	if sh.Handler == nil {
-		return sh.executeFallback(ctx, event)
+	if sh.handler == nil {
+		return ErrEventNotHandled
 	}
 
 	nctx := &MessageNotificationContext{
@@ -262,16 +286,28 @@ func (sh *SMBAppStateSyncsHandler) Handle(
 	}
 
 	for i := range event.Value.StateSync {
-		if err := sh.Handler.Handle(ctx, nctx, &event.Value.StateSync[i]); err != nil {
-			return sh.handleError(ctx, fmt.Errorf("smb app state sync: %w", err))
+		if err := sh.handler.Handle(ctx, nctx, &event.Value.StateSync[i]); err != nil {
+			return sh.HandleError(ctx, fmt.Errorf("smb app state sync: %w", err))
 		}
 	}
 
 	return nil
 }
 
+// IsEventHandlerImplemented reports whether a handler is registered for
+// SMB app state syncs. Returns true when the handler is non-nil.
+func (sh *SMBAppStateSyncsHandler) IsEventHandlerImplemented(_ NotificationEvent) bool {
+	return sh.handler != nil
+}
+
+func (sh *SMBAppStateSyncsHandler) OnHandler(h SMBAppStateSyncHandler) {
+	sh.handler = h
+}
+
+var _ EventHandler = (*SMBAppStateSyncsHandler)(nil)
+
 // OnSMBAppStateSync sets the handler for SMB app state sync entries.
 // Each entry (contact add, edit, or remove) is delivered to the handler.
 func (handler *Handler) OnSMBAppStateSync(h SMBAppStateSyncHandler) {
-	handler.ensureSMBAppSync().OnSync(h)
+	handler.smbAppSync.OnSync(h)
 }

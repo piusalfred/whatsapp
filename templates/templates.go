@@ -440,7 +440,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	req := whttp.Build(b, message)
 
 	resp := &BaseResponse{}
-	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive())
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive()))
 
 	if err = bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)

@@ -87,8 +87,8 @@ type (
 // CallsHandler groups all per-event-type handlers for the calls webhook field
 // and a fallback for unhandled events.
 //
-// Each exported field accepts a [CallsEventHandler[T]] for one WhatsApp call
-// event type. Leave a field nil to let it fall through to [FallbackHandler].
+// Each field accepts a [CallsEventHandler[T]] for one WhatsApp call
+// event type. Leave a handler nil to let it fall through to the [Fallback] method.
 //
 // # Concurrency
 //
@@ -105,66 +105,71 @@ type (
 //	ch.OnFallback(myFallback) // catches events without a dedicated handler
 type CallsHandler struct {
 	// Connect handles call connect events (event: "connect"). Payload: [Call].
-	Connect CallsEventHandler[Call]
+	connect CallsEventHandler[Call]
 	// Created handles call created events (event: "call_created"). Payload: [Call].
-	Created CallsEventHandler[Call]
+	created CallsEventHandler[Call]
 	// Terminate handles call terminate events (event: "terminate"). Payload: [Call].
-	Terminate CallsEventHandler[Call]
+	terminate CallsEventHandler[Call]
 	// Status handles call status events (type: "call" in statuses array).
 	// Payload: [Status].
-	Status CallsEventHandler[Status]
+	callsStatus CallsEventHandler[Status]
 
 	// Fallback is called for any call event that does not have a dedicated
 	// handler set — both unknown event types and known types left nil.
 	// When nil, those events are silently acknowledged (HTTP 200) to prevent
 	// WhatsApp from retrying.
-	Fallback FallbackHandler
+	fallback FallbackHandler
 
 	// ErrorHandler is called when a handler returns an error. When nil, the
 	// error is returned as-is (passthrough).
-	ErrorHandler ErrorHandler
+	error ErrorHandler
+}
+
+// OnError sets the error handler for this domain handler. When nil, errors
+// bubble up to the general error handler configured on [Handler].
+func (ch *CallsHandler) OnError(h ErrorHandler) {
+	ch.error = h
 }
 
 // OnCallConnect sets the handler for call connect events (event: "connect").
 func (ch *CallsHandler) OnCallConnect(h CallConnectHandler) {
-	ch.Connect = h
+	ch.connect = h
 }
 
 // OnCallCreated sets the handler for call created events (event: "call_created").
 func (ch *CallsHandler) OnCallCreated(h CallCreatedHandler) {
-	ch.Created = h
+	ch.created = h
 }
 
 // OnCallTerminate sets the handler for call terminate events (event: "terminate").
 func (ch *CallsHandler) OnCallTerminate(h CallTerminateHandler) {
-	ch.Terminate = h
+	ch.terminate = h
 }
 
 // OnCallStatus sets the handler for call status events (type: "call").
 func (ch *CallsHandler) OnCallStatus(h CallStatusHandler) {
-	ch.Status = h
+	ch.callsStatus = h
 }
 
 // OnFallback sets the catch-all handler for call events without a dedicated
 // handler — covers unknown event types and known types left nil.
-// Equivalent to assigning [FallbackHandler] directly.
 func (ch *CallsHandler) OnFallback(h FallbackHandler) {
-	ch.Fallback = h
+	ch.fallback = h
 }
 
-// handleError routes an error through the CallsHandler's ErrorHandler.
-// When ErrorHandler is nil, the error is returned as-is (passthrough).
-func (ch *CallsHandler) handleError(ctx context.Context, err error) error {
-	return handleSubHandlerError(ctx, ch.ErrorHandler, err)
+// HandleError routes an error through the CallsHandler's ErrorHandler.
+// When the dedicated error handler is nil, the error is returned as-is.
+func (ch *CallsHandler) HandleError(ctx context.Context, err error) error {
+	return execErrorHandler(ctx, ch.error, err)
 }
 
-// executeFallback routes an unhandled call event through the Fallback
-// catch-all. Returns nil when Fallback is nil (silent skip).
-func (ch *CallsHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
-	if ch.Fallback == nil {
+// Fallback routes an unhandled call event through the Fallback
+// catch-all. Returns nil when no fallback handler is set (silent skip).
+func (ch *CallsHandler) Fallback(ctx context.Context, event NotificationEvent) error {
+	if ch.fallback == nil {
 		return nil
 	}
-	if err := ch.Fallback.Handle(ctx, event); err != nil {
+	if err := ch.fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("calls fallback: %w", err)
 	}
 	return nil
@@ -173,11 +178,10 @@ func (ch *CallsHandler) executeFallback(ctx context.Context, event NotificationE
 // Handle dispatches the calls webhook value to the correct event handler.
 //
 // Dispatch order:
-//  1. If value.Statuses contains items with type "call", dispatch to Status handler.
-//  2. If value.Calls contains items, dispatch each by event type:
+//  1. If Value.Statuses contains items with type "call", dispatch to Status handler.
+//  2. If Value.Calls contains items, dispatch each by event type:
 //     "connect" → Connect, "call_created" → Created, "terminate" → Terminate.
-//  3. Unhandled events or nil handlers fall through to [FallbackHandler].
-//  4. If [FallbackHandler] is also nil, the event is silently skipped (HTTP 200).
+//  3. Unhandled events or nil handlers return [ErrEventNotHandled], signalling
 //
 //nolint:gocognit // dispatch switch
 func (ch *CallsHandler) Handle(
@@ -204,18 +208,18 @@ func (ch *CallsHandler) Handle(
 		if status == nil || status.Type != "call" {
 			continue
 		}
-		if ch.Status != nil {
+		if ch.callsStatus != nil {
 			req := &CallRequest[Status]{
 				Context: nctx,
 				Payload: status,
 			}
-			if err := ch.Status.Handle(ctx, req); err != nil {
-				return ch.handleError(ctx, fmt.Errorf("calls status: %w", err))
+			if err := ch.callsStatus.Handle(ctx, req); err != nil {
+				return ch.HandleError(ctx, fmt.Errorf("calls status: %w", err))
 			}
 			return nil
 		}
 		// No dedicated status handler → fallback.
-		return ch.executeFallback(ctx, event)
+		return ErrEventNotHandled
 	}
 
 	// Phase 2: Dispatch call events from the calls array.
@@ -225,41 +229,41 @@ func (ch *CallsHandler) Handle(
 		}
 		switch call.Event {
 		case "connect":
-			if ch.Connect != nil {
+			if ch.connect != nil {
 				req := &CallRequest[Call]{
 					Context: nctx,
 					Payload: call,
 				}
-				if err := ch.Connect.Handle(ctx, req); err != nil {
-					return ch.handleError(ctx, fmt.Errorf("calls connect: %w", err))
+				if err := ch.connect.Handle(ctx, req); err != nil {
+					return ch.HandleError(ctx, fmt.Errorf("calls connect: %w", err))
 				}
 				continue
 			}
 		case "call_created":
-			if ch.Created != nil {
+			if ch.created != nil {
 				req := &CallRequest[Call]{
 					Context: nctx,
 					Payload: call,
 				}
-				if err := ch.Created.Handle(ctx, req); err != nil {
-					return ch.handleError(ctx, fmt.Errorf("calls created: %w", err))
+				if err := ch.created.Handle(ctx, req); err != nil {
+					return ch.HandleError(ctx, fmt.Errorf("calls created: %w", err))
 				}
 				continue
 			}
 		case "terminate":
-			if ch.Terminate != nil {
+			if ch.terminate != nil {
 				req := &CallRequest[Call]{
 					Context: nctx,
 					Payload: call,
 				}
-				if err := ch.Terminate.Handle(ctx, req); err != nil {
-					return ch.handleError(ctx, fmt.Errorf("calls terminate: %w", err))
+				if err := ch.terminate.Handle(ctx, req); err != nil {
+					return ch.HandleError(ctx, fmt.Errorf("calls terminate: %w", err))
 				}
 				continue
 			}
 		}
 		// Unknown event type or nil handler → fallback for this call.
-		return ch.executeFallback(ctx, event)
+		return ErrEventNotHandled
 	}
 
 	return nil
@@ -318,24 +322,55 @@ func (value *Value) CallStatusUpdate() *CallStatusUpdate {
 	}
 }
 
+// IsEventHandlerImplemented reports whether a handler is registered for the
+// call event carried by this NotificationEvent. It checks value.Statuses for
+// call-type statuses and value.Calls for connect/created/terminate events,
+// returning true when the matching sub-handler is non-nil.
+func (ch *CallsHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+	if event.Value == nil {
+		return false
+	}
+	for _, status := range event.Value.Statuses {
+		if status != nil && status.Type == "call" {
+			return ch.callsStatus != nil
+		}
+	}
+	for _, call := range event.Value.Calls {
+		if call == nil {
+			continue
+		}
+		switch call.Event {
+		case "connect":
+			return ch.connect != nil
+		case "call_created":
+			return ch.created != nil
+		case "terminate":
+			return ch.terminate != nil
+		}
+	}
+	return false
+}
+
+var _ EventHandler = (*CallsHandler)(nil)
+
 // OnCallConnect registers a handler for call connect events.
 func (handler *Handler) OnCallConnect(h CallConnectHandler) {
-	handler.ensureCalls().OnCallConnect(h)
+	handler.calls.OnCallConnect(h)
 }
 
 // OnCallCreated registers a handler for call created events.
 func (handler *Handler) OnCallCreated(h CallCreatedHandler) {
-	handler.ensureCalls().OnCallCreated(h)
+	handler.calls.OnCallCreated(h)
 }
 
 // OnCallTerminate registers a handler for call terminate events.
 func (handler *Handler) OnCallTerminate(h CallTerminateHandler) {
-	handler.ensureCalls().OnCallTerminate(h)
+	handler.calls.OnCallTerminate(h)
 }
 
 // OnCallStatus registers a handler for call status events (type "call").
 func (handler *Handler) OnCallStatus(h CallStatusHandler) {
-	handler.ensureCalls().OnCallStatus(h)
+	handler.calls.OnCallStatus(h)
 }
 
 // CallPermissionReply represents a WhatsApp user's response to a call
@@ -357,5 +392,5 @@ type CallPermissionReply struct {
 // business notification path. This is the legacy registration point;
 // prefer [Handler.OnCallStatus] for the dedicated calls handler.
 func (handler *Handler) OnCallStatusUpdate(h BusinessCallsHandler) {
-	handler.ensureBusiness().Calls = h
+	handler.business.OnCalls(h)
 }

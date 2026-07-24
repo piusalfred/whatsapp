@@ -44,7 +44,7 @@ const (
 		JSONDecodeDisallowEmptyResponse |
 		JSONDecodeInspectResponseError
 
-		// JSONDecodePermissive only inspects response errors.
+	// JSONDecodePermissive only inspects response errors.
 	JSONDecodePermissive JSONDecodeFlag = JSONDecodeInspectResponseError
 )
 
@@ -213,6 +213,10 @@ func (decoder ResponseDecoderFunc) Decode(ctx context.Context, response *http.Re
 	return decoder(ctx, response)
 }
 
+func (decoder ResponseDecoderFunc) DumpResponse() ResponseDump {
+	return ResponseDump{}
+}
+
 func ResponseDecoderJSON[T any](v *T, options DecodeOptions) ResponseDecoderFunc {
 	fn := ResponseDecoderFunc(func(_ context.Context, response *http.Response) error {
 		if err := DecodeResponseJSON(response, v, options); err != nil {
@@ -244,43 +248,75 @@ func BodyReaderResponseDecoder(fn ResponseBodyReaderFunc) ResponseDecoderFunc {
 	}
 }
 
+const DefaultRequestMaxBodyBytes = 30 << 20 // 30 MB
+
 // ResponseCapturer wraps a ResponseDecoder and retains a copy of the response
 // body, status code, and headers so callers can inspect the raw HTTP response
 // after decoding completes.
 type ResponseCapturer struct {
-	inner      ResponseDecoder
-	Body       []byte
-	StatusCode int
-	Header     http.Header
+	inner        ResponseDecoder
+	body         []byte
+	statusCode   int
+	header       http.Header
+	MaxBodyBytes int64 // 0 implies DefaultMaxBodyBytes configuration
 }
 
 // NewResponseCapturer returns a ResponseCapturer that delegates to inner after
 // capturing the response details.
 func NewResponseCapturer(inner ResponseDecoder) *ResponseCapturer {
-	return &ResponseCapturer{inner: inner}
+	return &ResponseCapturer{
+		inner:        inner,
+		MaxBodyBytes: DefaultRequestMaxBodyBytes,
+	}
 }
 
-// Decode captures status code, headers, and a copy of the body, then delegates
-// to the inner decoder. The response body is restored so the inner decoder sees
-// the original content.
+// StatusCode returns the captured HTTP status code. It is only valid if Decode
+// has executed successfully or encountered a non-transport level parsing error.
+func (c *ResponseCapturer) StatusCode() int {
+	return c.statusCode
+}
+
+// Header returns a copy of the captured HTTP headers.
+func (c *ResponseCapturer) Header() http.Header {
+	return c.header
+}
+
+// Body returns a copy of the captured response body bytes.
+func (c *ResponseCapturer) Body() []byte {
+	return c.body
+}
+
+// Decode captures status code, headers, and a copy of the body up to MaxBodyBytes,
+// then delegates to the inner decoder. The response body is restored so downstream
+// components see the original content.
 func (c *ResponseCapturer) Decode(ctx context.Context, response *http.Response) error {
-	c.StatusCode = response.StatusCode
-	c.Header = response.Header.Clone()
+	if response == nil {
+		return fmt.Errorf("response capturer: %w", ErrNilResponse)
+	}
+
+	c.statusCode = response.StatusCode
+	c.header = response.Header.Clone()
 
 	if response.Body != nil {
-		body, err := io.ReadAll(response.Body)
-		// Close the original response body after reading it to allow HTTP
-		// connection reuse. The original body is backed by the TCP connection;
-		// failing to close it prevents the transport from returning the
-		// connection to the idle pool.
-		closeErr := response.Body.Close()
-		if err != nil {
-			return fmt.Errorf("capture response body: %w", err)
+		limit := c.MaxBodyBytes
+		if limit <= 0 {
+			limit = DefaultMaxBodyBytes
 		}
-		if closeErr != nil {
-			return fmt.Errorf("close original response body: %w", closeErr)
+
+		limitedReader := io.LimitReader(response.Body, limit+1)
+		body, readErr := io.ReadAll(limitedReader)
+		if readErr != nil {
+			return fmt.Errorf("capture response body: %w", readErr)
 		}
-		c.Body = body
+
+		if int64(len(body)) > limit {
+			_ = response.Body.Close()
+			return fmt.Errorf("%w: max allocated bytes: %d", ErrBodyTooLarge, limit)
+		}
+
+		_ = response.Body.Close()
+
+		c.body = body
 		response.Body = io.NopCloser(bytes.NewReader(body))
 	}
 
@@ -293,9 +329,41 @@ func (c *ResponseCapturer) Decode(ctx context.Context, response *http.Response) 
 	return nil
 }
 
-// Reset clears captured data so the capturer can be reused.
+// Reset clears captured data so the capturer can be cleanly reused across pools.
 func (c *ResponseCapturer) Reset() {
-	c.Body = nil
-	c.StatusCode = 0
-	c.Header = nil
+	c.body = nil
+	c.statusCode = 0
+	c.header = nil
+}
+
+// ResponseDump holds the raw HTTP response metadata captured during decoding.
+// It is returned by [ResponseDecoder2.DumpResponse] and
+// [ResponseCapturer.DumpResponse].
+type ResponseDump struct {
+	StatusCode int
+	Header     http.Header
+	Body       []byte
+}
+
+func (d ResponseDump) DebugHeaders() DebugHeaders {
+	return DebugHeaders{
+		FacebookAPIVersion: d.Header.Get("Facebook-Api-Version"),
+		FBTraceID:          d.Header.Values("X-Fb-Trace-Id"),
+		FBRev:              d.Header.Values("X-Fb-Rev"),
+		FBDebug:            d.Header.Values("X-Fb-Debug"),
+	}
+}
+
+type ResponseDumper interface {
+	DumpResponse() ResponseDump
+}
+
+// DumpResponse returns the captured response metadata as a [ResponseDump].
+// Valid only after [ResponseCapturer.Decode] has executed.
+func (c *ResponseCapturer) DumpResponse() ResponseDump {
+	return ResponseDump{
+		StatusCode: c.statusCode,
+		Header:     c.header,
+		Body:       c.body,
+	}
 }

@@ -19,6 +19,7 @@ package webhooks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -41,9 +42,9 @@ type (
 	}
 )
 
-// handleSubHandlerError delegates to h if non-nil, otherwise returns err unchanged.
+// execErrorHandler delegates to h if non-nil, otherwise returns err unchanged.
 // Used by all webhook sub-handlers to avoid duplicating the error delegation logic.
-func handleSubHandlerError(ctx context.Context, h ErrorHandler, err error) error {
+func execErrorHandler(ctx context.Context, h ErrorHandler, err error) error {
 	if h == nil {
 		return err
 	}
@@ -68,3 +69,9 @@ type (
 func (fn FallbackHandlerFunc) Handle(ctx context.Context, event NotificationEvent) error {
 	return fn(ctx, event)
 }
+
+// ErrEventNotHandled is returned by a [EventHandler.Handle] implementation
+// when no handler is registered for the specific event. Callers (such as
+// [HandleEvent]) use this sentinel to decide whether to invoke the
+// [EventHandler.Fallback] method.
+var ErrEventNotHandled = errors.New("no handler registered for this event")
