@@ -784,6 +784,36 @@ func TestClient_SetBaseClient(t *testing.T) {
 	}
 }
 
+func TestClient_CloseIdleConnections(t *testing.T) {
+	t.Parallel()
+
+	// CloseIdleConnections delegates to the underlying BaseClient, which
+	// delegates to the sender if it implements the closeIdler interface.
+	// The CoreClient implements it; mocks generally don't. The key assertion
+	// is that the call does not panic on either path.
+	t.Run("with mock sender", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockSender := mockhttp.NewMockSender[calls.BaseRequest](ctrl)
+		client := calls.NewClient(mockConfig("https://graph.facebook.com"))
+		client.SetBaseClient(mockSender)
+
+		// Should not panic — the mock doesn't implement closeIdler,
+		// so BaseClient.CloseIdleConnections is a no-op.
+		client.CloseIdleConnections()
+	})
+
+	t.Run("with real sender", func(t *testing.T) {
+		t.Parallel()
+		client := calls.NewClient(mockConfig("https://graph.facebook.com"))
+		// The default sender (CoreClient) implements CloseIdleConnections.
+		// Should not panic.
+		client.CloseIdleConnections()
+	})
+}
+
 func TestClient_SetMiddlewares(t *testing.T) {
 	t.Parallel()
 

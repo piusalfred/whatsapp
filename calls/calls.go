@@ -357,6 +357,13 @@ func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
 	c.sender.SetMiddlewares(mws...)
 }
 
+// CloseIdleConnections closes idle connections in the underlying HTTP transport.
+// Call this during graceful shutdown to drain the connection pool and avoid
+// leaking sockets.
+func (c *Client) CloseIdleConnections() {
+	c.sender.CloseIdleConnections()
+}
+
 // BaseClient is the low-level HTTP executor for the Calls API. It converts
 // domain [Request] values into HTTP traffic and decodes JSON responses.
 type BaseClient struct {
