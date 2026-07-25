@@ -25,6 +25,16 @@ import (
 	"fmt"
 )
 
+// UserPreference represents a single user preference change.
+// Each entry in value.UserPreferences carries one of these.
+type UserPreference struct {
+	WaID      string `json:"wa_id"`
+	Detail    string `json:"detail"`
+	Category  string `json:"category"` // always "marketing_messages"
+	Value     string `json:"value"`    // can be "stop" or "resume"
+	Timestamp string `json:"timestamp"`
+}
+
 // UserPreferenceHandler is the interface for handling a single user
 // preference change. Each entry in value.UserPreferences is delivered
 // individually.
@@ -151,9 +161,9 @@ func (uh *UserPreferencesHandler) Handle(
 	return nil
 }
 
-// IsEventHandlerImplemented reports whether a handler is registered for
-// user preference changes. Returns true when the handler is non-nil.
-func (uh *UserPreferencesHandler) IsEventHandlerImplemented(_ NotificationEvent) bool {
+// CanHandleEvent reports whether a handler is registered for user preference changes.
+// Returns true when the handler is non-nil.
+func (uh *UserPreferencesHandler) CanHandleEvent(_ NotificationEvent) bool {
 	return uh.handler != nil
 }
 

@@ -302,31 +302,13 @@ type (
 	Connection struct {
 		WebRTC *WebRTC `json:"webrtc,omitempty"`
 	}
-
-	CallStatusUpdate struct {
-		MessagingProduct string
-		Contacts         []*Contact
-		Metadata         *Metadata `json:"metadata,omitempty"`
-		Calls            []*Call
-		Errors           []ErrorInfo
-	}
 )
 
-func (value *Value) CallStatusUpdate() *CallStatusUpdate {
-	return &CallStatusUpdate{
-		MessagingProduct: value.MessagingProduct,
-		Metadata:         value.Metadata,
-		Contacts:         value.Contacts,
-		Calls:            value.Calls,
-		Errors:           value.Errors,
-	}
-}
-
-// IsEventHandlerImplemented reports whether a handler is registered for the
+// CanHandleEvent reports whether a handler is registered for the
 // call event carried by this NotificationEvent. It checks value.Statuses for
 // call-type statuses and value.Calls for connect/created/terminate events,
 // returning true when the matching sub-handler is non-nil.
-func (ch *CallsHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+func (ch *CallsHandler) CanHandleEvent(event NotificationEvent) bool {
 	if event.Value == nil {
 		return false
 	}
@@ -386,11 +368,4 @@ type CallPermissionReply struct {
 	IsPermanent         bool   `json:"is_permanent"`
 	ExpirationTimestamp string `json:"expiration_timestamp"`
 	ResponseSource      string `json:"response_source"`
-}
-
-// OnCallStatusUpdate registers a handler for call status updates via the
-// business notification path. This is the legacy registration point;
-// prefer [Handler.OnCallStatus] for the dedicated calls handler.
-func (handler *Handler) OnCallStatusUpdate(h BusinessCallsHandler) {
-	handler.business.OnCalls(h)
 }

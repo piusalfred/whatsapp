@@ -443,10 +443,10 @@ func (mh *MessagesHandler) Fallback(ctx context.Context, event NotificationEvent
 	return nil
 }
 
-// IsEventHandlerImplemented reports whether a handler is registered for
+// CanHandleEvent reports whether a handler is registered for
 // the messages carried by this NotificationEvent. Returns true when any
 // message handler, status handler, or notification error handler is non-nil.
-func (mh *MessagesHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+func (mh *MessagesHandler) CanHandleEvent(event NotificationEvent) bool {
 	if event.Value == nil {
 		return false
 	}
@@ -552,7 +552,26 @@ func (mh *MessagesHandler) Handle(
 // on msg.Type. Media types delegate to MediaHandler; interactive messages
 // delegate to InteractiveHandler. Unknown types fall through to Fallback.
 //
-//nolint:cyclop,funlen,gocognit,gocyclo // dispatch switch
+// dispatchMessage is a generic helper for the common dispatch pattern:
+// nil-check handler -> build request -> call Handle -> wrap error.
+func dispatchMessage[T any](
+	ctx context.Context,
+	h MessageHandler[T],
+	nctx *MessageNotificationContext,
+	info *MessageInfo,
+	payload *T,
+	name string,
+) error {
+	if h == nil {
+		return nil
+	}
+	if err := h.Handle(ctx, newMessageRequest(nctx, info, payload)); err != nil {
+		return fmt.Errorf("handle %s message: %w", name, err)
+	}
+	return nil
+}
+
+//nolint:gocognit,cyclop,funlen // dispatch switch with legacy probe fallback
 func (mh *MessagesHandler) handleOne(
 	ctx context.Context,
 	nctx *MessageNotificationContext,
@@ -571,69 +590,21 @@ func (mh *MessagesHandler) handleOne(
 	case MessageTypeSystem:
 		return mh.handleSystem(ctx, nctx, info, message)
 	case MessageTypeOrder:
-		if mh.Order == nil {
-			return nil
-		}
-		if err := mh.Order.Handle(ctx, newMessageRequest(nctx, info, message.Order)); err != nil {
-			return fmt.Errorf("handle order message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Order, nctx, info, message.Order, "order")
 	case MessageTypeButton:
-		if mh.Button == nil {
-			return nil
-		}
-		if err := mh.Button.Handle(ctx, newMessageRequest(nctx, info, message.Button)); err != nil {
-			return fmt.Errorf("handle button message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Button, nctx, info, message.Button, "button")
 	case MessageTypeReaction:
-		if mh.Reaction == nil {
-			return nil
-		}
-		if err := mh.Reaction.Handle(ctx, newMessageRequest(nctx, info, message.Reaction)); err != nil {
-			return fmt.Errorf("handle reaction message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Reaction, nctx, info, message.Reaction, "reaction")
 	case MessageTypeLocation:
-		if mh.Location == nil {
-			return nil
-		}
-		if err := mh.Location.Handle(ctx, newMessageRequest(nctx, info, message.Location)); err != nil {
-			return fmt.Errorf("handle location message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Location, nctx, info, message.Location, "location")
 	case MessageTypeContacts:
-		if mh.Contacts == nil {
-			return nil
-		}
-		if err := mh.Contacts.Handle(ctx, newMessageRequest(nctx, info, message.Contacts)); err != nil {
-			return fmt.Errorf("handle contacts message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Contacts, nctx, info, message.Contacts, "contacts")
 	case MessageTypeRevoke:
-		if mh.Revoke == nil {
-			return nil
-		}
-		if err := mh.Revoke.Handle(ctx, newMessageRequest(nctx, info, message.Revoke)); err != nil {
-			return fmt.Errorf("handle revoke message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Revoke, nctx, info, message.Revoke, "revoke")
 	case MessageTypeEdit:
-		if mh.Edit == nil {
-			return nil
-		}
-		if err := mh.Edit.Handle(ctx, newMessageRequest(nctx, info, message.Edit)); err != nil {
-			return fmt.Errorf("handle edit message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Edit, nctx, info, message.Edit, "edit")
 	case MessageTypeRequestWelcome:
-		if mh.RequestWelcome == nil {
-			return nil
-		}
-		if err := mh.RequestWelcome.Handle(ctx, newMessageRequest(nctx, info, message)); err != nil {
-			return fmt.Errorf("handle request welcome: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.RequestWelcome, nctx, info, message, "request_welcome")
 	case MessageTypeUnknown:
 		if mh.Unknown == nil {
 			return nil

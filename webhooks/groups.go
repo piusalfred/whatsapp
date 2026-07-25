@@ -153,11 +153,11 @@ func (gh *GroupManagementHandler) OnFallback(h FallbackHandler) {
 	gh.fallback = h
 }
 
-// IsEventHandlerImplemented reports whether a handler is registered for the
+// CanHandleEvent reports whether a handler is registered for the
 // group event carried by this NotificationEvent. It checks the event field
 // against the four group management fields and returns true when the matching
 // sub-handler is non-nil.
-func (gh *GroupManagementHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+func (gh *GroupManagementHandler) CanHandleEvent(event NotificationEvent) bool {
 	switch event.Field {
 	case ChangeFieldGroupLifecycleUpdate.String():
 		return gh.lifecycleUpdate != nil

@@ -192,7 +192,6 @@ type (
 	PhoneNumberQualityUpdateHandler = BusinessEventHandler[PhoneNumberQualityUpdate]
 	AccountReviewUpdateHandler      = BusinessEventHandler[AccountReviewUpdate]
 	TemplateComponentsHandler       = BusinessEventHandler[TemplateComponentsUpdateNotification]
-	BusinessCallsHandler            = BusinessEventHandler[CallStatusUpdate]
 	SecurityHandler                 = BusinessEventHandler[SecurityNotification]
 	PhoneSettingsHandler            = BusinessEventHandler[PhoneNumberSettings]
 )
@@ -276,7 +275,6 @@ type BusinessNotificationHandler struct {
 	account            BusinessEventHandler[AccountUpdate]
 	capability         BusinessEventHandler[CapabilityUpdate]
 	phoneSettings      BusinessEventHandler[PhoneNumberSettings]
-	calls              BusinessEventHandler[CallStatusUpdate]
 	security           BusinessEventHandler[SecurityNotification]
 	fallback           FallbackHandler
 	errorHandler       ErrorHandler
@@ -337,11 +335,6 @@ func (bh *BusinessNotificationHandler) OnCapability(h BusinessEventHandler[Capab
 // OnPhoneSettings sets the handler for account_settings_update events.
 func (bh *BusinessNotificationHandler) OnPhoneSettings(h BusinessEventHandler[PhoneNumberSettings]) {
 	bh.phoneSettings = h
-}
-
-// OnCalls sets the handler for calls events.
-func (bh *BusinessNotificationHandler) OnCalls(h BusinessEventHandler[CallStatusUpdate]) {
-	bh.calls = h
 }
 
 // OnSecurity sets the handler for security events.
@@ -607,11 +600,11 @@ func (value *Value) CapabilityUpdate() *CapabilityUpdate {
 	}
 }
 
-// IsEventHandlerImplemented reports whether a handler is registered for the
+// CanHandleEvent reports whether a handler is registered for the
 // business event carried by this NotificationEvent. It checks event.Field
 // against known business notification fields and returns true when the
 // matching sub-handler is non-nil.
-func (bh *BusinessNotificationHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+func (bh *BusinessNotificationHandler) CanHandleEvent(event NotificationEvent) bool {
 	switch event.Field {
 	case ChangeFieldAccountAlerts.String():
 		return bh.alerts != nil
@@ -635,8 +628,6 @@ func (bh *BusinessNotificationHandler) IsEventHandlerImplemented(event Notificat
 		return bh.capability != nil
 	case ChangeFieldAccountSettingsUpdate.String():
 		return bh.phoneSettings != nil
-	case ChangeFieldCalls.String():
-		return bh.calls != nil
 	case ChangeFieldSecurity.String():
 		return bh.security != nil
 	}
@@ -661,7 +652,7 @@ func (handler *Handler) OnBusinessTemplateQualityUpdate(h TemplateQualityHandler
 	handler.business.OnTemplateQuality(h)
 }
 
-func (handler *Handler) OnTemplateComponentsUpdate(h TemplateComponentsHandler) {
+func (handler *Handler) OnBusinessTemplateComponentsUpdate(h TemplateComponentsHandler) {
 	handler.business.OnTemplateComponents(h)
 }
 

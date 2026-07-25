@@ -28,7 +28,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"io"
 	"net/http"
 	"runtime/debug"
@@ -189,6 +188,9 @@ func (ls *Listener) OnError(handler func(ctx context.Context, r *http.Request, e
 // against the request body and app secret. You can provide a custom implementation of the SignatureVerifier
 // interface to change this behavior.
 func (ls *Listener) SetSignatureVerifier(validator SignatureVerifier) {
+	if validator == nil {
+		return
+	}
 	ls.verifier = validator
 }
 
@@ -215,7 +217,7 @@ func (ls *Listener) HandleSubscriptionVerification(writer http.ResponseWriter, r
 	}
 
 	writer.WriteHeader(http.StatusOK)
-	_, _ = writer.Write([]byte(html.EscapeString(challenge)))
+	_, _ = writer.Write([]byte(challenge))
 }
 
 // HandleNotification processes an incoming POST webhook event. It reads the request body,

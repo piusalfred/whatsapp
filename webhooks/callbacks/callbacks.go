@@ -285,50 +285,12 @@ func (c *Client) SetAlternativeCallback(
 	ctx context.Context,
 	request *SetAlternativeCallbackRequest,
 ) (*SuccessResponse, error) {
-	req := &BaseRequest{
-		Method:              http.MethodPost,
-		Type:                request.OverrideType,
-		VerifyToken:         request.VerifyToken,
-		OverrideCallbackURI: request.OverrideCallbackURI,
-	}
-
-	if request.OverrideType == OverrideTypeWABA {
-		req.RequestType = whttp.RequestTypeSetWABAAlternateCallbackURI
-	}
-
-	if request.OverrideType == OverrideTypePhoneNumber {
-		req.RequestType = whttp.RequestTypeSetPhoneNumberAlternateCallbackURI
-	}
-
-	res, err := c.Send(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
-	}
-
-	return res.SuccessResponse(), nil
+	return c.sender.SetAlternativeCallback(ctx, c.config, request)
 }
 
 // DeleteAlternativeCallback removes the alternate callback URL for the given
 // OverrideType. After deletion, webhooks fall back to the next priority level
 // (phone number → WABA → app default).
 func (c *Client) DeleteAlternativeCallback(ctx context.Context, overrideType OverrideType) (*SuccessResponse, error) {
-	req := &BaseRequest{
-		Method: http.MethodPost,
-		Type:   overrideType,
-	}
-
-	if overrideType == OverrideTypeWABA {
-		req.RequestType = whttp.RequestTypeDeleteWABAAlternateCallbackURI
-	}
-
-	if overrideType == OverrideTypePhoneNumber {
-		req.RequestType = whttp.RequestTypeDeletePhoneNumberAlternateCallbackURI
-	}
-
-	res, err := c.Send(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
-	}
-
-	return res.SuccessResponse(), nil
+	return c.sender.DeleteAlternativeCallback(ctx, c.config, overrideType)
 }

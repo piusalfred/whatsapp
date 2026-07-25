@@ -159,9 +159,9 @@ func (sh *SMBMessageEchoesHandler) Handle(
 	return nil
 }
 
-// IsEventHandlerImplemented reports whether a handler is registered for
+// CanHandleEvent reports whether a handler is registered for
 // SMB message echoes. Returns true when the handler is non-nil.
-func (sh *SMBMessageEchoesHandler) IsEventHandlerImplemented(_ NotificationEvent) bool {
+func (sh *SMBMessageEchoesHandler) CanHandleEvent(_ NotificationEvent) bool {
 	return sh.handler != nil
 }
 
@@ -294,9 +294,9 @@ func (sh *SMBAppStateSyncsHandler) Handle(
 	return nil
 }
 
-// IsEventHandlerImplemented reports whether a handler is registered for
+// CanHandleEvent reports whether a handler is registered for
 // SMB app state syncs. Returns true when the handler is non-nil.
-func (sh *SMBAppStateSyncsHandler) IsEventHandlerImplemented(_ NotificationEvent) bool {
+func (sh *SMBAppStateSyncsHandler) CanHandleEvent(_ NotificationEvent) bool {
 	return sh.handler != nil
 }
 

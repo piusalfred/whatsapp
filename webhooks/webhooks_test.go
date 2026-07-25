@@ -1917,7 +1917,7 @@ func FuzzHandleNotification(f *testing.F) {
 	})
 }
 
-func TestDefect002_MiddlewarePanic_NotRecovered(t *testing.T) {
+func TestDefect002_MiddlewarePanic_NowRecovered(t *testing.T) {
 	t.Parallel()
 
 	handler := webhooks.NewHandler()
@@ -1940,19 +1940,11 @@ func TestDefect002_MiddlewarePanic_NotRecovered(t *testing.T) {
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
-	didPanic := false
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				didPanic = true
-			}
-		}()
-		listener.HandleNotification(w, r)
-	}()
+	// Listener.HandleNotification recovers middleware panics and returns 500.
+	listener.HandleNotification(w, r)
 
-	if didPanic {
-		t.Error("FIXME: Listener.HandleNotification panicked on middleware panic. " +
-			"Add recover() to Listener.HandleNotification to catch this.")
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 after middleware panic, got %d", w.Code)
 	}
 }
 

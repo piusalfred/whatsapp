@@ -65,14 +65,6 @@ type (
 	StatusMessageInfo struct {
 		RecipientID string `json:"recipient_id,omitempty"`
 	}
-
-	UserPreference struct {
-		WaID      string `json:"wa_id"`
-		Detail    string `json:"detail"`
-		Category  string `json:"category"` // always "marketing_messages"
-		Value     string `json:"value"`    // can be "stop" or "resume"
-		Timestamp string `json:"timestamp"`
-	}
 )
 
 type (

@@ -36,14 +36,6 @@ import (
 	"fmt"
 )
 
-// HistorySyncContext carries the notification-level metadata for a history
-// sync webhook. It is passed to the history handler callback.
-type HistorySyncContext struct {
-	NotificationObject string // "whatsapp_business_account"
-	EntryID            string // WABA ID
-	EntryTime          int64  // UNIX timestamp
-}
-
 // HistoryEntry represents a single chat history webhook payload. Each entry
 // contains metadata about the sync phase and progress, plus a set of message
 // threads. Threads are delivered in chunks identified by chunk_order;
@@ -173,11 +165,11 @@ func (hh *HistoryHandler) Fallback(ctx context.Context, event NotificationEvent)
 	return nil
 }
 
-// IsEventHandlerImplemented reports whether a handler is registered for the
+// CanHandleEvent reports whether a handler is registered for the
 // specific event form carried by this NotificationEvent. It returns true when
 // event.Value.History is non-empty and a messages handler is set, or when
 // event.Value.Messages is non-empty and a media handler is set.
-func (hh *HistoryHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+func (hh *HistoryHandler) CanHandleEvent(event NotificationEvent) bool {
 	if len(event.Value.History) > 0 {
 		return hh.message != nil
 	}

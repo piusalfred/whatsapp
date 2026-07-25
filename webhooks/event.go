@@ -21,10 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"runtime/debug"
-
-	"golang.org/x/sync/errgroup"
 )
 
 // NotificationEvent is a single flattened webhook event. It combines the
@@ -144,48 +141,17 @@ func (n *Notification) Events() []NotificationEvent {
 	return events
 }
 
-// HandleNotificationEvents processes an incoming WhatsApp webhook notification.
-// It flattens the payload into [NotificationEvent] values and dispatches each
-// concurrently to the correct sub-handler. All events are processed in parallel
-// within each entry group. Returns a Response indicating success (200) or
-// gateway timeout (504) if the context is cancelled.
-func (handler *Handler) HandleNotificationEvents(ctx context.Context, notification *Notification) *Response {
-	select {
-	case <-ctx.Done():
-		return &Response{StatusCode: http.StatusGatewayTimeout}
-	default:
-	}
-
-	events := notification.Events()
-	if len(events) == 0 {
-		return &Response{StatusCode: http.StatusOK}
-	}
-
-	g, gContext := errgroup.WithContext(ctx)
-	for _, event := range events {
-		ev := event
-		g.Go(func() error {
-			return handler.HandleNotificationEvent(gContext, ev)
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return &Response{StatusCode: http.StatusGatewayTimeout}
-	}
-
-	return &Response{StatusCode: http.StatusOK}
-}
-
 type EventHandler interface {
 	Handle(ctx context.Context, event NotificationEvent) error
 	HandleError(ctx context.Context, err error) error
 	Fallback(ctx context.Context, event NotificationEvent) error
-	IsEventHandlerImplemented(event NotificationEvent) bool
+	CanHandleEvent(event NotificationEvent) bool
 }
 
 // HandleEvent dispatches a single event through the [EventHandler]
 // pipeline:
 //
-//  1. If [EventHandler.IsEventHandlerImplemented] returns false, the event
+//  1. If [EventHandler.CanHandleEvent] returns false, the event
 //     is routed directly to [EventHandler.Fallback].
 //  2. Otherwise, [EventHandler.Handle] is called. If Handle returns
 //     [ErrEventNotHandled], the event is routed to [EventHandler.Fallback].
@@ -200,7 +166,7 @@ func HandleEvent(ctx context.Context, handler EventHandler, event NotificationEv
 		}
 	}()
 
-	if !handler.IsEventHandlerImplemented(event) {
+	if !handler.CanHandleEvent(event) {
 		if fErr := handler.Fallback(ctx, event); fErr != nil {
 			return fmt.Errorf("change handler fallback: %w", fErr)
 		}

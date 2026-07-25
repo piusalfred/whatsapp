@@ -304,11 +304,11 @@ func (value *Value) FlowEndpointAvailability() *EndpointAvailabilityDetails {
 	}
 }
 
-// IsEventHandlerImplemented reports whether a handler is registered for the
+// CanHandleEvent reports whether a handler is registered for the
 // flow event carried by this NotificationEvent. It checks the event field
 // against known flow event types and returns true when the matching
 // sub-handler is non-nil.
-func (fh *FlowNotificationHandler) IsEventHandlerImplemented(event NotificationEvent) bool {
+func (fh *FlowNotificationHandler) CanHandleEvent(event NotificationEvent) bool {
 	if event.Value == nil {
 		return false
 	}
