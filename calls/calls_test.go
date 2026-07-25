@@ -32,6 +32,7 @@ import (
 	"github.com/piusalfred/whatsapp/calls"
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/internal/test"
+	"github.com/piusalfred/whatsapp/message/media"
 	mockhttp "github.com/piusalfred/whatsapp/mocks/http"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
@@ -1845,8 +1846,8 @@ func TestCallRecordingAvailable_WebhookParsing(t *testing.T) {
 	if call.CallRecording.Audio.ID != "1002764438271669" {
 		t.Errorf("unexpected audio ID: %s", call.CallRecording.Audio.ID)
 	}
-	if call.CallRecording.Audio.SHA256 != "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=" {
-		t.Errorf("unexpected sha256: %s", call.CallRecording.Audio.SHA256)
+	if call.CallRecording.Audio.Sha256 != "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=" {
+		t.Errorf("unexpected sha256: %s", call.CallRecording.Audio.Sha256)
 	}
 	if call.CallRecording.Audio.MimeType != "audio/ogg; codecs=opus" {
 		t.Errorf("unexpected mime_type: %s", call.CallRecording.Audio.MimeType)
@@ -1881,9 +1882,9 @@ func TestCallRecording_JSONRoundTrip(t *testing.T) {
 
 	rec := &webhooks.CallRecording{
 		Type: "audio",
-		Audio: &webhooks.CallRecordingMedia{
+		Audio: &media.Info{
 			ID:       "1002764438271669",
-			SHA256:   "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=",
+			Sha256:   "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=",
 			MimeType: "audio/ogg; codecs=opus",
 			URL:      "https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=133",
 		},

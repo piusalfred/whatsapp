@@ -25,6 +25,8 @@ package webhooks
 import (
 	"context"
 	"fmt"
+
+	"github.com/piusalfred/whatsapp/message/media"
 )
 
 // CallNotificationContext carries the metadata for a calls webhook notification.
@@ -324,20 +326,13 @@ type (
 		SDP     string `json:"sdp"`
 	}
 
-	// CallRecordingMedia holds the downloadable recording asset metadata
-	// delivered in a call_recording_available webhook.
-	CallRecordingMedia struct {
-		ID       string `json:"id"`
-		SHA256   string `json:"sha256"`
-		MimeType string `json:"mime_type"`
-		URL      string `json:"url"`
-	}
-
 	// CallRecording wraps the recording payload delivered in a
-	// call_recording_available webhook event.
+	// call_recording_available webhook event. Audio uses [media.Info]
+	// — the same type used for incoming media messages, since recordings
+	// share the same download flow via the Media API.
 	CallRecording struct {
-		Type  string              `json:"type"`
-		Audio *CallRecordingMedia `json:"audio,omitempty"`
+		Type  string      `json:"type"`
+		Audio *media.Info `json:"audio,omitempty"`
 	}
 
 	WebRTC struct {
