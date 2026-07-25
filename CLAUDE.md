@@ -107,6 +107,56 @@ The package has its own sub-packages: `webhooks/callbacks/` (managing alternate 
 
 ---
 
+## Adding an API Calling Feature — Checklist
+
+When adding a new API endpoint to a domain package (e.g., enabling call recording on `POST /calls`, sending a new message type on `POST /messages`), use this checklist. Every item is required.
+
+### Phase 1: Routing
+
+- **[ ] Add a RequestType.** If this is a new endpoint (not a new field on an existing one), add a constant to `pkg/http/request_type.go` (e.g., `RequestTypeUpdateCallStatus`). The `RequestType` controls method, endpoint path, and body construction in `BaseClient.Send()`.
+- **[ ] Wire the RequestType in BaseClient.Send().** In the domain package's `BaseClient.Send()` method, add a `case` for the new `RequestType`. Set `method` (GET/POST/DELETE), `endpoint`, any `queryParams`, and construct the `message *BaseRequest` if it carries a body.
+- **[ ] Add new fields to BaseRequest.** If the API endpoint accepts new optional fields (e.g., `recording` on connect/accept), add them to the wire-format `BaseRequest` struct with the correct JSON tag.
+- **[ ] Pass through from Request.** The internal `Request` struct carries fields from the high-level API to `BaseClient.Send()`. Any new field needed for request construction goes here (with `json:"-"` — it's never serialized directly).
+- **[ ] Pass through from the public request type.** The user-facing request struct (e.g., `CallUpdateStatusRequest`) is what callers construct. Add the field here with the correct JSON tag, then pass it through to `Request` in the `Client` method.
+
+### Phase 2: Types
+
+- **[ ] Define the public request struct (or add fields to an existing one).** This is the user-facing type. Every field that the WhatsApp API accepts must be represented. Use `omitempty` on optional fields to avoid sending zero values.
+- **[ ] Define the response struct (or add fields).** If the API returns new fields in its response, add them to the response type. Match JSON tags exactly to the API response.
+- **[ ] Add convenience constructors/helpers.** If the new feature is enabled by setting a sub-object (like `Recording`), add a `Set*` method (e.g., `SetRecording(r *Recording)`) rather than making callers construct the nested struct manually.
+- **[ ] Add any new constants.** Status enums, action types, language codes — define them as typed string constants (e.g., `RecordingStatus`, `RecordingEnabled`).
+
+### Phase 3: Client methods
+
+- **[ ] High-level Client method.** The `Client` struct's method is the public API. It constructs the internal `Request`, calls `c.Send()`, and converts the response. If the new feature is a field on an existing endpoint (like `recording` on `UpdateCallStatus`), update the existing method to pass the field through — no new method needed.
+- **[ ] BaseClient method (multi-tenant).** If adding a new endpoint (not just a field), add a `BaseClient` method for the multi-tenant path. The `Client` method can delegate to it (DRY), passing `c.config`.
+- **[ ] Wire CloseIdleConnections.** The `Client` should expose `CloseIdleConnections()` delegating to `c.sender.CloseIdleConnections()`.
+
+### Phase 4: Tests
+
+- **[ ] JSON round-trip tests.** Every new request/response struct must have `test.AssertJSONRoundTrip` covering all variants (with and without optional fields).
+- **[ ] JSON marshal test.** Verify the struct produces the exact wire format using `test.AssertJSONMarshal`.
+- **[ ] Constructor/helper tests.** Test that `Set*` helpers and convenience constructors populate fields correctly.
+- **[ ] MockServer HTTP integration test.** Use `internal/test.MockServer` to verify: HTTP method, URL path, query parameters, request body fields, response decoding. This is the most important test — it proves the full chain from `Client` → `BaseClient.Send` → HTTP → response works.
+- **[ ] MockSender unit test.** Use `mocks/http.MockSender` for error propagation tests: verify that sender errors are wrapped and returned correctly, and that successful responses are decoded properly (use `DoAndReturn` to simulate responses).
+- **[ ] Error response test.** Verify the client handles non-200 status codes and returns errors with the correct API error code.
+
+### Phase 5: Documentation
+
+- **[ ] Package doc.go.** Update the package-level comment (in the domain package's main file) to mention the new feature. Show a usage example in the comment — this is what `go doc` displays.
+- **[ ] Type/function doc comments.** Every exported type, function, constant, and method gets a doc comment. Follow the existing style: start with the type/method name, describe what it does, mention required vs optional fields, note any WhatsApp API constraints (max length, required when status is X, etc.).
+- **[ ] README update.** If the domain package has a README, add a usage example for the new feature.
+- **[ ] Document associated webhook events.** If the API call triggers webhook events (e.g., enabling recording on connect causes a `call_recording_available` webhook later), document this in BOTH the API package doc comments AND the webhook handler doc comments. Cross-reference them: the API doc should say "after the call ends, you receive a call_recording_available webhook"; the webhook doc should say "sent when a call with recording enabled finishes". This bidirectional linking is critical for users to understand the full flow.
+- **[ ] Document limits and constraints.** If the WhatsApp API imposes limits (e.g., purpose max 250 characters, announcement language must be from a specific set, 100 connected calls per 24h), document them in the type/function comments. Users should not need to read Facebook's docs for parameter constraints.
+
+### Phase 6: Final verification
+
+- **[ ] `make all` passes.** Zero lint issues, zero test failures, race detector clean.
+- **[ ] Examples compile.** Both `_examples/message` and `_examples/webhooks` must build and run.
+- **[ ] Associated webhook handler exists.** If the API call produces webhook events, verify the webhook handler (see Webhook Handler Checklist above) is implemented and tested. The API call and its webhook are two halves of the same feature — both must work.
+
+---
+
 ## Adding a Webhook Handler — Checklist
 
 When a new WhatsApp webhook event type needs handling (e.g., call recording, message edits, template updates), use this checklist. Every item is required; skip nothing.
