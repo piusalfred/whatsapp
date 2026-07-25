@@ -35,6 +35,7 @@ import (
 	mockhttp "github.com/piusalfred/whatsapp/mocks/http"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
+	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 // ---------------------------------------------------------------------------
@@ -1788,6 +1789,106 @@ func TestRecordingStatus_Values(t *testing.T) {
 	if calls.RecordingDisabled != "DISABLED" {
 		t.Errorf("expected DISABLED, got %s", calls.RecordingDisabled)
 	}
+}
+
+func TestCallRecordingAvailable_WebhookParsing(t *testing.T) {
+	t.Parallel()
+
+	docJSON := `{
+		"object": "whatsapp_business_account",
+		"entry": [{
+			"id": "123456789",
+			"changes": [{
+				"field": "calls",
+				"value": {
+					"messaging_product": "whatsapp",
+					"metadata": {
+						"phone_number_id": "106540352242922",
+						"display_phone_number": "15551234567"
+					},
+					"calls": [{
+						"id": "wacid.HBgLMTQxMjYxMzYyNTMVAgASGCBGO",
+						"from": "16505551234",
+						"timestamp": "1728932177",
+						"event": "call_recording_available",
+						"call_recording": {
+							"type": "audio",
+							"audio": {
+								"id": "1002764438271669",
+								"sha256": "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=",
+								"mime_type": "audio/ogg; codecs=opus",
+								"url": "https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=133"
+							}
+						}
+					}]
+				}
+			}]
+		}]
+	}`
+
+	var n webhooks.Notification
+	test.AssertJSONUnmarshal(t, "Recording webhook", docJSON, &n)
+
+	call := n.Entry[0].Changes[0].Value.Calls[0]
+	if call.Event != "call_recording_available" {
+		t.Errorf("expected call_recording_available, got %s", call.Event)
+	}
+	if call.CallRecording == nil {
+		t.Fatal("expected non-nil CallRecording")
+	}
+	if call.CallRecording.Type != "audio" {
+		t.Errorf("expected type=audio, got %s", call.CallRecording.Type)
+	}
+	if call.CallRecording.Audio == nil {
+		t.Fatal("expected non-nil Audio")
+	}
+	if call.CallRecording.Audio.ID != "1002764438271669" {
+		t.Errorf("unexpected audio ID: %s", call.CallRecording.Audio.ID)
+	}
+	if call.CallRecording.Audio.SHA256 != "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=" {
+		t.Errorf("unexpected sha256: %s", call.CallRecording.Audio.SHA256)
+	}
+	if call.CallRecording.Audio.MimeType != "audio/ogg; codecs=opus" {
+		t.Errorf("unexpected mime_type: %s", call.CallRecording.Audio.MimeType)
+	}
+
+	t.Run("handler dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		handler := webhooks.NewHandler()
+		received := false
+		handler.OnCallRecordingAvailable(webhooks.CallsEventHandlerFunc[webhooks.Call](
+			func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+				received = true
+				if req.Payload.CallRecording == nil {
+					t.Error("expected CallRecording in payload")
+				}
+				return nil
+			},
+		))
+
+		events := n.Events()
+		err := handler.HandleNotificationEvent(context.Background(), events[0])
+		test.AssertNoError(t, "HandleNotificationEvent failed", err)
+		if !received {
+			t.Error("recording handler was not called")
+		}
+	})
+}
+
+func TestCallRecording_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	rec := &webhooks.CallRecording{
+		Type: "audio",
+		Audio: &webhooks.CallRecordingMedia{
+			ID:       "1002764438271669",
+			SHA256:   "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=",
+			MimeType: "audio/ogg; codecs=opus",
+			URL:      "https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=133",
+		},
+	}
+	test.AssertJSONRoundTrip(t, "CallRecording", rec)
 }
 
 func TestCmpIntegration(t *testing.T) {
