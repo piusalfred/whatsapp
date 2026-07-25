@@ -113,7 +113,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 		phoneNumber bool
 	)
 
-	switch request.RequestType { //nolint: exhaustive // we have only 4 request types
+	switch request.RequestType {
 	case whttp.RequestTypeSetWABAAlternateCallbackURI:
 		method = http.MethodPost
 		message = &BaseRequest{
@@ -146,6 +146,9 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Ba
 		phoneNumber = true
 	}
 
+	if method == "" {
+		return nil, fmt.Errorf("%w: %s", whttp.ErrUnknownRequestType, request.RequestType)
+	}
 	b := whttp.NewRequestBuilder(method, conf.BaseURL).
 		Auth(conf.AuthConfig()).
 		Type(request.RequestType)
@@ -266,6 +269,12 @@ func (c *Client) SetBaseClient(sender whttp.Sender[BaseRequest]) {
 // Middlewares are applied in order: middlewares[0] runs outermost.
 func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
 	c.sender.SetMiddlewares(mws...)
+}
+
+// CloseIdleConnections closes idle connections in the underlying HTTP transport.
+// Call during graceful shutdown to drain the connection pool.
+func (c *Client) CloseIdleConnections() {
+	c.sender.CloseIdleConnections()
 }
 
 // Send dispatches a raw [BaseRequest] through the underlying [BaseClient].

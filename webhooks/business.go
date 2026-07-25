@@ -376,7 +376,27 @@ func (bh *BusinessNotificationHandler) Fallback(ctx context.Context, event Notif
 // based on event.Field. Nil handlers return [ErrEventNotHandled], signalling
 // the caller (typically [HandleEvent]) to invoke the [Fallback] method.
 //
-//nolint:funlen,gocognit,gocyclo,cyclop // dispatch switch
+// dispatchBusinessEvent is a generic helper for the common business dispatch
+// pattern: nil-check handler -> build request -> call Handle -> route error.
+func dispatchBusinessEvent[T any](
+	ctx context.Context,
+	bh *BusinessNotificationHandler,
+	h BusinessEventHandler[T],
+	nctx *BusinessNotificationContext,
+	payload *T,
+	name string,
+) error {
+	if h == nil {
+		return nil
+	}
+	req := &BusinessRequest[T]{Context: nctx, Payload: payload}
+	if err := h.Handle(ctx, req); err != nil {
+		return bh.HandleError(ctx, fmt.Errorf("business %s: %w", name, err))
+	}
+	return nil
+}
+
+//nolint:gocognit,funlen // dispatch switch with template-components and security inline
 func (bh *BusinessNotificationHandler) Handle(
 	ctx context.Context,
 	event NotificationEvent,
@@ -390,13 +410,7 @@ func (bh *BusinessNotificationHandler) Handle(
 
 	switch event.Field {
 	case ChangeFieldAccountAlerts.String():
-		if bh.alerts != nil {
-			req := &BusinessRequest[AlertNotification]{Context: nctx, Payload: event.Value.AlertNotification()}
-			if err := bh.alerts.Handle(ctx, req); err != nil {
-				return bh.HandleError(ctx, fmt.Errorf("business alerts: %w", err))
-			}
-			return nil
-		}
+		return dispatchBusinessEvent(ctx, bh, bh.alerts, nctx, event.Value.AlertNotification(), "alerts")
 	case ChangeFieldTemplateStatusUpdate.String():
 		if bh.templateStatus != nil {
 			req := &BusinessRequest[TemplateStatusUpdateNotification]{
@@ -448,13 +462,14 @@ func (bh *BusinessNotificationHandler) Handle(
 			return nil
 		}
 	case ChangeFieldPhoneNumberNameUpdate.String():
-		if bh.phoneNumberName != nil {
-			req := &BusinessRequest[PhoneNumberNameUpdate]{Context: nctx, Payload: event.Value.PhoneNumberNameUpdate()}
-			if err := bh.phoneNumberName.Handle(ctx, req); err != nil {
-				return bh.HandleError(ctx, fmt.Errorf("business phone name: %w", err))
-			}
-			return nil
-		}
+		return dispatchBusinessEvent(
+			ctx,
+			bh,
+			bh.phoneNumberName,
+			nctx,
+			event.Value.PhoneNumberNameUpdate(),
+			"phone name",
+		)
 	case ChangeFieldPhoneNumberQualityUpdate.String():
 		if bh.phoneNumberQuality != nil {
 			req := &BusinessRequest[PhoneNumberQualityUpdate]{
@@ -467,37 +482,20 @@ func (bh *BusinessNotificationHandler) Handle(
 			return nil
 		}
 	case ChangeFieldAccountReviewUpdate.String():
-		if bh.accountReview != nil {
-			req := &BusinessRequest[AccountReviewUpdate]{Context: nctx, Payload: event.Value.AccountReviewUpdate()}
-			if err := bh.accountReview.Handle(ctx, req); err != nil {
-				return bh.HandleError(ctx, fmt.Errorf("business account review: %w", err))
-			}
-			return nil
-		}
+		return dispatchBusinessEvent(
+			ctx,
+			bh,
+			bh.accountReview,
+			nctx,
+			event.Value.AccountReviewUpdate(),
+			"account review",
+		)
 	case ChangeFieldAccountUpdate.String():
-		if bh.account != nil {
-			req := &BusinessRequest[AccountUpdate]{Context: nctx, Payload: event.Value.AccountUpdate()}
-			if err := bh.account.Handle(ctx, req); err != nil {
-				return bh.HandleError(ctx, fmt.Errorf("business account: %w", err))
-			}
-			return nil
-		}
+		return dispatchBusinessEvent(ctx, bh, bh.account, nctx, event.Value.AccountUpdate(), "account")
 	case ChangeFieldBusinessCapabilityUpdate.String():
-		if bh.capability != nil {
-			req := &BusinessRequest[CapabilityUpdate]{Context: nctx, Payload: event.Value.CapabilityUpdate()}
-			if err := bh.capability.Handle(ctx, req); err != nil {
-				return bh.HandleError(ctx, fmt.Errorf("business capability: %w", err))
-			}
-			return nil
-		}
+		return dispatchBusinessEvent(ctx, bh, bh.capability, nctx, event.Value.CapabilityUpdate(), "capability")
 	case ChangeFieldAccountSettingsUpdate.String():
-		if bh.phoneSettings != nil {
-			req := &BusinessRequest[PhoneNumberSettings]{Context: nctx, Payload: event.Value.PhoneNumberSettings}
-			if err := bh.phoneSettings.Handle(ctx, req); err != nil {
-				return bh.HandleError(ctx, fmt.Errorf("business phone settings: %w", err))
-			}
-			return nil
-		}
+		return dispatchBusinessEvent(ctx, bh, bh.phoneSettings, nctx, event.Value.PhoneNumberSettings, "phone settings")
 	case ChangeFieldSecurity.String():
 		if bh.security != nil {
 			data := &SecurityNotification{
