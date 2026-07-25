@@ -82,6 +82,10 @@ type (
 	// CallStatusHandler handles call status events (statuses with type "call").
 	// Payload: [Status] — status is RINGING, ACCEPTED, or REJECTED.
 	CallStatusHandler = CallsEventHandler[Status]
+
+	// CallRecordingAvailableHandler handles recording-available events.
+	// Payload: [Call] — call_recording field carries the downloadable asset details.
+	CallRecordingAvailableHandler = CallsEventHandler[Call]
 )
 
 // CallsHandler groups all per-event-type handlers for the calls webhook field
@@ -112,7 +116,8 @@ type CallsHandler struct {
 	terminate CallsEventHandler[Call]
 	// Status handles call status events (type: "call" in statuses array).
 	// Payload: [Status].
-	callsStatus CallsEventHandler[Status]
+	callsStatus        CallsEventHandler[Status]
+	recordingAvailable CallsEventHandler[Call]
 
 	// Fallback is called for any call event that does not have a dedicated
 	// handler set — both unknown event types and known types left nil.
@@ -149,6 +154,12 @@ func (ch *CallsHandler) OnCallTerminate(h CallTerminateHandler) {
 // OnCallStatus sets the handler for call status events (type: "call").
 func (ch *CallsHandler) OnCallStatus(h CallStatusHandler) {
 	ch.callsStatus = h
+}
+
+// OnCallRecordingAvailable sets the handler for recording-available events
+// (event: "call_recording_available"). Payload: [Call] with CallRecording populated.
+func (ch *CallsHandler) OnCallRecordingAvailable(h CallRecordingAvailableHandler) {
+	ch.recordingAvailable = h
 }
 
 // OnFallback sets the catch-all handler for call events without a dedicated
@@ -353,6 +364,11 @@ func (handler *Handler) OnCallTerminate(h CallTerminateHandler) {
 // OnCallStatus registers a handler for call status events (type "call").
 func (handler *Handler) OnCallStatus(h CallStatusHandler) {
 	handler.calls.OnCallStatus(h)
+}
+
+// OnCallRecordingAvailable registers a handler for call recording available events.
+func (handler *Handler) OnCallRecordingAvailable(h CallRecordingAvailableHandler) {
+	handler.calls.OnCallRecordingAvailable(h)
 }
 
 // CallPermissionReply represents a WhatsApp user's response to a call

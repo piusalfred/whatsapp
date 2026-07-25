@@ -1664,6 +1664,132 @@ func TestCallUpdateStatusResponse_FromDocumentation(t *testing.T) {
 // 12. Verify cmp is available for diff output in test helpers
 // ---------------------------------------------------------------------------
 
+func TestRecording_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	t.Run("enabled", func(t *testing.T) {
+		t.Parallel()
+		r := &calls.Recording{
+			Status:               calls.RecordingEnabled,
+			Purpose:              "quality assurance",
+			AnnouncementLanguage: "en_US",
+		}
+		test.AssertJSONRoundTrip(t, "Recording enabled", r)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		t.Parallel()
+		r := &calls.Recording{Status: calls.RecordingDisabled}
+		test.AssertJSONRoundTrip(t, "Recording disabled", r)
+	})
+}
+
+func TestRecording_MarshalMatchesExpected(t *testing.T) {
+	t.Parallel()
+
+	r := &calls.Recording{
+		Status:               calls.RecordingEnabled,
+		Purpose:              "quality assurance",
+		AnnouncementLanguage: "en_US",
+	}
+	want := `{
+		"status": "ENABLED",
+		"purpose": "quality assurance",
+		"announcement_language": "en_US"
+	}`
+	test.AssertJSONMarshal(t, "Recording", r, want)
+}
+
+func TestConnectRequest_WithRecording(t *testing.T) {
+	t.Parallel()
+
+	req := calls.ConnectRequest("16505551234", "sdp-offer")
+	req.SetRecording(&calls.Recording{
+		Status:               calls.RecordingEnabled,
+		Purpose:              "quality assurance",
+		AnnouncementLanguage: "en_US",
+	})
+
+	if req.Recording == nil {
+		t.Fatal("expected non-nil Recording")
+	}
+	if req.Recording.Status != calls.RecordingEnabled {
+		t.Errorf("expected ENABLED, got %s", req.Recording.Status)
+	}
+	if req.Recording.Purpose != "quality assurance" {
+		t.Errorf("unexpected purpose: %s", req.Recording.Purpose)
+	}
+}
+
+func TestAcceptRequest_WithRecording(t *testing.T) {
+	t.Parallel()
+
+	req := calls.AcceptRequest("call-42", "sdp-answer")
+	req.SetRecording(&calls.Recording{
+		Status:               calls.RecordingEnabled,
+		Purpose:              "customer support",
+		AnnouncementLanguage: "es",
+	})
+
+	if req.Recording == nil || req.Recording.Purpose != "customer support" {
+		t.Errorf("unexpected recording: %+v", req.Recording)
+	}
+}
+
+func TestRecording_ConnectViaMockServer(t *testing.T) {
+	t.Parallel()
+
+	payload, _ := json.Marshal(map[string]any{
+		"messaging_product": "whatsapp",
+		"success":           true,
+		"calls":             []map[string]string{{"id": "call-rec-1"}},
+	})
+	srv := test.NewMockServer(test.MockBehavior{
+		StatusCode: http.StatusOK,
+		Payload:    payload,
+	})
+	defer srv.Close()
+
+	client := calls.NewClient(mockConfig(srv.Server.URL))
+	req := calls.ConnectRequest("16505551234", "sdp-offer")
+	req.SetRecording(&calls.Recording{
+		Status:               calls.RecordingEnabled,
+		Purpose:              "quality assurance",
+		AnnouncementLanguage: "en_US",
+	})
+	_, err := client.UpdateCallStatus(context.Background(), req)
+	test.AssertNoError(t, "UpdateCallStatus with recording failed", err)
+
+	// Verify recording fields were sent in the request body
+	reqs := srv.GetRequests()
+	r := reqs[0]
+
+	var body map[string]any
+	json.Unmarshal(r.Body, &body)
+
+	rec, ok := body["recording"].(map[string]any)
+	if !ok {
+		t.Fatal("expected recording in request body")
+	}
+	if rec["status"] != "ENABLED" {
+		t.Errorf("expected status=ENABLED, got %v", rec["status"])
+	}
+	if rec["purpose"] != "quality assurance" {
+		t.Errorf("unexpected purpose: %v", rec["purpose"])
+	}
+}
+
+func TestRecordingStatus_Values(t *testing.T) {
+	t.Parallel()
+
+	if calls.RecordingEnabled != "ENABLED" {
+		t.Errorf("expected ENABLED, got %s", calls.RecordingEnabled)
+	}
+	if calls.RecordingDisabled != "DISABLED" {
+		t.Errorf("expected DISABLED, got %s", calls.RecordingDisabled)
+	}
+}
+
 func TestCmpIntegration(t *testing.T) {
 	// Verify that the google/go-cmp dependency is wired correctly.
 	// This is not testing calls functionality directly, but confirms the
