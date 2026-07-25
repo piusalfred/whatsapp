@@ -25,6 +25,16 @@ import (
 	"fmt"
 )
 
+// UserPreference represents a single user preference change.
+// Each entry in value.UserPreferences carries one of these.
+type UserPreference struct {
+	WaID      string `json:"wa_id"`
+	Detail    string `json:"detail"`
+	Category  string `json:"category"` // always "marketing_messages"
+	Value     string `json:"value"`    // can be "stop" or "resume"
+	Timestamp string `json:"timestamp"`
+}
+
 // UserPreferenceHandler is the interface for handling a single user
 // preference change. Each entry in value.UserPreferences is delivered
 // individually.
@@ -65,37 +75,48 @@ func (f UserPreferenceHandlerFunc) Handle(
 //	))
 type UserPreferencesHandler struct {
 	// Handler receives every user preference change. When nil, entries fall
-	// through to [FallbackHandler].
-	Handler UserPreferenceHandler
+	// through to the [Fallback] method.
+	handler UserPreferenceHandler
 
 	// Fallback is called when Handler is nil. When nil, the event is silently
 	// acknowledged (HTTP 200).
-	Fallback FallbackHandler
+	fallback FallbackHandler
 
 	// ErrorHandler is called when Handler returns an error. When nil, the
 	// error is returned as-is (passthrough).
-	ErrorHandler ErrorHandler
+	errorHandler ErrorHandler
+}
+
+// OnHandler sets the handler for all user preference changes.
+func (uh *UserPreferencesHandler) OnHandler(h UserPreferenceHandler) {
+	uh.handler = h
+}
+
+// OnError sets the error handler for this domain handler. When nil, errors
+// bubble up to the general error handler configured on [Handler].
+func (uh *UserPreferencesHandler) OnError(h ErrorHandler) {
+	uh.errorHandler = h
 }
 
 // OnChange sets the handler for all user preference changes.
 func (uh *UserPreferencesHandler) OnChange(h UserPreferenceHandler) {
-	uh.Handler = h
+	uh.handler = h
 }
 
 // OnFallback sets the catch-all handler when [Handler] is nil.
 func (uh *UserPreferencesHandler) OnFallback(h FallbackHandler) {
-	uh.Fallback = h
+	uh.fallback = h
 }
 
-func (uh *UserPreferencesHandler) handleError(ctx context.Context, err error) error {
-	return handleSubHandlerError(ctx, uh.ErrorHandler, err)
+func (uh *UserPreferencesHandler) HandleError(ctx context.Context, err error) error {
+	return execErrorHandler(ctx, uh.errorHandler, err)
 }
 
-func (uh *UserPreferencesHandler) executeFallback(ctx context.Context, event NotificationEvent) error {
-	if uh.Fallback == nil {
+func (uh *UserPreferencesHandler) Fallback(ctx context.Context, event NotificationEvent) error {
+	if uh.fallback == nil {
 		return nil
 	}
-	if err := uh.Fallback.Handle(ctx, event); err != nil {
+	if err := uh.fallback.Handle(ctx, event); err != nil {
 		return fmt.Errorf("user preferences fallback: %w", err)
 	}
 	return nil
@@ -105,7 +126,7 @@ func (uh *UserPreferencesHandler) executeFallback(ctx context.Context, event Not
 //
 //  1. If [Handler] is set, each entry in value.UserPreferences is passed
 //     to it. Errors are routed through [ErrorHandler].
-//  2. If [Handler] is nil, falls back to [Fallback].
+//  2. If [Handler] is nil, returns [ErrEventNotHandled].
 //  3. If [Fallback] is also nil, the event is silently skipped (HTTP 200).
 func (uh *UserPreferencesHandler) Handle(
 	ctx context.Context,
@@ -115,8 +136,8 @@ func (uh *UserPreferencesHandler) Handle(
 		return nil
 	}
 
-	if uh.Handler == nil {
-		return uh.executeFallback(ctx, event)
+	if uh.handler == nil {
+		return ErrEventNotHandled
 	}
 
 	nctx := &MessageNotificationContext{
@@ -132,17 +153,25 @@ func (uh *UserPreferencesHandler) Handle(
 		if pref == nil {
 			continue
 		}
-		if err := uh.Handler.Handle(ctx, nctx, pref); err != nil {
-			return uh.handleError(ctx, fmt.Errorf("user preferences: %w", err))
+		if err := uh.handler.Handle(ctx, nctx, pref); err != nil {
+			return uh.HandleError(ctx, fmt.Errorf("user preferences: %w", err))
 		}
 	}
 
 	return nil
 }
 
+// CanHandleEvent reports whether a handler is registered for user preference changes.
+// Returns true when the handler is non-nil.
+func (uh *UserPreferencesHandler) CanHandleEvent(_ NotificationEvent) bool {
+	return uh.handler != nil
+}
+
+var _ EventHandler = (*UserPreferencesHandler)(nil)
+
 // OnUserPreferencesUpdate sets the handler for user preference changes. Each
 // preference entry (stop or resume marketing messages) is delivered to the
 // handler.
 func (handler *Handler) OnUserPreferencesUpdate(h UserPreferenceHandler) {
-	handler.ensureUserPrefs().OnChange(h)
+	handler.userPrefs.OnChange(h)
 }

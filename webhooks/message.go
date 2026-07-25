@@ -169,24 +169,24 @@ func (fn MessageHandlerFunc[T]) Handle(ctx context.Context, req *MessageRequest[
 
 // OnTextMessage registers a handler for text messages in the messages webhook.
 func (handler *Handler) OnTextMessage(h MessageHandler[Text]) {
-	handler.ensureMessages().Text = h
+	handler.messages.Text = h
 }
 
 // OnButtonMessage registers a handler for button messages in the messages webhook.
 func (handler *Handler) OnButtonMessage(h ButtonMessageHandler) {
-	handler.ensureMessages().Button = h
+	handler.messages.Button = h
 }
 
 // OnOrderMessage registers a handler for order messages in the messages webhook.
 func (handler *Handler) OnOrderMessage(h OrderMessageHandler) {
-	handler.ensureMessages().Order = h
+	handler.messages.Order = h
 }
 
 // OnLocationMessage registers a handler for shared location messages in the
 // messages webhook. The location includes latitude, longitude, name, address,
 // and optionally a URL (usually only for business locations).
 func (handler *Handler) OnLocationMessage(h LocationMessageHandler) {
-	handler.ensureMessages().Location = h
+	handler.messages.Location = h
 }
 
 // OnContactsMessage registers a handler for contacts messages in the messages
@@ -195,22 +195,22 @@ func (handler *Handler) OnLocationMessage(h LocationMessageHandler) {
 // share. If the message came via a Click to WhatsApp ad, the referral data is
 // delivered to [OnReferralMessage] instead.
 func (handler *Handler) OnContactsMessage(h ContactsMessageHandler) {
-	handler.ensureMessages().Contacts = h
+	handler.messages.Contacts = h
 }
 
 // OnReactionMessage registers a handler for reaction messages in the messages webhook.
 func (handler *Handler) OnReactionMessage(h ReactionHandler) {
-	handler.ensureMessages().Reaction = h
+	handler.messages.Reaction = h
 }
 
 // OnProductEnquiryMessage registers a handler for product enquiry messages in the messages webhook.
 func (handler *Handler) OnProductEnquiryMessage(h ProductEnquiryHandler) {
-	handler.ensureMessages().ProductInquiry = h
+	handler.messages.ProductInquiry = h
 }
 
 // OnInteractiveMessage registers a handler for interactive messages in the messages webhook.
 func (handler *Handler) OnInteractiveMessage(h InteractiveMessageHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Interactive == nil {
 		mh.Interactive = &InteractiveHandler{}
 	}
@@ -219,7 +219,7 @@ func (handler *Handler) OnInteractiveMessage(h InteractiveMessageHandler) {
 
 // OnButtonReplyMessage registers a handler for button reply messages in the messages webhook.
 func (handler *Handler) OnButtonReplyMessage(h ButtonReplyMessageHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Interactive == nil {
 		mh.Interactive = &InteractiveHandler{}
 	}
@@ -228,7 +228,7 @@ func (handler *Handler) OnButtonReplyMessage(h ButtonReplyMessageHandler) {
 
 // OnListReplyMessage registers a handler for list reply messages in the messages webhook.
 func (handler *Handler) OnListReplyMessage(h ListReplyMessageHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Interactive == nil {
 		mh.Interactive = &InteractiveHandler{}
 	}
@@ -237,7 +237,7 @@ func (handler *Handler) OnListReplyMessage(h ListReplyMessageHandler) {
 
 // OnFlowCompletionMessage registers a handler for flow completion messages in the messages webhook.
 func (handler *Handler) OnFlowCompletionMessage(h NativeFlowCompletionHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Interactive == nil {
 		mh.Interactive = &InteractiveHandler{}
 	}
@@ -246,7 +246,7 @@ func (handler *Handler) OnFlowCompletionMessage(h NativeFlowCompletionHandler) {
 
 // OnAddressSubmissionMessage registers a handler for address submission messages in the messages webhook.
 func (handler *Handler) OnAddressSubmissionMessage(h NativeFlowCompletionHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Interactive == nil {
 		mh.Interactive = &InteractiveHandler{}
 	}
@@ -259,7 +259,7 @@ func (handler *Handler) OnAddressSubmissionMessage(h NativeFlowCompletionHandler
 // rejects a call permission request, or when permission is automatically
 // granted by initiating a call.
 func (handler *Handler) OnCallPermissionReply(h CallPermissionReplyHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Interactive == nil {
 		mh.Interactive = &InteractiveHandler{}
 	}
@@ -271,24 +271,24 @@ func (handler *Handler) OnCallPermissionReply(h CallPermissionReplyHandler) {
 // body, media URLs, and click tracking ID (ctwa_clid). Present on any incoming
 // message type (text, image, contacts, etc.) sent via a Click to WhatsApp ad.
 func (handler *Handler) OnReferralMessage(h ReferralMessageHandler) {
-	handler.ensureMessages().Referral = h
+	handler.messages.Referral = h
 }
 
 // OnCustomerIDChangeMessage registers a handler for customer identity change messages in the messages webhook.
 func (handler *Handler) OnCustomerIDChangeMessage(h CustomerIDChangeHandler) {
-	handler.ensureMessages().CustomerIDChange = h
+	handler.messages.CustomerIDChange = h
 }
 
 // OnSystemMessage registers a handler for system messages in the messages webhook.
 func (handler *Handler) OnSystemMessage(h SystemMessageHandler) {
-	handler.ensureMessages().System = h
+	handler.messages.System = h
 }
 
 // OnAudioMessage registers a handler for audio messages in the messages
 // webhook. Metadata includes MIME type, SHA-256 hash, and download URL.
 // For voice messages, check the voice field via the Media API.
 func (handler *Handler) OnAudioMessage(h MediaMessageHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Media == nil {
 		mh.Media = &MediaHandler{}
 	}
@@ -300,7 +300,7 @@ func (handler *Handler) OnAudioMessage(h MediaMessageHandler) {
 // URL (v2025.11+). Use the ID with the Media API or the URL directly with
 // your access token to retrieve the asset.
 func (handler *Handler) OnVideoMessage(h MediaMessageHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Media == nil {
 		mh.Media = &MediaHandler{}
 	}
@@ -311,7 +311,7 @@ func (handler *Handler) OnVideoMessage(h MediaMessageHandler) {
 // webhook. Metadata includes MIME type, SHA-256 hash, caption, and download
 // URL (v2025.11+).
 func (handler *Handler) OnImageMessage(h MediaMessageHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Media == nil {
 		mh.Media = &MediaHandler{}
 	}
@@ -322,7 +322,7 @@ func (handler *Handler) OnImageMessage(h MediaMessageHandler) {
 // webhook. Metadata includes filename, MIME type, SHA-256 hash, caption, and
 // download URL.
 func (handler *Handler) OnDocumentMessage(h MediaMessageHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Media == nil {
 		mh.Media = &MediaHandler{}
 	}
@@ -332,7 +332,7 @@ func (handler *Handler) OnDocumentMessage(h MediaMessageHandler) {
 // OnStickerMessage registers a handler for sticker messages in the messages
 // webhook. Metadata includes MIME type, SHA-256 hash, and an animated flag.
 func (handler *Handler) OnStickerMessage(h MediaMessageHandler) {
-	mh := handler.ensureMessages()
+	mh := handler.messages
 	if mh.Media == nil {
 		mh.Media = &MediaHandler{}
 	}
@@ -343,7 +343,7 @@ func (handler *Handler) OnStickerMessage(h MediaMessageHandler) {
 // when a WhatsApp user deletes a previously sent message (within ~2 days of
 // sending). The callback receives the original message ID that was revoked.
 func (handler *Handler) OnRevokeMessage(h MessageHandler[Revoke]) {
-	handler.ensureMessages().Revoke = h
+	handler.messages.Revoke = h
 }
 
 // OnMessageEdit registers a callback for edit events. Triggers when a WhatsApp
@@ -354,12 +354,12 @@ func (handler *Handler) OnRevokeMessage(h MessageHandler[Revoke]) {
 // Note: edit webhooks are temporarily unsupported by WhatsApp. Edited messages
 // may currently arrive as unsupported message type instead of edit type.
 func (handler *Handler) OnMessageEdit(h MessageHandler[Edit]) {
-	handler.ensureMessages().Edit = h
+	handler.messages.Edit = h
 }
 
 // OnRequestWelcomeMessage registers a handler for request_welcome messages in the messages webhook.
 func (handler *Handler) OnRequestWelcomeMessage(h RequestWelcomeMessageHandler) {
-	handler.ensureMessages().RequestWelcome = h
+	handler.messages.RequestWelcome = h
 }
 
 // MessagesHandler is the single entry point for all WhatsApp message dispatch.
@@ -394,7 +394,7 @@ type MessagesHandler struct {
 	Unknown          MessageErrorsHandler
 	Unsupported      MessageErrorsHandler
 	ProductInquiry   MessageHandler[Text]
-	Fallback         FallbackHandler
+	fallback         FallbackHandler
 
 	// NotificationErrors handles notification-level errors on the "messages"
 	// field (system errors, app errors, account errors).
@@ -406,7 +406,7 @@ type MessagesHandler struct {
 
 	// ErrorHandler is called when any handler in the messages dispatch chain
 	// returns an error. When nil, the error is returned as-is.
-	ErrorHandler ErrorHandler
+	errorHandler ErrorHandler
 }
 
 // OnNotificationErrors sets the handler for notification-level errors on
@@ -421,8 +421,47 @@ func (mh *MessagesHandler) OnStatusChange(h ChangeValueHandler[Status]) {
 	mh.StatusChange = h
 }
 
-func (mh *MessagesHandler) handleError(ctx context.Context, err error) error {
-	return handleSubHandlerError(ctx, mh.ErrorHandler, err)
+// OnError sets the error handler for this domain handler. When nil, errors
+// bubble up to the general error handler configured on [Handler].
+func (mh *MessagesHandler) OnError(h ErrorHandler) {
+	mh.errorHandler = h
+}
+
+// HandleError routes an error through the MessagesHandler ErrorHandler.
+func (mh *MessagesHandler) HandleError(ctx context.Context, err error) error {
+	return execErrorHandler(ctx, mh.errorHandler, err)
+}
+
+// Fallback routes an unhandled message through the fallback catch-all.
+func (mh *MessagesHandler) Fallback(ctx context.Context, event NotificationEvent) error {
+	if mh.fallback == nil {
+		return nil
+	}
+	if err := mh.fallback.Handle(ctx, event); err != nil {
+		return fmt.Errorf("messages fallback: %w", err)
+	}
+	return nil
+}
+
+// CanHandleEvent reports whether a handler is registered for
+// the messages carried by this NotificationEvent. Returns true when any
+// message handler, status handler, or notification error handler is non-nil.
+func (mh *MessagesHandler) CanHandleEvent(event NotificationEvent) bool {
+	if event.Value == nil {
+		return false
+	}
+	if event.Value.Messages != nil || event.Value.Statuses != nil || event.Value.Errors != nil {
+		return true
+	}
+	return false
+}
+
+var _ EventHandler = (*MessagesHandler)(nil)
+
+// OnFallback sets the catch-all handler for messages without a dedicated
+// handler.
+func (mh *MessagesHandler) OnFallback(h FallbackHandler) {
+	mh.fallback = h
 }
 
 // newMessageInfo extracts MessageInfo from a raw Message. All boolean
@@ -450,7 +489,7 @@ func newMessageRequest[T any](nctx *MessageNotificationContext, info *MessageInf
 // Handle dispatches the "messages" webhook value. Processing runs in three
 // phases:
 //
-//  1. Notification-level errors (system, app, account errors)
+//  1. Notification level errors (system, app, account errors)
 //  2. Message delivery status updates (sent, delivered, read, failed)
 //  3. Incoming messages (text, image, interactive, etc.)
 //
@@ -481,7 +520,7 @@ func (mh *MessagesHandler) Handle(
 			Payload:      ErrorInfosAsErrors(event.Value.Errors),
 		}
 		if err := mh.NotificationErrors.Handle(ctx, req); err != nil {
-			return mh.handleError(ctx, err)
+			return mh.HandleError(ctx, err)
 		}
 	}
 
@@ -492,7 +531,7 @@ func (mh *MessagesHandler) Handle(
 			Payload:      event.Value.Statuses,
 		}
 		if err := mh.StatusChange.Handle(ctx, req); err != nil {
-			return mh.handleError(ctx, err)
+			return mh.HandleError(ctx, err)
 		}
 	}
 
@@ -502,7 +541,7 @@ func (mh *MessagesHandler) Handle(
 			continue
 		}
 		if err := mh.handleOne(ctx, nctx, msg); err != nil {
-			return mh.handleError(ctx, err)
+			return mh.HandleError(ctx, err)
 		}
 	}
 
@@ -513,7 +552,26 @@ func (mh *MessagesHandler) Handle(
 // on msg.Type. Media types delegate to MediaHandler; interactive messages
 // delegate to InteractiveHandler. Unknown types fall through to Fallback.
 //
-//nolint:cyclop,funlen,gocognit,gocyclo // dispatch switch
+// dispatchMessage is a generic helper for the common dispatch pattern:
+// nil-check handler -> build request -> call Handle -> wrap error.
+func dispatchMessage[T any](
+	ctx context.Context,
+	h MessageHandler[T],
+	nctx *MessageNotificationContext,
+	info *MessageInfo,
+	payload *T,
+	name string,
+) error {
+	if h == nil {
+		return nil
+	}
+	if err := h.Handle(ctx, newMessageRequest(nctx, info, payload)); err != nil {
+		return fmt.Errorf("handle %s message: %w", name, err)
+	}
+	return nil
+}
+
+//nolint:gocognit,cyclop,funlen // dispatch switch with legacy probe fallback
 func (mh *MessagesHandler) handleOne(
 	ctx context.Context,
 	nctx *MessageNotificationContext,
@@ -532,69 +590,21 @@ func (mh *MessagesHandler) handleOne(
 	case MessageTypeSystem:
 		return mh.handleSystem(ctx, nctx, info, message)
 	case MessageTypeOrder:
-		if mh.Order == nil {
-			return nil
-		}
-		if err := mh.Order.Handle(ctx, newMessageRequest(nctx, info, message.Order)); err != nil {
-			return fmt.Errorf("handle order message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Order, nctx, info, message.Order, "order")
 	case MessageTypeButton:
-		if mh.Button == nil {
-			return nil
-		}
-		if err := mh.Button.Handle(ctx, newMessageRequest(nctx, info, message.Button)); err != nil {
-			return fmt.Errorf("handle button message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Button, nctx, info, message.Button, "button")
 	case MessageTypeReaction:
-		if mh.Reaction == nil {
-			return nil
-		}
-		if err := mh.Reaction.Handle(ctx, newMessageRequest(nctx, info, message.Reaction)); err != nil {
-			return fmt.Errorf("handle reaction message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Reaction, nctx, info, message.Reaction, "reaction")
 	case MessageTypeLocation:
-		if mh.Location == nil {
-			return nil
-		}
-		if err := mh.Location.Handle(ctx, newMessageRequest(nctx, info, message.Location)); err != nil {
-			return fmt.Errorf("handle location message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Location, nctx, info, message.Location, "location")
 	case MessageTypeContacts:
-		if mh.Contacts == nil {
-			return nil
-		}
-		if err := mh.Contacts.Handle(ctx, newMessageRequest(nctx, info, message.Contacts)); err != nil {
-			return fmt.Errorf("handle contacts message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Contacts, nctx, info, message.Contacts, "contacts")
 	case MessageTypeRevoke:
-		if mh.Revoke == nil {
-			return nil
-		}
-		if err := mh.Revoke.Handle(ctx, newMessageRequest(nctx, info, message.Revoke)); err != nil {
-			return fmt.Errorf("handle revoke message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Revoke, nctx, info, message.Revoke, "revoke")
 	case MessageTypeEdit:
-		if mh.Edit == nil {
-			return nil
-		}
-		if err := mh.Edit.Handle(ctx, newMessageRequest(nctx, info, message.Edit)); err != nil {
-			return fmt.Errorf("handle edit message: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.Edit, nctx, info, message.Edit, "edit")
 	case MessageTypeRequestWelcome:
-		if mh.RequestWelcome == nil {
-			return nil
-		}
-		if err := mh.RequestWelcome.Handle(ctx, newMessageRequest(nctx, info, message)); err != nil {
-			return fmt.Errorf("handle request welcome: %w", err)
-		}
-		return nil
+		return dispatchMessage(ctx, mh.RequestWelcome, nctx, info, message, "request_welcome")
 	case MessageTypeUnknown:
 		if mh.Unknown == nil {
 			return nil
@@ -643,7 +653,7 @@ func (mh *MessagesHandler) handleOne(
 			}
 			return nil
 		}
-		if mh.Fallback != nil {
+		if mh.fallback != nil {
 			fallbackEvent := NotificationEvent{
 				Object:  nctx.NotificationObject,
 				EntryID: nctx.EntryID,
@@ -656,7 +666,7 @@ func (mh *MessagesHandler) handleOne(
 					Messages:         []*Message{message},
 				},
 			}
-			if err := mh.Fallback.Handle(ctx, fallbackEvent); err != nil {
+			if err := mh.fallback.Handle(ctx, fallbackEvent); err != nil {
 				return fmt.Errorf("handle fallback: %w", err)
 			}
 		}

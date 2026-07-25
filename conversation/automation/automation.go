@@ -231,7 +231,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	req := whttp.BuildRequest(b, message)
 
 	response := &BaseResponse{}
-	decoder := whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsPermissive())
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(response, whttp.DecodeOptionsPermissive()))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("send: %w", err)
@@ -310,7 +310,7 @@ func (bc *BaseClient) sendBot(ctx context.Context, conf *config.Config, request 
 	req := whttp.BuildRequest[BaseRequest](bld, nil)
 
 	var resp Bot
-	decoder := whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptionsPermissive())
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(&resp, whttp.DecodeOptionsPermissive()))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)

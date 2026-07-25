@@ -113,9 +113,9 @@ func main() {
 
 	conf := webhooks.ConfigReaderFunc(func(request *http.Request) (*webhooks.Config, error) {
 		value := &webhooks.Config{
-			Token:     "TOKEN",
-			Validate:  true,
-			AppSecret: "SUPERSECRET",
+			Token:           "TOKEN",
+			ValidatePayload: true,
+			AppSecret:       "SUPERSECRET",
 		}
 
 		return value, nil

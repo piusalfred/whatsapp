@@ -660,7 +660,7 @@ func TestListener_SubscriptionVerification(t *testing.T) {
 		})
 	}
 
-	t.Run("HTML-escapes challenge", func(t *testing.T) {
+	t.Run("echoes challenge verbatim", func(t *testing.T) {
 		t.Parallel()
 		listener := webhooks.NewListener(okHandler(), newTestConfigReader("t", "", false))
 		w := httptest.NewRecorder()
@@ -671,8 +671,8 @@ func TestListener_SubscriptionVerification(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", w.Code)
 		}
-		if strings.Contains(w.Body.String(), "<script>") {
-			t.Error("challenge was not HTML-escaped")
+		if w.Body.String() != "<script>" {
+			t.Errorf("challenge was not echoed verbatim: got %q, want %q", w.Body.String(), "<script>")
 		}
 	})
 

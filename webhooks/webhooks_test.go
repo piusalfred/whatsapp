@@ -1917,7 +1917,7 @@ func FuzzHandleNotification(f *testing.F) {
 	})
 }
 
-func TestDefect002_MiddlewarePanic_NotRecovered(t *testing.T) {
+func TestDefect002_MiddlewarePanic_NowRecovered(t *testing.T) {
 	t.Parallel()
 
 	handler := webhooks.NewHandler()
@@ -1940,19 +1940,11 @@ func TestDefect002_MiddlewarePanic_NotRecovered(t *testing.T) {
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
-	didPanic := false
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				didPanic = true
-			}
-		}()
-		listener.HandleNotification(w, r)
-	}()
+	// Listener.HandleNotification recovers middleware panics and returns 500.
+	listener.HandleNotification(w, r)
 
-	if didPanic {
-		t.Error("FIXME: Listener.HandleNotification panicked on middleware panic. " +
-			"Add recover() to Listener.HandleNotification to catch this.")
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 after middleware panic, got %d", w.Code)
 	}
 }
 
@@ -2192,12 +2184,12 @@ func TestFallback_Calls_SubFallbackFires(t *testing.T) {
 		},
 	))
 	var subFired bool
-	h.Calls().Fallback = webhooks.FallbackHandlerFunc(
+	h.Calls().OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
 			subFired = true
 			return nil
 		},
-	)
+	))
 	resp := h.HandleNotification(context.Background(), callTerminatePayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -2229,9 +2221,6 @@ func TestFallback_Calls_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-	if h.Calls().Fallback != nil {
-		t.Fatal("Calls.Fallback should be nil before OnFallback")
-	}
 	var fired bool
 	h.OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
@@ -2239,9 +2228,6 @@ func TestFallback_Calls_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-	if h.Calls().Fallback == nil {
-		t.Fatal("OnFallback did not propagate to CallsHandler.Fallback")
-	}
 	resp := h.HandleNotification(context.Background(), callTerminatePayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -2282,12 +2268,12 @@ func TestFallback_Calls_ErrorPropagationToErrorHandler(t *testing.T) {
 		},
 	))
 	var gotErr error
-	h.Calls().ErrorHandler = webhooks.ErrorHandlerFunc(
+	h.Calls().OnError(webhooks.ErrorHandlerFunc(
 		func(_ context.Context, err error) error {
 			gotErr = err
 			return nil
 		},
-	)
+	))
 	resp := h.HandleNotification(context.Background(), callConnectPayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 (non-fatal error), got %d", resp.StatusCode)
@@ -2454,9 +2440,6 @@ func TestFallback_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-	if h.Groups().Fallback != nil {
-		t.Fatal("groups.Fallback should be nil before OnFallback")
-	}
 	var fallbackFired bool
 	var fallbackField string
 	h.OnFallback(webhooks.FallbackHandlerFunc(
@@ -2466,9 +2449,6 @@ func TestFallback_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-	if h.Groups().Fallback == nil {
-		t.Fatal("OnFallback did not propagate to groups.Fallback")
-	}
 	resp := h.HandleNotification(context.Background(), groupStatusUpdatePayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -2568,12 +2548,12 @@ func TestFallback_SMBAppState_SubFallbackFires(t *testing.T) {
 	t.Parallel()
 	h := webhooks.NewHandler()
 	var subFired bool
-	h.SMBAppSync().Fallback = webhooks.FallbackHandlerFunc(
+	h.SMBAppSync().OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
 			subFired = true
 			return nil
 		},
-	)
+	))
 	resp := h.HandleNotification(context.Background(), smbAppStateSyncPayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -2595,14 +2575,6 @@ func TestFallback_SMBAppState_NoSubFallback_Silent200(t *testing.T) {
 func TestFallback_SMBAppState_OnFallbackPropagates(t *testing.T) {
 	t.Parallel()
 	h := webhooks.NewHandler()
-	h.OnSMBAppStateSync(webhooks.SMBAppStateSyncHandlerFunc(
-		func(_ context.Context, nctx *webhooks.MessageNotificationContext, s *webhooks.SMBAppStateSync) error {
-			return nil
-		},
-	))
-	if h.SMBAppSync().Fallback != nil {
-		t.Fatal("Fallback should be nil before OnFallback")
-	}
 	var fired bool
 	h.OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
@@ -2610,10 +2582,6 @@ func TestFallback_SMBAppState_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-	if h.SMBAppSync().Fallback == nil {
-		t.Fatal("OnFallback did not propagate to SMBAppSync.Fallback")
-	}
-	h.SMBAppSync().Handler = nil
 	resp := h.HandleNotification(context.Background(), smbAppStateSyncPayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -2749,12 +2717,12 @@ func TestFallback_SMB_SubFallbackFires(t *testing.T) {
 	t.Parallel()
 	h := webhooks.NewHandler()
 	var subFired bool
-	h.SMBEchoes().Fallback = webhooks.FallbackHandlerFunc(
+	h.SMBEchoes().OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
 			subFired = true
 			return nil
 		},
-	)
+	))
 	resp := h.HandleNotification(context.Background(), smbTextEchoPayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -2776,14 +2744,6 @@ func TestFallback_SMB_NoSubFallback_Silent200(t *testing.T) {
 func TestFallback_SMB_OnFallbackPropagates(t *testing.T) {
 	t.Parallel()
 	h := webhooks.NewHandler()
-	h.OnSMBMessageEcho(webhooks.SMBMessageEchoHandlerFunc(
-		func(_ context.Context, nctx *webhooks.MessageNotificationContext, msg *webhooks.Message) error {
-			return nil
-		},
-	))
-	if h.SMBEchoes().Fallback != nil {
-		t.Fatal("SMBEchoes.Fallback should be nil before OnFallback")
-	}
 	var fired bool
 	h.OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
@@ -2791,10 +2751,6 @@ func TestFallback_SMB_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-	if h.SMBEchoes().Fallback == nil {
-		t.Fatal("OnFallback did not propagate to SMBEchoes.Fallback")
-	}
-	h.SMBEchoes().Handler = nil
 	resp := h.HandleNotification(context.Background(), smbTextEchoPayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -2891,12 +2847,12 @@ func TestFallback_UserPrefs_SubFallbackFires(t *testing.T) {
 	t.Parallel()
 	h := webhooks.NewHandler()
 	var subFired bool
-	h.UserPrefs().Fallback = webhooks.FallbackHandlerFunc(
+	h.UserPrefs().OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
 			subFired = true
 			return nil
 		},
-	)
+	))
 	resp := h.HandleNotification(context.Background(), userPreferencesPayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -2918,14 +2874,6 @@ func TestFallback_UserPrefs_NoSubFallback_Silent200(t *testing.T) {
 func TestFallback_UserPrefs_OnFallbackPropagates(t *testing.T) {
 	t.Parallel()
 	h := webhooks.NewHandler()
-	h.OnUserPreferencesUpdate(webhooks.UserPreferenceHandlerFunc(
-		func(_ context.Context, nctx *webhooks.MessageNotificationContext, p *webhooks.UserPreference) error {
-			return nil
-		},
-	))
-	if h.UserPrefs().Fallback != nil {
-		t.Fatal("Fallback should be nil before OnFallback")
-	}
 	var fired bool
 	h.OnFallback(webhooks.FallbackHandlerFunc(
 		func(_ context.Context, ev webhooks.NotificationEvent) error {
@@ -2933,10 +2881,6 @@ func TestFallback_UserPrefs_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-	if h.UserPrefs().Fallback == nil {
-		t.Fatal("OnFallback did not propagate to UserPrefs.Fallback")
-	}
-	h.UserPrefs().Handler = nil
 	resp := h.HandleNotification(context.Background(), userPreferencesPayload())
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)

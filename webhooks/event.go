@@ -19,11 +19,9 @@ package webhooks
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"runtime/debug"
-
-	"golang.org/x/sync/errgroup"
 )
 
 // NotificationEvent is a single flattened webhook event. It combines the
@@ -62,23 +60,13 @@ func (handler *Handler) HandleNotificationEvent(ctx context.Context, event Notif
 	return handler.dispatchEvent(ctx, event)
 }
 
-// dispatchEvent is the unified dispatch core for all event routing. It routes a
-// single NotificationEvent to the correct sub-handler based on event.Field.
-// Unknown fields are short-circuited and routed to the general fallback (if set)
-// or silently acknowledged. Panics in sub-handlers are recovered and wrapped as
-// [PanicError].
-//
-//nolint:gocognit // dispatch switch
+// dispatchEvent is the unified dispatch core for all event routing. It maps
+// the event field to a [EventHandler] and delegates to [HandleEvent].
+// Unknown fields are routed to the general fallback.
 func (handler *Handler) dispatchEvent(
 	ctx context.Context,
 	event NotificationEvent,
-) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = &PanicError{Value: r, Stack: debug.Stack()}
-		}
-	}()
-
+) error {
 	_, isImplemented := handler.changeFieldHandlers.Check(event.Field)
 	if !isImplemented {
 		if handler.fallback != nil {
@@ -89,54 +77,44 @@ func (handler *Handler) dispatchEvent(
 		return nil
 	}
 
-	cfc := GetChangeFieldCategory(event.Field)
+	ch := handler.changeHandler(GetChangeFieldCategory(event.Field))
+	if ch == nil {
+		if handler.fallback != nil {
+			if fErr := handler.fallback.Handle(ctx, event); fErr != nil {
+				return fmt.Errorf("fallback: %w", fErr)
+			}
+		}
+		return nil
+	}
 
+	return HandleEvent(ctx, ch, event)
+}
+
+// changeHandler returns the [EventHandler] for the given category, or nil
+// if the category is unregistered.
+func (handler *Handler) changeHandler(cfc ChangeFieldCategory) EventHandler {
 	switch cfc {
 	case ChangeFieldCategoryFlows:
-		if handler.flows != nil {
-			return handler.flows.Handle(ctx, event)
-		}
+		return handler.flows
 	case ChangeFieldCategoryBusiness:
-		if handler.business != nil {
-			return handler.business.Handle(ctx, event)
-		}
+		return handler.business
 	case ChangeFieldCategoryCalls:
-		if handler.calls != nil {
-			return handler.calls.Handle(ctx, event)
-		}
+		return handler.calls
 	case ChangeFieldCategoryUserPreferences:
-		if handler.userPrefs != nil {
-			return handler.userPrefs.Handle(ctx, event)
-		}
+		return handler.userPrefs
 	case ChangeFieldCategorySMBAppStateSync:
-		if handler.smbAppSync != nil {
-			return handler.smbAppSync.Handle(ctx, event)
-		}
+		return handler.smbAppSync
 	case ChangeFieldCategoryMessages:
-		if handler.messages != nil {
-			return handler.messages.Handle(ctx, event)
-		}
+		return handler.messages
 	case ChangeFieldCategorySMBMessageEchoes:
-		if handler.smbEcho != nil {
-			return handler.smbEcho.Handle(ctx, event)
-		}
+		return handler.smbEcho
 	case ChangeFieldCategoryGroups:
-		if handler.groups != nil {
-			return handler.groups.Handle(ctx, event)
-		}
+		return handler.groups
 	case ChangeFieldCategoryHistory:
-		if handler.history != nil {
-			return handler.history.Handle(ctx, event)
-		}
+		return handler.history
+	default:
+		return nil
 	}
-
-	// Nil sub-handler or unknown category → try the general fallback.
-	if handler.fallback != nil {
-		if fErr := handler.fallback.Handle(ctx, event); fErr != nil {
-			return fmt.Errorf("fallback: %w", fErr)
-		}
-	}
-	return nil
 }
 
 // Events flattens the Notification hierarchy into a slice of NotificationEvent.
@@ -163,33 +141,50 @@ func (n *Notification) Events() []NotificationEvent {
 	return events
 }
 
-// HandleNotificationEvents processes an incoming WhatsApp webhook notification.
-// It flattens the payload into [NotificationEvent] values and dispatches each
-// concurrently to the correct sub-handler. All events are processed in parallel
-// within each entry group. Returns a Response indicating success (200) or
-// gateway timeout (504) if the context is cancelled.
-func (handler *Handler) HandleNotificationEvents(ctx context.Context, notification *Notification) *Response {
-	select {
-	case <-ctx.Done():
-		return &Response{StatusCode: http.StatusGatewayTimeout}
-	default:
+type EventHandler interface {
+	Handle(ctx context.Context, event NotificationEvent) error
+	HandleError(ctx context.Context, err error) error
+	Fallback(ctx context.Context, event NotificationEvent) error
+	CanHandleEvent(event NotificationEvent) bool
+}
+
+// HandleEvent dispatches a single event through the [EventHandler]
+// pipeline:
+//
+//  1. If [EventHandler.CanHandleEvent] returns false, the event
+//     is routed directly to [EventHandler.Fallback].
+//  2. Otherwise, [EventHandler.Handle] is called. If Handle returns
+//     [ErrEventNotHandled], the event is routed to [EventHandler.Fallback].
+//  3. Any other error from Handle is routed through
+//     [EventHandler.HandleError].
+//  4. Panics in Handle, HandleError, or Fallback are recovered and wrapped
+//     as [PanicError].
+func HandleEvent(ctx context.Context, handler EventHandler, event NotificationEvent) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = &PanicError{Value: r, Stack: debug.Stack()}
+		}
+	}()
+
+	if !handler.CanHandleEvent(event) {
+		if fErr := handler.Fallback(ctx, event); fErr != nil {
+			return fmt.Errorf("change handler fallback: %w", fErr)
+		}
+		return nil
 	}
 
-	events := notification.Events()
-	if len(events) == 0 {
-		return &Response{StatusCode: http.StatusOK}
+	if err = handler.Handle(ctx, event); err != nil {
+		if errors.Is(err, ErrEventNotHandled) {
+			if fErr := handler.Fallback(ctx, event); fErr != nil {
+				return fmt.Errorf("change handler fallback: %w", fErr)
+			}
+			return nil
+		}
+		if hErr := handler.HandleError(ctx, err); hErr != nil {
+			return fmt.Errorf("change handler error: %w", hErr)
+		}
+		return nil
 	}
 
-	g, gContext := errgroup.WithContext(ctx)
-	for _, event := range events {
-		ev := event
-		g.Go(func() error {
-			return handler.HandleNotificationEvent(gContext, ev)
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return &Response{StatusCode: http.StatusGatewayTimeout}
-	}
-
-	return &Response{StatusCode: http.StatusOK}
+	return nil
 }

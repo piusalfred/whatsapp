@@ -20,6 +20,7 @@ package webhooks_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -62,7 +63,7 @@ func TestBusinessNotificationHandler_DedicatedCall(t *testing.T) {
 		}
 	})
 
-	t.Run("nil handler is silently skipped", func(t *testing.T) {
+	t.Run("nil handler returns ErrEventNotHandled", func(t *testing.T) {
 		t.Parallel()
 
 		bh := &webhooks.BusinessNotificationHandler{} // no handlers set
@@ -76,8 +77,8 @@ func TestBusinessNotificationHandler_DedicatedCall(t *testing.T) {
 		}
 
 		err := bh.Handle(context.Background(), event)
-		if err != nil {
-			t.Errorf("expected nil for unhandled change, got: %v", err)
+		if !errors.Is(err, webhooks.ErrEventNotHandled) {
+			t.Errorf("expected ErrEventNotHandled, got: %v", err)
 		}
 	})
 
@@ -102,49 +103,6 @@ func TestBusinessNotificationHandler_DedicatedCall(t *testing.T) {
 		err := bh.Handle(context.Background(), event)
 		if err == nil {
 			t.Error("expected error from handler, got nil")
-		}
-	})
-}
-
-func TestBusinessNotificationHandler_Setters(t *testing.T) {
-	t.Parallel()
-
-	t.Run("OnAlerts sets Alerts", func(t *testing.T) {
-		t.Parallel()
-		bh := &webhooks.BusinessNotificationHandler{}
-		bh.OnAlerts(webhooks.BusinessEventHandlerFunc[webhooks.AlertNotification](
-			func(_ context.Context, _ *webhooks.BusinessRequest[webhooks.AlertNotification]) error {
-				return nil
-			},
-		))
-		if bh.Alerts == nil {
-			t.Error("Alerts should not be nil after OnAlerts")
-		}
-	})
-
-	t.Run("OnAccount sets Account", func(t *testing.T) {
-		t.Parallel()
-		bh := &webhooks.BusinessNotificationHandler{}
-		bh.OnAccount(webhooks.BusinessEventHandlerFunc[webhooks.AccountUpdate](
-			func(_ context.Context, _ *webhooks.BusinessRequest[webhooks.AccountUpdate]) error {
-				return nil
-			},
-		))
-		if bh.Account == nil {
-			t.Error("Account should not be nil after OnAccount")
-		}
-	})
-
-	t.Run("OnSecurity sets Security", func(t *testing.T) {
-		t.Parallel()
-		bh := &webhooks.BusinessNotificationHandler{}
-		bh.OnSecurity(webhooks.BusinessEventHandlerFunc[webhooks.SecurityNotification](
-			func(_ context.Context, _ *webhooks.BusinessRequest[webhooks.SecurityNotification]) error {
-				return nil
-			},
-		))
-		if bh.Security == nil {
-			t.Error("Security should not be nil after OnSecurity")
 		}
 	})
 }
@@ -322,14 +280,6 @@ func TestFallback_Business_SubFallbackFires(t *testing.T) {
 
 	h := webhooks.NewHandler()
 
-	h.OnBusinessAlertNotification(webhooks.BusinessEventHandlerFunc[webhooks.AlertNotification](
-		func(_ context.Context, req *webhooks.BusinessRequest[webhooks.AlertNotification]) error {
-			t.Error("alerts handler should not fire for account review")
-			return nil
-		},
-	))
-	h.Business().Alerts = nil
-
 	var subFired bool
 	var gotField string
 	h.Business().OnFallback(webhooks.FallbackHandlerFunc(
@@ -374,16 +324,6 @@ func TestFallback_Business_OnFallbackPropagates(t *testing.T) {
 
 	h := webhooks.NewHandler()
 
-	h.OnBusinessAlertNotification(webhooks.BusinessEventHandlerFunc[webhooks.AlertNotification](
-		func(_ context.Context, req *webhooks.BusinessRequest[webhooks.AlertNotification]) error {
-			return nil
-		},
-	))
-
-	if h.Business().Fallback != nil {
-		t.Fatal("Business.Fallback should be nil before OnFallback")
-	}
-
 	var fired bool
 	var gotField string
 	h.OnFallback(webhooks.FallbackHandlerFunc(
@@ -393,10 +333,6 @@ func TestFallback_Business_OnFallbackPropagates(t *testing.T) {
 			return nil
 		},
 	))
-
-	if h.Business().Fallback == nil {
-		t.Fatal("OnFallback did not propagate to Business.Fallback")
-	}
 
 	resp := h.HandleNotification(context.Background(), businessAccountReviewPayload())
 	if resp.StatusCode != http.StatusOK {

@@ -357,6 +357,13 @@ func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
 	c.sender.SetMiddlewares(mws...)
 }
 
+// CloseIdleConnections closes idle connections in the underlying HTTP transport.
+// Call this during graceful shutdown to drain the connection pool and avoid
+// leaking sockets.
+func (c *Client) CloseIdleConnections() {
+	c.sender.CloseIdleConnections()
+}
+
 // BaseClient is the low-level HTTP executor for the Calls API. It converts
 // domain [Request] values into HTTP traffic and decodes JSON responses.
 type BaseClient struct {
@@ -407,7 +414,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 	req := whttp.BuildRequest(b, message)
 
 	resp := &BaseResponse{}
-	decoder := whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive())
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(resp, whttp.DecodeOptionsPermissive()))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)

@@ -4,9 +4,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/piusalfred/whatsapp)](https://goreportcard.com/report/github.com/piusalfred/whatsapp)
 ![Status](https://img.shields.io/badge/status-alpha-red)
 
-A highly configurable Go client for the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api). It covers outbound messaging (text, media, interactive, templates), inbound webhooks (signature validation, typed event dispatch), and the full Business Management API (groups, QR codes, phone numbers, media, analytics, system users, and more).
-
-Every domain is a self-contained package with its own `Client` (single-tenant) and `BaseClient` (multi-tenant) — use one or compose them all behind the unified `api.Client`. The HTTP transport is generic, typed, and fully mockable, with middleware chains, request/response interceptors, and functional options for every tunable.
+A Go client for the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) covering outbound messaging, inbound webhooks, and the Business Management API.
 
 > [!IMPORTANT]
 > This is a third-party library. Not affiliated with or maintained by Meta.
@@ -17,28 +15,33 @@ Every domain is a self-contained package with its own `Client` (single-tenant) a
 go get github.com/piusalfred/whatsapp
 ```
 
-## Supported APIs
+## Packages
 
-| Category | Package | Capabilities |
-|----------|---------|-------------|
-| **Messages** | `message` | Text, image, video, audio, document, sticker, location, reaction, contacts, pin |
-| **Interactive** | `message/interactive` | CTA URL, reply buttons, list picker, flow, media carousel, address, location request, call permission |
-| **Templates** | `message/template` | Text, media, carousel, coupon, limited-time offer, authentication |
-| **Webhooks** | `webhooks` | Messages, statuses, calls, flows, groups, security, templates, account alerts |
-| **Groups** | `groups` | Create, delete, participants, invite links, join requests |
-| **QR Codes** | `qrcode` | Create, read, update, delete, list |
-| **Media** | `media` | Upload, retrieve, delete, download |
-| **Phone Numbers** | `phonenumber` | List, get, settings |
-| **Auth** | `auth` | System users (create, list, update), tokens, 2FA, install apps |
-| **Business Profile** | `business` | Get, update |
-| **Analytics** | `business/analytics` | Messaging, conversation, pricing |
-| **Conversation** | `conversation/automation` | Components, welcome messages, bot details |
-| **Users** | `user` | Block, unblock, list blocked |
-| **Uploads** | `uploads` | Chunked upload sessions |
-| **Callbacks** | `webhooks/callbacks` | Alternate webhook URLs |
-| **Settings** | `settings` | Business settings |
-| **Calls** | `calls` | Calling API |
-| **Flows** | `flow` | WhatsApp Flows management |
+| Package | Purpose |
+|----------|---------|
+| `message` | Send text, media, interactive, location, contacts, reactions, stickers |
+| `message/interactive` | Build interactive messages (buttons, lists, flows, carousels) |
+| `message/template` | Build template messages (text, media, carousel, auth) |
+| `message/media` | Media type helpers |
+| `webhooks` | Receive and dispatch inbound notifications (messages, statuses, calls, flows, groups, account alerts) |
+| `webhooks/callbacks` | Manage alternate webhook callback URLs |
+| `webhooks/router` | HTTP router for webhook endpoints |
+| `groups` | Create, delete, manage groups and participants |
+| `qrcode` | Create, read, update, delete QR codes |
+| `media` | Upload, retrieve, delete, download media |
+| `phonenumber` | List, get, configure phone numbers |
+| `auth` | System users, tokens, 2FA, app installation |
+| `business` | Get and update business profile |
+| `business/analytics` | Messaging, conversation, and pricing analytics |
+| `conversation/automation` | Conversational components, welcome messages |
+| `user` | Block, unblock, list blocked users |
+| `uploads` | Chunked upload sessions |
+| `settings` | Business settings |
+| `calls` | Calling API |
+| `flow` | WhatsApp Flows management |
+| `config` | Shared configuration types |
+| `pkg/http` | HTTP client with middleware, interceptors, and request building |
+| `pkg/types` | Shared types (metadata, phone numbers) |
 
 ## Quick Start
 
@@ -78,6 +81,10 @@ func main() {
 }
 ```
 
+### Handle webhooks
+
+See **[webhooks/README.md](./webhooks/README.md)** for the full webhook guide — architecture, dispatch pipeline, domain handlers, mode, fallback cascade, middleware, and error handling.
+
 ### Send an interactive list
 
 ```go
@@ -112,66 +119,16 @@ tmpl := template.NewInteractiveTemplate("hello_world",
 resp, err := client.SendTemplateMessage(ctx, message.SendTo("+16505551234"), tmpl)
 ```
 
-### Mark a message as read
+## Client types
 
-```go
-resp, err := client.UpdateMessageStatus(ctx, &message.StatusUpdateRequest{
-    MessageID: "wamid.xxx",
-    Status:    message.StatusRead,
-})
-```
+Every domain package exposes two client constructors:
 
-### Unified client (all APIs)
-
-```go
-import "github.com/piusalfred/whatsapp/api"
-
-client := api.NewClient(conf)
-
-// Messages
-client.SendMessage(ctx, message.New(
-    message.SendTo("+16505551234"),
-    message.WithTextMessage(&message.Text{Body: "Hello"}),
-))
-
-// Groups
-client.CreateGroup(ctx, &groups.CreateGroupRequest{Name: "Team Chat"})
-
-// QR Codes
-client.CreateQR(ctx, &qrcode.CreateRequest{PrefilledMessage: "Hi"})
-
-// Media
-client.UploadMedia(ctx, &media.UploadRequest{...})
-
-// System users
-client.CreateSystemUser(ctx, &auth.CreateSystemUserRequest{Name: "bot"})
-```
-
-See more in [examples](./_examples/) and the [full guide](./docs/).
-
-> [!NOTE]
-> Every domain package exposes both `Client` and `BaseClient`.
-> `Client` holds a fixed `*config.Config` — ideal for single-tenant services.
-> `BaseClient` accepts a per-call config — ideal for multi-tenant workloads
-> or dynamic credential rotation.
-
-> [!NOTE]
-> The [webhooks](./webhooks) package is an HTTP server that receives inbound
-> notifications from WhatsApp (messages, statuses, calls, flows, groups,
-> templates, account alerts). It validates signatures and dispatches events
-> to your handlers.
-> The [message](./message) package is the outbound client for sending messages.
-> They serve opposite directions and are configured independently.
-
-## Documentation
-
-Read the full guide at **[docs/README.md](./docs/README.md)** — it covers quick start, architecture, testing, middleware, secure requests, and things to watch out for.
-
-Start by reading the official [WhatsApp Cloud API Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started).
+- `NewClient(conf)` — holds a fixed `*config.Config`, ideal for single-tenant services.
+- `NewBaseClient()` — accepts per-call config via `WithSenderConfig`, ideal for multi-tenant workloads or dynamic credential rotation.
 
 ## Testing
 
-Generated mocks for every interface are available in [`mocks/`](./mocks/).
+Generated mocks are available in [`mocks/`](./mocks/). Each interface has a corresponding mock.
 
 ```go
 import mockhttp "github.com/piusalfred/whatsapp/mocks/http"
@@ -191,7 +148,13 @@ make all    # format, lint, generate mocks, run tests with race detector
 make help   # list all available targets
 ```
 
-## Reference Links
+## Documentation
+
+- **[docs/README.md](./docs/README.md)** — full project guide
+- **[webhooks/README.md](./webhooks/README.md)** — webhook architecture, dispatch, and configuration
+- Official [WhatsApp Cloud API Get Started Guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started)
+
+## Reference
 
 **Getting started**
 
@@ -222,7 +185,6 @@ make help   # list all available targets
 - [FlowJSON](https://developers.facebook.com/docs/whatsapp/flows/reference/flowjson)
 - [Flows Best Practices](https://developers.facebook.com/docs/whatsapp/flows/guides/bestpractices)
 - [Flows Webhooks](https://developers.facebook.com/docs/whatsapp/flows/reference/flowswebhooks)
-- [Flow Encryption](https://developers.facebook.com/docs/whatsapp/cloud-api/reference/whatsapp-business-encryption)
 
 **Management APIs**
 
@@ -230,8 +192,6 @@ make help   # list all available targets
 - [QR Codes](https://developers.facebook.com/docs/whatsapp/business-management-api/qr-codes/)
 - [System Users](https://developers.facebook.com/docs/marketing-api/system-users/overview)
 - [Install Apps, Generate, Refresh, and Revoke Tokens](https://developers.facebook.com/docs/marketing-api/system-users/install-apps-and-generate-tokens/#revoke-token)
-- [Create, Retrieve and Update a System User](https://developers.facebook.com/docs/marketing-api/system-users/create-retrieve-update)
-- [Access Token Debugger](https://developers.facebook.com/tools/accesstoken/)
 - [Analytics](https://developers.facebook.com/docs/whatsapp/business-management-api/analytics#analytics-parameters)
 - [Conversational Components](https://developers.facebook.com/docs/whatsapp/cloud-api/phone-numbers/conversational-components)
 - [Groups API](https://developers.facebook.com/docs/whatsapp/cloud-api/groups/getting-started)
