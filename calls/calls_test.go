@@ -32,9 +32,11 @@ import (
 	"github.com/piusalfred/whatsapp/calls"
 	"github.com/piusalfred/whatsapp/config"
 	"github.com/piusalfred/whatsapp/internal/test"
+	"github.com/piusalfred/whatsapp/message/media"
 	mockhttp "github.com/piusalfred/whatsapp/mocks/http"
 	werrors "github.com/piusalfred/whatsapp/pkg/errors"
 	whttp "github.com/piusalfred/whatsapp/pkg/http"
+	"github.com/piusalfred/whatsapp/webhooks"
 )
 
 // ---------------------------------------------------------------------------
@@ -1663,6 +1665,232 @@ func TestCallUpdateStatusResponse_FromDocumentation(t *testing.T) {
 // ---------------------------------------------------------------------------
 // 12. Verify cmp is available for diff output in test helpers
 // ---------------------------------------------------------------------------
+
+func TestRecording_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	t.Run("enabled", func(t *testing.T) {
+		t.Parallel()
+		r := &calls.Recording{
+			Status:               calls.RecordingEnabled,
+			Purpose:              "quality assurance",
+			AnnouncementLanguage: "en_US",
+		}
+		test.AssertJSONRoundTrip(t, "Recording enabled", r)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		t.Parallel()
+		r := &calls.Recording{Status: calls.RecordingDisabled}
+		test.AssertJSONRoundTrip(t, "Recording disabled", r)
+	})
+}
+
+func TestRecording_MarshalMatchesExpected(t *testing.T) {
+	t.Parallel()
+
+	r := &calls.Recording{
+		Status:               calls.RecordingEnabled,
+		Purpose:              "quality assurance",
+		AnnouncementLanguage: "en_US",
+	}
+	want := `{
+		"status": "ENABLED",
+		"purpose": "quality assurance",
+		"announcement_language": "en_US"
+	}`
+	test.AssertJSONMarshal(t, "Recording", r, want)
+}
+
+func TestConnectRequest_WithRecording(t *testing.T) {
+	t.Parallel()
+
+	req := calls.ConnectRequest("16505551234", "sdp-offer")
+	req.SetRecording(&calls.Recording{
+		Status:               calls.RecordingEnabled,
+		Purpose:              "quality assurance",
+		AnnouncementLanguage: "en_US",
+	})
+
+	if req.Recording == nil {
+		t.Fatal("expected non-nil Recording")
+	}
+	if req.Recording.Status != calls.RecordingEnabled {
+		t.Errorf("expected ENABLED, got %s", req.Recording.Status)
+	}
+	if req.Recording.Purpose != "quality assurance" {
+		t.Errorf("unexpected purpose: %s", req.Recording.Purpose)
+	}
+}
+
+func TestAcceptRequest_WithRecording(t *testing.T) {
+	t.Parallel()
+
+	req := calls.AcceptRequest("call-42", "sdp-answer")
+	req.SetRecording(&calls.Recording{
+		Status:               calls.RecordingEnabled,
+		Purpose:              "customer support",
+		AnnouncementLanguage: "es",
+	})
+
+	if req.Recording == nil || req.Recording.Purpose != "customer support" {
+		t.Errorf("unexpected recording: %+v", req.Recording)
+	}
+}
+
+func TestRecording_ConnectViaMockServer(t *testing.T) {
+	t.Parallel()
+
+	payload, _ := json.Marshal(map[string]any{
+		"messaging_product": "whatsapp",
+		"success":           true,
+		"calls":             []map[string]string{{"id": "call-rec-1"}},
+	})
+	srv := test.NewMockServer(test.MockBehavior{
+		StatusCode: http.StatusOK,
+		Payload:    payload,
+	})
+	defer srv.Close()
+
+	client := calls.NewClient(mockConfig(srv.Server.URL))
+	req := calls.ConnectRequest("16505551234", "sdp-offer")
+	req.SetRecording(&calls.Recording{
+		Status:               calls.RecordingEnabled,
+		Purpose:              "quality assurance",
+		AnnouncementLanguage: "en_US",
+	})
+	_, err := client.UpdateCallStatus(context.Background(), req)
+	test.AssertNoError(t, "UpdateCallStatus with recording failed", err)
+
+	// Verify recording fields were sent in the request body
+	reqs := srv.GetRequests()
+	r := reqs[0]
+
+	var body map[string]any
+	json.Unmarshal(r.Body, &body)
+
+	rec, ok := body["recording"].(map[string]any)
+	if !ok {
+		t.Fatal("expected recording in request body")
+	}
+	if rec["status"] != "ENABLED" {
+		t.Errorf("expected status=ENABLED, got %v", rec["status"])
+	}
+	if rec["purpose"] != "quality assurance" {
+		t.Errorf("unexpected purpose: %v", rec["purpose"])
+	}
+}
+
+func TestRecordingStatus_Values(t *testing.T) {
+	t.Parallel()
+
+	if calls.RecordingEnabled != "ENABLED" {
+		t.Errorf("expected ENABLED, got %s", calls.RecordingEnabled)
+	}
+	if calls.RecordingDisabled != "DISABLED" {
+		t.Errorf("expected DISABLED, got %s", calls.RecordingDisabled)
+	}
+}
+
+func TestCallRecordingAvailable_WebhookParsing(t *testing.T) {
+	t.Parallel()
+
+	docJSON := `{
+		"object": "whatsapp_business_account",
+		"entry": [{
+			"id": "123456789",
+			"changes": [{
+				"field": "calls",
+				"value": {
+					"messaging_product": "whatsapp",
+					"metadata": {
+						"phone_number_id": "106540352242922",
+						"display_phone_number": "15551234567"
+					},
+					"calls": [{
+						"id": "wacid.HBgLMTQxMjYxMzYyNTMVAgASGCBGO",
+						"from": "16505551234",
+						"timestamp": "1728932177",
+						"event": "call_recording_available",
+						"call_recording": {
+							"type": "audio",
+							"audio": {
+								"id": "1002764438271669",
+								"sha256": "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=",
+								"mime_type": "audio/ogg; codecs=opus",
+								"url": "https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=133"
+							}
+						}
+					}]
+				}
+			}]
+		}]
+	}`
+
+	var n webhooks.Notification
+	test.AssertJSONUnmarshal(t, "Recording webhook", docJSON, &n)
+
+	call := n.Entry[0].Changes[0].Value.Calls[0]
+	if call.Event != "call_recording_available" {
+		t.Errorf("expected call_recording_available, got %s", call.Event)
+	}
+	if call.CallRecording == nil {
+		t.Fatal("expected non-nil CallRecording")
+	}
+	if call.CallRecording.Type != "audio" {
+		t.Errorf("expected type=audio, got %s", call.CallRecording.Type)
+	}
+	if call.CallRecording.Audio == nil {
+		t.Fatal("expected non-nil Audio")
+	}
+	if call.CallRecording.Audio.ID != "1002764438271669" {
+		t.Errorf("unexpected audio ID: %s", call.CallRecording.Audio.ID)
+	}
+	if call.CallRecording.Audio.Sha256 != "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=" {
+		t.Errorf("unexpected sha256: %s", call.CallRecording.Audio.Sha256)
+	}
+	if call.CallRecording.Audio.MimeType != "audio/ogg; codecs=opus" {
+		t.Errorf("unexpected mime_type: %s", call.CallRecording.Audio.MimeType)
+	}
+
+	t.Run("handler dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		handler := webhooks.NewHandler()
+		received := false
+		handler.OnCallRecordingAvailable(webhooks.CallsEventHandlerFunc[webhooks.Call](
+			func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+				received = true
+				if req.Payload.CallRecording == nil {
+					t.Error("expected CallRecording in payload")
+				}
+				return nil
+			},
+		))
+
+		events := n.Events()
+		err := handler.HandleNotificationEvent(context.Background(), events[0])
+		test.AssertNoError(t, "HandleNotificationEvent failed", err)
+		if !received {
+			t.Error("recording handler was not called")
+		}
+	})
+}
+
+func TestCallRecording_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	rec := &webhooks.CallRecording{
+		Type: "audio",
+		Audio: &media.Info{
+			ID:       "1002764438271669",
+			Sha256:   "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=",
+			MimeType: "audio/ogg; codecs=opus",
+			URL:      "https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=133",
+		},
+	}
+	test.AssertJSONRoundTrip(t, "CallRecording", rec)
+}
 
 func TestCmpIntegration(t *testing.T) {
 	// Verify that the google/go-cmp dependency is wired correctly.

@@ -16,14 +16,17 @@
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // Call types and CallsHandler for WhatsApp Calling API webhooks. Handles call
-// connect (WebRTC SDP), call created (SIP), call terminate, and call status
-// (ringing/accepted/rejected) events delivered through the "calls" webhook field.
+// connect (WebRTC SDP), call created (SIP), call terminate, call recording,
+// and call status (ringing/accepted/rejected) events delivered through the
+// "calls" webhook field.
 
 package webhooks
 
 import (
 	"context"
 	"fmt"
+
+	"github.com/piusalfred/whatsapp/message/media"
 )
 
 // CallNotificationContext carries the metadata for a calls webhook notification.
@@ -82,6 +85,11 @@ type (
 	// CallStatusHandler handles call status events (statuses with type "call").
 	// Payload: [Status] — status is RINGING, ACCEPTED, or REJECTED.
 	CallStatusHandler = CallsEventHandler[Status]
+
+	// CallRecordingAvailableHandler handles recording-available events
+	// (event: "call_recording_available"). Payload: [Call] — call_recording
+	// field carries the downloadable audio asset details.
+	CallRecordingAvailableHandler = CallsEventHandler[Call]
 )
 
 // CallsHandler groups all per-event-type handlers for the calls webhook field
@@ -113,6 +121,9 @@ type CallsHandler struct {
 	// Status handles call status events (type: "call" in statuses array).
 	// Payload: [Status].
 	callsStatus CallsEventHandler[Status]
+	// RecordingAvailable handles recording-available events
+	// (event: "call_recording_available"). Payload: [Call].
+	recordingAvailable CallsEventHandler[Call]
 
 	// Fallback is called for any call event that does not have a dedicated
 	// handler set — both unknown event types and known types left nil.
@@ -151,6 +162,12 @@ func (ch *CallsHandler) OnCallStatus(h CallStatusHandler) {
 	ch.callsStatus = h
 }
 
+// OnCallRecordingAvailable sets the handler for recording-available events
+// (event: "call_recording_available"). Payload: [Call] with CallRecording populated.
+func (ch *CallsHandler) OnCallRecordingAvailable(h CallRecordingAvailableHandler) {
+	ch.recordingAvailable = h
+}
+
 // OnFallback sets the catch-all handler for call events without a dedicated
 // handler — covers unknown event types and known types left nil.
 func (ch *CallsHandler) OnFallback(h FallbackHandler) {
@@ -180,8 +197,10 @@ func (ch *CallsHandler) Fallback(ctx context.Context, event NotificationEvent) e
 // Dispatch order:
 //  1. If Value.Statuses contains items with type "call", dispatch to Status handler.
 //  2. If Value.Calls contains items, dispatch each by event type:
-//     "connect" → Connect, "call_created" → Created, "terminate" → Terminate.
+//     "connect" → Connect, "call_created" → Created, "terminate" → Terminate,
+//     "call_recording_available" → RecordingAvailable.
 //  3. Unhandled events or nil handlers return [ErrEventNotHandled], signalling
+//     the caller to invoke the [Fallback] method.
 //
 //nolint:gocognit // dispatch switch
 func (ch *CallsHandler) Handle(
@@ -261,6 +280,17 @@ func (ch *CallsHandler) Handle(
 				}
 				continue
 			}
+		case "call_recording_available":
+			if ch.recordingAvailable != nil {
+				req := &CallRequest[Call]{
+					Context: nctx,
+					Payload: call,
+				}
+				if err := ch.recordingAvailable.Handle(ctx, req); err != nil {
+					return ch.HandleError(ctx, fmt.Errorf("calls recording: %w", err))
+				}
+				continue
+			}
 		}
 		// Unknown event type or nil handler → fallback for this call.
 		return ErrEventNotHandled
@@ -271,28 +301,38 @@ func (ch *CallsHandler) Handle(
 
 type (
 	Call struct {
-		ID                    string       `json:"id"` // The WhatsApp call ID
-		To                    string       `json:"to"` // The WhatsApp user's phone number (callee)
-		ToUserID              string       `json:"to_user_id,omitempty"`
-		ToParentUserID        string       `json:"to_parent_user_id,omitempty"`
-		From                  string       `json:"from"`
-		Event                 string       `json:"event"`
-		Timestamp             string       `json:"timestamp"`
-		Direction             string       `json:"direction"`
-		DeepLinkPayload       string       `json:"deeplink_payload,omitempty"`
-		CTAPayload            string       `json:"cta_payload,omitempty"`
-		Status                string       `json:"status"`
-		StartTime             string       `json:"start_time"`
-		EndTime               string       `json:"end_time"`
-		Duration              int          `json:"duration"`
-		BizOpaqueCallbackData string       `json:"biz_opaque_callback_data,omitempty"`
-		Session               *CallSession `json:"session,omitempty"`
-		Connection            *Connection  `json:"connection,omitempty"`
+		ID                    string         `json:"id"` // The WhatsApp call ID
+		To                    string         `json:"to"` // The WhatsApp user's phone number (callee)
+		ToUserID              string         `json:"to_user_id,omitempty"`
+		ToParentUserID        string         `json:"to_parent_user_id,omitempty"`
+		From                  string         `json:"from"`
+		Event                 string         `json:"event"`
+		Timestamp             string         `json:"timestamp"`
+		Direction             string         `json:"direction"`
+		DeepLinkPayload       string         `json:"deeplink_payload,omitempty"`
+		CTAPayload            string         `json:"cta_payload,omitempty"`
+		Status                string         `json:"status"`
+		StartTime             string         `json:"start_time"`
+		EndTime               string         `json:"end_time"`
+		Duration              int            `json:"duration"`
+		BizOpaqueCallbackData string         `json:"biz_opaque_callback_data,omitempty"`
+		Session               *CallSession   `json:"session,omitempty"`
+		Connection            *Connection    `json:"connection,omitempty"`
+		CallRecording         *CallRecording `json:"call_recording,omitempty"`
 	}
 
 	CallSession struct {
 		SDPType string `json:"sdp_type"`
 		SDP     string `json:"sdp"`
+	}
+
+	// CallRecording wraps the recording payload delivered in a
+	// call_recording_available webhook event. Audio uses [media.Info]
+	// — the same type used for incoming media messages, since recordings
+	// share the same download flow via the Media API.
+	CallRecording struct {
+		Type  string      `json:"type"`
+		Audio *media.Info `json:"audio,omitempty"`
 	}
 
 	WebRTC struct {
@@ -306,8 +346,8 @@ type (
 
 // CanHandleEvent reports whether a handler is registered for the
 // call event carried by this NotificationEvent. It checks value.Statuses for
-// call-type statuses and value.Calls for connect/created/terminate events,
-// returning true when the matching sub-handler is non-nil.
+// call-type statuses and value.Calls for connect/created/terminate/recording
+// events, returning true when the matching sub-handler is non-nil.
 func (ch *CallsHandler) CanHandleEvent(event NotificationEvent) bool {
 	if event.Value == nil {
 		return false
@@ -328,6 +368,8 @@ func (ch *CallsHandler) CanHandleEvent(event NotificationEvent) bool {
 			return ch.created != nil
 		case "terminate":
 			return ch.terminate != nil
+		case "call_recording_available":
+			return ch.recordingAvailable != nil
 		}
 	}
 	return false
@@ -353,6 +395,11 @@ func (handler *Handler) OnCallTerminate(h CallTerminateHandler) {
 // OnCallStatus registers a handler for call status events (type "call").
 func (handler *Handler) OnCallStatus(h CallStatusHandler) {
 	handler.calls.OnCallStatus(h)
+}
+
+// OnCallRecordingAvailable registers a handler for call recording available events.
+func (handler *Handler) OnCallRecordingAvailable(h CallRecordingAvailableHandler) {
+	handler.calls.OnCallRecordingAvailable(h)
 }
 
 // CallPermissionReply represents a WhatsApp user's response to a call

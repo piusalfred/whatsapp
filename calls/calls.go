@@ -116,6 +116,23 @@ const (
 	MediaUpdateCallAction CallAction = "media_update"
 )
 
+// RecordingStatus indicates whether call recording is enabled or disabled.
+type RecordingStatus string
+
+const (
+	RecordingEnabled  RecordingStatus = "ENABLED"
+	RecordingDisabled RecordingStatus = "DISABLED"
+)
+
+// Recording configures call recording on a per-call basis. Add it to
+// [CallUpdateStatusRequest] when initiating or accepting a call. When Status
+// is ENABLED, Purpose and AnnouncementLanguage are required (Purpose max 250 chars).
+type Recording struct {
+	Status               RecordingStatus `json:"status"`
+	Purpose              string          `json:"purpose,omitempty"`
+	AnnouncementLanguage string          `json:"announcement_language,omitempty"`
+}
+
 type (
 	// Client orchestrates high-level Calls API operations. It holds a reference to
 	// a [BaseClient] for HTTP transport and a [config.Config] for endpoint and
@@ -140,6 +157,7 @@ type (
 		Session               *SessionInfo `json:"session,omitempty"`                  // Required for connect (offer) and accept (answer)
 		BizOpaqueCallbackData string       `json:"biz_opaque_callback_data,omitempty"` // Max 512 characters string for tracking
 		To                    string       `json:"to,omitempty"`                       // Recipient's WA ID. Required only for 'connect'
+		Recording             *Recording   `json:"recording,omitempty"`                // Optional call recording configuration
 	}
 
 	// CallPermissionCheckResponse is the decoded response from a permission check.
@@ -182,6 +200,7 @@ type (
 		RequestType           whttp.RequestType `json:"-"`
 		UserWaID              string            `json:"-"`
 		To                    string            `json:"to,omitempty"`
+		Recording             *Recording        `json:"-"`
 	}
 
 	// BaseResponse acts as a flexible intermediate data capture layer unmarshaling
@@ -203,6 +222,7 @@ type (
 		Action                CallAction   `json:"action,omitempty"`
 		Session               *SessionInfo `json:"session,omitempty"`
 		BizOpaqueCallbackData string       `json:"biz_opaque_callback_data,omitempty"`
+		Recording             *Recording   `json:"recording,omitempty"`
 	}
 
 	// CallUpdateStatusResponse is the API response for a successful status update.
@@ -281,6 +301,7 @@ func (c *Client) UpdateCallStatus(
 		BizOpaqueCallbackData: request.BizOpaqueCallbackData,
 		RequestType:           whttp.RequestTypeUpdateCallStatus,
 		To:                    request.To,
+		Recording:             request.Recording,
 	}
 
 	resp, err := c.Send(ctx, req)
@@ -394,6 +415,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 			Action:                request.Action,
 			Session:               request.Session,
 			BizOpaqueCallbackData: request.BizOpaqueCallbackData,
+			Recording:             request.Recording,
 		}
 		endpoint = callStatusUpdateEndpoint
 		method = http.MethodPost
@@ -473,6 +495,14 @@ func (perm *CheckPermissionRequest) SetBizOpaqueCallbackData(bizOpaqueCallbackDa
 // status update request for webhook correlation.
 func (s *CallUpdateStatusRequest) SetBizOpaqueCallbackData(bizOpaqueCallbackData string) {
 	s.BizOpaqueCallbackData = bizOpaqueCallbackData
+}
+
+// SetRecording configures call recording on this request. Use
+// [RecordingEnabled] to enable or [RecordingDisabled] to explicitly opt out.
+// When enabling, purpose and announcementLanguage are required per the
+// WhatsApp API (purpose max 250 characters).
+func (s *CallUpdateStatusRequest) SetRecording(r *Recording) {
+	s.Recording = r
 }
 
 // NewCheckPermissionRequest creates a permission check request for the given
