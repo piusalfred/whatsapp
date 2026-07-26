@@ -1892,6 +1892,202 @@ func TestCallRecording_JSONRoundTrip(t *testing.T) {
 	test.AssertJSONRoundTrip(t, "CallRecording", rec)
 }
 
+func TestTranscription_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	t.Run("enabled", func(t *testing.T) {
+		t.Parallel()
+		tr := &calls.Transcription{
+			Status:               calls.TranscriptionEnabled,
+			Purpose:              "quality assurance",
+			AnnouncementLanguage: "en_US",
+		}
+		test.AssertJSONRoundTrip(t, "Transcription enabled", tr)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		t.Parallel()
+		tr := &calls.Transcription{Status: calls.TranscriptionDisabled}
+		test.AssertJSONRoundTrip(t, "Transcription disabled", tr)
+	})
+}
+
+func TestTranscription_MarshalMatchesExpected(t *testing.T) {
+	t.Parallel()
+
+	tr := &calls.Transcription{
+		Status:               calls.TranscriptionEnabled,
+		Purpose:              "quality assurance",
+		AnnouncementLanguage: "en_US",
+	}
+	want := `{
+		"status": "ENABLED",
+		"purpose": "quality assurance",
+		"announcement_language": "en_US"
+	}`
+	test.AssertJSONMarshal(t, "Transcription", tr, want)
+}
+
+func TestConnectRequest_WithTranscription(t *testing.T) {
+	t.Parallel()
+
+	req := calls.ConnectRequest("16505551234", "sdp-offer")
+	req.SetTranscription(&calls.Transcription{
+		Status:               calls.TranscriptionEnabled,
+		Purpose:              "quality assurance",
+		AnnouncementLanguage: "en_US",
+	})
+
+	if req.Transcription == nil {
+		t.Fatal("expected non-nil Transcription")
+	}
+	if req.Transcription.Status != calls.TranscriptionEnabled {
+		t.Errorf("expected ENABLED, got %s", req.Transcription.Status)
+	}
+}
+
+func TestTranscription_ConnectViaMockServer(t *testing.T) {
+	t.Parallel()
+
+	payload, _ := json.Marshal(map[string]any{
+		"messaging_product": "whatsapp",
+		"success":           true,
+		"calls":             []map[string]string{{"id": "call-trans-1"}},
+	})
+	srv := test.NewMockServer(test.MockBehavior{
+		StatusCode: http.StatusOK,
+		Payload:    payload,
+	})
+	defer srv.Close()
+
+	client := calls.NewClient(mockConfig(srv.Server.URL))
+	req := calls.ConnectRequest("16505551234", "sdp-offer")
+	req.SetTranscription(&calls.Transcription{
+		Status:               calls.TranscriptionEnabled,
+		Purpose:              "quality assurance",
+		AnnouncementLanguage: "en_US",
+	})
+	_, err := client.UpdateCallStatus(context.Background(), req)
+	test.AssertNoError(t, "UpdateCallStatus with transcription failed", err)
+
+	reqs := srv.GetRequests()
+	r := reqs[0]
+
+	var body map[string]any
+	json.Unmarshal(r.Body, &body)
+
+	tr, ok := body["transcription"].(map[string]any)
+	if !ok {
+		t.Fatal("expected transcription in request body")
+	}
+	if tr["status"] != "ENABLED" {
+		t.Errorf("expected status=ENABLED, got %v", tr["status"])
+	}
+}
+
+func TestTranscriptionStatus_Values(t *testing.T) {
+	t.Parallel()
+
+	if calls.TranscriptionEnabled != "ENABLED" {
+		t.Errorf("expected ENABLED, got %s", calls.TranscriptionEnabled)
+	}
+	if calls.TranscriptionDisabled != "DISABLED" {
+		t.Errorf("expected DISABLED, got %s", calls.TranscriptionDisabled)
+	}
+}
+
+func TestCallTranscriptionAvailable_WebhookParsing(t *testing.T) {
+	t.Parallel()
+
+	docJSON := `{
+		"object": "whatsapp_business_account",
+		"entry": [{
+			"id": "123456789",
+			"changes": [{
+				"field": "calls",
+				"value": {
+					"messaging_product": "whatsapp",
+					"metadata": {
+						"phone_number_id": "106540352242922",
+						"display_phone_number": "15551234567"
+					},
+					"calls": [{
+						"id": "wacid.HBgLMTQxMjYxMzYyNTMVAgASGCBGO",
+						"from": "16505551234",
+						"timestamp": "1728932177",
+						"event": "call_transcription_available",
+						"call_transcript": {
+							"document": {
+								"id": "1002764438271669",
+								"sha256": "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=",
+								"mime_type": "application/json",
+								"url": "https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=133"
+							}
+						}
+					}]
+				}
+			}]
+		}]
+	}`
+
+	var n webhooks.Notification
+	test.AssertJSONUnmarshal(t, "Transcription webhook", docJSON, &n)
+
+	call := n.Entry[0].Changes[0].Value.Calls[0]
+	if call.Event != "call_transcription_available" {
+		t.Errorf("expected call_transcription_available, got %s", call.Event)
+	}
+	if call.CallTranscript == nil {
+		t.Fatal("expected non-nil CallTranscript")
+	}
+	if call.CallTranscript.Document == nil {
+		t.Fatal("expected non-nil Document")
+	}
+	if call.CallTranscript.Document.ID != "1002764438271669" {
+		t.Errorf("unexpected document ID: %s", call.CallTranscript.Document.ID)
+	}
+	if call.CallTranscript.Document.MimeType != "application/json" {
+		t.Errorf("expected application/json, got %s", call.CallTranscript.Document.MimeType)
+	}
+
+	t.Run("handler dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		handler := webhooks.NewHandler()
+		received := false
+		handler.OnCallTranscriptionAvailable(webhooks.CallsEventHandlerFunc[webhooks.Call](
+			func(_ context.Context, req *webhooks.CallRequest[webhooks.Call]) error {
+				received = true
+				if req.Payload.CallTranscript == nil {
+					t.Error("expected CallTranscript in payload")
+				}
+				return nil
+			},
+		))
+
+		events := n.Events()
+		err := handler.HandleNotificationEvent(context.Background(), events[0])
+		test.AssertNoError(t, "HandleNotificationEvent failed", err)
+		if !received {
+			t.Error("transcription handler was not called")
+		}
+	})
+}
+
+func TestCallTranscript_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	ct := &webhooks.CallTranscript{
+		Document: &media.Info{
+			ID:       "1002764438271669",
+			Sha256:   "Y9vvGyeo3n76ptkXu3CwDBsnzbRFqpjHskQdMGSVqas=",
+			MimeType: "application/json",
+			URL:      "https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=133",
+		},
+	}
+	test.AssertJSONRoundTrip(t, "CallTranscript", ct)
+}
+
 func TestCmpIntegration(t *testing.T) {
 	// Verify that the google/go-cmp dependency is wired correctly.
 	// This is not testing calls functionality directly, but confirms the
