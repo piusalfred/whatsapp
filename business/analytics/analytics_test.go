@@ -124,6 +124,19 @@ func TestQueryParamsString(t *testing.T) {
 			},
 			expected: "pricing_analytics.start(1685602800).end(1688194800).granularity(MONTHLY).phone_numbers([\"19195552584\",\"19195552585\"]).dimensions([\"COUNTRY\",\"PHONE\"]).metric_types([\"COST\"]).pricing_types([\"REGULAR\"]).pricing_categories([\"MARKETING\"])",
 		},
+		// Call Analytics Example
+		{
+			name: "Call Analytics Example",
+			generate: func() *analytics.Request {
+				return analytics.MakeCallAnalyticsQueryParams(
+					1759302000,
+					1767168000,
+					analytics.GranularityDaily,
+					analytics.WithCallDirections(analytics.CallDirectionUserInitiated),
+				)
+			},
+			expected: "call_analytics.start(1759302000).end(1767168000).granularity(DAILY).phone_numbers([]).directions([\"USER_INITIATED\"])",
+		},
 	}
 
 	for _, test := range tests {
