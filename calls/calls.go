@@ -133,6 +133,28 @@ type Recording struct {
 	AnnouncementLanguage string          `json:"announcement_language,omitempty"`
 }
 
+// TranscriptionStatus indicates whether call transcription is enabled or disabled.
+type TranscriptionStatus string
+
+const (
+	TranscriptionEnabled  TranscriptionStatus = "ENABLED"
+	TranscriptionDisabled TranscriptionStatus = "DISABLED"
+)
+
+// Transcription configures call transcription on a per-call basis. Add it to
+// [CallUpdateStatusRequest] when initiating or accepting a call. When Status
+// is ENABLED, Purpose and AnnouncementLanguage are required (Purpose max 250 chars).
+//
+// Transcription and [Recording] are independent features — enable either, both,
+// or neither. When both are enabled, participants hear a single combined
+// announcement and you receive both a call_recording_available and a
+// call_transcription_available webhook.
+type Transcription struct {
+	Status               TranscriptionStatus `json:"status"`
+	Purpose              string              `json:"purpose,omitempty"`
+	AnnouncementLanguage string              `json:"announcement_language,omitempty"`
+}
+
 type (
 	// Client orchestrates high-level Calls API operations. It holds a reference to
 	// a [BaseClient] for HTTP transport and a [config.Config] for endpoint and
@@ -152,12 +174,13 @@ type (
 	// CallUpdateStatusRequest carries the payload for transitioning a call's
 	// lifecycle state. The Action field determines which fields are required.
 	CallUpdateStatusRequest struct {
-		CallID                string       `json:"call_id"`
-		Action                CallAction   `json:"action"`
-		Session               *SessionInfo `json:"session,omitempty"`                  // Required for connect (offer) and accept (answer)
-		BizOpaqueCallbackData string       `json:"biz_opaque_callback_data,omitempty"` // Max 512 characters string for tracking
-		To                    string       `json:"to,omitempty"`                       // Recipient's WA ID. Required only for 'connect'
-		Recording             *Recording   `json:"recording,omitempty"`                // Optional call recording configuration
+		CallID                string         `json:"call_id"`
+		Action                CallAction     `json:"action"`
+		Session               *SessionInfo   `json:"session,omitempty"`                  // Required for connect (offer) and accept (answer)
+		BizOpaqueCallbackData string         `json:"biz_opaque_callback_data,omitempty"` // Max 512 characters string for tracking
+		To                    string         `json:"to,omitempty"`                       // Recipient's WA ID. Required only for 'connect'
+		Recording             *Recording     `json:"recording,omitempty"`                // Optional call recording configuration
+		Transcription         *Transcription `json:"transcription,omitempty"`            // Optional call transcription configuration
 	}
 
 	// CallPermissionCheckResponse is the decoded response from a permission check.
@@ -201,6 +224,7 @@ type (
 		UserWaID              string            `json:"-"`
 		To                    string            `json:"to,omitempty"`
 		Recording             *Recording        `json:"-"`
+		Transcription         *Transcription    `json:"-"`
 	}
 
 	// BaseResponse acts as a flexible intermediate data capture layer unmarshaling
@@ -216,13 +240,14 @@ type (
 
 	// BaseRequest is the wire-format payload sent for call status updates.
 	BaseRequest struct {
-		MessagingProduct      string       `json:"messaging_product,omitempty"`
-		To                    string       `json:"to,omitempty"`
-		CallID                string       `json:"call_id,omitempty"`
-		Action                CallAction   `json:"action,omitempty"`
-		Session               *SessionInfo `json:"session,omitempty"`
-		BizOpaqueCallbackData string       `json:"biz_opaque_callback_data,omitempty"`
-		Recording             *Recording   `json:"recording,omitempty"`
+		MessagingProduct      string         `json:"messaging_product,omitempty"`
+		To                    string         `json:"to,omitempty"`
+		CallID                string         `json:"call_id,omitempty"`
+		Action                CallAction     `json:"action,omitempty"`
+		Session               *SessionInfo   `json:"session,omitempty"`
+		BizOpaqueCallbackData string         `json:"biz_opaque_callback_data,omitempty"`
+		Recording             *Recording     `json:"recording,omitempty"`
+		Transcription         *Transcription `json:"transcription,omitempty"`
 	}
 
 	// CallUpdateStatusResponse is the API response for a successful status update.
@@ -302,6 +327,7 @@ func (c *Client) UpdateCallStatus(
 		RequestType:           whttp.RequestTypeUpdateCallStatus,
 		To:                    request.To,
 		Recording:             request.Recording,
+		Transcription:         request.Transcription,
 	}
 
 	resp, err := c.Send(ctx, req)
@@ -416,6 +442,7 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 			Session:               request.Session,
 			BizOpaqueCallbackData: request.BizOpaqueCallbackData,
 			Recording:             request.Recording,
+			Transcription:         request.Transcription,
 		}
 		endpoint = callStatusUpdateEndpoint
 		method = http.MethodPost
@@ -503,6 +530,14 @@ func (s *CallUpdateStatusRequest) SetBizOpaqueCallbackData(bizOpaqueCallbackData
 // WhatsApp API (purpose max 250 characters).
 func (s *CallUpdateStatusRequest) SetRecording(r *Recording) {
 	s.Recording = r
+}
+
+// SetTranscription configures call transcription on this request. Use
+// [TranscriptionEnabled] to enable or [TranscriptionDisabled] to explicitly
+// opt out. When enabling, purpose and announcementLanguage are required per
+// the WhatsApp API (purpose max 250 characters).
+func (s *CallUpdateStatusRequest) SetTranscription(t *Transcription) {
+	s.Transcription = t
 }
 
 // NewCheckPermissionRequest creates a permission check request for the given

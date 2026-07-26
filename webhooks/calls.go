@@ -90,6 +90,11 @@ type (
 	// (event: "call_recording_available"). Payload: [Call] — call_recording
 	// field carries the downloadable audio asset details.
 	CallRecordingAvailableHandler = CallsEventHandler[Call]
+
+	// CallTranscriptionAvailableHandler handles transcription-available events
+	// (event: "call_transcription_available"). Payload: [Call] — call_transcript
+	// field carries the downloadable transcript document details.
+	CallTranscriptionAvailableHandler = CallsEventHandler[Call]
 )
 
 // CallsHandler groups all per-event-type handlers for the calls webhook field
@@ -124,6 +129,9 @@ type CallsHandler struct {
 	// RecordingAvailable handles recording-available events
 	// (event: "call_recording_available"). Payload: [Call].
 	recordingAvailable CallsEventHandler[Call]
+	// TranscriptionAvailable handles transcription-available events
+	// (event: "call_transcription_available"). Payload: [Call].
+	transcriptionAvailable CallsEventHandler[Call]
 
 	// Fallback is called for any call event that does not have a dedicated
 	// handler set — both unknown event types and known types left nil.
@@ -166,6 +174,12 @@ func (ch *CallsHandler) OnCallStatus(h CallStatusHandler) {
 // (event: "call_recording_available"). Payload: [Call] with CallRecording populated.
 func (ch *CallsHandler) OnCallRecordingAvailable(h CallRecordingAvailableHandler) {
 	ch.recordingAvailable = h
+}
+
+// OnCallTranscriptionAvailable sets the handler for transcription-available events
+// (event: "call_transcription_available"). Payload: [Call] with CallTranscript populated.
+func (ch *CallsHandler) OnCallTranscriptionAvailable(h CallTranscriptionAvailableHandler) {
+	ch.transcriptionAvailable = h
 }
 
 // OnFallback sets the catch-all handler for call events without a dedicated
@@ -291,6 +305,17 @@ func (ch *CallsHandler) Handle(
 				}
 				continue
 			}
+		case "call_transcription_available":
+			if ch.transcriptionAvailable != nil {
+				req := &CallRequest[Call]{
+					Context: nctx,
+					Payload: call,
+				}
+				if err := ch.transcriptionAvailable.Handle(ctx, req); err != nil {
+					return ch.HandleError(ctx, fmt.Errorf("calls transcription: %w", err))
+				}
+				continue
+			}
 		}
 		// Unknown event type or nil handler → fallback for this call.
 		return ErrEventNotHandled
@@ -301,24 +326,25 @@ func (ch *CallsHandler) Handle(
 
 type (
 	Call struct {
-		ID                    string         `json:"id"` // The WhatsApp call ID
-		To                    string         `json:"to"` // The WhatsApp user's phone number (callee)
-		ToUserID              string         `json:"to_user_id,omitempty"`
-		ToParentUserID        string         `json:"to_parent_user_id,omitempty"`
-		From                  string         `json:"from"`
-		Event                 string         `json:"event"`
-		Timestamp             string         `json:"timestamp"`
-		Direction             string         `json:"direction"`
-		DeepLinkPayload       string         `json:"deeplink_payload,omitempty"`
-		CTAPayload            string         `json:"cta_payload,omitempty"`
-		Status                string         `json:"status"`
-		StartTime             string         `json:"start_time"`
-		EndTime               string         `json:"end_time"`
-		Duration              int            `json:"duration"`
-		BizOpaqueCallbackData string         `json:"biz_opaque_callback_data,omitempty"`
-		Session               *CallSession   `json:"session,omitempty"`
-		Connection            *Connection    `json:"connection,omitempty"`
-		CallRecording         *CallRecording `json:"call_recording,omitempty"`
+		ID                    string          `json:"id"` // The WhatsApp call ID
+		To                    string          `json:"to"` // The WhatsApp user's phone number (callee)
+		ToUserID              string          `json:"to_user_id,omitempty"`
+		ToParentUserID        string          `json:"to_parent_user_id,omitempty"`
+		From                  string          `json:"from"`
+		Event                 string          `json:"event"`
+		Timestamp             string          `json:"timestamp"`
+		Direction             string          `json:"direction"`
+		DeepLinkPayload       string          `json:"deeplink_payload,omitempty"`
+		CTAPayload            string          `json:"cta_payload,omitempty"`
+		Status                string          `json:"status"`
+		StartTime             string          `json:"start_time"`
+		EndTime               string          `json:"end_time"`
+		Duration              int             `json:"duration"`
+		BizOpaqueCallbackData string          `json:"biz_opaque_callback_data,omitempty"`
+		Session               *CallSession    `json:"session,omitempty"`
+		Connection            *Connection     `json:"connection,omitempty"`
+		CallRecording         *CallRecording  `json:"call_recording,omitempty"`
+		CallTranscript        *CallTranscript `json:"call_transcript,omitempty"`
 	}
 
 	CallSession struct {
@@ -333,6 +359,15 @@ type (
 	CallRecording struct {
 		Type  string      `json:"type"`
 		Audio *media.Info `json:"audio,omitempty"`
+	}
+
+	// CallTranscript wraps the transcription payload delivered in a
+	// call_transcription_available webhook event. Document uses [media.Info]
+	// — the same type used for incoming media messages. The downloaded
+	// document is a JSON file with metadata, transcript text, language
+	// detection, confidence scores, and word-level segments.
+	CallTranscript struct {
+		Document *media.Info `json:"document,omitempty"`
 	}
 
 	WebRTC struct {
@@ -370,6 +405,8 @@ func (ch *CallsHandler) CanHandleEvent(event NotificationEvent) bool {
 			return ch.terminate != nil
 		case "call_recording_available":
 			return ch.recordingAvailable != nil
+		case "call_transcription_available":
+			return ch.transcriptionAvailable != nil
 		}
 	}
 	return false
@@ -400,6 +437,14 @@ func (handler *Handler) OnCallStatus(h CallStatusHandler) {
 // OnCallRecordingAvailable registers a handler for call recording available events.
 func (handler *Handler) OnCallRecordingAvailable(h CallRecordingAvailableHandler) {
 	handler.calls.OnCallRecordingAvailable(h)
+}
+
+// OnCallTranscriptionAvailable registers a handler for call transcription
+// available events. The handler receives the full Call payload with
+// CallTranscript populated — use call_transcript.document.id with the Media
+// API to download the transcript JSON document.
+func (handler *Handler) OnCallTranscriptionAvailable(h CallTranscriptionAvailableHandler) {
+	handler.calls.OnCallTranscriptionAvailable(h)
 }
 
 // CallPermissionReply represents a WhatsApp user's response to a call
