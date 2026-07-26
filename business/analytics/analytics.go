@@ -60,6 +60,11 @@ func (c *Client) SetMiddlewares(mws ...whttp.Middleware[BaseRequest]) {
 	c.sender.SetMiddlewares(mws...)
 }
 
+// CloseIdleConnections closes any idle connections in the underlying HTTP client.
+func (c *Client) CloseIdleConnections() {
+	c.sender.CloseIdleConnections()
+}
+
 // Send dispatches a raw [Request] through the underlying [BaseClient].
 func (c *Client) Send(ctx context.Context, request *Request) (*BaseResponse, error) {
 	response, err := c.sender.Send(ctx, c.config, request)
@@ -108,6 +113,23 @@ func (c *Client) FetchPricingAnalytics(ctx context.Context, params *PricingReque
 	return resp.PricingAnalytics(), nil
 }
 
+// FetchCallAnalytics retrieves call analytics for the specified date range and filters.
+// Call analytics provides the number and type of calls made and received by phone numbers
+// associated with the WhatsApp Business Account.
+func (c *Client) FetchCallAnalytics(ctx context.Context, params *CallAnalyticsRequest) (
+	*CallAnalyticsResponse, error,
+) {
+	req := MakeCallAnalyticsQueryParams(params.Start, params.End,
+		params.Granularity, params.Options...)
+
+	resp, err := c.Send(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch call analytics: %w", err)
+	}
+
+	return resp.CallAnalytics(), nil
+}
+
 func (bc *BaseClient) FetchGeneralAnalytics(ctx context.Context, conf *config.Config,
 	request *MessagingRequest,
 ) (*MessagingResponse, error) {
@@ -147,6 +169,20 @@ func (bc *BaseClient) FetchPricingAnalytics(ctx context.Context, conf *config.Co
 	return resp.PricingAnalytics(), nil
 }
 
+// FetchCallAnalytics retrieves call analytics for the specified date range and filters.
+// This is the multi-tenant variant that accepts a per-call config.
+func (bc *BaseClient) FetchCallAnalytics(ctx context.Context, conf *config.Config,
+	params *CallAnalyticsRequest,
+) (*CallAnalyticsResponse, error) {
+	request := MakeCallAnalyticsQueryParams(params.Start, params.End, params.Granularity, params.Options...)
+	resp, err := bc.FetchAnalytics(ctx, conf, request)
+	if err != nil {
+		return nil, fmt.Errorf("fetch call analytics: %w", err)
+	}
+
+	return resp.CallAnalytics(), nil
+}
+
 func (bc *BaseClient) FetchAnalytics(
 	ctx context.Context,
 	conf *config.Config,
@@ -180,10 +216,12 @@ func (bc *BaseClient) Send(ctx context.Context, conf *config.Config, request *Re
 }
 
 // BaseResponse is the general response struct for the Analytics API.
+// Each analytics type is decoded into its own field based on the requested fields parameter.
 type BaseResponse struct {
 	Messaging      *MessagingAnalytics    `json:"analytics,omitempty"`
 	Conversational *ConversationAnalytics `json:"conversation_analytics,omitempty"`
 	Pricing        *PricingAnalytics      `json:"pricing_analytics,omitempty"`
+	Call           *CallAnalytics         `json:"call_analytics,omitempty"`
 	ID             string                 `json:"id,omitempty"`
 }
 
@@ -205,6 +243,14 @@ func (response *BaseResponse) PricingAnalytics() *PricingResponse {
 	return &PricingResponse{
 		PricingAnalytics: response.Pricing,
 		ID:               response.ID,
+	}
+}
+
+// CallAnalytics returns the call analytics portion of the response.
+func (response *BaseResponse) CallAnalytics() *CallAnalyticsResponse {
+	return &CallAnalyticsResponse{
+		CallAnalytics: response.Call,
+		ID:            response.ID,
 	}
 }
 
@@ -454,6 +500,110 @@ func MakePricingAnalyticsQueryParams(start, end int64, granularity Granularity,
 	}
 }
 
+// Call analytics types.
+
+type (
+	// CallAnalyticsRequest is the user-facing request for call analytics.
+	CallAnalyticsRequest struct {
+		Start       int64
+		End         int64
+		Granularity Granularity
+		Options     []CallAnalyticsQueryParamsOption
+	}
+
+	// CallAnalyticsResponse contains the call analytics data returned by the API.
+	CallAnalyticsResponse struct {
+		CallAnalytics *CallAnalytics `json:"call_analytics,omitempty"`
+		ID            string         `json:"id,omitempty"`
+	}
+
+	// CallAnalytics holds call analytics data including granularity, directions, and data points.
+	CallAnalytics struct {
+		Granularity string                    `json:"granularity,omitempty"`
+		Directions  string                    `json:"directions,omitempty"`
+		DataPoints  []*CallAnalyticsDataPoint `json:"data_points,omitempty"`
+	}
+
+	// CallAnalyticsDataPoint represents a single data point in call analytics.
+	CallAnalyticsDataPoint struct {
+		Start           int64   `json:"start,omitempty"`
+		End             int64   `json:"end,omitempty"`
+		Cost            float64 `json:"cost,omitempty"`
+		Count           int64   `json:"count,omitempty"`
+		AverageDuration int64   `json:"average_duration,omitempty"`
+	}
+
+	CallAnalyticsQueryParams struct {
+		PhoneNumbers []string
+		CountryCodes []string
+		Directions   []CallDirection
+		Dimensions   []Dimension
+		MetricTypes  []MetricType
+	}
+
+	CallAnalyticsQueryParamsOption func(*CallAnalyticsQueryParams)
+)
+
+// WithCallPhoneNumbers filters call analytics by phone numbers.
+func WithCallPhoneNumbers(phoneNumbers ...string) CallAnalyticsQueryParamsOption {
+	return func(p *CallAnalyticsQueryParams) {
+		p.PhoneNumbers = phoneNumbers
+	}
+}
+
+// WithCallCountryCodes filters call analytics by country codes.
+func WithCallCountryCodes(countryCodes ...string) CallAnalyticsQueryParamsOption {
+	return func(p *CallAnalyticsQueryParams) {
+		p.CountryCodes = countryCodes
+	}
+}
+
+// WithCallDirections filters call analytics by call direction.
+func WithCallDirections(directions ...CallDirection) CallAnalyticsQueryParamsOption {
+	return func(p *CallAnalyticsQueryParams) {
+		p.Directions = directions
+	}
+}
+
+// WithCallDimensions applies dimension breakdowns to call analytics.
+func WithCallDimensions(dimensions ...Dimension) CallAnalyticsQueryParamsOption {
+	return func(p *CallAnalyticsQueryParams) {
+		p.Dimensions = dimensions
+	}
+}
+
+// WithCallMetricTypes filters the metric types returned in call analytics.
+func WithCallMetricTypes(metricTypes ...MetricType) CallAnalyticsQueryParamsOption {
+	return func(p *CallAnalyticsQueryParams) {
+		p.MetricTypes = metricTypes
+	}
+}
+
+// MakeCallAnalyticsQueryParams builds a [Request] for call analytics with the given
+// date range, granularity, and optional filters.
+func MakeCallAnalyticsQueryParams(start, end int64, granularity Granularity,
+	options ...CallAnalyticsQueryParamsOption,
+) *Request {
+	params := &CallAnalyticsQueryParams{}
+
+	for _, option := range options {
+		option(params)
+	}
+
+	return &Request{
+		requestType:    whttp.RequestTypeFetchCallAnalytics,
+		Fields:         TypeCallAnalytics,
+		Start:          start,
+		End:            end,
+		Granularity:    granularity,
+		PhoneNumbers:   params.PhoneNumbers,
+		CountryCodes:   params.CountryCodes,
+		CallDirections: params.Directions,
+		Dimensions:     params.Dimensions,
+		MetricTypes:    params.MetricTypes,
+	}
+}
+
 // BaseRequest is the wire-format payload for the Analytics API.
 // All analytics requests are GET-only, so the body is always empty.
 type BaseRequest struct{}
@@ -474,6 +624,7 @@ type Request struct {
 	Dimensions             []Dimension
 	PricingCategories      []PricingCategory
 	PricingTypes           []PricingType
+	CallDirections         []CallDirection
 }
 
 func (r *Request) QueryParamsString() string {
@@ -502,60 +653,87 @@ func (r *Request) QueryParamsString() string {
 
 	switch r.Fields { //nolint:exhaustive // ok
 	case TypeMessagingAnalytics:
-		if len(r.ProductTypes) > 0 {
-			appendParamValue(&buffer, "product_types", r.ProductTypes, func(productTypes []int64) string {
-				return formatArray(productTypes, formatInt)
-			})
-		}
+		r.appendMessagingFields(&buffer)
 	case TypeConversationAnalytics:
-		if len(r.MetricTypes) > 0 {
-			appendParamValue(&buffer, "metric_types", r.MetricTypes,
-				func(metricTypes []MetricType) string {
-					return formatArray(metricTypes, quoteString)
-				})
-		}
-		if len(r.ConversationCategories) > 0 {
-			appendParamValue(&buffer, "conversation_categories", r.ConversationCategories,
-				func(conversationCategories []ConversationalCategory) string {
-					return formatArray(conversationCategories, quoteString)
-				})
-		}
-		if len(r.ConversationTypes) > 0 {
-			appendParamValue(&buffer, "conversation_types", r.ConversationTypes,
-				func(conversationTypes []ConversationalType) string {
-					return formatArray(conversationTypes, quoteString)
-				})
-		}
-		if len(r.ConversationDirections) > 0 {
-			appendParamValue(&buffer, "conversation_directions", r.ConversationDirections,
-				func(conversationDirections []ConversationalDirection) string {
-					return formatArray(conversationDirections, quoteString)
-				})
-		}
-
+		r.appendConversationFields(&buffer)
 	case TypePricingAnalytics:
-		if len(r.MetricTypes) > 0 {
-			appendParamValue(&buffer, "metric_types", r.MetricTypes,
-				func(metricTypes []MetricType) string {
-					return formatArray(metricTypes, quoteString)
-				})
-		}
-		if len(r.PricingTypes) > 0 {
-			appendParamValue(&buffer, "pricing_types", r.PricingTypes,
-				func(pricingTypes []PricingType) string {
-					return formatArray(pricingTypes, quoteString)
-				})
-		}
-
-		if len(r.PricingCategories) > 0 {
-			appendParamValue(&buffer, "pricing_categories", r.PricingCategories,
-				func(pricingCategories []PricingCategory) string {
-					return formatArray(pricingCategories, quoteString)
-				})
-		}
+		r.appendPricingFields(&buffer)
+	case TypeCallAnalytics:
+		r.appendCallFields(&buffer)
 	}
 
 	return buffer.String()
+}
+
+func (r *Request) appendMessagingFields(buffer *strings.Builder) {
+	if len(r.ProductTypes) > 0 {
+		appendParamValue(buffer, "product_types", r.ProductTypes, func(productTypes []int64) string {
+			return formatArray(productTypes, formatInt)
+		})
+	}
+}
+
+func (r *Request) appendConversationFields(buffer *strings.Builder) {
+	if len(r.MetricTypes) > 0 {
+		appendParamValue(buffer, "metric_types", r.MetricTypes,
+			func(metricTypes []MetricType) string {
+				return formatArray(metricTypes, quoteString)
+			})
+	}
+	if len(r.ConversationCategories) > 0 {
+		appendParamValue(buffer, "conversation_categories", r.ConversationCategories,
+			func(conversationCategories []ConversationalCategory) string {
+				return formatArray(conversationCategories, quoteString)
+			})
+	}
+	if len(r.ConversationTypes) > 0 {
+		appendParamValue(buffer, "conversation_types", r.ConversationTypes,
+			func(conversationTypes []ConversationalType) string {
+				return formatArray(conversationTypes, quoteString)
+			})
+	}
+	if len(r.ConversationDirections) > 0 {
+		appendParamValue(buffer, "conversation_directions", r.ConversationDirections,
+			func(conversationDirections []ConversationalDirection) string {
+				return formatArray(conversationDirections, quoteString)
+			})
+	}
+}
+
+func (r *Request) appendPricingFields(buffer *strings.Builder) {
+	if len(r.MetricTypes) > 0 {
+		appendParamValue(buffer, "metric_types", r.MetricTypes,
+			func(metricTypes []MetricType) string {
+				return formatArray(metricTypes, quoteString)
+			})
+	}
+	if len(r.PricingTypes) > 0 {
+		appendParamValue(buffer, "pricing_types", r.PricingTypes,
+			func(pricingTypes []PricingType) string {
+				return formatArray(pricingTypes, quoteString)
+			})
+	}
+	if len(r.PricingCategories) > 0 {
+		appendParamValue(buffer, "pricing_categories", r.PricingCategories,
+			func(pricingCategories []PricingCategory) string {
+				return formatArray(pricingCategories, quoteString)
+			})
+	}
+}
+
+func (r *Request) appendCallFields(buffer *strings.Builder) {
+	if len(r.CallDirections) > 0 {
+		appendParamValue(buffer, "directions", r.CallDirections,
+			func(directions []CallDirection) string {
+				return formatArray(directions, quoteString)
+			})
+	}
+	if len(r.MetricTypes) > 0 {
+		appendParamValue(buffer, "metric_types", r.MetricTypes,
+			func(metricTypes []MetricType) string {
+				return formatArray(metricTypes, quoteString)
+			})
+	}
 }
 
 func formatArray[T any](arr []T, formatter func(T) string) string {
@@ -614,6 +792,7 @@ type (
 		Volume                int64   `json:"volume,omitempty"`
 		PricingType           string  `json:"pricing_type,omitempty"`
 		PricingCategory       string  `json:"pricing_category,omitempty"`
+		Tier                  string  `json:"tier,omitempty"`
 	}
 )
 
@@ -639,6 +818,7 @@ const (
 	TypeConversationAnalytics Type = "conversation_analytics"
 	TypeTemplateAnalytics     Type = "template_analytics"
 	TypePricingAnalytics      Type = "pricing_analytics"
+	TypeCallAnalytics         Type = "call_analytics"
 )
 
 type PricingCategory string
@@ -649,6 +829,8 @@ const (
 	PricingCategoryService                     PricingCategory = "SERVICE"
 	PricingCategoryUtility                     PricingCategory = "UTILITY"
 	PricingCategoryAuthenticationInternational PricingCategory = "AUTHENTICATION_INTERNATIONAL"
+	PricingCategoryMarketingLite               PricingCategory = "MARKETING_LITE"
+	PricingCategoryReferralConversion          PricingCategory = "REFERRAL_CONVERSION"
 )
 
 type PricingType string
@@ -671,9 +853,9 @@ const (
 type ConversationalType string
 
 const (
-	ConversationalTypeFreeEntry ConversationalType = "FREE_ENTRY"
-	ConversationalTypeFreeTier  ConversationalType = "FREE_TIER"
-	ConversationalTypeRegular   ConversationalType = "REGULAR"
+	ConversationalTypeFreeEntryPoint ConversationalType = "FREE_ENTRY_POINT"
+	ConversationalTypeFreeTier       ConversationalType = "FREE_TIER"
+	ConversationalTypeRegular        ConversationalType = "REGULAR"
 )
 
 type ConversationalDirection string
@@ -681,6 +863,15 @@ type ConversationalDirection string
 const (
 	ConversationalDirectionBusinessInitiated ConversationalDirection = "BUSINESS_INITIATED"
 	ConversationalDirectionUserInitiated     ConversationalDirection = "USER_INITIATED"
+	ConversationalDirectionUnknown           ConversationalDirection = "UNKNOWN"
+)
+
+// CallDirection represents the direction of a call for call analytics filtering.
+type CallDirection string
+
+const (
+	CallDirectionBusinessInitiated CallDirection = "BUSINESS_INITIATED"
+	CallDirectionUserInitiated     CallDirection = "USER_INITIATED"
 )
 
 type Dimension string
@@ -691,17 +882,24 @@ const (
 	DimensionConversationType      Dimension = "CONVERSATION_TYPE"
 	DimensionCountry               Dimension = "COUNTRY"
 	DimensionPhone                 Dimension = "PHONE"
+	DimensionPricingCategory       Dimension = "PRICING_CATEGORY"
+	DimensionPricingType           Dimension = "PRICING_TYPE"
+	DimensionTier                  Dimension = "TIER"
+	DimensionDirection             Dimension = "DIRECTION"
 )
 
 type MetricType string
 
 const (
-	MetricTypeCost         MetricType = "COST"
-	MetricTypeConversation MetricType = "CONVERSATION"
-	MetricTypeDelivered    MetricType = "DELIVERED"
-	MetricTypeRead         MetricType = "READ"
-	MetricTypeSent         MetricType = "SENT"
-	MetricTypeClicked      MetricType = "CLICKED"
+	MetricTypeCost            MetricType = "COST"
+	MetricTypeConversation    MetricType = "CONVERSATION"
+	MetricTypeDelivered       MetricType = "DELIVERED"
+	MetricTypeRead            MetricType = "READ"
+	MetricTypeSent            MetricType = "SENT"
+	MetricTypeClicked         MetricType = "CLICKED"
+	MetricTypeVolume          MetricType = "VOLUME"
+	MetricTypeCount           MetricType = "COUNT"
+	MetricTypeAverageDuration MetricType = "AVERAGE_DURATION"
 )
 
 type ProductType int64

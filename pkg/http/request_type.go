@@ -105,6 +105,10 @@ const (
 	RequestTypeEditTemplate
 	RequestTypeDeleteTemplate
 
+	RequestTypeFetchCallAnalytics
+	RequestTypeFetchGroupAnalytics
+	RequestTypeFetchTemplateGroupAnalytics
+
 	// Sentinel (NOT a real request type): keep this last for testing purposes.
 	requestTypeCount
 )
@@ -195,6 +199,9 @@ var requestTypeStrings = [...]string{ //nolint:gochecknoglobals // immutable str
 	"get_template",
 	"edit_template",
 	"delete_template",
+	"fetch_call_analytics",
+	"fetch_group_analytics",
+	"fetch_template_group_analytics",
 }
 
 func (r RequestType) Name() string {
