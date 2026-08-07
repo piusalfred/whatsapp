@@ -16,42 +16,6 @@
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // Package auth provides a client for the Meta system user and access token API.
-//
-// # Lifecycle
-//
-// System users follow a least-privilege pattern enforced by Meta:
-//
-//	REAL ADMIN (human)
-//	  │
-//	  ├─ 1. Create ADMIN SYSTEM USER ─── one per business, kept safe
-//	  │     │
-//	  │     ├─ 2. Install app on it ──── TOS acceptance (prerequisite for tokens)
-//	  │     ├─ 3. Generate its token ─── now you can automate without the human token
-//	  │     │
-//	  │     └─ 4. Create REGULAR SYSTEM USER ─── one per access type, scoped
-//	  │           │
-//	  │           ├─ 5. Install app on it ──── same TOS step
-//	  │           ├─ 6. Grant asset permissions ─── scoped to what it needs
-//	  │           └─ 7. Generate its token ─── use this for daily API calls
-//	  │
-//	  └─ 8. Invalidate tokens ─── security escape hatch (can't delete users)
-//
-// Use the admin system user token only to manage other system users.
-// Use regular system user tokens for all API calls. This way, if a token
-// is compromised, the blast radius is limited to its scope.
-//
-// # Limits
-//
-// Standard access: 1 admin system user + 1 regular system user.
-// Advanced access: 1 admin system user + 10 regular system users.
-//
-// # Token Lifecycle
-//
-// Tokens expire. Use [RefreshAccessToken] to extend without creating a new
-// user, [RevokeAccessToken] to kill a single token, or
-// [InvalidateSystemUserTokens] to kill all tokens for a user.
-// [RotateAccessToken] provides atomic rotation: refresh → store new → revoke
-// old, with no downtime.
 package auth
 
 import (
@@ -74,7 +38,8 @@ type InstallAppParams struct {
 
 // SuccessResponse represents a generic success response.
 type SuccessResponse struct {
-	Success bool `json:"success,omitempty"`
+	Success      bool               `json:"success"`
+	ResponseDump whttp.ResponseDump `json:"-"`
 }
 
 // TwoStepVerificationRequest contains the parameters for setting up two-step verification
@@ -102,7 +67,8 @@ type GenerateAccessTokenParams struct {
 
 // GenerateAccessTokenResponse represents the response from generating an access token.
 type GenerateAccessTokenResponse struct {
-	AccessToken string `json:"access_token"`
+	AccessToken  string             `json:"access_token"`
+	ResponseDump whttp.ResponseDump `json:"-"`
 }
 
 // RevokeAccessTokenParams contains the parameters for revoking an access token.
@@ -118,7 +84,8 @@ type RevokeAccessTokenParams struct {
 
 // RevokeAccessTokenResponse represents the response from revoking an access token.
 type RevokeAccessTokenResponse struct {
-	Success bool `json:"success"`
+	Success      bool               `json:"success"`
+	ResponseDump whttp.ResponseDump `json:"-"`
 }
 
 // RefreshAccessTokenParams contains the parameters for refreshing an access token.
@@ -133,9 +100,10 @@ type RefreshAccessTokenParams struct {
 
 // RefreshAccessTokenResponse contains the response from a refresh token request.
 type RefreshAccessTokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
+	AccessToken  string             `json:"access_token"`
+	TokenType    string             `json:"token_type"`
+	ExpiresIn    int                `json:"expires_in"`
+	ResponseDump whttp.ResponseDump `json:"-"`
 }
 
 // CreateSystemUserRequest contains the parameters for creating a system user.
@@ -146,7 +114,8 @@ type CreateSystemUserRequest struct {
 
 // CreateSystemUserResponse represents the response from creating a system user.
 type CreateSystemUserResponse struct {
-	ID string `json:"id"`
+	ID           string             `json:"id"`
+	ResponseDump whttp.ResponseDump `json:"-"`
 }
 
 // SystemUser represents a system user in the business manager.
@@ -158,13 +127,81 @@ type SystemUser struct {
 
 // ListSystemUsersResponse represents the response from listing system users.
 type ListSystemUsersResponse struct {
-	Data []SystemUser `json:"data"`
+	Data         []SystemUser       `json:"data"`
+	ResponseDump whttp.ResponseDump `json:"-"`
 }
 
 // UpdateSystemUserRequest contains the parameters for updating a system user's name.
 type UpdateSystemUserRequest struct {
 	SystemUserID string // The ID of the system user to update.
 	Name         string // The new name for the system user.
+}
+
+// Ad account task types assignable to system users.
+const (
+	AdAccountTaskManage    = "MANAGE"
+	AdAccountTaskAdvertise = "ADVERTISE"
+	AdAccountTaskAnalyze   = "ANALYZE"
+)
+
+// Page task types assignable to system users.
+const (
+	PageTaskManage        = "MANAGE"
+	PageTaskCreateContent = "CREATE_CONTENT"
+	PageTaskModerate      = "MODERATE"
+	PageTaskAdvertise     = "ADVERTISE"
+	PageTaskAnalyze       = "ANALYZE"
+)
+
+// AssignAdAccountPermissionsRequest contains the parameters for assigning
+// a system user permissions on an ad account.
+type AssignAdAccountPermissionsRequest struct {
+	SystemUserID string   // The app-scoped ID of the system user.
+	Tasks        []string // Tasks to assign: MANAGE, ADVERTISE, ANALYZE.
+	AdAccountID  string   // The ad account ID (e.g., "act_123456789").
+}
+
+// AssignAdAccountPermissionsResponse represents the response from assigning
+// ad account permissions.
+type AssignAdAccountPermissionsResponse struct {
+	Success      bool               `json:"success"`
+	ResponseDump whttp.ResponseDump `json:"-"`
+}
+
+// AssignPagePermissionsRequest contains the parameters for assigning
+// a system user permissions on a page.
+type AssignPagePermissionsRequest struct {
+	SystemUserID string   // The app-scoped ID of the system user.
+	Tasks        []string // Tasks to assign: MANAGE, CREATE_CONTENT, MODERATE, ADVERTISE, ANALYZE.
+	PageID       string   // The page ID.
+}
+
+// AssignPagePermissionsResponse represents the response from assigning
+// page permissions.
+type AssignPagePermissionsResponse struct {
+	Success      bool               `json:"success"`
+	ResponseDump whttp.ResponseDump `json:"-"`
+}
+
+// SystemUserPermissions represents the permissions a system user has over assets.
+type SystemUserPermissions struct {
+	Email              string             `json:"email,omitempty"`
+	AssignedAdAccounts []any              `json:"assigned_ad_accounts,omitempty"`
+	AssignedPages      []any              `json:"assigned_pages,omitempty"`
+	ResponseDump       whttp.ResponseDump `json:"-"`
+}
+
+// ClaimAppForBusinessRequest contains the parameters for claiming an app
+// for a business manager.
+type ClaimAppForBusinessRequest struct {
+	AppID      string // The app ID to claim.
+	AccessType string // Access type, typically "OWNER".
+}
+
+// ClaimAppForBusinessResponse represents the response from claiming an app.
+type ClaimAppForBusinessResponse struct {
+	Success      bool               `json:"success"`
+	ResponseDump whttp.ResponseDump `json:"-"`
 }
 
 // BaseClient is the low-level HTTP executor for auth operations. It builds requests
@@ -177,6 +214,8 @@ type BaseClient struct {
 // prerequisite for [GenerateAccessToken] — tokens cannot be generated for a
 // user until the app is installed. Both the app and the system user must
 // belong to the same Business Manager.
+//
+// Requires an admin user or admin system user access token.
 func (bc *BaseClient) InstallApp(ctx context.Context, conf *config.Config, params *InstallAppParams) error {
 	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
 		Type(whttp.RequestTypeInstallApp).
@@ -190,13 +229,15 @@ func (bc *BaseClient) InstallApp(ctx context.Context, conf *config.Config, param
 	req := whttp.BuildAnyRequest(b)
 
 	res := &SuccessResponse{}
-	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		Flags: whttp.JSONDecodePermissive,
-	})
+	}))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return fmt.Errorf("install app: %w", err)
 	}
+
+	res.ResponseDump = decoder.DumpResponse()
 
 	return nil
 }
@@ -230,11 +271,18 @@ func (bc *BaseClient) TwoStepVerification(
 		return nil, fmt.Errorf("send two step verification code: %w", err)
 	}
 
+	res.ResponseDump = decoder.DumpResponse()
+
 	return res, nil
 }
 
-// GenerateAccessToken generates a persistent access token for a system user.
-// The system user must have installed the app via [InstallApp] beforehand.
+// GenerateAccessToken generates an access token for a system user.
+// Set [GenerateAccessTokenParams.SetTokenExpiresIn60] to true for an
+// expiring token (recommended). The system user must have installed the
+// app via [InstallApp] beforehand.
+//
+// The access_token parameter must be an admin user or admin system user
+// token belonging to the same Business Manager as the system user.
 // Use admin system user tokens only to manage other users; use regular
 // system user tokens for all API calls.
 func (bc *BaseClient) GenerateAccessToken(
@@ -267,13 +315,15 @@ func (bc *BaseClient) GenerateAccessToken(
 	req := whttp.BuildAnyRequest(b)
 
 	res := &GenerateAccessTokenResponse{}
-	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		Flags: whttp.JSONDecodePermissive,
-	})
+	}))
 
 	if err = bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
+
+	res.ResponseDump = decoder.DumpResponse()
 
 	return res, nil
 }
@@ -281,6 +331,13 @@ func (bc *BaseClient) GenerateAccessToken(
 // RevokeAccessToken revokes a single access token. For bulk invalidation of
 // all tokens belonging to a system user, use [InvalidateSystemUserTokens]
 // instead.
+//
+// The client_id and client_secret must match the app that was used to
+// generate the revoke_token. The access_token identifies the caller and must
+// be a valid token for the same app.
+//
+// Security note: client_secret is sent as a query parameter over GET. Ensure
+// your HTTP transport uses TLS and that intermediate proxies do not log URLs.
 func (bc *BaseClient) RevokeAccessToken(
 	ctx context.Context,
 	conf *config.Config,
@@ -300,13 +357,15 @@ func (bc *BaseClient) RevokeAccessToken(
 	req := whttp.BuildAnyRequest(b)
 
 	res := &RevokeAccessTokenResponse{}
-	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		Flags: whttp.JSONDecodePermissive,
-	})
+	}))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("revoke access token: %w", err)
 	}
+
+	res.ResponseDump = decoder.DumpResponse()
 
 	return res, nil
 }
@@ -315,6 +374,9 @@ func (bc *BaseClient) RevokeAccessToken(
 // token. Tokens expire 60 days after creation or last refresh — failing to
 // refresh within that window forfeits the token and a new one must be generated
 // via [GenerateAccessToken].
+//
+// Security note: client_secret is sent as a query parameter over GET. Ensure
+// your HTTP transport uses TLS and that intermediate proxies do not log URLs.
 func (bc *BaseClient) RefreshAccessToken(
 	ctx context.Context,
 	conf *config.Config,
@@ -340,13 +402,15 @@ func (bc *BaseClient) RefreshAccessToken(
 	req := whttp.BuildAnyRequest(b)
 
 	res := &RefreshAccessTokenResponse{}
-	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		Flags: whttp.JSONDecodePermissive,
-	})
+	}))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("refresh access token: %w", err)
 	}
+
+	res.ResponseDump = decoder.DumpResponse()
 
 	return res, nil
 }
@@ -356,7 +420,9 @@ func (bc *BaseClient) RefreshAccessToken(
 // (role="EMPLOYEE") for each access scope you need. This limits the blast
 // radius if a token is compromised.
 //
-
+// The access token in the config must be an admin user or admin system user token.
+//
+//nolint:dupl // structural similarity with UpdateSystemUser is boilerplate inherent to the codebase pattern.
 func (bc *BaseClient) CreateSystemUser(
 	ctx context.Context,
 	conf *config.Config,
@@ -374,13 +440,15 @@ func (bc *BaseClient) CreateSystemUser(
 	httpReq := whttp.BuildAnyRequest(b)
 
 	res := &CreateSystemUserResponse{}
-	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		Flags: whttp.JSONDecodePermissive,
-	})
+	}))
 
 	if err := bc.BaseClient.Send(ctx, httpReq, decoder); err != nil {
 		return nil, fmt.Errorf("create system user: %w", err)
 	}
+
+	res.ResponseDump = decoder.DumpResponse()
 
 	return res, nil
 }
@@ -399,13 +467,15 @@ func (bc *BaseClient) ListSystemUsers(
 	req := whttp.BuildAnyRequest(b)
 
 	res := &ListSystemUsersResponse{}
-	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		Flags: whttp.JSONDecodePermissive,
-	})
+	}))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("list system users: %w", err)
 	}
+
+	res.ResponseDump = decoder.DumpResponse()
 
 	return res, nil
 }
@@ -413,7 +483,9 @@ func (bc *BaseClient) ListSystemUsers(
 // UpdateSystemUser renames an existing system user. The role cannot be
 // changed — create a new system user with the desired role instead.
 //
-
+// The access token in the config must be an admin user or admin system user token.
+//
+//nolint:dupl // structural similarity with CreateSystemUser is boilerplate inherent to the codebase pattern.
 func (bc *BaseClient) UpdateSystemUser(
 	ctx context.Context,
 	conf *config.Config,
@@ -431,13 +503,15 @@ func (bc *BaseClient) UpdateSystemUser(
 	httpReq := whttp.BuildAnyRequest(b)
 
 	res := &SuccessResponse{}
-	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		Flags: whttp.JSONDecodePermissive,
-	})
+	}))
 
 	if err := bc.BaseClient.Send(ctx, httpReq, decoder); err != nil {
 		return nil, fmt.Errorf("update system user: %w", err)
 	}
+
+	res.ResponseDump = decoder.DumpResponse()
 
 	return res, nil
 }
@@ -446,6 +520,8 @@ func (bc *BaseClient) UpdateSystemUser(
 // This is the security escape hatch — system users cannot be deleted, but you
 // can kill all their tokens. After invalidation, generate new tokens via
 // [GenerateAccessToken].
+//
+// Requires an admin user or admin system user access token in the config.
 func (bc *BaseClient) InvalidateSystemUserTokens(
 	ctx context.Context,
 	conf *config.Config,
@@ -459,13 +535,156 @@ func (bc *BaseClient) InvalidateSystemUserTokens(
 	req := whttp.BuildAnyRequest(b)
 
 	res := &SuccessResponse{}
-	decoder := whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
 		Flags: whttp.JSONDecodePermissive,
-	})
+	}))
 
 	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
 		return nil, fmt.Errorf("invalidate system user tokens: %w", err)
 	}
+
+	res.ResponseDump = decoder.DumpResponse()
+
+	return res, nil
+}
+
+// AssignAdAccountPermissions assigns a system user tasks on an ad account.
+// Both the system user and the ad account must belong to the same Business Manager.
+// Requires an admin user or admin system user access token in the config.
+func (bc *BaseClient) AssignAdAccountPermissions(
+	ctx context.Context,
+	conf *config.Config,
+	req *AssignAdAccountPermissionsRequest,
+) (*AssignAdAccountPermissionsResponse, error) {
+	formData := map[string]string{
+		"user":     req.SystemUserID,
+		"tasks":    strings.Join(req.Tasks, ","),
+		"business": conf.BusinessAccountID,
+	}
+
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeAssignAdAccountPermissions).
+		Endpoints(conf.APIVersion, "act_"+req.AdAccountID, "assigned_users").
+		QueryParams(formData)
+
+	httpReq := whttp.BuildAnyRequest(b)
+
+	res := &AssignAdAccountPermissionsResponse{}
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+		Flags: whttp.JSONDecodePermissive,
+	}))
+
+	if err := bc.BaseClient.Send(ctx, httpReq, decoder); err != nil {
+		return nil, fmt.Errorf("assign ad account permissions: %w", err)
+	}
+
+	res.ResponseDump = decoder.DumpResponse()
+
+	return res, nil
+}
+
+// AssignPagePermissions assigns a system user tasks on a page.
+// Both the system user and the page must belong to the same Business Manager.
+// Requires an admin user or admin system user access token in the config.
+func (bc *BaseClient) AssignPagePermissions(
+	ctx context.Context,
+	conf *config.Config,
+	req *AssignPagePermissionsRequest,
+) (*AssignPagePermissionsResponse, error) {
+	formData := map[string]string{
+		"user":  req.SystemUserID,
+		"tasks": strings.Join(req.Tasks, ","),
+	}
+
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeAssignPagePermissions).
+		Endpoints(conf.APIVersion, req.PageID, "assigned_users").
+		QueryParams(formData)
+
+	httpReq := whttp.BuildAnyRequest(b)
+
+	res := &AssignPagePermissionsResponse{}
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+		Flags: whttp.JSONDecodePermissive,
+	}))
+
+	if err := bc.BaseClient.Send(ctx, httpReq, decoder); err != nil {
+		return nil, fmt.Errorf("assign page permissions: %w", err)
+	}
+
+	res.ResponseDump = decoder.DumpResponse()
+
+	return res, nil
+}
+
+// RetrieveSystemUserPermissions retrieves the permissions a system user has
+// over assets. Returns the user's email, assigned ad accounts, and assigned pages.
+// Requires an admin user or admin system user access token in the config.
+func (bc *BaseClient) RetrieveSystemUserPermissions(
+	ctx context.Context,
+	conf *config.Config,
+	systemUserID string,
+) (*SystemUserPermissions, error) {
+	b := whttp.NewRequestBuilder(http.MethodGet, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeRetrieveSystemUserPermissions).
+		Endpoints(conf.APIVersion, systemUserID).
+		QueryParams(map[string]string{
+			"fields": "email,assigned_ad_accounts,assigned_pages",
+		})
+
+	req := whttp.BuildAnyRequest(b)
+
+	res := &SystemUserPermissions{}
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+		Flags: whttp.JSONDecodePermissive,
+	}))
+
+	if err := bc.BaseClient.Send(ctx, req, decoder); err != nil {
+		return nil, fmt.Errorf("retrieve system user permissions: %w", err)
+	}
+
+	res.ResponseDump = decoder.DumpResponse()
+
+	return res, nil
+}
+
+// ClaimAppForBusiness claims an app for a business manager. The app must be
+// whitelisted for the relevant API access (e.g., Ads API). This is typically
+// a one-time setup step performed by a real admin user before creating
+// system users.
+//
+// Requires a real admin user access token (not a system user token).
+//
+//nolint:dupl // structural similarity is boilerplate inherent to the codebase pattern.
+func (bc *BaseClient) ClaimAppForBusiness(
+	ctx context.Context,
+	conf *config.Config,
+	req *ClaimAppForBusinessRequest,
+) (*ClaimAppForBusinessResponse, error) {
+	b := whttp.NewRequestBuilder(http.MethodPost, conf.BaseURL).
+		Auth(conf.AuthConfig()).
+		Type(whttp.RequestTypeClaimAppForBusiness).
+		Endpoints(conf.APIVersion, conf.BusinessAccountID, "apps").
+		QueryParams(map[string]string{
+			"app_id":      req.AppID,
+			"access_type": req.AccessType,
+		})
+
+	httpReq := whttp.BuildAnyRequest(b)
+
+	res := &ClaimAppForBusinessResponse{}
+	decoder := whttp.NewResponseCapturer(whttp.ResponseDecoderJSON(res, whttp.DecodeOptions{
+		Flags: whttp.JSONDecodePermissive,
+	}))
+
+	if err := bc.BaseClient.Send(ctx, httpReq, decoder); err != nil {
+		return nil, fmt.Errorf("claim app for business: %w", err)
+	}
+
+	res.ResponseDump = decoder.DumpResponse()
 
 	return res, nil
 }
@@ -497,7 +716,7 @@ func (c *Client) TwoStepVerification(
 	return c.sender.TwoStepVerification(ctx, c.config, request)
 }
 
-// GenerateAccessToken generates a persistent access token for a system user.
+// GenerateAccessToken generates an access token for a system user.
 func (c *Client) GenerateAccessToken(
 	ctx context.Context,
 	params *GenerateAccessTokenParams,
@@ -548,6 +767,43 @@ func (c *Client) InvalidateSystemUserTokens(
 	systemUserID string,
 ) (*SuccessResponse, error) {
 	return c.sender.InvalidateSystemUserTokens(ctx, c.config, systemUserID)
+}
+
+// AssignAdAccountPermissions assigns a system user tasks on an ad account.
+func (c *Client) AssignAdAccountPermissions(
+	ctx context.Context,
+	req *AssignAdAccountPermissionsRequest,
+) (*AssignAdAccountPermissionsResponse, error) {
+	return c.sender.AssignAdAccountPermissions(ctx, c.config, req)
+}
+
+// AssignPagePermissions assigns a system user tasks on a page.
+func (c *Client) AssignPagePermissions(
+	ctx context.Context,
+	req *AssignPagePermissionsRequest,
+) (*AssignPagePermissionsResponse, error) {
+	return c.sender.AssignPagePermissions(ctx, c.config, req)
+}
+
+// RetrieveSystemUserPermissions retrieves the permissions a system user has over assets.
+func (c *Client) RetrieveSystemUserPermissions(
+	ctx context.Context,
+	systemUserID string,
+) (*SystemUserPermissions, error) {
+	return c.sender.RetrieveSystemUserPermissions(ctx, c.config, systemUserID)
+}
+
+// ClaimAppForBusiness claims an app for a business manager.
+func (c *Client) ClaimAppForBusiness(
+	ctx context.Context,
+	req *ClaimAppForBusinessRequest,
+) (*ClaimAppForBusinessResponse, error) {
+	return c.sender.ClaimAppForBusiness(ctx, c.config, req)
+}
+
+// CloseIdleConnections closes any idle connections held by the underlying HTTP client.
+func (c *Client) CloseIdleConnections() {
+	c.sender.CloseIdleConnections()
 }
 
 type (
