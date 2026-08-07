@@ -99,6 +99,10 @@ const (
 	RequestTypeListSystemUsers
 	RequestTypeUpdateSystemUser
 	RequestTypeInvalidateSystemUserTokens
+	RequestTypeAssignAdAccountPermissions
+	RequestTypeAssignPagePermissions
+	RequestTypeRetrieveSystemUserPermissions
+	RequestTypeClaimAppForBusiness
 	RequestTypeCreateTemplate
 	RequestTypeListTemplates
 	RequestTypeGetTemplate
@@ -194,6 +198,10 @@ var requestTypeStrings = [...]string{ //nolint:gochecknoglobals // immutable str
 	"list_system_users",
 	"update_system_user",
 	"invalidate_system_user_tokens",
+	"assign_ad_account_permissions",
+	"assign_page_permissions",
+	"retrieve_system_user_permissions",
+	"claim_app_for_business",
 	"create_template",
 	"list_templates",
 	"get_template",
